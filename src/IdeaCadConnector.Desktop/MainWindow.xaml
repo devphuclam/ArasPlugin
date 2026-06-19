@@ -438,9 +438,7 @@
                        Text="" />
 
             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-              <TextBlock Margin="0,0,18,0" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#FF5E6B86" Text="&#xE921;" />
-              <TextBlock Margin="0,0,18,0" FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#FF5E6B86" Text="&#xE7F4;" />
-              <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="14" Foreground="#FF5E6B86" Text="&#xE711;" />
+
             </StackPanel>
           </Grid>
         </Border>
@@ -541,12 +539,19 @@
                            Style="{StaticResource TextInputStyle}"
                            Text="{Binding LoginViewModel.UserName, UpdateSourceTrigger=PropertyChanged}" />
                   <TextBlock Grid.Column="2" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF25355D" Text="Password" />
-                  <PasswordBox x:Name="PasswordInput"
-                               Grid.Column="3"
-                               Margin="0,0,14,0"
-                               Height="40"
-                               VerticalContentAlignment="Center"
-                               PasswordChanged="OnPasswordChanged" />
+                  <Border Grid.Column="3"
+                          Margin="0,0,14,0"
+                          Height="40"
+                          CornerRadius="12"
+                          Background="White"
+                          BorderBrush="#66A2B7DC"
+                          BorderThickness="1">
+                    <PasswordBox x:Name="PasswordInput"
+                                 VerticalContentAlignment="Center"
+                                 BorderThickness="0"
+                                 Background="Transparent"
+                                 PasswordChanged="OnPasswordChanged" />
+                  </Border>
                   <Button Grid.Column="4"
                           Width="116"
                           Style="{StaticResource PrimaryButtonStyle}"
@@ -676,7 +681,8 @@
                         <DataGridTemplateColumn Width="170" Header="Part Number">
                           <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                              <TextBlock FontWeight="SemiBold"
+                              <TextBlock VerticalAlignment="Center"
+                                         FontWeight="SemiBold"
                                          Foreground="#FF1E5BEB"
                                          Text="{Binding Part.PartNumber}" />
                             </DataTemplate>
@@ -688,19 +694,7 @@
                           <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                               <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Ellipse Width="9" Height="9" Margin="0,0,10,0" Fill="#FF7B879A">
-                                  <Ellipse.Style>
-                                    <Style TargetType="Ellipse">
-                                      <Setter Property="Fill" Value="#FF7B879A" />
-                                      <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Part.State}" Value="Preliminary">
-                                          <Setter Property="Fill" Value="#FF2E63FF" />
-                                        </DataTrigger>
-                                      </Style.Triggers>
-                                    </Style>
-                                  </Ellipse.Style>
-                                </Ellipse>
-                                <Border Padding="10,4" CornerRadius="12" Background="#FFF4F7FB">
+                              <Border Padding="10,4" CornerRadius="12" Background="#FFF4F7FB">
                                   <Border.Style>
                                     <Style TargetType="Border">
                                       <Setter Property="Background" Value="#FFF4F7FB" />
@@ -740,7 +734,7 @@
                         <DataGridTemplateColumn Width="128" Header="Type">
                           <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                              <Border Padding="10,4" CornerRadius="12">
+                              <Border VerticalAlignment="Center" Padding="10,4" CornerRadius="12">
                                 <Border.Style>
                                   <Style TargetType="Border">
                                     <Setter Property="Background" Value="#FFF4EDFF" />
@@ -823,15 +817,26 @@
                                  Style="{StaticResource SectionTitleStyle}"
                                  Text="Selected Part" />
                       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <TextBlock Margin="0,0,14,0"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   FontSize="18"
-                                   Foreground="#FF394F87"
-                                   Text="&#xE734;" />
-                        <TextBlock FontFamily="Segoe MDL2 Assets"
-                                   FontSize="18"
-                                   Foreground="#FF394F87"
-                                   Text="&#xE712;" />
+                        <Button Width="32" Height="32" Margin="0,0,8,0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Command="{Binding ToggleFavoriteCommand}">
+                          <TextBlock FontFamily="Segoe MDL2 Assets"
+                                     FontSize="18"
+                                     Foreground="#FF394F87"
+                                     Text="&#xE734;" />
+                        </Button>
+                        <Button Width="32" Height="32"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                Command="{Binding ViewPartDetailsCommand}">
+                          <TextBlock FontFamily="Segoe MDL2 Assets"
+                                     FontSize="18"
+                                     Foreground="#FF394F87"
+                                     Text="&#xE712;" />
+                        </Button>
                       </StackPanel>
                     </DockPanel>
 

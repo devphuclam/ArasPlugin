@@ -23,6 +23,7 @@ namespace IdeaCadConnector.Desktop
         private readonly LoginViewModel _loginViewModel;
         private readonly WorkspaceService _workspaceService;
         private readonly ICadApplicationAdapter _cadAdapter;
+        private readonly ArasClientOptions _options;
         private IArasCadClient _arasClient;
         private ArasLoginResult _loginResult;
 
@@ -49,7 +50,8 @@ namespace IdeaCadConnector.Desktop
 
         public MainViewModel(ArasClientOptions options, ICadApplicationAdapter cadAdapter, WorkspaceService workspaceService)
         {
-            _loginViewModel = new LoginViewModel(options);
+            _options = options ?? new ArasClientOptions();
+            _loginViewModel = new LoginViewModel(_options);
             _cadAdapter = cadAdapter ?? new IronCadExternalAdapter(options?.IronCadExecutablePath);
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
 
@@ -79,6 +81,14 @@ namespace IdeaCadConnector.Desktop
             RefreshWorkflowCommand = new RelayCommand(
                 _ => ExecuteRefreshWorkflowAsync(),
                 _ => !IsBusy && HasCurrentCad);
+
+            ViewPartDetailsCommand = new RelayCommand(
+                _ => ExecuteViewPartDetailsAsync(),
+                _ => SelectedSearchResult?.Part != null);
+
+            ToggleFavoriteCommand = new RelayCommand(
+                _ => ExecuteToggleFavoriteAsync(),
+                _ => SelectedSearchResult?.Part != null);
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -99,6 +109,10 @@ namespace IdeaCadConnector.Desktop
         public ICommand ApproveCommand { get; }
         public ICommand RequestReworkCommand { get; }
         public ICommand RefreshWorkflowCommand { get; }
+
+        public ICommand ViewPartDetailsCommand { get; }
+
+        public ICommand ToggleFavoriteCommand { get; }
 
         public string StatusMessage
         {
@@ -909,6 +923,35 @@ namespace IdeaCadConnector.Desktop
             {
                 IsBusy = false;
             }
+        }
+
+        private async void ExecuteViewPartDetailsAsync()
+        {
+            if (SelectedSearchResult?.Part == null) return;
+
+            var partId = SelectedSearchResult.Part.Id;
+            var partNumber = SelectedSearchResult.Part.PartNumber;
+
+            try
+            {
+                var baseUrl = _options.BaseUri.ToString().TrimEnd('/');
+                var itemUrl = $"{baseUrl}/Client/../Item.aspx?itemtypeid=4F1AC04A2B484F3ABA4E20DB63808A88&id={partId}";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = itemUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Could not open part details: {ex.Message}";
+            }
+        }
+
+        private async void ExecuteToggleFavoriteAsync()
+        {
+            if (SelectedSearchResult?.Part == null) return;
+            StatusMessage = "Favorites feature coming soon.";
         }
 
         private string ResolveCheckInFilePath()
