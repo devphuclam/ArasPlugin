@@ -405,7 +405,7 @@ namespace IdeaCadConnector.Desktop
                 (_arasClient as IDisposable)?.Dispose();
                 _arasClient = null;
 
-                _arasClient = new ArasCadClient(new ArasClientOptions
+                _arasClient = new HttpArasCadClient(new ArasClientOptions
                 {
                     BaseUri = new Uri(request.ServerUrl),
                     Database = request.Database

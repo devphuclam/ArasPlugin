@@ -255,17 +255,16 @@ namespace IdeaCadConnector.Aras
 
             _logger.LogDebug("Check-in cadId={CadId} fileId={FileId}", request.CadId, request.UploadedFileId);
 
+            var aml = $"<Item><cad_id>{EscapeAml(request.CadId)}</cad_id>" +
+                      $"<uploaded_file_id>{EscapeAml(request.UploadedFileId)}</uploaded_file_id>";
+
+            if (!string.IsNullOrWhiteSpace(request.Comment))
+                aml += $"<comment>{EscapeAml(request.Comment)}</comment>";
+
+            aml += "</Item>";
+
             var result = await RunIomAsync(() =>
-            {
-                var methodItem = _authenticator.Innovator.newItem("Method", "idea_CommitCadCheckin");
-                methodItem.setProperty("cad_id", request.CadId);
-                methodItem.setProperty("uploaded_file_id", request.UploadedFileId);
-
-                if (!string.IsNullOrWhiteSpace(request.Comment))
-                    methodItem.setProperty("comment", request.Comment);
-
-                return methodItem.apply();
-            }, ct);
+                _authenticator.Innovator.applyMethod("idea_CommitCadCheckin", aml), ct);
 
             CheckIomError(result, "CommitCadCheckin");
 
