@@ -53,12 +53,8 @@ namespace IdeaCadConnector.Core.Cad
             var mapper = new WorkflowActionMapper();
             mapper.AddRule("NVTKC_Submit", "", CadBusinessActionKind.SubmitForReview);
             mapper.AddRule("Auto To In Review", "", CadBusinessActionKind.SubmitForReview);
-            mapper.AddRule("TNTKC_Review", "Approv", CadBusinessActionKind.Approve);
-            mapper.AddRule("TNTKC_Review", "Release", CadBusinessActionKind.Approve);
-            mapper.AddRule("TNTKC_Review", "Pass", CadBusinessActionKind.Approve);
-            mapper.AddRule("TNTKC_Review", "Rework", CadBusinessActionKind.RequestRework);
-            mapper.AddRule("TNTKC_Review", "Return", CadBusinessActionKind.RequestRework);
-            mapper.AddRule("TNTKC_Review", "Fail", CadBusinessActionKind.RequestRework);
+            mapper.AddRule("TNTKC_Review", "Approve", CadBusinessActionKind.Approve);
+            mapper.AddRule("TNTKC_Review", "Reject", CadBusinessActionKind.RequestRework);
             return mapper;
         }
 

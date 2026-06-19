@@ -36,6 +36,7 @@ namespace IdeaCadConnector.Desktop
         private bool _isBusy;
         private bool _isLoginPanelVisible = true;
         private CadOperationContext _cadOperationContext;
+        private int _workflowContextVersion;
         private int _currentPage = 1;
         private int _pageSize = 20;
         private int _totalCount;
@@ -711,25 +712,24 @@ namespace IdeaCadConnector.Desktop
 
         private bool CanExecuteAction(CadBusinessActionKind kind)
         {
+            if (kind == CadBusinessActionKind.StartDetailedDesign)
+            {
+                return _currentCad != null
+                    && CadLifecyclePolicy.CanStartDetailedDesign(_currentCad.State);
+            }
+
+            if (kind == CadBusinessActionKind.SubmitForReview)
+            {
+                return _currentCad != null
+                    && CadLifecyclePolicy.CanSubmitForReview(_currentCad.State);
+            }
+
             return AvailableActionButtons?.Any(a => a.Kind == kind && a.IsAvailable) == true;
         }
 
         private async void ExecuteWorkflowActionAsync(CadBusinessActionKind kind)
         {
             if (!EnsureLoggedIn() || IsBusy) return;
-            var selectedCadId = SelectedCadId;
-            if (string.IsNullOrWhiteSpace(selectedCadId))
-                return;
-
-            // Only approve/rework require an active workflow task
-            if (kind != CadBusinessActionKind.SubmitForReview
-                && kind != CadBusinessActionKind.StartDetailedDesign
-                && _cadOperationContext?.ActiveTask == null)
-                return;
-
-            var action = _cadOperationContext?.AvailableActions?.FirstOrDefault(a => a.Kind == kind);
-            if (action == null) return;
-
             var confirmMsg = kind switch
             {
                 CadBusinessActionKind.StartDetailedDesign => "Move this CAD from 'Khoi tao' to 'Thiet ke chi tiet'?",
@@ -742,29 +742,106 @@ namespace IdeaCadConnector.Desktop
             var result = MessageBox.Show(confirmMsg, "Workflow Action", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (result != MessageBoxResult.Yes) return;
 
+            string selectedCadId = null;
             try
             {
                 IsBusy = true;
                 StatusMessage = $"Executing {kind}...";
 
+                if ((kind == CadBusinessActionKind.StartDetailedDesign
+                    || kind == CadBusinessActionKind.SubmitForReview)
+                    && SelectedSearchResult?.Part != null)
+                {
+                    var ensuredCad = await _arasClient.CreateCadAsync(new CreateCadRequest
+                    {
+                        PartId = SelectedSearchResult.Part.Id,
+                        PartNumber = SelectedSearchResult.Part.PartNumber
+                    }, CancellationToken.None);
+
+                    if (ensuredCad?.Cad != null)
+                    {
+                        ApplyCadSelection(ensuredCad.Cad, clearSessionLock: false);
+                    }
+                }
+
+                selectedCadId = SelectedCadId;
+                if (string.IsNullOrWhiteSpace(selectedCadId))
+                    throw new InvalidOperationException("No CAD is selected for this workflow action.");
+
+                // Only approve/rework require an active workflow task
+                if (kind != CadBusinessActionKind.SubmitForReview
+                    && kind != CadBusinessActionKind.StartDetailedDesign
+                    && _cadOperationContext?.ActiveTask == null)
+                    return;
+
+                var action = _cadOperationContext?.AvailableActions?.FirstOrDefault(a => a.Kind == kind);
+                if (action == null
+                    && (kind == CadBusinessActionKind.StartDetailedDesign
+                        || kind == CadBusinessActionKind.SubmitForReview))
+                {
+                    action = new CadBusinessAction(
+                        kind,
+                        kind == CadBusinessActionKind.StartDetailedDesign ? "Start Detailed Design" : "Submit for Review",
+                        true,
+                        null,
+                        false,
+                        null,
+                        null);
+                }
+
+                if (action == null)
+                    throw new InvalidOperationException($"Action '{kind}' is not available for the selected CAD.");
+
                 var beforeContext = _cadOperationContext;
-                if (beforeContext == null || !string.Equals(beforeContext.CadId, selectedCadId, StringComparison.OrdinalIgnoreCase))
+                var requiresLiveTaskContext =
+                    kind != CadBusinessActionKind.StartDetailedDesign
+                    && kind != CadBusinessActionKind.SubmitForReview;
+
+                if (requiresLiveTaskContext
+                    && (beforeContext == null || !string.Equals(beforeContext.CadId, selectedCadId, StringComparison.OrdinalIgnoreCase)))
                 {
                     throw new InvalidOperationException("Workflow context is stale. Refresh the selected CAD and try again.");
+                }
+
+                var freshContext = await _arasClient.GetCadOperationContextAsync(
+                    selectedCadId, CancellationToken.None);
+
+                if (!IsCurrentCadSelection(selectedCadId)
+                    || freshContext == null
+                    || !string.Equals(freshContext.CadId, selectedCadId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Workflow context changed while preparing the action. Refresh and try again.");
+                }
+
+                CadBusinessAction resolvedAction;
+                if (kind == CadBusinessActionKind.StartDetailedDesign
+                    || kind == CadBusinessActionKind.SubmitForReview)
+                {
+                    resolvedAction = action;
+                }
+                else
+                {
+                    resolvedAction = ResolveActionForExecution(
+                        freshContext,
+                        kind,
+                        action.WorkflowTaskId,
+                        action.WorkflowPathId);
                 }
 
                 var request = new ExecuteCadBusinessActionRequest(
                     selectedCadId,
                     kind,
-                    beforeContext?.ModifiedOn,
-                    action.WorkflowTaskId,
-                    action.WorkflowPathId,
+                    freshContext.ModifiedOn,
+                    resolvedAction.WorkflowTaskId,
+                    resolvedAction.WorkflowPathId,
                     comment: null);
 
                 var updatedContext = await _arasClient.ExecuteCadBusinessActionAsync(
                     request, CancellationToken.None);
 
-                if (IsCurrentCadSelection(selectedCadId))
+                if (IsCurrentCadSelection(selectedCadId)
+                    && updatedContext != null
+                    && string.Equals(updatedContext.CadId, selectedCadId, StringComparison.OrdinalIgnoreCase))
                 {
                     CurrentOperationContext = updatedContext;
                     StatusMessage = $"{kind} completed successfully.";
@@ -777,7 +854,11 @@ namespace IdeaCadConnector.Desktop
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 // Re-load context to reflect server state
                 if (IsCurrentCadSelection(selectedCadId))
-                    _ = LoadOperationContextAsync(selectedCadId, CancellationToken.None);
+                {
+                    var reloadVersion = Interlocked.Increment(ref _workflowContextVersion);
+                    CurrentOperationContext = null;
+                    _ = LoadOperationContextAsync(selectedCadId, reloadVersion, CancellationToken.None);
+                }
             }
             finally
             {
@@ -794,10 +875,19 @@ namespace IdeaCadConnector.Desktop
             try
             {
                 IsBusy = true;
+                var refreshVersion = Interlocked.Increment(ref _workflowContextVersion);
+                CurrentOperationContext = null;
                 var context = await _arasClient.GetCadOperationContextAsync(
                     SelectedCadId, CancellationToken.None);
-                CurrentOperationContext = context;
-                if (context?.ActiveTask != null)
+                if (refreshVersion == _workflowContextVersion
+                    && IsCurrentCadSelection(SelectedCadId)
+                    && context != null
+                    && string.Equals(context.CadId, SelectedCadId, StringComparison.OrdinalIgnoreCase))
+                {
+                    CurrentOperationContext = context;
+                }
+
+                if (CurrentOperationContext?.ActiveTask != null)
                     StatusMessage = $"Workflow refreshed: {context.ActiveTask.ActivityName}.";
                 else
                     StatusMessage = "Workflow refreshed: no active task.";
@@ -836,7 +926,16 @@ namespace IdeaCadConnector.Desktop
             SelectedPartId = SelectedSearchResult?.Part?.Id;
             _currentCad = SelectedSearchResult?.IronCadPartCad;
             SelectedCadId = _currentCad?.Id;
+            var loadVersion = Interlocked.Increment(ref _workflowContextVersion);
+            CurrentOperationContext = null;
             OnPropertyChanged(nameof(HasCurrentCad));
+
+            if (_currentCad != null
+                && !string.IsNullOrWhiteSpace(_currentCad.Id)
+                && _loginResult != null)
+            {
+                _ = LoadOperationContextAsync(_currentCad.Id, loadVersion, CancellationToken.None);
+            }
         }
 
         private void ResetSelectionState()
@@ -858,6 +957,7 @@ namespace IdeaCadConnector.Desktop
 
         private void ApplyCadSelection(CadSummary cad, bool clearSessionLock)
         {
+            var previousCadId = SelectedCadId;
             _currentCad = cad;
             SelectedPartId = SelectedSearchResult?.Part?.Id;
             SelectedCadId = cad?.Id;
@@ -880,19 +980,29 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(ActionHint));
 
             // Fire-and-forget workflow context load
+            if (!string.Equals(previousCadId, cad?.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                CurrentOperationContext = null;
+            }
+
             if (cad != null && !string.IsNullOrWhiteSpace(cad.Id) && _loginResult != null)
             {
-                _ = LoadOperationContextAsync(cad.Id, CancellationToken.None);
+                var loadVersion = Interlocked.Increment(ref _workflowContextVersion);
+                _ = LoadOperationContextAsync(cad.Id, loadVersion, CancellationToken.None);
             }
         }
 
-        private async Task LoadOperationContextAsync(string cadId, CancellationToken ct)
+        private async Task LoadOperationContextAsync(string cadId, int loadVersion, CancellationToken ct)
         {
             try
             {
                 var context = await _arasClient.GetCadOperationContextAsync(
                     cadId, ct);
-                if (IsCurrentCadSelection(cadId))
+
+                if (loadVersion == _workflowContextVersion
+                    && IsCurrentCadSelection(cadId)
+                    && context != null
+                    && string.Equals(context.CadId, cadId, StringComparison.OrdinalIgnoreCase))
                 {
                     CurrentOperationContext = context;
                 }
@@ -900,11 +1010,44 @@ namespace IdeaCadConnector.Desktop
             catch (Exception)
             {
                 // Non-critical: workflow context loads asynchronously; ignore errors
-                if (IsCurrentCadSelection(cadId))
+                if (loadVersion == _workflowContextVersion
+                    && IsCurrentCadSelection(cadId))
                 {
                     CurrentOperationContext = null;
                 }
             }
+        }
+
+        private static CadBusinessAction ResolveActionForExecution(
+            CadOperationContext context,
+            CadBusinessActionKind kind,
+            string workflowTaskId,
+            string workflowPathId)
+        {
+            var candidates = (context?.AvailableActions ?? Array.Empty<CadBusinessAction>())
+                .Where(a => a != null && a.IsAvailable && a.Kind == kind)
+                .ToList();
+
+            if (candidates.Count == 0)
+                throw new InvalidOperationException($"Action '{kind}' is not available after refreshing workflow context.");
+
+            if (!string.IsNullOrWhiteSpace(workflowTaskId) || !string.IsNullOrWhiteSpace(workflowPathId))
+            {
+                var exact = candidates.FirstOrDefault(a =>
+                    (string.IsNullOrWhiteSpace(workflowTaskId)
+                        || string.Equals(a.WorkflowTaskId, workflowTaskId, StringComparison.OrdinalIgnoreCase))
+                    && (string.IsNullOrWhiteSpace(workflowPathId)
+                        || string.Equals(a.WorkflowPathId, workflowPathId, StringComparison.OrdinalIgnoreCase)));
+
+                if (exact != null)
+                    return exact;
+            }
+
+            if (candidates.Count == 1)
+                return candidates[0];
+
+            throw new InvalidOperationException(
+                $"Multiple '{kind}' workflow actions are currently available. Refresh and choose again from the live context.");
         }
 
         private bool IsCurrentCadSelection(string cadId)

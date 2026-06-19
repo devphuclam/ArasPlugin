@@ -221,6 +221,7 @@ namespace IdeaCadConnector.Aras
         {
             EnsureAuthenticated();
             var (items, totalCount) = await _partSearch.SearchAsync(request, ct).ConfigureAwait(false);
+            items = await EnrichPartResultsWithLiveCadAsync(items, ct).ConfigureAwait(false);
             return new PartSearchResponse(items, totalCount);
         }
 
@@ -538,7 +539,15 @@ namespace IdeaCadConnector.Aras
                         "  <source_id condition=\"eq\">" + EscapeAml(cadId) + "</source_id>" +
                         "</Item>";
 
-            var result = await _aml.ApplyAmlAsync(wfAml, "get", "Workflow Process", cadId, ct);
+            JObject result;
+            try
+            {
+                result = await _aml.ApplyAmlAsync(wfAml, "get", "Workflow Process", cadId, ct).ConfigureAwait(false);
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                return null;
+            }
 
             foreach (var process in EnumerateItems(result))
             {
@@ -873,6 +882,86 @@ namespace IdeaCadConnector.Aras
 
             if (result.Properties().Any())
                 yield return result;
+        }
+
+        private async Task<IReadOnlyList<PartSearchResult>> EnrichPartResultsWithLiveCadAsync(
+            IReadOnlyList<PartSearchResult> items,
+            CancellationToken ct)
+        {
+            if (items == null || items.Count == 0)
+                return items ?? Array.Empty<PartSearchResult>();
+
+            var enriched = new List<PartSearchResult>(items.Count);
+            foreach (var item in items)
+            {
+                if (item?.Part == null)
+                {
+                    enriched.Add(item);
+                    continue;
+                }
+
+                var linkedCad = item.IronCadPartCad;
+                if (linkedCad == null && !string.IsNullOrWhiteSpace(item.Part.Id))
+                {
+                    linkedCad = await ResolvePrimaryIronCadPartCadAsync(item.Part.Id, ct).ConfigureAwait(false);
+                }
+
+                enriched.Add(new PartSearchResult
+                {
+                    Part = item.Part,
+                    IronCadPartCad = linkedCad
+                });
+            }
+
+            return enriched;
+        }
+
+        private async Task<CadSummary> ResolvePrimaryIronCadPartCadAsync(string partId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(partId))
+                return null;
+
+            var relAml =
+                "<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
+                "  <source_id condition=\"eq\">" + EscapeAml(partId) + "</source_id>" +
+                "</Item>";
+
+            JObject relResult;
+            try
+            {
+                relResult = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", partId, ct).ConfigureAwait(false);
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                return null;
+            }
+            foreach (var rel in EnumerateItems(relResult))
+            {
+                var cadId = rel["related_id"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(cadId))
+                    continue;
+
+                try
+                {
+                    var cadToken = await _aml.ApplyItemAsync("CAD", cadId, "get", CadSelectFields.CadFull, ct).ConfigureAwait(false);
+                    var classification = cadToken["classification"]?.Value<string>();
+                    var authoringTool = cadToken["authoring_tool"]?.Value<string>();
+
+                    if (!string.Equals(classification, CadConstants.IronCadPartClassification, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    if (!string.Equals(authoringTool, CadConstants.IronCadAuthoringTool, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    return MapCadFromToken(cadToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to resolve linked CAD {CadId} for part {PartId}.", cadId, partId);
+                }
+            }
+
+            return null;
         }
 
         private static string GetCheckoutUnavailableReasonHttp(CadSummary cad)
