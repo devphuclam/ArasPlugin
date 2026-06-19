@@ -1,0 +1,29 @@
+Windows Registry Editor Version 5.00
+
+; ============================================================================
+; Strong-Name Verification Skip for Aras Innovator IOM Assemblies
+; ============================================================================
+;
+; Aras.IOM.dll is strong-name signed by Aras with PublicKeyToken e33b67d3bb5581e4.
+; It requires ALL its dependencies (Nito.AsyncEx.*, Aras.Cryptography, Aras.Net)
+; to also be signed with the SAME key. However, the NuGet versions of these
+; dependencies are unsigned, causing FileLoadException at runtime:
+;
+;   "A strongly-named assembly is required. (0x80131044)"
+;
+; This .reg file registers a strong-name verification skip for the specific
+; Aras key token. After applying, the CLR will skip SN verification for all
+; assemblies signed with this key, allowing unsigned dependencies to load.
+;
+; To apply:
+;   1. Right-click this file → "Merge" (or double-click)
+;   2. Click "Yes" when prompted by UAC (requires Administrator privileges)
+;   3. Restart Inventor
+;
+; This is a ONE-TIME setup per machine. Once applied, all users on this
+; machine benefit. No reboot required.
+;
+; For /? syntax: HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\StrongName\Verification
+; ============================================================================
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\StrongName\Verification\*,e33b67d3bb5581e4]

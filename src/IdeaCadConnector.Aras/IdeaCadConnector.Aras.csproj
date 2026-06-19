@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IdeaCadConnector.Aras</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IdeaCadConnector.Core\IdeaCadConnector.Core.csproj" />
+    <Reference Include="System.Net.Http" />
+    <PackageReference Include="Aras.IOM" Version="15.1.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ServerMethods\*" />
+    <Compile Remove="ServerMethods\**" />
+  </ItemGroup>
+</Project>

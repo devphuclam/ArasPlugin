@@ -1,0 +1,106 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <RootNamespace>IdeaCadConnector.IronCAD</RootNamespace>
+    <AssemblyName>IdeaCadConnector.IronCAD</AssemblyName>
+    <PlatformTarget>x64</PlatformTarget>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>ICApiAddin.snk</AssemblyOriginatorKeyFile>
+    <DelaySign>true</DelaySign>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="interop.ICApiIronCAD">
+      <HintPath>C:\Program Files\IronCAD\2025\ICAPI\Samples\C#\References\interop.ICApiIronCAD.dll</HintPath>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="stdole" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="Microsoft.VisualBasic" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IdeaCadConnector.Core\IdeaCadConnector.Core.csproj" />
+    <ProjectReference Include="..\IdeaCadConnector.Aras\IdeaCadConnector.Aras.csproj" />
+    <ProjectReference Include="..\IdeaCadConnector.Workspace\IdeaCadConnector.Workspace.csproj" />
+    <ProjectReference Include="..\IdeaCadConnector.Ui\IdeaCadConnector.Ui.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="stdole" Version="7.0.3301" />
+  </ItemGroup>
+
+  <!-- Copy .dll.manifest to output so IronCAD can find it even when mt.exe is unavailable -->
+  <ItemGroup>
+    <None Include="$(TargetFileName).manifest">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>$(TargetFileName).manifest</Link>
+    </None>
+  </ItemGroup>
+
+  <!--
+    Embed COM manifest as Win32 resource (RT_MANIFEST, id=2) and re-sign.
+    Uses PowerShell + Win32 BeginUpdateResource/UpdateResource so no Windows SDK (mt.exe) is required.
+    The manifest tells the .NET runtime the CLSID→class mapping for registration-free COM activation.
+  -->
+  <Target Name="EmbedManifestAndResign" AfterTargets="AfterBuild">
+    <PropertyGroup>
+      <SnExePath Condition="Exists('C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\sn.exe')">C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools\sn.exe</SnExePath>
+      <ManifestFile>$(MSBuildProjectDirectory)\$(TargetFileName).manifest</ManifestFile>
+      <EmbedManifestPs1>$(MSBuildProjectDirectory)\EmbedManifest.ps1</EmbedManifestPs1>
+    </PropertyGroup>
+
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(EmbedManifestPs1)&quot; -DllPath &quot;$(TargetPath)&quot; -ManifestPath &quot;$(ManifestFile)&quot; -ResourceId 2" ContinueOnError="false" IgnoreExitCode="false" />
+
+    <Exec Command="&quot;$(SnExePath)&quot; -R &quot;$(TargetPath)&quot; &quot;$(MSBuildProjectDirectory)\ICApiAddin.snk&quot;" Condition="'$(SnExePath)' != ''" ContinueOnError="false" IgnoreExitCode="false" />
+  </Target>
+
+  <!--
+    Register the add-in in HKCU so IronCAD discovers it automatically.
+    HKCU requires no admin — same spirit as Inventor's .addin file.
+  -->
+  <Target Name="RegisterAddinInRegistry" AfterTargets="AfterBuild">
+    <!-- 1. IronCAD app key: tells IronCAD this add-in exists -->
+    <Exec Command="reg add &quot;HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector&quot; /ve /d &quot;{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector&quot; /v LoadOnStartup /t REG_DWORD /d 1 /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector&quot; /v ShowInList /t REG_DWORD /d 1 /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <!-- 2. CLSID: tells .NET COM how to instantiate the class via registry -->
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot; /ve /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /ve /d &quot;C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscoree.dll&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v Assembly /d &quot;IdeaCadConnector.IronCAD, Version=1.0.0.0, Culture=neutral, PublicKeyToken=e5b42e4710b1ef8a&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v Class /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v RuntimeVersion /d &quot;v4.0.30319&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v CodeBase /d &quot;file:///$(TargetPath.Replace('\','/'))&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v ThreadingModel /d &quot;Both&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <!-- 3. ProgId: allows COM to find the CLSID by progid string -->
+    <Exec Command="reg add &quot;HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn&quot; /ve /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn\CLSID&quot; /ve /d &quot;{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+  </Target>
+
+  <!--
+    Hide assemblies that cause strong-name conflicts with Aras.IOM.
+    See original Inventor project for full explanation.
+  -->
+  <Target Name="HideStrongNameProblematicAssemblies" AfterTargets="AfterBuild">
+    <ItemGroup>
+      <ProblematicDlls Include="&#xA;        $(OutputPath)Nito.AsyncEx.Context.dll;&#xA;        $(OutputPath)Nito.AsyncEx.Tasks.dll;&#xA;        $(OutputPath)Nito.Disposables.dll;&#xA;        $(OutputPath)Aras.Cryptography.dll;&#xA;        $(OutputPath)Aras.Net.dll" />
+    </ItemGroup>
+    <PropertyGroup>
+      <HiddenAsmDir>$(OutputPath).hid\</HiddenAsmDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(HiddenAsmDir)" Condition="!Exists('$(HiddenAsmDir)')" />
+    <Move SourceFiles="@(ProblematicDlls)" DestinationFolder="$(HiddenAsmDir)" Condition="Exists('%(ProblematicDlls.Identity)')" />
+  </Target>
+
+</Project>

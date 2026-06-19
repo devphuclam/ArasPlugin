@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>IdeaCadConnector.Desktop</RootNamespace>
+    <AssemblyName>IdeaCadConnector.Desktop</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IdeaCadConnector.Core\IdeaCadConnector.Core.csproj" />
+    <ProjectReference Include="..\IdeaCadConnector.Aras\IdeaCadConnector.Aras.csproj" />
+    <ProjectReference Include="..\IdeaCadConnector.Workspace\IdeaCadConnector.Workspace.csproj" />
+    <ProjectReference Include="..\IdeaCadConnector.Ui\IdeaCadConnector.Ui.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Explicitly pull in Newtonsoft.Json so it is copied to output.
+         It is consumed by HttpArasCadClient but the transitive copy from
+         Aras.IOM is suppressed by ExcludeAssets=runtime. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <!--
+    The Desktop app uses HttpArasCadClient and does not load Aras.IOM at runtime,
+    so the strong-name workaround is not needed here. It remains in the IronCAD
+    add-in project where IOM is actually required.
+  -->
+
+</Project>

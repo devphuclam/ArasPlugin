@@ -1,0 +1,11 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\SOFTWARE\IronCAD\IRONCAD 25.0\Applications\IdeaCadConnector]
+@="{B1A006AC-1386-4811-AA71-8CF55414ACEF}"
+"LoadOnStartup"=dword:00000001
+"ShowInList"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\IronCAD\New User Settings\IRONCAD 25.0\Applications\IdeaCadConnector]
+@="{B1A006AC-1386-4811-AA71-8CF55414ACEF}"
+"LoadOnStartup"=dword:00000001
+"ShowInList"=dword:00000001

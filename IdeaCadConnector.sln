@@ -1,0 +1,52 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.Core", "src\IdeaCadConnector.Core\IdeaCadConnector.Core.csproj", "{B16D7338-9407-4B16-9984-4D38F3B79001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.Aras", "src\IdeaCadConnector.Aras\IdeaCadConnector.Aras.csproj", "{66430E1B-A7A7-441E-B1B4-B29BBE8FC9D8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.Workspace", "src\IdeaCadConnector.Workspace\IdeaCadConnector.Workspace.csproj", "{E3FE2D4D-FC6E-41E0-A032-0D47A3E1BFD0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.Ui", "src\IdeaCadConnector.Ui\IdeaCadConnector.Ui.csproj", "{D46EDC57-343B-4FB1-9F00-54D2D23F179A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.IronCAD", "src\IdeaCadConnector.IronCAD\IdeaCadConnector.IronCAD.csproj", "{33833657-05D8-44DA-B12D-7D63D6C4FEA0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.Desktop", "src\IdeaCadConnector.Desktop\IdeaCadConnector.Desktop.csproj", "{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B16D7338-9407-4B16-9984-4D38F3B79001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B16D7338-9407-4B16-9984-4D38F3B79001}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B16D7338-9407-4B16-9984-4D38F3B79001}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B16D7338-9407-4B16-9984-4D38F3B79001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66430E1B-A7A7-441E-B1B4-B29BBE8FC9D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66430E1B-A7A7-441E-B1B4-B29BBE8FC9D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66430E1B-A7A7-441E-B1B4-B29BBE8FC9D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66430E1B-A7A7-441E-B1B4-B29BBE8FC9D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E3FE2D4D-FC6E-41E0-A032-0D47A3E1BFD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3FE2D4D-FC6E-41E0-A032-0D47A3E1BFD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3FE2D4D-FC6E-41E0-A032-0D47A3E1BFD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3FE2D4D-FC6E-41E0-A032-0D47A3E1BFD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D46EDC57-343B-4FB1-9F00-54D2D23F179A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D46EDC57-343B-4FB1-9F00-54D2D23F179A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D46EDC57-343B-4FB1-9F00-54D2D23F179A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D46EDC57-343B-4FB1-9F00-54D2D23F179A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{33833657-05D8-44DA-B12D-7D63D6C4FEA0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{33833657-05D8-44DA-B12D-7D63D6C4FEA0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{33833657-05D8-44DA-B12D-7D63D6C4FEA0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{33833657-05D8-44DA-B12D-7D63D6C4FEA0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

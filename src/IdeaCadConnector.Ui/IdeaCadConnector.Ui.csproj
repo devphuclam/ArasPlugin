@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <PropertyGroup>
+    <RootNamespace>IdeaCadConnector.Ui</RootNamespace>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IdeaCadConnector.Core\IdeaCadConnector.Core.csproj" />
+    <ProjectReference Include="..\IdeaCadConnector.Aras\IdeaCadConnector.Aras.csproj" />
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+</Project>

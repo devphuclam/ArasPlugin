@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Deterministic>true</Deterministic>
+    <!-- Strong-name all assemblies in this solution so the CLR does not reject
+         a signed assembly (IdeaCadConnector.IronCAD) from loading unsigned
+         dependencies. The .snk is shared across all projects. -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)ICApiAddin.snk</AssemblyOriginatorKeyFile>
+    <!-- StrongNamer is pulled transitively by Aras.IOM and tries to re-sign
+         assemblies, causing CS0012 compile errors. Disable it. -->
+    <DisableStrongNamer>true</DisableStrongNamer>
+  </PropertyGroup>
+</Project>

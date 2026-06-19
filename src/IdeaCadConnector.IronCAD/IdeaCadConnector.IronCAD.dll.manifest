@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity name="IdeaCadConnector.IronCAD" version="1.0.0.0" publicKeyToken="e5b42e4710b1ef8a" processorArchitecture="amd64"></assemblyIdentity>
+  <clrClass clsid="{B1A006AC-1386-4811-AA71-8CF55414ACEF}" progid="IdeaCadConnector.IronCAD.AddIn" threadingModel="Both" name="IdeaCadConnector.IronCAD.IronCadAddin" runtimeVersion="v4.0.30319"></clrClass>
+  <file name="IdeaCadConnector.IronCAD.dll" hashalg="SHA1"></file>
+</assembly>

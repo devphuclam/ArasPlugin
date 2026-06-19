@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>IdeaCadConnector.Workspace</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\IdeaCadConnector.Core\IdeaCadConnector.Core.csproj" />
+  </ItemGroup>
+</Project>
