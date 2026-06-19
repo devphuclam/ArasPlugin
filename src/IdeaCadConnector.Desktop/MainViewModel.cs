@@ -803,8 +803,16 @@ namespace IdeaCadConnector.Desktop
                     throw new InvalidOperationException("Workflow context is stale. Refresh the selected CAD and try again.");
                 }
 
-                var freshContext = await _arasClient.GetCadOperationContextAsync(
-                    selectedCadId, CancellationToken.None);
+                CadOperationContext freshContext = null;
+                try
+                {
+                    freshContext = await _arasClient.GetCadOperationContextAsync(
+                        selectedCadId, CancellationToken.None);
+                }
+                catch
+                {
+                    throw;
+                }
 
                 if (!IsCurrentCadSelection(selectedCadId)
                     || freshContext == null

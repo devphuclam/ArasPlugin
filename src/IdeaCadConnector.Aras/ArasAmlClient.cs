@@ -107,9 +107,10 @@ namespace IdeaCadConnector.Aras
 
                 if (fault.IndexOf("No items of type", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
+                    var errMsg = "Item not found: " + itemId;
                     throw new ArasOperationException(
                         ArasErrorCode.CadNotFound,
-                        "Item not found: " + itemId,
+                        errMsg,
                         details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action });
                 }
 

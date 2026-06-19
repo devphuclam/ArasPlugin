@@ -24,6 +24,7 @@ namespace IdeaCadConnector.Aras
 
         private const string EnsurePrimaryCadMethodName = "idea_EnsurePrimaryIronCadPartCad";
         private const string CommitCadCheckinMethodName = "idea_CommitCadCheckin";
+        private const string StartDetailedDesignMethodName = "idea_StartDetailedDesign";
 
         private readonly ArasClientOptions _options;
         private readonly ILogger<HttpArasCadClient> _logger;
@@ -396,8 +397,16 @@ namespace IdeaCadConnector.Aras
             _logger.LogDebug("GetCadOperationContext cadId={CadId} userId={UserId}", cadId, GetCurrentUserId());
 
             // 1. Get CAD with extended fields
-            var cadToken = await _aml.ApplyItemAsync("CAD", cadId, "get",
-                CadSelectFields.CadFull + ",modified_on,locked_by_id", ct);
+            JToken cadToken;
+            try
+            {
+                cadToken = await _aml.ApplyItemAsync("CAD", cadId, "get",
+                    CadSelectFields.CadFull + ",modified_on,locked_by_id", ct);
+            }
+            catch (Exception)
+            {
+                throw;
+            }
 
             var cad = MapCadFromToken(cadToken);
             var modifiedOn = cadToken["modified_on"]?.Value<string>();
@@ -405,14 +414,21 @@ namespace IdeaCadConnector.Aras
             var lockOwnerName = cadToken["locked_by_id\\keyed_name"]?.Value<string>()
                 ?? lockedById;
 
-            // 2. Find active workflow process
-            var activeWf = await FindActiveWorkflowProcessHttpAsync(cadId, ct);
-
-            // 3. Find user task
+            JObject activeWf = null;
             CadWorkflowTask task = null;
-            if (activeWf != null)
+
+            // Business rule: while CAD is still in 'Khoi tao', the guided action is
+            // "Start Detailed Design". We do not need workflow discovery to light up
+            // that button, and skipping workflow lookup here avoids pulling unrelated
+            // historical workflow context into the initial-design screen.
+            if (!CadLifecyclePolicy.CanStartDetailedDesign(cad?.State))
             {
-                task = await FindUserTaskHttpAsync(activeWf, currentAssignmentIds, ct);
+                activeWf = await FindActiveWorkflowProcessHttpAsync(cadId, ct);
+
+                if (activeWf != null)
+                {
+                    task = await FindUserTaskHttpAsync(activeWf, currentAssignmentIds, ct);
+                }
             }
 
             // 4. Build actions
@@ -595,7 +611,15 @@ namespace IdeaCadConnector.Aras
                                 "  <source_id condition=\"eq\">" + EscapeAml(activityId) + "</source_id>" +
                                 "</Item>";
 
-                var assignResult = await _aml.ApplyAmlAsync(assignAml, "get", "Activity Assignment", activityId, ct);
+                JObject assignResult;
+                try
+                {
+                    assignResult = await _aml.ApplyAmlAsync(assignAml, "get", "Activity Assignment", activityId, ct);
+                }
+                catch (ArasOperationException)
+                {
+                    continue;
+                }
                 if (assignResult == null)
                     continue;
 
@@ -623,7 +647,15 @@ namespace IdeaCadConnector.Aras
                                   "  <source_id condition=\"eq\">" + EscapeAml(activityId) + "</source_id>" +
                                   "</Item>";
 
-                    var pathResult = await _aml.ApplyAmlAsync(pathAml, "get", "Workflow Process Path", activityId, ct);
+                    JObject pathResult;
+                    try
+                    {
+                        pathResult = await _aml.ApplyAmlAsync(pathAml, "get", "Workflow Process Path", activityId, ct);
+                    }
+                    catch (ArasOperationException)
+                    {
+                        pathResult = null;
+                    }
                     foreach (var path in EnumerateItems(pathResult))
                     {
                         var pathId = path["id"]?.Value<string>();
@@ -740,23 +772,16 @@ namespace IdeaCadConnector.Aras
                     CadLifecyclePolicy.GetStartDetailedDesignBlockedMessage(context.CadState));
             }
 
-            var activeWf = await FindActiveWorkflowProcessHttpAsync(request.CadId, ct);
-            if (activeWf != null)
-            {
-                throw new ArasOperationException(
-                    ArasErrorCode.WorkflowActionNotAvailable,
-                    "CAD already has an active workflow process. Refresh the context and continue from the live task.");
-            }
-
-            var promoteAml =
-                "<Item type=\"CAD\" action=\"promote\" id=\"" + EscapeAml(request.CadId) + "\">" +
-                "  <state>" + EscapeAml(CadLifecyclePolicy.DetailedDesign) + "</state>" +
-                "  <comments>Start Detailed Design</comments>" +
-                "</Item>";
-
             try
             {
-                await _aml.ApplyAmlAsync(promoteAml, "promote", "CAD", request.CadId, ct);
+                await _aml.ApplyMethodAsync(
+                    StartDetailedDesignMethodName,
+                    new Dictionary<string, string>
+                    {
+                        { "cad_id", request.CadId },
+                        { "comment", "Start Detailed Design" }
+                    },
+                    ct).ConfigureAwait(false);
             }
             catch (ArasOperationException ex)
             {

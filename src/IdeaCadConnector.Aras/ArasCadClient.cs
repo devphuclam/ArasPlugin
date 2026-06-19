@@ -296,7 +296,7 @@ namespace IdeaCadConnector.Aras
                 return unlockItem.apply();
             }, ct);
 
-            // If the item is not locked, unlock returns an error — treat as success
+            // If the item is not locked, unlock returns an error â€” treat as success
             if (unlockResult.isError())
             {
                 var errMsg = unlockResult.getErrorString() ?? "";
@@ -823,26 +823,15 @@ namespace IdeaCadConnector.Aras
                     CadLifecyclePolicy.GetStartDetailedDesignBlockedMessage(context.CadState));
             }
 
-            var activeWf = await FindActiveWorkflowProcessAsync(request.CadId, ct);
-            if (activeWf != null)
+            var result = await RunIomAsync(() =>
             {
-                throw new ArasOperationException(
-                    ArasErrorCode.WorkflowActionNotAvailable,
-                    "CAD already has an active workflow process. Refresh the context and continue from the live task.");
-            }
-
-            await RunIomAsync(() =>
-            {
-                var cadItem = _authenticator.Innovator.newItem("CAD", "get");
-                cadItem.setID(request.CadId);
-                var cadResult = cadItem.apply();
-
-                CheckIomError(cadResult, "CAD get before promote to detailed design");
-
-                var promoteResult = cadResult.promote(CadLifecyclePolicy.DetailedDesign, "Start Detailed Design");
-                CheckIomError(promoteResult, "CAD promote to detailed design");
-                return true;
+                var methodItem = _authenticator.Innovator.newItem("Method", "idea_StartDetailedDesign");
+                methodItem.setProperty("cad_id", request.CadId);
+                methodItem.setProperty("comment", "Start Detailed Design");
+                return methodItem.apply();
             }, ct);
+
+            CheckIomError(result, "idea_StartDetailedDesign");
         }
 
         private async Task ExecuteSubmitForReviewAsync(
@@ -864,7 +853,7 @@ namespace IdeaCadConnector.Aras
 
             if (activeWf != null)
             {
-                // Situation A: active workflow exists → evaluate the submit task
+                // Situation A: active workflow exists â†’ evaluate the submit task
                 if (string.IsNullOrWhiteSpace(freshAction?.WorkflowTaskId)
                     || string.IsNullOrWhiteSpace(freshAction?.WorkflowPathId))
                 {
@@ -881,7 +870,7 @@ namespace IdeaCadConnector.Aras
             }
             else
             {
-                // Situation B: no workflow → initiate one
+                // Situation B: no workflow â†’ initiate one
                 await RunIomAsync(() =>
                 {
                     var initItem = _authenticator.Innovator.newItem("CAD", "startWorkflow");
