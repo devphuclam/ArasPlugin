@@ -24,9 +24,27 @@
   </ItemGroup>
 
   <!--
-    The Desktop app uses HttpArasCadClient and does not load Aras.IOM at runtime,
-    so the strong-name workaround is not needed here. It remains in the IronCAD
-    add-in project where IOM is actually required.
+    Desktop now uses ArasCadClient (IOM-based).
+    The Aras.IOM NuGet package does not expose standard runtime assets for net48,
+    so copy the supported runtime assembly and its supporting libraries explicitly.
   -->
+  <ItemGroup>
+    <None Include="$(NuGetPackageRoot)aras.iom\15.1.2\tools\net472\IOM.dll">
+      <Link>IOM.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(NuGetPackageRoot)microsoft.bcl.timeprovider\8.0.1\lib\net462\Microsoft.Bcl.TimeProvider.dll">
+      <Link>Microsoft.Bcl.TimeProvider.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(NuGetPackageRoot)system.text.encodings.web\8.0.0\lib\net462\System.Text.Encodings.Web.dll">
+      <Link>System.Text.Encodings.Web.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="$(NuGetPackageRoot)system.valuetuple\4.5.0\lib\net47\System.ValueTuple.dll">
+      <Link>System.ValueTuple.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
 </Project>
