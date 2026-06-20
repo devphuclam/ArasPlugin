@@ -56,6 +56,7 @@ namespace IdeaCadConnector.Desktop
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
 
             LoginCommand = new RelayCommand(_ => ExecuteLoginAsync(), _ => !IsBusy);
+            LogoutCommand = new RelayCommand(_ => ExecuteLogoutAsync(), _ => !IsBusy && IsConnected);
             SearchPartsCommand = new RelayCommand(_ => ExecuteSearchAsync(1), _ => !IsBusy && IsConnected);
             NextPageCommand = new RelayCommand(_ => ExecuteSearchAsync(_currentPage + 1), _ => !IsBusy && HasNextPage);
             PreviousPageCommand = new RelayCommand(_ => ExecuteSearchAsync(_currentPage - 1), _ => !IsBusy && HasPreviousPage);
@@ -96,6 +97,7 @@ namespace IdeaCadConnector.Desktop
         public LoginViewModel LoginViewModel => _loginViewModel;
 
         public ICommand LoginCommand { get; }
+        public ICommand LogoutCommand { get; }
         public ICommand SearchPartsCommand { get; }
         public ICommand NextPageCommand { get; }
         public ICommand PreviousPageCommand { get; }
@@ -437,6 +439,40 @@ namespace IdeaCadConnector.Desktop
             {
                 StatusMessage = "Login failed.";
                 MessageBox.Show("Login failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
+        }
+
+        private async void ExecuteLogoutAsync()
+        {
+            try
+            {
+                IsBusy = true;
+                _loginResult = null;
+                _loginViewModel.IsConnected = false;
+                _loginViewModel.SearchResults.Clear();
+                _selectedSearchResult = null;
+                _currentCad = null;
+                _selectedPartId = null;
+                _selectedCadId = null;
+                _lockToken = null;
+                _lastDownloadedFilePath = null;
+                _cadOperationContext = null;
+                CurrentOperationContext = null;
+                _loginViewModel.SearchKeyword = null;
+                _loginViewModel.ErrorMessage = null;
+                (_arasClient as IDisposable)?.Dispose();
+                _arasClient = null;
+                IsLoginPanelVisible = true;
+                OnPropertyChanged(nameof(IsConnected));
+                OnPropertyChanged(nameof(ConnectedUserText));
+                OnPropertyChanged(nameof(SelectedSearchResult));
+                OnPropertyChanged(nameof(SelectedCadId));
+                OnPropertyChanged(nameof(HasCurrentCad));
+                StatusMessage = "Signed out. Sign in to start.";
             }
             finally
             {
@@ -1165,6 +1201,7 @@ namespace IdeaCadConnector.Desktop
         private void RefreshCanExecute()
         {
             ((RelayCommand)LoginCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)LogoutCommand).RaiseCanExecuteChanged();
             ((RelayCommand)SearchPartsCommand).RaiseCanExecuteChanged();
             ((RelayCommand)NextPageCommand).RaiseCanExecuteChanged();
             ((RelayCommand)PreviousPageCommand).RaiseCanExecuteChanged();

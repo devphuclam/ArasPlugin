@@ -23,6 +23,12 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="pdm-naming-policy.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
   <!--
     Desktop now uses ArasCadClient (IOM-based).
     The Aras.IOM NuGet package does not expose standard runtime assets for net48,

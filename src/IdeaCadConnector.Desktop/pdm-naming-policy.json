@@ -1,0 +1,9 @@
+{
+  "policyVersion": "aras01-draft-1",
+  "detailPattern": "^(?<project>[A-Za-z0-9][A-Za-z0-9 -]*)_Ver(?<version>\\d+\\.\\d+)_(?<sequence>\\d{3})$",
+  "assemblyPattern": "^Assembly-(?<project>.+?)-Ver(?<version>\\d+\\.\\d+)(?<revision>[A-Za-z])(?:-(?<date>\\d{6})-(?<run>\\d+))?$",
+  "trackedExtensions": [ ".dwg" ],
+  "ignoredExtensions": [ ".bak", ".tmp", ".lck" ],
+  "projectSeparator": "-",
+  "detailDisplayPrefix": "Detail"
+}

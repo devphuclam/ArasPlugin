@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Windows;
 
 namespace IdeaCadConnector.Desktop
@@ -8,8 +10,30 @@ namespace IdeaCadConnector.Desktop
         {
             base.OnStartup(e);
 
-            var mainWindow = new MainWindow();
-            mainWindow.Show();
+            try
+            {
+                var mainWindow = new MainWindow();
+                mainWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                var logDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Idea",
+                    "IdeaCadConnector");
+                Directory.CreateDirectory(logDirectory);
+
+                var logPath = Path.Combine(logDirectory, "startup-error.log");
+                File.WriteAllText(logPath, ex.ToString());
+
+                MessageBox.Show(
+                    "IDEA PDM could not start.\n\n" + ex.Message + "\n\nDetails: " + logPath,
+                    "IDEA PDM",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                Shutdown(-1);
+            }
         }
     }
 }

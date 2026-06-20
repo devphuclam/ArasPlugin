@@ -1,0 +1,704 @@
+<UserControl x:Class="IdeaCadConnector.Desktop.PdmProjectsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:IdeaCadConnector.Desktop"
+             MinWidth="900"
+             Background="Transparent">
+  <UserControl.Resources>
+    <BooleanToVisibilityConverter x:Key="PdmBoolToVisibilityConverter" />
+
+    <Style x:Key="PdmCardStyle" TargetType="Border">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#339AB3D5" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style x:Key="PdmLabelStyle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="#FF66708D" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+
+    <Style x:Key="PdmComboStyle" TargetType="ComboBox">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="10,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#5592A9D4" />
+    </Style>
+
+    <Style x:Key="PdmTabStyle" TargetType="TabItem">
+      <Setter Property="Foreground" Value="#FF425274" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="18,12" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TabItem">
+            <Border x:Name="TabChrome"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="0,0,0,2"
+                    Padding="{TemplateBinding Padding}">
+              <ContentPresenter />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="TabChrome" Property="BorderBrush" Value="#FF2967EF" />
+                <Setter Property="Foreground" Value="#FF174FCB" />
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="#FF174FCB" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <HierarchicalDataTemplate DataType="{x:Type local:PdmStructureNode}"
+                              ItemsSource="{Binding Children}">
+      <Grid Height="42" MinWidth="330">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="26" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="92" />
+          <ColumnDefinition Width="50" />
+          <ColumnDefinition Width="24" />
+        </Grid.ColumnDefinitions>
+        <Border Width="18"
+                Height="18"
+                CornerRadius="4"
+                BorderBrush="{Binding Accent}"
+                BorderThickness="2"
+                VerticalAlignment="Center">
+          <Rectangle Width="8" Height="8" Fill="{Binding Accent}" />
+        </Border>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+          <TextBlock FontWeight="SemiBold" Foreground="#FF1B2B55" Text="{Binding Name}" />
+          <TextBlock FontSize="10" Foreground="#FF7A879F" Text="{Binding PartCode}" />
+        </StackPanel>
+        <Border Grid.Column="2"
+                Margin="6,0"
+                Padding="8,3"
+                CornerRadius="6"
+                Background="#FFF3EEFF"
+                VerticalAlignment="Center">
+          <TextBlock HorizontalAlignment="Center"
+                     FontSize="11"
+                     FontWeight="SemiBold"
+                     Foreground="{Binding Accent}"
+                     Text="{Binding NodeType}" />
+        </Border>
+        <TextBlock Grid.Column="3"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Foreground="#FF344B84"
+                   Text="{Binding Quantity}" />
+        <Ellipse Grid.Column="4"
+                 Width="9"
+                 Height="9"
+                 Fill="#FF20A45B"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center" />
+      </Grid>
+    </HierarchicalDataTemplate>
+
+    <HierarchicalDataTemplate DataType="{x:Type local:PdmProjectFileNode}"
+                              ItemsSource="{Binding Children}">
+      <Grid Height="30" MinWidth="300">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="86" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+          <TextBlock Foreground="#FF1B2B55" Text="{Binding Name}" />
+          <TextBlock FontSize="10" Foreground="#FF8793A8" Text="{Binding RelativePath}" />
+        </StackPanel>
+        <TextBlock Grid.Column="1"
+                   HorizontalAlignment="Right"
+                   VerticalAlignment="Center"
+                   Foreground="#FF60708E"
+                   FontSize="11"
+                   Text="{Binding Kind}" />
+      </Grid>
+    </HierarchicalDataTemplate>
+  </UserControl.Resources>
+
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Grid Grid.Row="0" Margin="4,0,4,16">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="330" />
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+        <TextBlock FontSize="40"
+                   FontWeight="Bold"
+                   Foreground="#FF122A63"
+                   Text="PDM Projects" />
+        <TextBlock Margin="0,4,0,0"
+                   FontSize="16"
+                   Foreground="#FF5E6D8B"
+                   Text="Version project files and product structure in Aras Innovator." />
+      </StackPanel>
+
+      <Border Grid.Column="1"
+              Style="{StaticResource PdmCardStyle}"
+              Padding="14"
+              VerticalAlignment="Center">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="42" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="24" />
+          </Grid.ColumnDefinitions>
+          <Border Width="36" Height="36" CornerRadius="18" Background="#FF1FA64A">
+            <TextBlock FontFamily="Segoe MDL2 Assets"
+                       Foreground="White"
+                       FontSize="17"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Text="&#xE73E;" />
+          </Border>
+          <StackPanel Grid.Column="1" Margin="10,0,0,0">
+            <TextBlock FontWeight="SemiBold" Foreground="#FF16274F" Text="Connected as admin" />
+            <TextBlock Margin="0,3,0,0" FontSize="12" Foreground="#FF60708E" Text="InnovatorSolutions" />
+          </StackPanel>
+          <TextBlock Grid.Column="2"
+                     FontFamily="Segoe MDL2 Assets"
+                     Foreground="#FF344B84"
+                     VerticalAlignment="Center"
+                     Text="&#xE70D;" />
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="1"
+            Style="{StaticResource PdmCardStyle}"
+            Margin="0,0,0,10"
+            Padding="14">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="1.05*" />
+          <ColumnDefinition Width="0.82*" />
+          <ColumnDefinition Width="1.3*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,10,0">
+          <TextBlock Style="{StaticResource PdmLabelStyle}" Text="Repository" />
+          <ComboBox Style="{StaticResource PdmComboStyle}"
+                    ItemsSource="{Binding Repositories}"
+                    SelectedItem="{Binding SelectedRepository}" />
+        </StackPanel>
+        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,10,0">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource PdmLabelStyle}" Text="Branch" />
+            <Border Margin="8,-2,0,4"
+                    Padding="7,2"
+                    CornerRadius="5"
+                    BorderBrush="#FF2967EF"
+                    BorderThickness="1"
+                    Visibility="{Binding IsMainBranch, Converter={StaticResource PdmBoolToVisibilityConverter}}">
+              <TextBlock FontSize="10" FontWeight="Bold" Foreground="#FF2967EF" Text="MAIN" />
+            </Border>
+          </StackPanel>
+          <ComboBox Style="{StaticResource PdmComboStyle}"
+                    ItemsSource="{Binding Branches}"
+                    SelectedItem="{Binding SelectedBranch}" />
+        </StackPanel>
+        <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,12,0">
+          <TextBlock Style="{StaticResource PdmLabelStyle}" Text="Commit" />
+          <ComboBox Style="{StaticResource PdmComboStyle}"
+                    ItemsSource="{Binding Commits}"
+                    SelectedItem="{Binding SelectedCommit}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Bottom">
+          <Button Margin="0,0,8,0"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  Command="{Binding CloneCommand}"
+                  Content="Clone" />
+          <Button Margin="0,0,8,0"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  Command="{Binding PullCommand}"
+                  Content="Pull" />
+          <Button Margin="0,0,8,0"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  Command="{Binding NewBranchCommand}"
+                  Content="New Branch" />
+          <Button Style="{DynamicResource PrimaryButtonStyle}"
+                  Command="{Binding PushCommand}"
+                  Content="Push" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" Grid.ColumnSpan="4" Margin="0,12,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <TextBlock Margin="0,0,10,0"
+                     VerticalAlignment="Center"
+                     FontWeight="SemiBold"
+                     Foreground="#FF25355D"
+                     Text="Project folder" />
+          <TextBox Grid.Column="1"
+                   Height="38"
+                   Padding="10,0"
+                   VerticalContentAlignment="Center"
+                   BorderBrush="#5592A9D4"
+                   BorderThickness="1"
+                   Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged}" />
+          <Button Grid.Column="2"
+                  Margin="10,0,0,0"
+                  Height="38"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  Command="{Binding BrowseFolderCommand}"
+                  Content="Browse" />
+          <Button Grid.Column="3"
+                  Margin="10,0,0,0"
+                  Height="38"
+                  Style="{DynamicResource PrimaryButtonStyle}"
+                  Command="{Binding AnalyzeFolderCommand}"
+                  Content="Analyze Folder" />
+        </Grid>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="2"
+            Style="{StaticResource PdmCardStyle}"
+            Margin="0,0,0,10"
+            Padding="14">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="160" />
+          <ColumnDefinition Width="160" />
+          <ColumnDefinition Width="160" />
+        </Grid.ColumnDefinitions>
+        <StackPanel>
+          <TextBlock FontSize="18"
+                     FontWeight="SemiBold"
+                     Foreground="#FF16274F"
+                     Text="Folder push preview" />
+          <TextBlock Margin="0,6,0,0"
+                     FontSize="13"
+                     Foreground="#FF60708E"
+                     TextWrapping="Wrap"
+                     Text="{Binding AnalysisSummary}" />
+        </StackPanel>
+        <Border Grid.Column="1"
+                Margin="16,0,0,0"
+                Padding="12,10"
+                CornerRadius="8"
+                Background="#FFF6FAFF"
+                BorderBrush="#339AB3D5"
+                BorderThickness="1">
+          <StackPanel>
+            <TextBlock FontSize="11" Foreground="#FF60708E" Text="Tracked" />
+            <TextBlock FontSize="26" FontWeight="Bold" Foreground="#FF174FCB" Text="{Binding TrackedFileCount}" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="2"
+                Margin="16,0,0,0"
+                Padding="12,10"
+                CornerRadius="8"
+                Background="#FFFBFAF0"
+                BorderBrush="#44D7B45B"
+                BorderThickness="1">
+          <StackPanel>
+            <TextBlock FontSize="11" Foreground="#FF60708E" Text="Ignored" />
+            <TextBlock FontSize="26" FontWeight="Bold" Foreground="#FFB58012" Text="{Binding IgnoredFileCount}" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="3"
+                Margin="16,0,0,0"
+                Padding="12,10"
+                CornerRadius="8"
+                Background="#FFFFF5F5"
+                BorderBrush="#44D54B4B"
+                BorderThickness="1">
+          <StackPanel>
+            <TextBlock FontSize="11" Foreground="#FF60708E" Text="Blocking issues" />
+            <TextBlock FontSize="26" FontWeight="Bold" Foreground="#FFD54B4B" Text="{Binding BlockingIssueCount}" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <TabControl Grid.Row="3"
+                Background="Transparent"
+                BorderThickness="0">
+      <TabItem Header="Product Structure" Style="{StaticResource PdmTabStyle}">
+        <Grid Margin="0,12,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1.08*" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="1.06*" />
+            <ColumnDefinition Width="12" />
+            <ColumnDefinition Width="0.98*" />
+          </Grid.ColumnDefinitions>
+
+          <Border Grid.Column="0" Style="{StaticResource PdmCardStyle}" Padding="0">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <TextBlock Margin="16,14,16,10"
+                         Style="{DynamicResource SectionTitleStyle}"
+                         Text="Product Structure" />
+              <Grid Grid.Row="1" Margin="16,0,16,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                  <Button Height="32" Padding="10,0" Margin="0,0,6,0"
+                          Style="{DynamicResource GhostButtonStyle}" Content="Expand All" />
+                  <Button Height="32" Padding="10,0"
+                          Style="{DynamicResource GhostButtonStyle}" Content="Collapse All" />
+                </StackPanel>
+                <TextBlock Grid.Column="1"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="17"
+                           Foreground="#FF344B84"
+                           VerticalAlignment="Center"
+                           Text="&#xE721;" />
+              </Grid>
+              <TreeView Grid.Row="2"
+                        BorderThickness="0"
+                        Background="White"
+                        Padding="8,6"
+                        ItemsSource="{Binding Structure}"
+                        SelectedItemChanged="OnStructureSelectionChanged">
+                <TreeView.Resources>
+                  <Style TargetType="TreeViewItem">
+                    <Setter Property="IsExpanded" Value="True" />
+                    <Setter Property="Padding" Value="4,1" />
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                  </Style>
+                </TreeView.Resources>
+              </TreeView>
+            </Grid>
+          </Border>
+
+          <Border Grid.Column="2" Style="{StaticResource PdmCardStyle}">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+              <DockPanel>
+                <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Repository Status" />
+                <Button DockPanel.Dock="Right"
+                        Width="34"
+                        Height="30"
+                        Style="{DynamicResource GhostButtonStyle}"
+                        Command="{Binding RefreshCommand}">
+                  <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72C;" />
+                </Button>
+              </DockPanel>
+
+                <StackPanel Grid.Row="1" Margin="0,16,0,16">
+                  <TextBlock Style="{StaticResource PdmLabelStyle}" Text="Branch graph" />
+                <Grid Height="82">
+                  <Canvas>
+                    <Line X1="34" Y1="28" X2="220" Y2="28" Stroke="#FF2967EF" StrokeThickness="2" />
+                    <Line X1="126" Y1="28" X2="126" Y2="66" Stroke="#FF8A5CF6" StrokeThickness="2" />
+                    <Line X1="126" Y1="66" X2="220" Y2="66" Stroke="#FF8A5CF6" StrokeThickness="2" />
+                    <Border Canvas.Left="18" Canvas.Top="12" Width="34" Height="34" CornerRadius="17"
+                            Background="White" BorderBrush="#FF2967EF" BorderThickness="1">
+                      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="C1" />
+                    </Border>
+                    <Border Canvas.Left="110" Canvas.Top="12" Width="34" Height="34" CornerRadius="17"
+                            Background="White" BorderBrush="#FF2967EF" BorderThickness="1">
+                      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="C2" />
+                    </Border>
+                    <Border Canvas.Left="202" Canvas.Top="12" Width="34" Height="34" CornerRadius="17"
+                            Background="#FF145FEA" BorderBrush="#FF145FEA" BorderThickness="1">
+                      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" Text="C3" />
+                    </Border>
+                    <TextBlock Canvas.Left="244" Canvas.Top="20" Foreground="#FF145FEA" FontWeight="SemiBold" Text="main" />
+                    <Border Canvas.Left="110" Canvas.Top="50" Width="34" Height="34" CornerRadius="17"
+                            Background="White" BorderBrush="#FF8A5CF6" BorderThickness="1">
+                      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="C4" />
+                    </Border>
+                    <Border Canvas.Left="202" Canvas.Top="50" Width="34" Height="34" CornerRadius="17"
+                            Background="White" BorderBrush="#FF8A5CF6" BorderThickness="1">
+                      <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Text="C5" />
+                    </Border>
+                    <TextBlock Canvas.Left="244" Canvas.Top="58" Foreground="#FF7045D7" FontWeight="SemiBold" Text="experiment" />
+                  </Canvas>
+                </Grid>
+              </StackPanel>
+
+                <Grid Grid.Row="2" Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.ColumnSpan="2" Style="{StaticResource PdmLabelStyle}" Text="Working tree" />
+                <StackPanel Grid.Row="1" Margin="0,4,8,0">
+                  <TextBlock Foreground="#FFF08A24" FontWeight="SemiBold" Text="1  Modified" />
+                  <TextBlock Margin="0,8,0,0" Foreground="#FF1F9D55" FontWeight="SemiBold" Text="2  Added" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,4,0,0">
+                  <TextBlock Foreground="#FF2967EF" FontWeight="SemiBold" Text="1  Renamed" />
+                  <TextBlock Margin="0,8,0,0" Foreground="#FFD54B4B" FontWeight="SemiBold" Text="0  Deleted" />
+                </StackPanel>
+              </Grid>
+
+              <StackPanel Grid.Row="3">
+                <TextBlock Style="{StaticResource PdmLabelStyle}"
+                           Text="{Binding TotalChangeCount, StringFormat='Preview items ({0})'}" />
+                <ItemsControl ItemsSource="{Binding Changes}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Margin="0,0,0,6"
+                              Padding="10,8"
+                              CornerRadius="6"
+                              BorderBrush="#2292A9D4"
+                              BorderThickness="1">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock FontSize="12"
+                                     Foreground="#FF26375E"
+                                     TextTrimming="CharacterEllipsis"
+                                     Text="{Binding FileName}" />
+                          <TextBlock Grid.Column="1"
+                                     Margin="8,0,0,0"
+                                     FontSize="11"
+                                     FontWeight="SemiBold"
+                                     Foreground="{Binding Accent}"
+                                     Text="{Binding ChangeType}" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <ScrollViewer Grid.Column="4" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <Border Style="{StaticResource PdmCardStyle}" BorderBrush="#55C287FF" Margin="0,0,0,10">
+                <StackPanel>
+                  <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Selected Part" />
+                  <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="64" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Width="58" Height="58" CornerRadius="8" Background="#FF8A5CF6">
+                      <TextBlock FontFamily="Segoe MDL2 Assets"
+                                 FontSize="28"
+                                 Foreground="White"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Text="&#xE8FD;" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                      <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="#FF16274F"
+                                 Text="{Binding SelectedNode.Name}" />
+                      <TextBlock Margin="0,5,0,0" FontSize="12" Foreground="#FF60708E"
+                                 TextWrapping="Wrap" Text="{Binding SelectedNode.PartCode}" />
+                    </StackPanel>
+                  </Grid>
+                  <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="100" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource PdmLabelStyle}" Text="Type" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" Foreground="#FF7045D7" FontWeight="SemiBold"
+                               Text="{Binding SelectedNode.NodeType}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource PdmLabelStyle}" Text="Quantity" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Foreground="#FF1B2B55"
+                               Text="{Binding SelectedNode.Quantity}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource PdmLabelStyle}" Text="Revision" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Foreground="#FF1B2B55"
+                               Text="{Binding SelectedNode.Revision}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource PdmLabelStyle}" Text="Branch" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" Foreground="#FF1B2B55"
+                               Text="{Binding SelectedBranch}" />
+                  </Grid>
+                </StackPanel>
+              </Border>
+
+              <Border Style="{StaticResource PdmCardStyle}" BorderBrush="#5590D8C8" Margin="0,0,0,10">
+                <StackPanel>
+                  <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Primary CAD" />
+                  <TextBlock Margin="0,12,0,0"
+                             FontSize="12"
+                             FontWeight="SemiBold"
+                             Foreground="#FF1B2B55"
+                             TextWrapping="Wrap"
+                             Text="{Binding SelectedNode.PrimaryCad}" />
+                  <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="90" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Style="{StaticResource PdmLabelStyle}" Text="State" />
+                    <TextBlock Grid.Column="1" Foreground="#FF1F9D55" FontWeight="SemiBold"
+                               Text="{Binding SelectedNode.State}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource PdmLabelStyle}" Text="Locked By" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" Foreground="#FF1B2B55"
+                               Text="{Binding SelectedNode.LockedBy}" />
+                  </Grid>
+                  <UniformGrid Columns="2" Margin="0,12,0,0">
+                    <Button Margin="0,0,6,0" Style="{DynamicResource SecondaryButtonStyle}" Content="Open in IronCAD" />
+                    <Button Margin="6,0,0,0" Style="{DynamicResource PrimaryButtonStyle}" Content="Check-in" />
+                  </UniformGrid>
+                  <Button Margin="0,8,0,0" Style="{DynamicResource SecondaryButtonStyle}" Content="Cancel Checkout" />
+                </StackPanel>
+              </Border>
+
+              <Border Style="{StaticResource PdmCardStyle}">
+                <StackPanel>
+                  <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Documents" />
+                  <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Documents}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Grid Margin="0,5">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="44" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock FontFamily="Segoe MDL2 Assets"
+                                     Foreground="#FF2967EF"
+                                     Text="&#xE8A5;" />
+                          <TextBlock Grid.Column="1" Foreground="#FF1B2B55" Text="{Binding Name}" />
+                          <TextBlock Grid.Column="2" FontSize="11" Foreground="#FF60708E"
+                                     HorizontalAlignment="Right" Text="{Binding Kind}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Project Files" Style="{StaticResource PdmTabStyle}">
+        <Border Margin="0,12,0,0" Style="{StaticResource PdmCardStyle}" Padding="0">
+          <TreeView BorderThickness="0"
+                    Background="White"
+                    Padding="12"
+                    ItemsSource="{Binding ProjectFiles}">
+            <TreeView.Resources>
+              <Style TargetType="TreeViewItem">
+                <Setter Property="IsExpanded" Value="True" />
+                <Setter Property="Padding" Value="4,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+              </Style>
+            </TreeView.Resources>
+          </TreeView>
+        </Border>
+      </TabItem>
+      <TabItem Style="{StaticResource PdmTabStyle}">
+        <TabItem.Header>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="Changes" />
+            <Border Margin="7,-2,0,0" Padding="6,2" CornerRadius="8" Background="#FFE6EEFF">
+              <TextBlock FontSize="10" Foreground="#FF2967EF" Text="{Binding TotalChangeCount}" />
+            </Border>
+          </StackPanel>
+        </TabItem.Header>
+        <Border Margin="0,12,0,0" Style="{StaticResource PdmCardStyle}" Padding="0">
+          <DataGrid Style="{DynamicResource DataGridStyle}"
+                    ItemsSource="{Binding Changes}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="160" Header="Type" Binding="{Binding ChangeType}" />
+              <DataGridTextColumn Width="*" Header="Path" Binding="{Binding FileName}" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Border>
+      </TabItem>
+      <TabItem Style="{StaticResource PdmTabStyle}">
+        <TabItem.Header>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="Naming Preview" />
+            <Border Margin="7,-2,0,0" Padding="6,2" CornerRadius="8" Background="#FFFFEEDB">
+              <TextBlock FontSize="10" Foreground="#FFF08A24" Text="{Binding BlockingIssueCount}" />
+            </Border>
+          </StackPanel>
+        </TabItem.Header>
+        <Border Margin="0,12,0,0" Style="{StaticResource PdmCardStyle}" Padding="0">
+          <DataGrid Style="{DynamicResource DataGridStyle}"
+                    ItemsSource="{Binding NamingPreview}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Width="2*" Header="File Name" Binding="{Binding FileName}" />
+              <DataGridTextColumn Width="100" Header="Type" Binding="{Binding NodeType}" />
+              <DataGridTextColumn Width="1.3*" Header="Logical Part Code" Binding="{Binding LogicalPartCode}" />
+              <DataGridTextColumn Width="72" Header="Version" Binding="{Binding Version}" />
+              <DataGridTextColumn Width="60" Header="Rev" Binding="{Binding Revision}" />
+              <DataGridTextColumn Width="72" Header="Sequence" Binding="{Binding Sequence}" />
+              <DataGridTextColumn Width="1.2*" Header="Status" Binding="{Binding Status}" />
+            </DataGrid.Columns>
+          </DataGrid>
+        </Border>
+      </TabItem>
+      <TabItem Header="History" Style="{StaticResource PdmTabStyle}">
+        <Border Margin="0,12,0,0" Style="{StaticResource PdmCardStyle}">
+          <TextBlock Foreground="#FF60708E" Text="Commit history will appear here after the Aras PDM schema is connected." />
+        </Border>
+      </TabItem>
+    </TabControl>
+
+    <Grid Grid.Row="4" Margin="4,10,4,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock FontSize="12" Foreground="#FF60708E"
+                 Text="{Binding FolderPath, StringFormat='Workspace: {0}'}" />
+      <TextBlock Grid.Column="1" Margin="24,0" FontSize="12" Foreground="#FF60708E"
+                 Text="{Binding StatusMessage}" />
+      <TextBlock Grid.Column="2" FontSize="12" Foreground="#FF60708E"
+                 Text="{Binding NamingPolicyVersion, StringFormat='Naming policy {0}'}" />
+    </Grid>
+  </Grid>
+</UserControl>

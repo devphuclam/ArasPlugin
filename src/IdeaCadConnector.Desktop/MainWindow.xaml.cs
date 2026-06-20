@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -27,6 +28,44 @@ namespace IdeaCadConnector.Desktop
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             UpdateResponsiveLayout(ActualWidth);
+        }
+
+        private void OnHomeNavigationClick(object sender, RoutedEventArgs e)
+        {
+            ShowExistingWorkspace(HomeNavigationButton);
+        }
+
+        private void OnSearchNavigationClick(object sender, RoutedEventArgs e)
+        {
+            ShowExistingWorkspace(SearchNavigationButton);
+        }
+
+        private void OnPdmProjectsNavigationClick(object sender, RoutedEventArgs e)
+        {
+            ExistingWorkspace.Visibility = Visibility.Collapsed;
+            PdmWorkspace.Visibility = Visibility.Visible;
+            SetActiveNavigation(PdmProjectsNavigationButton);
+        }
+
+        private void ShowExistingWorkspace(Button activeButton)
+        {
+            PdmWorkspace.Visibility = Visibility.Collapsed;
+            ExistingWorkspace.Visibility = Visibility.Visible;
+            SetActiveNavigation(activeButton);
+        }
+
+        private void SetActiveNavigation(Button activeButton)
+        {
+            var transparent = Brushes.Transparent;
+            HomeNavigationButton.Background = transparent;
+            HomeNavigationButton.BorderBrush = transparent;
+            SearchNavigationButton.Background = transparent;
+            SearchNavigationButton.BorderBrush = transparent;
+            PdmProjectsNavigationButton.Background = transparent;
+            PdmProjectsNavigationButton.BorderBrush = transparent;
+
+            activeButton.Background = FindResource("SidebarActiveBrush") as Brush;
+            activeButton.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0x90, 0xB8, 0xFF));
         }
 
         private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)

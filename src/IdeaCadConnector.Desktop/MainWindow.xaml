@@ -1,6 +1,7 @@
 <Window x:Class="IdeaCadConnector.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:IdeaCadConnector.Desktop"
         Title="IDEA PDM - IronCAD / Aras Innovator"
         Width="1560"
         Height="980"
@@ -271,9 +272,11 @@
                          Text="IDEA PDM - IronCAD / Aras Innovator" />
             </StackPanel>
 
-            <Button Style="{StaticResource SidebarButtonStyle}"
+            <Button x:Name="HomeNavigationButton"
+                    Style="{StaticResource SidebarButtonStyle}"
                     Background="{StaticResource SidebarActiveBrush}"
-                    BorderBrush="#3390B8FF">
+                    BorderBrush="#3390B8FF"
+                    Click="OnHomeNavigationClick">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="32" />
@@ -293,7 +296,9 @@
               </Grid>
             </Button>
 
-            <Button Style="{StaticResource SidebarButtonStyle}">
+            <Button x:Name="SearchNavigationButton"
+                    Style="{StaticResource SidebarButtonStyle}"
+                    Click="OnSearchNavigationClick">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="32" />
@@ -323,6 +328,19 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE734;" />
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Favorites" />
+              </Grid>
+            </Button>
+
+            <Button x:Name="PdmProjectsNavigationButton"
+                    Style="{StaticResource SidebarButtonStyle}"
+                    Click="OnPdmProjectsNavigationClick">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="32" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8B7;" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="PDM Projects" />
               </Grid>
             </Button>
 
@@ -443,7 +461,8 @@
           </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="1"
+        <ScrollViewer x:Name="ExistingWorkspace"
+                      Grid.Row="1"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
           <Grid Margin="20">
@@ -507,13 +526,20 @@
                                  Foreground="#FF60708E"
                                  Text="{Binding StatusMessage}" />
                     </StackPanel>
-                    <TextBlock Grid.Column="2"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="15"
-                               Foreground="#FF344B84"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Right"
-                               Text="&#xE70D;" />
+                    <Button Grid.Column="2"
+                            Width="32" Height="32"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            ToolTip="Sign out"
+                            Command="{Binding LogoutCommand}">
+                      <TextBlock FontFamily="Segoe MDL2 Assets"
+                                 FontSize="15"
+                                 Foreground="#FF344B84"
+                                 VerticalAlignment="Center"
+                                 HorizontalAlignment="Center"
+                                 Text="&#xE711;" />
+                    </Button>
                   </Grid>
                 </Border>
               </Grid>
@@ -1101,6 +1127,14 @@
               </StackPanel>
             </Grid>
           </Grid>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="PdmWorkspace"
+                      Grid.Row="1"
+                      Visibility="Collapsed"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Auto">
+          <local:PdmProjectsView />
         </ScrollViewer>
 
         <Grid Grid.Row="2" Margin="20,0,20,0">
