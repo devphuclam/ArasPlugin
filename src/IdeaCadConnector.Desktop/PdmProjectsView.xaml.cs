@@ -20,5 +20,39 @@ namespace IdeaCadConnector.Desktop
                 viewModel.SelectedNode = node;
             }
         }
+
+        private void OnExpandAllClick(object sender, RoutedEventArgs e)
+        {
+            SetTreeExpansion(StructureTree, true);
+        }
+
+        private void OnCollapseAllClick(object sender, RoutedEventArgs e)
+        {
+            SetTreeExpansion(StructureTree, false);
+        }
+
+        private static void SetTreeExpansion(ItemsControl parent, bool isExpanded)
+        {
+            if (parent == null)
+            {
+                return;
+            }
+
+            parent.UpdateLayout();
+            for (var index = 0; index < parent.Items.Count; index++)
+            {
+                var container = parent.ItemContainerGenerator.ContainerFromIndex(index) as TreeViewItem;
+                if (container == null)
+                {
+                    continue;
+                }
+
+                container.IsExpanded = isExpanded;
+                if (container.Items.Count > 0)
+                {
+                    SetTreeExpansion(container, isExpanded);
+                }
+            }
+        }
     }
 }

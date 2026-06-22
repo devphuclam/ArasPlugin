@@ -18,6 +18,7 @@ namespace IdeaCadConnector.Desktop
         private readonly RelayCommand _browseFolderCommand;
         private readonly RelayCommand _refreshCommand;
         private PdmFolderAnalysis _latestAnalysis;
+        private PdmBusinessStructureAnalysis _latestBusinessStructure;
         private PdmStructureNode _selectedNode;
         private string _selectedRepository;
         private string _selectedBranch;
@@ -30,6 +31,9 @@ namespace IdeaCadConnector.Desktop
         private int _trackedFileCount;
         private int _ignoredFileCount;
         private int _blockingIssueCount;
+        private string _connectionDisplayName;
+        private string _connectionDatabase;
+        private bool _isAnalyzing;
 
         public PdmProjectsViewModel()
         {
@@ -51,6 +55,8 @@ namespace IdeaCadConnector.Desktop
             FolderPath = GetDefaultSampleFolder();
             AnalysisSummary = "Select a project folder to preview the product structure.";
             StatusMessage = "PDM repository preview is ready.";
+            ConnectionDisplayName = "Preview mode";
+            ConnectionDatabase = "Local analysis — not connected to Aras";
 
             CloneCommand = new RelayCommand(_ => StatusMessage = "Clone will use the selected repository and commit.");
             PullCommand = new RelayCommand(_ => StatusMessage = "Pull is not connected to Aras yet.");
@@ -155,16 +161,66 @@ namespace IdeaCadConnector.Desktop
 
         public bool CanPush => _latestAnalysis != null && _latestAnalysis.IsValid && TrackedFileCount > 0;
 
+        public bool HasStructure => Structure.Count > 0;
+        public bool HasProjectFiles => ProjectFiles.Count > 0;
+        public bool HasChanges => Changes.Count > 0;
+        public bool HasNamingPreview => NamingPreview.Count > 0;
+        public bool HasDocuments => Documents.Count > 0;
+        public bool HasSelectedNode => SelectedNode != null;
+
         public PdmStructureNode SelectedNode
         {
             get => _selectedNode;
-            set => SetField(ref _selectedNode, value);
+            set
+            {
+                if (SetField(ref _selectedNode, value))
+                {
+                    OnPropertyChanged(nameof(HasSelectedNode));
+                }
+            }
         }
 
         public string StatusMessage
         {
             get => _statusMessage;
             set => SetField(ref _statusMessage, value);
+        }
+
+        public string ConnectionDisplayName
+        {
+            get => _connectionDisplayName;
+            set => SetField(ref _connectionDisplayName, value);
+        }
+
+        public string ConnectionDatabase
+        {
+            get => _connectionDatabase;
+            set => SetField(ref _connectionDatabase, value);
+        }
+
+        public bool IsAnalyzing
+        {
+            get => _isAnalyzing;
+            set => SetField(ref _isAnalyzing, value);
+        }
+
+        public string WorkingTreeSummary
+        {
+            get
+            {
+                var parts = new System.Collections.Generic.List<string>();
+                var added = 0; var modified = 0; var renamed = 0; var deleted = 0;
+                foreach (var c in Changes)
+                {
+                    if (c.ChangeType == "Assembly" || c.ChangeType == "Component")
+                        added++;
+                }
+                if (added > 0) parts.Add($"{added} new");
+                if (modified > 0) parts.Add($"{modified} modified");
+                if (renamed > 0) parts.Add($"{renamed} renamed");
+                if (deleted > 0) parts.Add($"{deleted} deleted");
+                return parts.Count > 0 ? string.Join(", ", parts) : "No changes yet";
+            }
         }
 
         public ICommand CloneCommand { get; }
@@ -210,10 +266,53 @@ namespace IdeaCadConnector.Desktop
 
         private void AnalyzeFolder()
         {
+            IsAnalyzing = true;
             var policy = LoadPolicy();
             NamingPolicyVersion = policy.PolicyVersion;
 
-            _latestAnalysis = new Aras01FolderAnalyzer(policy).Analyze(FolderPath);
+            var sources = ResolveAnalysisSources(FolderPath);
+            if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
+            {
+                _latestAnalysis = new Aras01FolderAnalyzer(policy).Analyze(sources.CadFolder);
+            }
+            else
+            {
+                _latestAnalysis = new PdmFolderAnalysis
+                {
+                    FolderPath = FolderPath
+                };
+            }
+
+            _latestBusinessStructure = new StudyCase0603StructureParser().Analyze(
+                sources.PackageFolder,
+                _latestAnalysis.ProjectCode);
+
+            if (string.IsNullOrWhiteSpace(_latestAnalysis.ProjectCode) &&
+                !string.IsNullOrWhiteSpace(_latestBusinessStructure?.ProjectCode))
+            {
+                _latestAnalysis.ProjectCode = _latestBusinessStructure.ProjectCode;
+            }
+
+            if (_latestAnalysis.PrimaryAssembly == null &&
+                !string.IsNullOrWhiteSpace(_latestBusinessStructure?.RootDrawingFileName))
+            {
+                var rootDrawing = new PdmParsedFile
+                {
+                    FileName = _latestBusinessStructure.RootDrawingFileName,
+                    RelativePath = _latestBusinessStructure.RootDrawingFileName,
+                    FullPath = sources.PackageFolder == null
+                        ? _latestBusinessStructure.RootDrawingFileName
+                        : Path.Combine(sources.PackageFolder, _latestBusinessStructure.RootDrawingFileName),
+                    ProjectCode = _latestAnalysis.ProjectCode,
+                    NodeType = "Assembly",
+                    Status = "Package root drawing"
+                };
+
+                _latestAnalysis.PrimaryAssembly = rootDrawing;
+                _latestAnalysis.TrackedFiles.Add(rootDrawing);
+                _latestAnalysis.AssemblyFiles.Add(rootDrawing);
+            }
+
             Structure.Clear();
             Changes.Clear();
             Documents.Clear();
@@ -239,15 +338,24 @@ namespace IdeaCadConnector.Desktop
 
             BuildNamingPreview(_latestAnalysis);
             BuildChanges(_latestAnalysis);
-            BuildStructure(_latestAnalysis);
-            BuildDocuments(_latestAnalysis);
-            BuildProjectFiles(_latestAnalysis);
-            BuildSummary(_latestAnalysis);
+            BuildStructure(_latestAnalysis, _latestBusinessStructure);
+            BuildDocuments(_latestAnalysis, _latestBusinessStructure);
+            BuildProjectFiles(sources);
+            BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
+
+            OnPropertyChanged(nameof(HasStructure));
+            OnPropertyChanged(nameof(HasProjectFiles));
+            OnPropertyChanged(nameof(HasChanges));
+            OnPropertyChanged(nameof(HasNamingPreview));
+            OnPropertyChanged(nameof(HasDocuments));
+            OnPropertyChanged(nameof(WorkingTreeSummary));
 
             _pushCommand.RaiseCanExecuteChanged();
             _refreshCommand.RaiseCanExecuteChanged();
             _analyzeFolderCommand.RaiseCanExecuteChanged();
             _browseFolderCommand.RaiseCanExecuteChanged();
+
+            IsAnalyzing = false;
         }
 
         private void BuildNamingPreview(PdmFolderAnalysis analysis)
@@ -307,7 +415,7 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        private void BuildStructure(PdmFolderAnalysis analysis)
+        private void BuildStructure(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
         {
             if (string.IsNullOrWhiteSpace(analysis.ProjectCode))
             {
@@ -320,28 +428,66 @@ namespace IdeaCadConnector.Desktop
                 "Assembly",
                 1,
                 analysis.PrimaryAssembly?.Revision ?? "-",
-                analysis.IsValid ? "Ready to push" : "Fix naming",
+                businessStructure != null && businessStructure.HasStructure ? "Hybrid structure preview" : (analysis.IsValid ? "Ready to push" : "Fix naming"),
                 "#FF7C47DC",
-                primaryCad: analysis.PrimaryAssembly?.FileName ?? "-");
+                primaryCad: analysis.PrimaryAssembly?.FileName ?? "-",
+                sourceDocument: businessStructure?.RootDrawingFileName ?? analysis.PrimaryAssembly?.FileName ?? "-");
 
-            foreach (var detail in analysis.DetailFiles.OrderBy(file => file.Sequence))
+            if (businessStructure != null && businessStructure.HasStructure)
             {
-                root.Children.Add(new PdmStructureNode(
-                    detail.DisplayName,
-                    detail.LogicalPartCode,
-                    "Component",
-                    1,
-                    detail.Version ?? "-",
-                    "Parsed from name",
-                    "#FF1F9D55",
-                    primaryCad: detail.FileName));
+                foreach (var groupNode in businessStructure.RootNodes)
+                {
+                    root.Children.Add(CreateBusinessStructureNode(analysis.ProjectCode, groupNode, analysis.ProjectCode));
+                }
+            }
+            else
+            {
+                foreach (var detail in analysis.DetailFiles.OrderBy(file => file.Sequence))
+                {
+                    root.Children.Add(new PdmStructureNode(
+                        detail.DisplayName,
+                        detail.LogicalPartCode,
+                        "Component",
+                        1,
+                        detail.Version ?? "-",
+                        "Parsed from name",
+                        "#FF1F9D55",
+                        primaryCad: detail.FileName,
+                        sourceDocument: detail.FileName));
+                }
             }
 
             Structure.Add(root);
             SelectedNode = root;
         }
 
-        private void BuildDocuments(PdmFolderAnalysis analysis)
+        private PdmStructureNode CreateBusinessStructureNode(string projectCode, PdmBusinessNode businessNode, string parentCode)
+        {
+            var normalizedName = FormatBusinessNodeName(businessNode.Name);
+            var logicalCode = string.IsNullOrWhiteSpace(parentCode)
+                ? normalizedName
+                : parentCode + "__" + normalizedName;
+
+            var node = new PdmStructureNode(
+                normalizedName,
+                logicalCode,
+                businessNode.NodeType,
+                1,
+                "-",
+                "Package inferred",
+                businessNode.NodeType == "Assembly" ? "#FF2967EF" : "#FF1F9D55",
+                primaryCad: "-",
+                sourceDocument: businessNode.SourceFileName);
+
+            foreach (var child in businessNode.Children)
+            {
+                node.Children.Add(CreateBusinessStructureNode(projectCode, child, logicalCode));
+            }
+
+            return node;
+        }
+
+        private void BuildDocuments(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
         {
             foreach (var olderAssembly in analysis.AssemblyFiles
                 .Where(file => !ReferenceEquals(file, analysis.PrimaryAssembly))
@@ -358,56 +504,103 @@ namespace IdeaCadConnector.Desktop
                     ignored.FileName,
                     "Ignored backup"));
             }
+
+            if (businessStructure != null && businessStructure.HasStructure)
+            {
+                foreach (var node in businessStructure.RootNodes)
+                {
+                    Documents.Add(new PdmDocumentItem(
+                        node.SourceFileName,
+                        "Package group"));
+
+                    foreach (var child in node.Children)
+                    {
+                        Documents.Add(new PdmDocumentItem(
+                            child.SourceFileName,
+                            "Package detail"));
+                    }
+                }
+            }
         }
 
-        private void BuildProjectFiles(PdmFolderAnalysis analysis)
+        private void BuildProjectFiles(PdmAnalysisSources sources)
         {
-            var root = new PdmProjectFileNode(
-                string.IsNullOrWhiteSpace(analysis.FolderPath)
-                    ? "No folder selected"
-                    : new DirectoryInfo(analysis.FolderPath).Name,
-                analysis.FolderPath,
-                true,
-                "Folder");
-
-            var lookup = new System.Collections.Generic.Dictionary<string, PdmProjectFileNode>(StringComparer.OrdinalIgnoreCase)
+            if (sources == null)
             {
-                { string.Empty, root }
-            };
-
-            foreach (var file in analysis.TrackedFiles.Concat(analysis.IgnoredFiles).OrderBy(item => item.RelativePath))
-            {
-                var segments = file.RelativePath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
-                var currentKey = string.Empty;
-                var parent = root;
-
-                for (var index = 0; index < segments.Length - 1; index++)
-                {
-                    currentKey = currentKey.Length == 0
-                        ? segments[index]
-                        : currentKey + Path.DirectorySeparatorChar + segments[index];
-
-                    if (!lookup.TryGetValue(currentKey, out var folderNode))
-                    {
-                        folderNode = new PdmProjectFileNode(segments[index], currentKey, true, "Folder");
-                        parent.Children.Add(folderNode);
-                        lookup[currentKey] = folderNode;
-                    }
-
-                    parent = folderNode;
-                }
-
-                parent.Children.Add(new PdmProjectFileNode(
-                    segments.Last(),
-                    file.RelativePath,
-                    false,
-                    file.IsIgnored ? "Ignored" : file.NodeType));
+                return;
             }
 
-            ProjectFiles.Add(root);
+            if (!string.IsNullOrWhiteSpace(sources.PackageFolder) && Directory.Exists(sources.PackageFolder))
+            {
+                ProjectFiles.Add(BuildFolderRootNode("Business packages", sources.PackageFolder));
+            }
+
+            if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
+            {
+                ProjectFiles.Add(BuildFolderRootNode("CAD source", sources.CadFolder));
+            }
+
+            if (ProjectFiles.Count == 0 && !string.IsNullOrWhiteSpace(sources.SelectedFolder))
+            {
+                ProjectFiles.Add(BuildFolderRootNode(
+                    new DirectoryInfo(sources.SelectedFolder).Name,
+                    sources.SelectedFolder));
+            }
         }
 
-        private void BuildSummary(PdmFolderAnalysis analysis)
+        private PdmProjectFileNode BuildFolderRootNode(string rootName, string folderPath)
+        {
+            var root = new PdmProjectFileNode(rootName, folderPath, true, "Folder");
+            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+            {
+                return root;
+            }
+
+            foreach (var filePath in Directory.GetFiles(folderPath, "*", SearchOption.TopDirectoryOnly).OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+            {
+                var fileInfo = new FileInfo(filePath);
+                root.Children.Add(new PdmProjectFileNode(
+                    fileInfo.Name,
+                    fileInfo.Name,
+                    false,
+                    ClassifySelectedFolderFile(fileInfo)));
+            }
+
+            return root;
+        }
+
+        private string ClassifySelectedFolderFile(FileInfo fileInfo)
+        {
+            if (fileInfo.Extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Package";
+            }
+
+            if (fileInfo.Extension.Equals(".dwg", StringComparison.OrdinalIgnoreCase))
+            {
+                return "CAD";
+            }
+
+            if (fileInfo.Extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Spreadsheet";
+            }
+
+            if (fileInfo.Extension.Equals(".err", StringComparison.OrdinalIgnoreCase) ||
+                fileInfo.Extension.Equals(".log", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Log";
+            }
+
+            if (fileInfo.Extension.Equals(".bak", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Ignored";
+            }
+
+            return "File";
+        }
+
+        private void BuildSummary(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure, PdmAnalysisSources sources)
         {
             if (!Directory.Exists(FolderPath))
             {
@@ -418,12 +611,26 @@ namespace IdeaCadConnector.Desktop
 
             if (analysis.IsValid)
             {
-                AnalysisSummary = string.Format(
-                    "{0} is valid for naming policy {1}. Structure preview includes {2} assembly file(s) and {3} component file(s).",
-                    analysis.ProjectCode ?? "Folder",
-                    NamingPolicyVersion,
-                    analysis.AssemblyFiles.Count,
-                    analysis.DetailFiles.Count);
+                if (businessStructure != null && businessStructure.HasStructure)
+                {
+                    var componentCount = businessStructure.RootNodes.Sum(node => node.Children.Count);
+                    AnalysisSummary = string.Format(
+                        "{0} is valid for naming policy {1}. Business structure shows {2} groups and {3} child components; CAD sequence comes from {4}.",
+                        analysis.ProjectCode ?? "Folder",
+                        NamingPolicyVersion,
+                        businessStructure.RootNodes.Count,
+                        componentCount,
+                        Path.GetFileName(sources.CadFolder ?? FolderPath));
+                }
+                else
+                {
+                    AnalysisSummary = string.Format(
+                        "{0} is valid for naming policy {1}. Structure preview includes {2} assembly file(s) and {3} component file(s).",
+                        analysis.ProjectCode ?? "Folder",
+                        NamingPolicyVersion,
+                        analysis.AssemblyFiles.Count,
+                        analysis.DetailFiles.Count);
+                }
 
                 StatusMessage = string.Format(
                     "{0} tracked, {1} ignored, primary assembly {2}. Push can continue.",
@@ -437,6 +644,101 @@ namespace IdeaCadConnector.Desktop
                 "Naming validation found {0} blocking issue(s). Review Naming Preview before push.",
                 BlockingIssueCount);
             StatusMessage = AnalysisSummary;
+        }
+
+        private static PdmAnalysisSources ResolveAnalysisSources(string folderPath)
+        {
+            var result = new PdmAnalysisSources
+            {
+                SelectedFolder = folderPath
+            };
+
+            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+            {
+                return result;
+            }
+
+            var directory = new DirectoryInfo(folderPath);
+            var parentPath = directory.Parent?.FullName;
+
+            if (directory.Name.Equals("ARAS01", StringComparison.OrdinalIgnoreCase))
+            {
+                result.CadFolder = folderPath;
+                result.PackageFolder = parentPath == null ? null : Path.Combine(parentPath, "StudyCase_0603");
+                if (!Directory.Exists(result.PackageFolder))
+                {
+                    result.PackageFolder = null;
+                }
+                return result;
+            }
+
+            if (directory.Name.Equals("StudyCase_0603", StringComparison.OrdinalIgnoreCase))
+            {
+                result.PackageFolder = folderPath;
+                result.CadFolder = parentPath == null ? null : Path.Combine(parentPath, "ARAS01");
+                if (!Directory.Exists(result.CadFolder))
+                {
+                    result.CadFolder = null;
+                }
+                return result;
+            }
+
+            if (directory.Parent != null &&
+                directory.Parent.Name.Equals("StudyCase_0603", StringComparison.OrdinalIgnoreCase) &&
+                LooksLikeBusinessPackageFolder(folderPath))
+            {
+                result.PackageFolder = folderPath;
+                result.CadFolder = directory.Parent.Parent == null
+                    ? null
+                    : Path.Combine(directory.Parent.Parent.FullName, "ARAS01");
+
+                if (!Directory.Exists(result.CadFolder))
+                {
+                    result.CadFolder = null;
+                }
+
+                return result;
+            }
+
+            if (LooksLikeBusinessPackageFolder(folderPath))
+            {
+                result.PackageFolder = folderPath;
+                result.CadFolder = null;
+                return result;
+            }
+
+            result.CadFolder = folderPath;
+            return result;
+        }
+
+        private static bool LooksLikeBusinessPackageFolder(string folderPath)
+        {
+            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+            {
+                return false;
+            }
+
+            var hasGroupPdf = Directory
+                .GetFiles(folderPath, "*.pdf", SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileName)
+                .Any(fileName =>
+                    !string.IsNullOrWhiteSpace(fileName) &&
+                    System.Text.RegularExpressions.Regex.IsMatch(
+                        fileName,
+                        @"^\d{2}[A-Z]?\. .+\.pdf$",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+
+            var hasRootDwg = Directory
+                .GetFiles(folderPath, "*.dwg", SearchOption.TopDirectoryOnly)
+                .Select(Path.GetFileNameWithoutExtension)
+                .Any(fileName =>
+                    !string.IsNullOrWhiteSpace(fileName) &&
+                    System.Text.RegularExpressions.Regex.IsMatch(
+                        fileName,
+                        @"^[A-Za-z0-9][A-Za-z0-9 -]*_Ver\d+\.\d+$",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+
+            return hasGroupPdf && hasRootDwg;
         }
 
         private static PdmNamingPolicy LoadPolicy()
@@ -454,8 +756,24 @@ namespace IdeaCadConnector.Desktop
         private static string GetDefaultSampleFolder()
         {
             var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var path = Path.Combine(userProfile, "Research", "ArasInnovator", "ARAS01");
-            return Directory.Exists(path) ? path : string.Empty;
+            var studyCase = Path.Combine(userProfile, "Research", "ArasInnovator", "StudyCase_0603");
+            if (Directory.Exists(studyCase))
+            {
+                return studyCase;
+            }
+
+            var aras01 = Path.Combine(userProfile, "Research", "ArasInnovator", "ARAS01");
+            return Directory.Exists(aras01) ? aras01 : string.Empty;
+        }
+
+        private static string FormatBusinessNodeName(string rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName))
+            {
+                return "-";
+            }
+
+            return rawName.Trim().Replace(" ", string.Empty).ToUpperInvariant();
         }
 
         private bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
@@ -488,7 +806,8 @@ namespace IdeaCadConnector.Desktop
             string accent,
             ObservableCollection<PdmStructureNode> children = null,
             string primaryCad = null,
-            string lockedBy = null)
+            string lockedBy = null,
+            string sourceDocument = null)
         {
             Name = name;
             PartCode = partCode;
@@ -500,6 +819,7 @@ namespace IdeaCadConnector.Desktop
             Children = children ?? new ObservableCollection<PdmStructureNode>();
             PrimaryCad = primaryCad ?? "-";
             LockedBy = lockedBy ?? "-";
+            SourceDocument = sourceDocument ?? "-";
         }
 
         public string Name { get; }
@@ -511,6 +831,7 @@ namespace IdeaCadConnector.Desktop
         public string Accent { get; }
         public string PrimaryCad { get; }
         public string LockedBy { get; }
+        public string SourceDocument { get; }
         public ObservableCollection<PdmStructureNode> Children { get; }
     }
 
@@ -585,5 +906,14 @@ namespace IdeaCadConnector.Desktop
         public bool IsFolder { get; }
         public string Kind { get; }
         public ObservableCollection<PdmProjectFileNode> Children { get; }
+    }
+
+    public sealed class PdmAnalysisSources
+    {
+        public string SelectedFolder { get; set; }
+
+        public string CadFolder { get; set; }
+
+        public string PackageFolder { get; set; }
     }
 }

@@ -175,6 +175,78 @@
       </Setter>
     </Style>
 
+    <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="#FFFFFFFF" />
+      <Setter Property="BorderBrush" Value="#66A2B7DC" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="#FF1F2D57" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <Border x:Name="Border"
+                      Background="{TemplateBinding Background}"
+                      BorderBrush="{TemplateBinding BorderBrush}"
+                      BorderThickness="{TemplateBinding BorderThickness}"
+                      CornerRadius="12">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <ContentPresenter Margin="{TemplateBinding Padding}"
+                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                    IsHitTestVisible="False" />
+                  <TextBlock Grid.Column="1"
+                             Margin="0,0,10,0"
+                             VerticalAlignment="Center"
+                             FontFamily="Segoe MDL2 Assets"
+                             FontSize="12"
+                             Foreground="#FF7A879F"
+                             Text="&#xE70D;" />
+                </Grid>
+              </Border>
+              <Popup x:Name="Popup"
+                     IsOpen="{TemplateBinding IsDropDownOpen}"
+                     Placement="Bottom"
+                     Focusable="False"
+                     AllowsTransparency="True"
+                     PopupAnimation="Slide">
+                <Border MaxHeight="300"
+                        Background="#FEFFFFFF"
+                        BorderBrush="#1A9AB3D5"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Effect="{DynamicResource ComboBoxDropShadow}">
+                  <ScrollViewer>
+                    <ItemsPresenter />
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter TargetName="Border" Property="BorderBrush" Value="#FF4E87FF" />
+              </Trigger>
+              <Trigger Property="IsDropDownOpen" Value="True">
+                <Setter TargetName="Border" Property="BorderBrush" Value="#FF4E87FF" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <DropShadowEffect x:Key="ComboBoxDropShadow"
+                      BlurRadius="16"
+                      ShadowDepth="0"
+                      Color="#162C4C7A"
+                      Opacity="0.18" />
+
     <Style x:Key="DataGridStyle" TargetType="DataGrid">
       <Setter Property="AutoGenerateColumns" Value="False" />
       <Setter Property="Background" Value="Transparent" />

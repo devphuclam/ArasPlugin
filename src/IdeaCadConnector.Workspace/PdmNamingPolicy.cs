@@ -93,6 +93,163 @@ namespace IdeaCadConnector.Workspace
         public bool BlocksPush { get; set; }
     }
 
+    public sealed class PdmBusinessStructureAnalysis
+    {
+        public string FolderPath { get; set; }
+
+        public string ProjectCode { get; set; }
+
+        public string RootDrawingFileName { get; set; }
+
+        public IList<PdmBusinessNode> RootNodes { get; } = new List<PdmBusinessNode>();
+
+        public IList<PdmNamingIssue> Issues { get; } = new List<PdmNamingIssue>();
+
+        public bool HasStructure => RootNodes.Count > 0;
+    }
+
+    public sealed class PdmBusinessNode
+    {
+        public string Code { get; set; }
+
+        public string Name { get; set; }
+
+        public string DisplayName { get; set; }
+
+        public string NodeType { get; set; }
+
+        public string SourceFileName { get; set; }
+
+        public IList<PdmBusinessNode> Children { get; } = new List<PdmBusinessNode>();
+    }
+
+    public sealed class StudyCase0603StructureParser
+    {
+        private static readonly Regex GroupRegex = new Regex(
+            @"^(?<group>\d{2})\. (?<name>.+)\.pdf$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex ChildRegex = new Regex(
+            @"^(?<group>\d{2})(?<suffix>[A-Z])\. (?<parent>[^_]+)_(?<index>\d{2})_(?<name>.+)\.pdf$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex RootDrawingRegex = new Regex(
+            @"^(?<project>[A-Za-z0-9][A-Za-z0-9 -]*)_Ver(?<version>\d+\.\d+)$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        public PdmBusinessStructureAnalysis Analyze(string folderPath, string projectCode)
+        {
+            var result = new PdmBusinessStructureAnalysis
+            {
+                FolderPath = folderPath,
+                ProjectCode = projectCode
+            };
+
+            if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+            {
+                return result;
+            }
+
+            var files = new DirectoryInfo(folderPath)
+                .GetFiles("*", SearchOption.TopDirectoryOnly)
+                .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var groups = new Dictionary<string, PdmBusinessNode>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var file in files)
+            {
+                if (file.Extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    var childMatch = ChildRegex.Match(file.Name);
+                    if (childMatch.Success)
+                    {
+                        var groupCode = childMatch.Groups["group"].Value;
+                        var childCode = childMatch.Groups["index"].Value;
+                        var childName = childMatch.Groups["name"].Value.Trim();
+
+                        if (!groups.TryGetValue(groupCode, out var parentNode))
+                        {
+                            result.Issues.Add(new PdmNamingIssue
+                            {
+                                FileName = file.Name,
+                                Message = "Child package exists without its top-level group PDF.",
+                                BlocksPush = false
+                            });
+                            continue;
+                        }
+
+                        parentNode.Children.Add(new PdmBusinessNode
+                        {
+                            Code = groupCode + "-" + childCode,
+                            Name = childName,
+                            DisplayName = childCode + " " + childName,
+                            NodeType = "Component",
+                            SourceFileName = file.Name
+                        });
+
+                        continue;
+                    }
+
+                    var groupMatch = GroupRegex.Match(file.Name);
+                    if (groupMatch.Success)
+                    {
+                        var groupCode = groupMatch.Groups["group"].Value;
+                        var groupName = groupMatch.Groups["name"].Value.Trim();
+                        var groupNode = new PdmBusinessNode
+                        {
+                            Code = groupCode,
+                            Name = groupName,
+                            DisplayName = groupCode + " " + groupName,
+                            NodeType = "Assembly",
+                            SourceFileName = file.Name
+                        };
+
+                        groups[groupCode] = groupNode;
+                        result.RootNodes.Add(groupNode);
+                    }
+                }
+                else if (file.Extension.Equals(".dwg", StringComparison.OrdinalIgnoreCase))
+                {
+                    var rootMatch = RootDrawingRegex.Match(Path.GetFileNameWithoutExtension(file.Name));
+                    if (rootMatch.Success)
+                    {
+                        result.RootDrawingFileName = file.Name;
+                        if (string.IsNullOrWhiteSpace(result.ProjectCode))
+                        {
+                            result.ProjectCode = Aras01FolderAnalyzer.NormalizeProjectCode(rootMatch.Groups["project"].Value, "-");
+                        }
+                    }
+                }
+            }
+
+            foreach (var group in result.RootNodes)
+            {
+                var orderedChildren = group.Children
+                    .OrderBy(child => child.Code, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                group.Children.Clear();
+                foreach (var child in orderedChildren)
+                {
+                    group.Children.Add(child);
+                }
+            }
+
+            var orderedGroups = result.RootNodes
+                .OrderBy(node => node.Code, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            result.RootNodes.Clear();
+            foreach (var node in orderedGroups)
+            {
+                result.RootNodes.Add(node);
+            }
+
+            return result;
+        }
+    }
+
     public sealed class Aras01FolderAnalyzer
     {
         private readonly PdmNamingPolicy _policy;
