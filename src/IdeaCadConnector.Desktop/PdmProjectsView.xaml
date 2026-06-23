@@ -834,7 +834,8 @@
                            Margin="0,14,0,0"
                            BorderThickness="0"
                            Background="Transparent"
-                           ItemsSource="{Binding Documents}">
+                           ItemsSource="{Binding Documents}"
+                           MouseDoubleClick="DocumentListBox_MouseDoubleClick">
                     <ListBox.ItemTemplate>
                       <DataTemplate>
                         <Border Margin="0,0,0,8"

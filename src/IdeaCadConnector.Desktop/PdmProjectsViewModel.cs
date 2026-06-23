@@ -81,6 +81,7 @@ namespace IdeaCadConnector.Desktop
             AnalyzeFolderCommand = _analyzeFolderCommand;
             _browseFolderCommand = new RelayCommand(_ => BrowseFolder());
             BrowseFolderCommand = _browseFolderCommand;
+            OpenDocumentCommand = new RelayCommand(doc => OpenDocument(doc as PdmDocumentItem), doc => doc is PdmDocumentItem);
 
             AnalyzeFolder();
         }
@@ -272,6 +273,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand RefreshCommand { get; }
         public ICommand AnalyzeFolderCommand { get; }
         public ICommand BrowseFolderCommand { get; }
+        public ICommand OpenDocumentCommand { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -514,7 +516,7 @@ namespace IdeaCadConnector.Desktop
             BuildNamingPreview(_latestAnalysis);
             BuildChanges(_latestAnalysis);
             BuildStructure(_latestAnalysis, _latestBusinessStructure);
-            BuildDocuments(_latestAnalysis, _latestBusinessStructure);
+            BuildDocuments(_latestAnalysis, _latestBusinessStructure, sources.PackageFolder ?? FolderPath, sources.CadFolder ?? FolderPath);
             BuildProjectFiles(sources);
             BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
             BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
@@ -677,7 +679,7 @@ namespace IdeaCadConnector.Desktop
             return node;
         }
 
-        private void BuildDocuments(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
+        private void BuildDocuments(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure, string packageFolder, string cadFolder)
         {
             _documentsByPartCode.Clear();
 
@@ -686,29 +688,51 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            AddDocument(analysis.ProjectCode, analysis.PrimaryAssembly?.FileName, "Primary CAD");
+            AddDocument(analysis.ProjectCode, analysis.PrimaryAssembly?.FileName, "Primary CAD", ResolveFilePath(analysis.PrimaryAssembly?.FileName, packageFolder, cadFolder));
 
             if (!string.IsNullOrWhiteSpace(businessStructure?.RootDrawingFileName))
             {
-                AddDocument(analysis.ProjectCode, businessStructure.RootDrawingFileName, "Root Drawing");
+                AddDocument(analysis.ProjectCode, businessStructure.RootDrawingFileName, "Root Drawing", ResolveFilePath(businessStructure.RootDrawingFileName, packageFolder, cadFolder));
             }
 
             foreach (var olderAssembly in analysis.AssemblyFiles
                 .Where(file => !ReferenceEquals(file, analysis.PrimaryAssembly))
                 .OrderBy(file => file.FileName))
             {
-                AddDocument(analysis.ProjectCode, olderAssembly.FileName, "Assembly DWG REV " + olderAssembly.Revision);
+                AddDocument(analysis.ProjectCode, olderAssembly.FileName, "Assembly DWG REV " + olderAssembly.Revision, ResolveFilePath(olderAssembly.FileName, packageFolder, cadFolder));
             }
 
             if (businessStructure != null && businessStructure.HasStructure)
             {
-                BuildBusinessDocuments(analysis.ProjectCode, businessStructure.RootNodes, analysis.ProjectCode);
+                BuildBusinessDocuments(analysis.ProjectCode, businessStructure.RootNodes, analysis.ProjectCode, packageFolder);
             }
 
             RefreshSelectedDocuments();
         }
 
-        private void BuildBusinessDocuments(string projectCode, IEnumerable<PdmBusinessNode> nodes, string parentCode)
+        private static string ResolveFilePath(string fileName, string packageFolder, string cadFolder)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(packageFolder))
+            {
+                var path = System.IO.Path.Combine(packageFolder, fileName);
+                if (System.IO.File.Exists(path))
+                    return path;
+            }
+
+            if (!string.IsNullOrWhiteSpace(cadFolder))
+            {
+                var path = System.IO.Path.Combine(cadFolder, fileName);
+                if (System.IO.File.Exists(path))
+                    return path;
+            }
+
+            return null;
+        }
+
+        private void BuildBusinessDocuments(string projectCode, IEnumerable<PdmBusinessNode> nodes, string parentCode, string sourceFolder = null)
         {
             foreach (var node in nodes)
             {
@@ -717,11 +741,15 @@ namespace IdeaCadConnector.Desktop
                     ? normalizedName
                     : parentCode + "__" + normalizedName;
 
-                AddDocument(logicalCode, node.SourceFileName, node.NodeType == "Assembly" ? "Package group" : "Package detail");
+                var sourcePath = string.IsNullOrWhiteSpace(node.SourceFileName) || string.IsNullOrWhiteSpace(sourceFolder)
+                    ? null
+                    : System.IO.Path.Combine(sourceFolder, node.SourceFileName);
+
+                AddDocument(logicalCode, node.SourceFileName, node.NodeType == "Assembly" ? "Package group" : "Package detail", sourcePath);
 
                 foreach (var child in node.Children)
                 {
-                    BuildBusinessDocuments(projectCode, new[] { child }, logicalCode);
+                    BuildBusinessDocuments(projectCode, new[] { child }, logicalCode, sourceFolder);
                 }
             }
         }
@@ -744,7 +772,30 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        private void AddDocument(string partCode, string name, string kind)
+        private void OpenDocument(PdmDocumentItem document)
+        {
+            if (document?.CanOpen != true)
+            {
+                StatusMessage = document?.SourcePath == null
+                    ? "Cannot open: file path is unknown."
+                    : "Cannot open: file not found at " + document.SourcePath;
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(document.SourcePath)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Failed to open document: " + ex.Message;
+            }
+        }
+
+        private void AddDocument(string partCode, string name, string kind, string sourcePath = null)
         {
             if (string.IsNullOrWhiteSpace(partCode) || string.IsNullOrWhiteSpace(name))
             {
@@ -763,7 +814,7 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            list.Add(new PdmDocumentItem(name, kind));
+            list.Add(new PdmDocumentItem(name, kind, sourcePath));
         }
 
         private static Dictionary<string, PdmParsedFile> BuildDetailCadMap(
@@ -1245,14 +1296,20 @@ namespace IdeaCadConnector.Desktop
 
     public sealed class PdmDocumentItem
     {
-        public PdmDocumentItem(string name, string kind)
+        public PdmDocumentItem(string name, string kind, string sourcePath = null)
         {
             Name = name;
             Kind = kind;
+            SourcePath = sourcePath;
         }
 
         public string Name { get; }
         public string Kind { get; }
+        public string SourcePath { get; }
+        public bool IsPdf => SourcePath != null &&
+            string.Equals(System.IO.Path.GetExtension(SourcePath), ".pdf", StringComparison.OrdinalIgnoreCase);
+        public bool CanOpen => SourcePath != null && System.IO.File.Exists(SourcePath);
+        public string OpenLabel => IsPdf ? "Open PDF" : "Open File";
     }
 
     public sealed class PdmNamingPreviewItem

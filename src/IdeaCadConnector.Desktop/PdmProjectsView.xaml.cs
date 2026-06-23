@@ -31,6 +31,17 @@ namespace IdeaCadConnector.Desktop
             SetTreeExpansion(StructureTree, false);
         }
 
+        private void DocumentListBox_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var listBox = sender as ListBox;
+            var document = listBox?.SelectedItem as PdmDocumentItem;
+            if (document?.CanOpen == true)
+            {
+                var viewModel = DataContext as PdmProjectsViewModel;
+                viewModel?.OpenDocumentCommand?.Execute(document);
+            }
+        }
+
         private static void SetTreeExpansion(ItemsControl parent, bool isExpanded)
         {
             if (parent == null)
