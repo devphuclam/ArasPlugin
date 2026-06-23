@@ -1,10 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Input;
+using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Workspace;
 using Newtonsoft.Json;
 using WinForms = System.Windows.Forms;
@@ -17,6 +22,7 @@ namespace IdeaCadConnector.Desktop
         private readonly RelayCommand _analyzeFolderCommand;
         private readonly RelayCommand _browseFolderCommand;
         private readonly RelayCommand _refreshCommand;
+        private readonly Dictionary<string, List<PdmDocumentItem>> _documentsByPartCode = new Dictionary<string, List<PdmDocumentItem>>(StringComparer.OrdinalIgnoreCase);
         private PdmFolderAnalysis _latestAnalysis;
         private PdmBusinessStructureAnalysis _latestBusinessStructure;
         private PdmStructureNode _selectedNode;
@@ -34,6 +40,9 @@ namespace IdeaCadConnector.Desktop
         private string _connectionDisplayName;
         private string _connectionDatabase;
         private bool _isAnalyzing;
+        private bool _isPushing;
+        private PushPreview _pushPreview;
+        private string _commitMessage;
 
         public PdmProjectsViewModel()
         {
@@ -49,18 +58,21 @@ namespace IdeaCadConnector.Desktop
             Documents = new ObservableCollection<PdmDocumentItem>();
             NamingPreview = new ObservableCollection<PdmNamingPreviewItem>();
             ProjectFiles = new ObservableCollection<PdmProjectFileNode>();
+            PreviewParts = new ObservableCollection<PartPreviewRow>();
+            PreviewCads = new ObservableCollection<CadPreviewRow>();
+            PreviewDocuments = new ObservableCollection<DocumentPreviewRow>();
+            PreviewIgnoredFiles = new ObservableCollection<IgnoredPreviewRow>();
 
             SelectedBranch = Branches[0];
             SelectedCommit = Commits[0];
             FolderPath = GetDefaultSampleFolder();
             AnalysisSummary = "Select a project folder to preview the product structure.";
             StatusMessage = "PDM repository preview is ready.";
-            ConnectionDisplayName = "Preview mode";
-            ConnectionDatabase = "Local analysis — not connected to Aras";
+            RefreshConnectionStatus();
 
             CloneCommand = new RelayCommand(_ => StatusMessage = "Clone will use the selected repository and commit.");
             PullCommand = new RelayCommand(_ => StatusMessage = "Pull is not connected to Aras yet.");
-            _pushCommand = new RelayCommand(_ => PushWorkspace(), _ => CanPush);
+            _pushCommand = new RelayCommand(_ => PushWorkspace(), _ => !IsPushing && CanPush);
             PushCommand = _pushCommand;
             NewBranchCommand = new RelayCommand(_ => StatusMessage = "New branch will start from the selected commit.");
             _refreshCommand = new RelayCommand(_ => AnalyzeFolder());
@@ -81,6 +93,10 @@ namespace IdeaCadConnector.Desktop
         public ObservableCollection<PdmDocumentItem> Documents { get; }
         public ObservableCollection<PdmNamingPreviewItem> NamingPreview { get; }
         public ObservableCollection<PdmProjectFileNode> ProjectFiles { get; }
+        public ObservableCollection<PartPreviewRow> PreviewParts { get; }
+        public ObservableCollection<CadPreviewRow> PreviewCads { get; }
+        public ObservableCollection<DocumentPreviewRow> PreviewDocuments { get; }
+        public ObservableCollection<IgnoredPreviewRow> PreviewIgnoredFiles { get; }
 
         public string SelectedRepository
         {
@@ -159,7 +175,10 @@ namespace IdeaCadConnector.Desktop
 
         public bool HasBlockingIssues => BlockingIssueCount > 0;
 
-        public bool CanPush => _latestAnalysis != null && _latestAnalysis.IsValid && TrackedFileCount > 0;
+        public bool CanPush =>
+            !IsPushing &&
+            (_pushPreview?.Readiness?.CanPush ?? false) &&
+            MainViewModel.SharedPdmClient != null;
 
         public bool HasStructure => Structure.Count > 0;
         public bool HasProjectFiles => ProjectFiles.Count > 0;
@@ -176,6 +195,7 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _selectedNode, value))
                 {
                     OnPropertyChanged(nameof(HasSelectedNode));
+                    RefreshSelectedDocuments();
                 }
             }
         }
@@ -203,6 +223,28 @@ namespace IdeaCadConnector.Desktop
             get => _isAnalyzing;
             set => SetField(ref _isAnalyzing, value);
         }
+
+        public bool IsPushing
+        {
+            get => _isPushing;
+            set
+            {
+                if (SetField(ref _isPushing, value))
+                {
+                    _pushCommand.RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        public string CommitMessage
+        {
+            get => _commitMessage;
+            set => SetField(ref _commitMessage, value);
+        }
+
+        public PushReadiness PushPreviewReadiness => _pushPreview?.Readiness;
+
+        public bool HasPushPreview => _pushPreview != null;
 
         public string WorkingTreeSummary
         {
@@ -249,19 +291,139 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        private void PushWorkspace()
+        private async void PushWorkspace()
         {
+            RefreshConnectionStatus();
+
             if (!CanPush)
             {
-                StatusMessage = "Push is blocked until the folder passes naming validation.";
+                StatusMessage = "Push is blocked until the folder passes naming validation and you are connected to Aras.";
                 return;
             }
 
-            StatusMessage = string.Format(
-                "Ready to push {0} tracked file(s) from {1} into repository {2}.",
-                TrackedFileCount,
-                Path.GetFileName(FolderPath.TrimEnd(Path.DirectorySeparatorChar)),
-                SelectedRepository ?? "-");
+            var client = MainViewModel.SharedPdmClient;
+            if (client == null)
+            {
+                StatusMessage = "Not connected to Aras. Sign in first.";
+                return;
+            }
+
+            IsPushing = true;
+            StatusMessage = "Pushing to Aras...";
+
+            try
+            {
+                var request = BuildPushRequest();
+                var result = await client.PushAsync(request, CancellationToken.None);
+
+                if (result.Success)
+                {
+                    StatusMessage = string.Format(
+                        "Push complete. Created {0} part(s), {1} CAD(s), {2} document(s). Commit: {3}",
+                        result.PartResults?.Count(r => r.Success) ?? 0,
+                        result.CadResults?.Count(r => r.Success) ?? 0,
+                        result.DocumentResults?.Count(r => r.Success) ?? 0,
+                        result.CommitId ?? "-");
+
+                    UpdatePreviewResults(result);
+                }
+                else
+                {
+                    StatusMessage = "Push failed: " + (result.ErrorMessage ?? "Unknown error");
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Push failed: " + ex.Message;
+            }
+            finally
+            {
+                IsPushing = false;
+            }
+        }
+
+        private PdmPushRequest BuildPushRequest()
+        {
+            if (_pushPreview == null)
+                return null;
+
+            return new PdmPushRequest
+            {
+                RepositoryCode = _pushPreview.RepositoryCode,
+                ProjectName = _pushPreview.ProjectName,
+                TargetBranch = SelectedBranch ?? "main",
+                CommitMessage = CommitMessage ?? string.Empty,
+                PackageSourcePath = FolderPath,
+                CadSourcePath = _latestAnalysis?.FolderPath,
+                Parts = _pushPreview.Parts.Select(p => new PdmPartRequest
+                {
+                    LogicalCode = p.LogicalCode,
+                    ParentLogicalCode = p.ParentLogicalCode,
+                    PartNumber = p.PartNumber,
+                    Name = p.Name,
+                    Classification = p.Classification,
+                    Quantity = p.Quantity
+                }).ToList(),
+                Cads = _pushPreview.Cads.Select(c => new PdmCadRequest
+                {
+                    SourceFileName = c.SourceFileName,
+                    LogicalCode = c.LogicalCode,
+                    CadNumber = c.CadNumber,
+                    Classification = c.Classification,
+                    LinkedPartLogicalCode = c.LogicalCode
+                }).ToList(),
+                Documents = _pushPreview.Documents.Select(d => new PdmDocumentRequest
+                {
+                    SourceFileName = d.SourceFileName,
+                    LogicalCode = d.LogicalCode,
+                    DocumentNumber = d.DocumentNumber,
+                    Classification = d.Classification,
+                    LinkTargetType = d.LinkTargetType,
+                    LinkedPartLogicalCode = d.LogicalCode
+                }).ToList()
+            };
+        }
+
+        private void UpdatePreviewResults(PdmPushResult result)
+        {
+            if (result.PartResults != null)
+            {
+                for (int i = 0; i < result.PartResults.Count && i < PreviewParts.Count; i++)
+                {
+                    var res = result.PartResults[i];
+                    var row = PreviewParts[i];
+                    if (res.Success)
+                        row.Action = "Created";
+                    else
+                        row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                }
+            }
+
+            if (result.CadResults != null)
+            {
+                for (int i = 0; i < result.CadResults.Count && i < PreviewCads.Count; i++)
+                {
+                    var res = result.CadResults[i];
+                    var row = PreviewCads[i];
+                    if (res.Success)
+                        row.Action = "Created";
+                    else
+                        row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                }
+            }
+
+            if (result.DocumentResults != null)
+            {
+                for (int i = 0; i < result.DocumentResults.Count && i < PreviewDocuments.Count; i++)
+                {
+                    var res = result.DocumentResults[i];
+                    var row = PreviewDocuments[i];
+                    if (res.Success)
+                        row.Action = "Created";
+                    else
+                        row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                }
+            }
         }
 
         private void AnalyzeFolder()
@@ -319,6 +481,12 @@ namespace IdeaCadConnector.Desktop
             NamingPreview.Clear();
             Repositories.Clear();
             ProjectFiles.Clear();
+            PreviewParts.Clear();
+            PreviewCads.Clear();
+            PreviewDocuments.Clear();
+            PreviewIgnoredFiles.Clear();
+            _documentsByPartCode.Clear();
+            _pushPreview = null;
             SelectedNode = null;
 
             TrackedFileCount = _latestAnalysis.TrackedFiles.Count;
@@ -342,12 +510,16 @@ namespace IdeaCadConnector.Desktop
             BuildDocuments(_latestAnalysis, _latestBusinessStructure);
             BuildProjectFiles(sources);
             BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
+            BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
 
             OnPropertyChanged(nameof(HasStructure));
             OnPropertyChanged(nameof(HasProjectFiles));
             OnPropertyChanged(nameof(HasChanges));
             OnPropertyChanged(nameof(HasNamingPreview));
             OnPropertyChanged(nameof(HasDocuments));
+            OnPropertyChanged(nameof(HasPushPreview));
+            OnPropertyChanged(nameof(PushPreviewReadiness));
+            OnPropertyChanged(nameof(CanPush));
             OnPropertyChanged(nameof(WorkingTreeSummary));
 
             _pushCommand.RaiseCanExecuteChanged();
@@ -422,6 +594,8 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            var detailCadMap = BuildDetailCadMap(analysis, businessStructure);
+
             var root = new PdmStructureNode(
                 analysis.ProjectCode,
                 analysis.ProjectCode,
@@ -437,7 +611,11 @@ namespace IdeaCadConnector.Desktop
             {
                 foreach (var groupNode in businessStructure.RootNodes)
                 {
-                    root.Children.Add(CreateBusinessStructureNode(analysis.ProjectCode, groupNode, analysis.ProjectCode));
+                    root.Children.Add(CreateBusinessStructureNode(
+                        analysis.ProjectCode,
+                        groupNode,
+                        analysis.ProjectCode,
+                        detailCadMap));
                 }
             }
             else
@@ -461,12 +639,17 @@ namespace IdeaCadConnector.Desktop
             SelectedNode = root;
         }
 
-        private PdmStructureNode CreateBusinessStructureNode(string projectCode, PdmBusinessNode businessNode, string parentCode)
+        private PdmStructureNode CreateBusinessStructureNode(
+            string projectCode,
+            PdmBusinessNode businessNode,
+            string parentCode,
+            IDictionary<string, PdmParsedFile> detailCadMap)
         {
             var normalizedName = FormatBusinessNodeName(businessNode.Name);
             var logicalCode = string.IsNullOrWhiteSpace(parentCode)
                 ? normalizedName
                 : parentCode + "__" + normalizedName;
+            var primaryCad = ResolvePrimaryCadForNode(businessNode, logicalCode, detailCadMap);
 
             var node = new PdmStructureNode(
                 normalizedName,
@@ -476,12 +659,12 @@ namespace IdeaCadConnector.Desktop
                 "-",
                 "Package inferred",
                 businessNode.NodeType == "Assembly" ? "#FF2967EF" : "#FF1F9D55",
-                primaryCad: "-",
+                primaryCad: primaryCad,
                 sourceDocument: businessNode.SourceFileName);
 
             foreach (var child in businessNode.Children)
             {
-                node.Children.Add(CreateBusinessStructureNode(projectCode, child, logicalCode));
+                node.Children.Add(CreateBusinessStructureNode(projectCode, child, logicalCode, detailCadMap));
             }
 
             return node;
@@ -489,38 +672,197 @@ namespace IdeaCadConnector.Desktop
 
         private void BuildDocuments(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
         {
+            _documentsByPartCode.Clear();
+
+            if (string.IsNullOrWhiteSpace(analysis.ProjectCode))
+            {
+                return;
+            }
+
+            AddDocument(analysis.ProjectCode, analysis.PrimaryAssembly?.FileName, "Primary CAD");
+
+            if (!string.IsNullOrWhiteSpace(businessStructure?.RootDrawingFileName))
+            {
+                AddDocument(analysis.ProjectCode, businessStructure.RootDrawingFileName, "Root Drawing");
+            }
+
             foreach (var olderAssembly in analysis.AssemblyFiles
                 .Where(file => !ReferenceEquals(file, analysis.PrimaryAssembly))
                 .OrderBy(file => file.FileName))
             {
-                Documents.Add(new PdmDocumentItem(
-                    olderAssembly.FileName,
-                    "DWG REV " + olderAssembly.Revision));
-            }
-
-            foreach (var ignored in analysis.IgnoredFiles.OrderBy(file => file.FileName))
-            {
-                Documents.Add(new PdmDocumentItem(
-                    ignored.FileName,
-                    "Ignored backup"));
+                AddDocument(analysis.ProjectCode, olderAssembly.FileName, "Assembly DWG REV " + olderAssembly.Revision);
             }
 
             if (businessStructure != null && businessStructure.HasStructure)
             {
-                foreach (var node in businessStructure.RootNodes)
-                {
-                    Documents.Add(new PdmDocumentItem(
-                        node.SourceFileName,
-                        "Package group"));
+                BuildBusinessDocuments(analysis.ProjectCode, businessStructure.RootNodes, analysis.ProjectCode);
+            }
 
-                    foreach (var child in node.Children)
-                    {
-                        Documents.Add(new PdmDocumentItem(
-                            child.SourceFileName,
-                            "Package detail"));
-                    }
+            RefreshSelectedDocuments();
+        }
+
+        private void BuildBusinessDocuments(string projectCode, IEnumerable<PdmBusinessNode> nodes, string parentCode)
+        {
+            foreach (var node in nodes)
+            {
+                var normalizedName = FormatBusinessNodeName(node.Name);
+                var logicalCode = string.IsNullOrWhiteSpace(parentCode)
+                    ? normalizedName
+                    : parentCode + "__" + normalizedName;
+
+                AddDocument(logicalCode, node.SourceFileName, node.NodeType == "Assembly" ? "Package group" : "Package detail");
+
+                foreach (var child in node.Children)
+                {
+                    BuildBusinessDocuments(projectCode, new[] { child }, logicalCode);
                 }
             }
+        }
+
+        private void RefreshSelectedDocuments()
+        {
+            Documents.Clear();
+
+            if (SelectedNode == null || string.IsNullOrWhiteSpace(SelectedNode.PartCode))
+            {
+                return;
+            }
+
+            if (_documentsByPartCode.TryGetValue(SelectedNode.PartCode, out var selectedDocuments))
+            {
+                foreach (var document in selectedDocuments)
+                {
+                    Documents.Add(document);
+                }
+            }
+        }
+
+        private void AddDocument(string partCode, string name, string kind)
+        {
+            if (string.IsNullOrWhiteSpace(partCode) || string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            if (!_documentsByPartCode.TryGetValue(partCode, out var list))
+            {
+                list = new List<PdmDocumentItem>();
+                _documentsByPartCode[partCode] = list;
+            }
+
+            if (list.Any(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase) &&
+                                 string.Equals(item.Kind, kind, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            list.Add(new PdmDocumentItem(name, kind));
+        }
+
+        private static Dictionary<string, PdmParsedFile> BuildDetailCadMap(
+            PdmFolderAnalysis analysis,
+            PdmBusinessStructureAnalysis businessStructure)
+        {
+            var map = new Dictionary<string, PdmParsedFile>(StringComparer.OrdinalIgnoreCase);
+            if (businessStructure == null || !businessStructure.HasStructure)
+            {
+                return map;
+            }
+
+            var businessDetails = businessStructure.RootNodes
+                .SelectMany(group => group.Children)
+                .ToList();
+
+            var detailFiles = analysis.DetailFiles
+                .OrderBy(file => file.Sequence ?? int.MaxValue)
+                .ToList();
+            var detailBySequence = detailFiles
+                .Where(file => file.Sequence.HasValue)
+                .GroupBy(file => file.Sequence.Value)
+                .ToDictionary(group => group.Key, group => group.First());
+
+            foreach (var businessDetail in businessDetails)
+            {
+                if (string.IsNullOrWhiteSpace(businessDetail.SourceFileName))
+                {
+                    continue;
+                }
+
+                var sequence = ExtractBusinessSequence(businessDetail);
+                if (!sequence.HasValue)
+                {
+                    continue;
+                }
+
+                if (detailBySequence.TryGetValue(sequence.Value, out var matchedDetail))
+                {
+                    map[businessDetail.SourceFileName] = matchedDetail;
+                }
+            }
+
+            return map;
+        }
+
+        private static int? ExtractBusinessSequence(PdmBusinessNode businessNode)
+        {
+            if (businessNode == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(businessNode.Code))
+            {
+                var codeParts = businessNode.Code.Split('-');
+                if (codeParts.Length > 1 &&
+                    int.TryParse(codeParts[codeParts.Length - 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var codeSequence))
+                {
+                    return codeSequence;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(businessNode.DisplayName))
+            {
+                var prefix = businessNode.DisplayName
+                    .Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries)
+                    .FirstOrDefault();
+                if (int.TryParse(prefix, NumberStyles.Integer, CultureInfo.InvariantCulture, out var displaySequence))
+                {
+                    return displaySequence;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(businessNode.SourceFileName))
+            {
+                var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(businessNode.SourceFileName);
+                var tokens = fileNameWithoutExtension.Split('_');
+                if (tokens.Length >= 2 &&
+                    int.TryParse(tokens[tokens.Length - 2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var fileSequence))
+                {
+                    return fileSequence;
+                }
+            }
+
+            return null;
+        }
+        private static string ResolvePrimaryCadForNode(
+            PdmBusinessNode businessNode,
+            string logicalCode,
+            IDictionary<string, PdmParsedFile> detailCadMap)
+        {
+            if (businessNode == null)
+            {
+                return "-";
+            }
+
+            if (businessNode.NodeType == "Component" &&
+                !string.IsNullOrWhiteSpace(businessNode.SourceFileName) &&
+                detailCadMap != null &&
+                detailCadMap.TryGetValue(businessNode.SourceFileName, out var detailCad))
+            {
+                return detailCad.FileName;
+            }
+
+            return "-";
         }
 
         private void BuildProjectFiles(PdmAnalysisSources sources)
@@ -646,6 +988,33 @@ namespace IdeaCadConnector.Desktop
             StatusMessage = AnalysisSummary;
         }
 
+        private void BuildPushPreview(PdmFolderAnalysis folderAnalysis, PdmBusinessStructureAnalysis businessAnalysis)
+        {
+            var analyzeResult = PushPreviewMapper.ToAnalyzeResult(folderAnalysis, businessAnalysis);
+            if (analyzeResult == null)
+                return;
+
+            var builder = new PdmPushPreviewBuilder();
+            _pushPreview = builder.Build(analyzeResult, SelectedBranch, CommitMessage);
+
+            PreviewParts.Clear();
+            PreviewCads.Clear();
+            PreviewDocuments.Clear();
+            PreviewIgnoredFiles.Clear();
+
+            foreach (var part in _pushPreview.Parts)
+                PreviewParts.Add(part);
+
+            foreach (var cad in _pushPreview.Cads)
+                PreviewCads.Add(cad);
+
+            foreach (var doc in _pushPreview.Documents)
+                PreviewDocuments.Add(doc);
+
+            foreach (var ignored in _pushPreview.IgnoredFiles)
+                PreviewIgnoredFiles.Add(ignored);
+        }
+
         private static PdmAnalysisSources ResolveAnalysisSources(string folderPath)
         {
             var result = new PdmAnalysisSources
@@ -681,6 +1050,17 @@ namespace IdeaCadConnector.Desktop
                     result.CadFolder = null;
                 }
                 return result;
+            }
+
+            if (LooksLikeBusinessPackageFolder(folderPath) && directory.Parent != null)
+            {
+                var siblingCadFolder = Path.Combine(directory.Parent.FullName, "ARAS01");
+                if (Directory.Exists(siblingCadFolder))
+                {
+                    result.PackageFolder = folderPath;
+                    result.CadFolder = siblingCadFolder;
+                    return result;
+                }
             }
 
             if (directory.Parent != null &&
@@ -764,6 +1144,13 @@ namespace IdeaCadConnector.Desktop
 
             var aras01 = Path.Combine(userProfile, "Research", "ArasInnovator", "ARAS01");
             return Directory.Exists(aras01) ? aras01 : string.Empty;
+        }
+
+        public void RefreshConnectionStatus()
+        {
+            var isConnected = MainViewModel.SharedPdmClient != null;
+            ConnectionDisplayName = isConnected ? "Connected to Aras" : "Preview mode";
+            ConnectionDatabase = isConnected ? "Aras session active" : "Local analysis — not connected to Aras";
         }
 
         private static string FormatBusinessNodeName(string rawName)
@@ -917,3 +1304,4 @@ namespace IdeaCadConnector.Desktop
         public string PackageFolder { get; set; }
     }
 }
+

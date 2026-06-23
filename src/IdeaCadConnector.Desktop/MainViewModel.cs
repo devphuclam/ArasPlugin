@@ -15,6 +15,7 @@ using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Ui.ViewModels;
 using IdeaCadConnector.Workspace;
+using Microsoft.Extensions.Logging;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -26,6 +27,7 @@ namespace IdeaCadConnector.Desktop
         private readonly ArasClientOptions _options;
         private IArasCadClient _arasClient;
         private ArasLoginResult _loginResult;
+        internal static IPdmRepositoryClient SharedPdmClient { get; set; }
 
         private string _statusMessage = "Sign in to Aras to start.";
         private PartSearchResult _selectedSearchResult;
@@ -434,6 +436,15 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));
                 StatusMessage = $"Connected as {_loginResult.UserName}. Search for a part to continue.";
+
+                (SharedPdmClient as IDisposable)?.Dispose();
+                var pdmClient = new HttpPdmRepositoryClient(new ArasClientOptions
+                {
+                    BaseUri = new Uri(request.ServerUrl),
+                    Database = request.Database
+                });
+                pdmClient.SetSession(_loginResult.SessionToken, null, request.Database);
+                SharedPdmClient = pdmClient;
             }
             catch (Exception ex)
             {
@@ -466,6 +477,8 @@ namespace IdeaCadConnector.Desktop
                 _loginViewModel.ErrorMessage = null;
                 (_arasClient as IDisposable)?.Dispose();
                 _arasClient = null;
+                (SharedPdmClient as IDisposable)?.Dispose();
+                SharedPdmClient = null;
                 IsLoginPanelVisible = true;
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));
