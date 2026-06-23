@@ -21,6 +21,9 @@ namespace IdeaCadConnector.Workspace
             var warnings = MapWarnings(folderAnalysis, businessAnalysis);
             var summary = BuildSummary(structureNodes, cadFiles, documentFiles, ignoredFiles, warnings);
 
+            PopulateCadLinkedPartCodes(cadFiles, structureNodes, folderAnalysis, businessAnalysis);
+            PopulateDocumentLinkedPartCodes(documentFiles, structureNodes, businessAnalysis);
+
             return new AnalyzeResult
             {
                 RepositoryCode = projectCode,
@@ -270,6 +273,99 @@ namespace IdeaCadConnector.Workspace
                 BlockingIssueCount = blockingCount,
                 IsValid = blockingCount == 0
             };
+        }
+
+        private static void PopulateCadLinkedPartCodes(
+            IReadOnlyList<AnalyzedCadFile> cadFiles,
+            IReadOnlyList<AnalyzedStructureNode> structureNodes,
+            PdmFolderAnalysis folderAnalysis,
+            PdmBusinessStructureAnalysis businessAnalysis)
+        {
+            if (cadFiles == null || cadFiles.Count == 0) return;
+
+            var rootNode = structureNodes?.FirstOrDefault(n => n.ParentLogicalCode == null);
+            var rootCode = rootNode?.LogicalCode;
+
+            var seqToStructCode = new Dictionary<int, string>();
+            if (businessAnalysis?.HasStructure == true)
+            {
+                foreach (var group in businessAnalysis.RootNodes)
+                {
+                    foreach (var child in group.Children)
+                    {
+                        var codeParts = (child.Code ?? "").Split('-');
+                        if (codeParts.Length > 1 && int.TryParse(codeParts.Last(), out var seq))
+                            seqToStructCode[seq] = child.Code;
+                    }
+                }
+            }
+
+            foreach (var cad in cadFiles)
+            {
+                if (string.Equals(cad.CadRole, "RootDrawing", StringComparison.OrdinalIgnoreCase))
+                {
+                    cad.LinkedPartLogicalCode = rootCode;
+                    continue;
+                }
+
+                if (seqToStructCode.Count > 0 && !string.IsNullOrWhiteSpace(cad.LogicalCode))
+                {
+                    var codeParts = cad.LogicalCode.Split('-');
+                    if (codeParts.Length > 1 && int.TryParse(codeParts.Last(), out var seq) &&
+                        seqToStructCode.TryGetValue(seq, out var linkedCode))
+                    {
+                        cad.LinkedPartLogicalCode = linkedCode;
+                        continue;
+                    }
+                }
+
+                cad.LinkedPartLogicalCode = cad.LogicalCode;
+            }
+        }
+
+        private static void PopulateDocumentLinkedPartCodes(
+            IReadOnlyList<AnalyzedDocumentFile> documentFiles,
+            IReadOnlyList<AnalyzedStructureNode> structureNodes,
+            PdmBusinessStructureAnalysis businessAnalysis)
+        {
+            if (documentFiles == null || documentFiles.Count == 0) return;
+
+            var sourceToCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (businessAnalysis?.HasStructure == true)
+            {
+                foreach (var group in businessAnalysis.RootNodes)
+                {
+                    if (!string.IsNullOrWhiteSpace(group.SourceFileName))
+                        sourceToCode[group.SourceFileName] = group.Code;
+                    foreach (var child in group.Children)
+                    {
+                        if (!string.IsNullOrWhiteSpace(child.SourceFileName))
+                            sourceToCode[child.SourceFileName] = child.Code;
+                    }
+                }
+            }
+
+            foreach (var doc in documentFiles)
+            {
+                if (string.Equals(doc.LinkTargetType, "Project", StringComparison.OrdinalIgnoreCase))
+                {
+                    doc.LinkedPartLogicalCode = null;
+                    continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(doc.SourcePath))
+                {
+                    var fileName = Path.GetFileName(doc.SourcePath);
+                    if (sourceToCode.TryGetValue(fileName, out var linkedCode))
+                    {
+                        doc.LinkedPartLogicalCode = linkedCode;
+                        continue;
+                    }
+                }
+
+                var rootNode = structureNodes?.FirstOrDefault(n => n.ParentLogicalCode == null);
+                doc.LinkedPartLogicalCode = rootNode?.LogicalCode;
+            }
         }
     }
 }

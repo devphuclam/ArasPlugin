@@ -99,10 +99,37 @@ namespace IdeaCadConnector.Aras
                     docResults.Add(id);
                 }
 
-                var commitId = await CreatePdmCommitAsync(request, partResults, cadResults, docResults, ct);
+                var allBusinessSuccess = partResults.All(r => r.Success) &&
+                    cadResults.All(r => r.Success) &&
+                    docResults.All(r => r.Success);
 
-                result.Success = true;
-                result.CommitId = commitId;
+                if (allBusinessSuccess)
+                {
+                    result.Success = true;
+
+                    try
+                    {
+                        var commitId = await CreatePdmCommitAsync(request, partResults, cadResults, docResults, ct);
+                        result.CommitId = commitId;
+                    }
+                    catch (Exception ex)
+                    {
+                        var warnings = new List<string>(result.Warnings ?? Array.Empty<string>())
+                        {
+                            "Commit snapshot skipped because PDM Commit ItemType is not deployed on server: " + ex.Message
+                        };
+                        result.Warnings = warnings;
+                        _logger.LogWarning(ex, "PDM Commit schema unavailable. Business push completed without commit snapshot.");
+                    }
+                }
+                else
+                {
+                    result.Success = false;
+                    var failedParts = partResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
+                    var failedCads = cadResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
+                    var failedDocs = docResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
+                    result.ErrorMessage = $"Business item(s) failed:{Environment.NewLine}Parts:{Environment.NewLine}{string.Join(Environment.NewLine, failedParts)}{Environment.NewLine}CADs:{Environment.NewLine}{string.Join(Environment.NewLine, failedCads)}{Environment.NewLine}Documents:{Environment.NewLine}{string.Join(Environment.NewLine, failedDocs)}";
+                }
             }
             catch (Exception ex)
             {
@@ -136,7 +163,6 @@ namespace IdeaCadConnector.Aras
                 var aml = $"<Item type=\"Part\" action=\"add\">" +
                     $"<item_number>{EscapeAml(part.PartNumber)}</item_number>" +
                     $"<name>{EscapeAml(part.Name ?? part.LogicalCode)}</name>" +
-                    $"<classification>{EscapeAml(part.Classification)}</classification>" +
                     "</Item>";
 
                 var response = await _aml.ApplyAmlAsync(aml, "add", "Part", null, ct);
@@ -148,7 +174,9 @@ namespace IdeaCadConnector.Aras
                     ArasId = newId,
                     ItemNumber = part.PartNumber,
                     Success = !string.IsNullOrWhiteSpace(newId),
-                    ErrorMessage = newId == null ? "No id returned from Aras" : null
+                    ErrorMessage = newId == null
+                        ? $"Part add failed. number='{part.PartNumber}', classification='{part.Classification} (preview-only, not sent to Aras)', name='{part.Name ?? part.LogicalCode}'. Aras returned no id."
+                        : null
                 };
             }
             catch (Exception ex)
@@ -158,7 +186,7 @@ namespace IdeaCadConnector.Aras
                     SourceKey = part.LogicalCode,
                     ItemNumber = part.PartNumber,
                     Success = false,
-                    ErrorMessage = ex.Message
+                    ErrorMessage = $"Part add failed. number='{part.PartNumber}', classification='{part.Classification} (preview-only, not sent to Aras)', name='{part.Name ?? part.LogicalCode}'. Aras said: {ex.Message}"
                 };
             }
         }
@@ -247,7 +275,6 @@ namespace IdeaCadConnector.Aras
                 var aml = $"<Item type=\"Document\" action=\"add\">" +
                     $"<item_number>{EscapeAml(doc.DocumentNumber)}</item_number>" +
                     $"<name>{EscapeAml(doc.SourceFileName)}</name>" +
-                    $"<classification>{EscapeAml(doc.Classification)}</classification>" +
                     "</Item>";
 
                 var response = await _aml.ApplyAmlAsync(aml, "add", "Document", null, ct);
@@ -264,7 +291,9 @@ namespace IdeaCadConnector.Aras
                     ArasId = newId,
                     ItemNumber = doc.DocumentNumber,
                     Success = !string.IsNullOrWhiteSpace(newId),
-                    ErrorMessage = newId == null ? "No id returned from Aras" : null
+                    ErrorMessage = newId == null
+                        ? $"Document add failed. number='{doc.DocumentNumber}', classification='{doc.Classification} (preview-only, not sent to Aras)', source='{doc.SourceFileName}'. Aras returned no id."
+                        : null
                 };
             }
             catch (Exception ex)
@@ -274,7 +303,7 @@ namespace IdeaCadConnector.Aras
                     SourceKey = doc.SourceFileName,
                     ItemNumber = doc.DocumentNumber,
                     Success = false,
-                    ErrorMessage = ex.Message
+                    ErrorMessage = $"Document add failed. number='{doc.DocumentNumber}', classification='{doc.Classification} (preview-only, not sent to Aras)', source='{doc.SourceFileName}'. Aras said: {ex.Message}"
                 };
             }
         }

@@ -38,6 +38,7 @@ namespace IdeaCadConnector.Workspace
         public string CadRole { get; set; }
         public string VersionToken { get; set; }
         public string Fingerprint { get; set; }
+        public string LinkedPartLogicalCode { get; set; }
     }
 
     public sealed class AnalyzedDocumentFile
@@ -48,6 +49,7 @@ namespace IdeaCadConnector.Workspace
         public string DocumentRole { get; set; }
         public string LinkTargetType { get; set; }
         public string Fingerprint { get; set; }
+        public string LinkedPartLogicalCode { get; set; }
     }
 
     public sealed class AnalyzedIgnoredFile
@@ -107,6 +109,7 @@ namespace IdeaCadConnector.Workspace
         public string CadNumber { get; set; }
         public string Classification { get; set; }
         public string Action { get; set; }
+        public string LinkedPartLogicalCode { get; set; }
     }
 
     public sealed class DocumentPreviewRow
@@ -117,6 +120,7 @@ namespace IdeaCadConnector.Workspace
         public string Classification { get; set; }
         public string LinkTargetType { get; set; }
         public string Action { get; set; }
+        public string LinkedPartLogicalCode { get; set; }
     }
 
     public sealed class IgnoredPreviewRow

@@ -318,12 +318,19 @@ namespace IdeaCadConnector.Desktop
 
                 if (result.Success)
                 {
-                    StatusMessage = string.Format(
+                    var msg = string.Format(
                         "Push complete. Created {0} part(s), {1} CAD(s), {2} document(s). Commit: {3}",
                         result.PartResults?.Count(r => r.Success) ?? 0,
                         result.CadResults?.Count(r => r.Success) ?? 0,
                         result.DocumentResults?.Count(r => r.Success) ?? 0,
                         result.CommitId ?? "-");
+
+                    if (result.Warnings?.Count > 0)
+                    {
+                        msg += " Warning: " + string.Join("; ", result.Warnings);
+                    }
+
+                    StatusMessage = msg;
 
                     UpdatePreviewResults(result);
                 }
@@ -370,7 +377,7 @@ namespace IdeaCadConnector.Desktop
                     LogicalCode = c.LogicalCode,
                     CadNumber = c.CadNumber,
                     Classification = c.Classification,
-                    LinkedPartLogicalCode = c.LogicalCode
+                    LinkedPartLogicalCode = c.LinkedPartLogicalCode ?? c.LogicalCode
                 }).ToList(),
                 Documents = _pushPreview.Documents.Select(d => new PdmDocumentRequest
                 {
@@ -379,7 +386,7 @@ namespace IdeaCadConnector.Desktop
                     DocumentNumber = d.DocumentNumber,
                     Classification = d.Classification,
                     LinkTargetType = d.LinkTargetType,
-                    LinkedPartLogicalCode = d.LogicalCode
+                    LinkedPartLogicalCode = d.LinkedPartLogicalCode ?? d.LogicalCode
                 }).ToList()
             };
         }

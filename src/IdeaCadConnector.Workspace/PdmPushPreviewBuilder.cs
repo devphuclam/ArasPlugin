@@ -45,15 +45,17 @@ namespace IdeaCadConnector.Workspace
 
             foreach (var node in result.StructureNodes)
             {
-                var partNumber = string.IsNullOrWhiteSpace(code)
-                    ? node.LogicalCode
-                    : code + "-" + node.LogicalCode;
+                var partNumber = node.ParentLogicalCode == null
+                    ? (string.IsNullOrWhiteSpace(code) ? node.LogicalCode : code)
+                    : (string.IsNullOrWhiteSpace(code)
+                        ? node.LogicalCode
+                        : code + "-" + node.LogicalCode);
 
                 var classification = node.NodeType switch
                 {
                     "Assembly" => "Assembly",
-                    "Component" => "Fabricated Part",
-                    "Machine" => "Machine",
+                    "Component" => "Part",
+                    "Machine" => "Assembly",
                     _ => "Part"
                 };
 
@@ -89,7 +91,8 @@ namespace IdeaCadConnector.Workspace
                     LogicalCode = cad.LogicalCode,
                     CadNumber = GenerateCadNumber(result.RepositoryCode, cad),
                     Classification = classification,
-                    Action = "Create"
+                    Action = "Create",
+                    LinkedPartLogicalCode = cad.LinkedPartLogicalCode
                 });
             }
 
@@ -123,9 +126,6 @@ namespace IdeaCadConnector.Workspace
             {
                 var classification = doc.DocumentRole switch
                 {
-                    "PackageGroup" => "Package Manifest",
-                    "PackageDetail" => "Technical Drawing",
-                    "Reference" => "Input/Reference",
                     _ => "Document"
                 };
 
@@ -138,7 +138,8 @@ namespace IdeaCadConnector.Workspace
                     DocumentNumber = GenerateDocumentNumber(result.RepositoryCode, doc),
                     Classification = classification,
                     LinkTargetType = linkTarget,
-                    Action = "Create"
+                    Action = "Create",
+                    LinkedPartLogicalCode = doc.LinkedPartLogicalCode
                 });
             }
 
@@ -193,7 +194,7 @@ namespace IdeaCadConnector.Workspace
             {
                 "RootDrawing" => repositoryCode + "-CAD-ASM",
                 "AssemblyRevision" => repositoryCode + "-CAD-" + (cad.LogicalCode ?? "REV"),
-                "PrimaryCad" => repositoryCode + "-CAD-" + (cad.VersionToken ?? "000"),
+                "PrimaryCad" => repositoryCode + "-CAD-" + (cad.LinkedPartLogicalCode ?? cad.LogicalCode ?? cad.VersionToken ?? "000"),
                 _ => repositoryCode + "-CAD-" + (cad.LogicalCode ?? "000")
             };
         }

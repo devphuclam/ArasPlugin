@@ -593,10 +593,15 @@
                                  FontWeight="SemiBold"
                                  Foreground="#FF16274F"
                                  Text="{Binding ConnectedUserText}" />
-                      <TextBlock Margin="0,4,0,0"
-                                 FontSize="13"
-                                 Foreground="#FF60708E"
-                                 Text="{Binding StatusMessage}" />
+                      <TextBox Margin="0,4,0,0"
+                               FontSize="13"
+                               Foreground="#FF60708E"
+                               Text="{Binding StatusMessage}"
+                               IsReadOnly="True"
+                               BorderThickness="0"
+                               Background="Transparent"
+                               TextWrapping="Wrap"
+                               IsTabStop="False" />
                     </StackPanel>
                     <Button Grid.Column="2"
                             Width="32" Height="32"

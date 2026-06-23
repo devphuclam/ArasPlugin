@@ -60,6 +60,7 @@ namespace IdeaCadConnector.Core.Contracts
         public IReadOnlyList<PdmItemResult> CadResults { get; set; }
         public IReadOnlyList<PdmItemResult> DocumentResults { get; set; }
         public string ErrorMessage { get; set; }
+        public IReadOnlyList<string> Warnings { get; set; }
     }
 
     public sealed class PdmItemResult
