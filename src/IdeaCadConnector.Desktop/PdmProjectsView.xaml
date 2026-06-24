@@ -900,15 +900,21 @@
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                   </Grid.RowDefinitions>
-                  <TextBlock Style="{StaticResource MetricLabelStyle}" Text="Parts to create" />
+                  <TextBlock Style="{StaticResource MetricLabelStyle}" Text="Parts" />
                   <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewParts.Count}" />
-                  <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="CAD files to create" />
-                  <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewCads.Count}" />
+                  <TextBlock Grid.Column="2" Style="{StaticResource MetricLabelStyle}" Text="CADs" />
+                  <TextBlock Grid.Column="3" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewCads.Count}" />
+                  <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="Documents" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewDocuments.Count}" />
+                  <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource MetricLabelStyle}" Text="Ignored" />
+                  <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewIgnoredFiles.Count}" />
                 </Grid>
               </Border>
 
@@ -931,80 +937,179 @@
                 </TabControl.Resources>
 
                 <TabItem Header="Parts">
-                  <DataGrid ItemsSource="{Binding PreviewParts}"
-                            AutoGenerateColumns="False"
-                            IsReadOnly="True"
-                            BorderThickness="1"
-                            BorderBrush="#FFE3EAF5"
-                            HeadersVisibility="Column"
-                            RowHeight="36"
-                            FontSize="12"
-                            Foreground="#FF1B2B55">
-                    <DataGrid.Columns>
-                      <DataGridTextColumn Header="Part Number" Binding="{Binding PartNumber}" Width="140" />
-                      <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
-                      <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="130" />
-                      <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="60" />
-                      <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="80" />
-                    </DataGrid.Columns>
-                  </DataGrid>
+                  <Border BorderThickness="1"
+                          BorderBrush="#FFE3EAF5"
+                          CornerRadius="12"
+                          Background="White">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  Padding="12">
+                    <ItemsControl ItemsSource="{Binding PreviewParts}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,8"
+                                  Padding="16,12"
+                                  BorderBrush="#FFE3EAF5"
+                                  BorderThickness="1"
+                                  CornerRadius="10"
+                                  Background="#FFFAFBFD">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="100" />
+                              </Grid.ColumnDefinitions>
+                              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#FF1B2B55"
+                                         VerticalAlignment="Center" Text="{Binding PartNumber}" />
+                              <TextBlock Grid.Column="1" FontSize="13" Foreground="#FF52627F"
+                                         VerticalAlignment="Center" Text="{Binding Name}" />
+                              <TextBlock Grid.Column="2" FontSize="13" Foreground="#FF60708E"
+                                         VerticalAlignment="Center" Text="{Binding Classification}" />
+                              <TextBlock Grid.Column="3" FontSize="13" Foreground="#FF1B2B55"
+                                         VerticalAlignment="Center" Text="{Binding Quantity}" />
+                              <Border Grid.Column="4" Padding="10,5" CornerRadius="8"
+                                      Background="#FFF0F5FF" VerticalAlignment="Center">
+                                <TextBlock FontSize="12" FontWeight="SemiBold"
+                                           Foreground="#FF174FCB" Text="{Binding Action}" />
+                              </Border>
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
                 </TabItem>
 
                 <TabItem Header="CADs">
-                  <DataGrid ItemsSource="{Binding PreviewCads}"
-                            AutoGenerateColumns="False"
-                            IsReadOnly="True"
-                            BorderThickness="1"
-                            BorderBrush="#FFE3EAF5"
-                            HeadersVisibility="Column"
-                            RowHeight="36"
-                            FontSize="12"
-                            Foreground="#FF1B2B55">
-                    <DataGrid.Columns>
-                      <DataGridTextColumn Header="File Name" Binding="{Binding SourceFileName}" Width="*" />
-                      <DataGridTextColumn Header="Logical Code" Binding="{Binding LogicalCode}" Width="120" />
-                      <DataGridTextColumn Header="CAD Number" Binding="{Binding CadNumber}" Width="140" />
-                      <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="130" />
-                      <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="80" />
-                    </DataGrid.Columns>
-                  </DataGrid>
+                  <Border BorderThickness="1"
+                          BorderBrush="#FFE3EAF5"
+                          CornerRadius="12"
+                          Background="White">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  Padding="12">
+                    <ItemsControl ItemsSource="{Binding PreviewCads}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,8"
+                                  Padding="16,12"
+                                  BorderBrush="#FFE3EAF5"
+                                  BorderThickness="1"
+                                  CornerRadius="10"
+                                  Background="#FFFAFBFD">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="100" />
+                              </Grid.ColumnDefinitions>
+                              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#FF1B2B55"
+                                         VerticalAlignment="Center" Text="{Binding SourceFileName}" />
+                              <TextBlock Grid.Column="1" FontSize="13" Foreground="#FF52627F"
+                                         VerticalAlignment="Center" Text="{Binding LogicalCode}" />
+                              <TextBlock Grid.Column="2" FontSize="13" Foreground="#FF60708E"
+                                         VerticalAlignment="Center" Text="{Binding CadNumber}" />
+                              <TextBlock Grid.Column="3" FontSize="13" Foreground="#FF60708E"
+                                         VerticalAlignment="Center" Text="{Binding Classification}" />
+                              <Border Grid.Column="4" Padding="10,5" CornerRadius="8"
+                                      Background="#FFF0F5FF" VerticalAlignment="Center">
+                                <TextBlock FontSize="12" FontWeight="SemiBold"
+                                           Foreground="#FF174FCB" Text="{Binding Action}" />
+                              </Border>
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
                 </TabItem>
 
                 <TabItem Header="Documents">
-                  <DataGrid ItemsSource="{Binding PreviewDocuments}"
-                            AutoGenerateColumns="False"
-                            IsReadOnly="True"
-                            BorderThickness="1"
-                            BorderBrush="#FFE3EAF5"
-                            HeadersVisibility="Column"
-                            RowHeight="36"
-                            FontSize="12"
-                            Foreground="#FF1B2B55">
-                    <DataGrid.Columns>
-                      <DataGridTextColumn Header="File Name" Binding="{Binding SourceFileName}" Width="*" />
-                      <DataGridTextColumn Header="Document Number" Binding="{Binding DocumentNumber}" Width="140" />
-                      <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="130" />
-                      <DataGridTextColumn Header="Links To" Binding="{Binding LinkTargetType}" Width="80" />
-                      <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="80" />
-                    </DataGrid.Columns>
-                  </DataGrid>
+                  <Border BorderThickness="1"
+                          BorderBrush="#FFE3EAF5"
+                          CornerRadius="12"
+                          Background="White">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  Padding="12">
+                    <ItemsControl ItemsSource="{Binding PreviewDocuments}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,8"
+                                  Padding="16,12"
+                                  BorderBrush="#FFE3EAF5"
+                                  BorderThickness="1"
+                                  CornerRadius="10"
+                                  Background="#FFFAFBFD">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="100" />
+                              </Grid.ColumnDefinitions>
+                              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#FF1B2B55"
+                                         VerticalAlignment="Center" Text="{Binding SourceFileName}" />
+                              <TextBlock Grid.Column="1" FontSize="13" Foreground="#FF52627F"
+                                         VerticalAlignment="Center" Text="{Binding DocumentNumber}" />
+                              <TextBlock Grid.Column="2" FontSize="13" Foreground="#FF60708E"
+                                         VerticalAlignment="Center" Text="{Binding Classification}" />
+                              <TextBlock Grid.Column="3" FontSize="13" Foreground="#FF60708E"
+                                         VerticalAlignment="Center" Text="{Binding LinkTargetType}" />
+                              <Border Grid.Column="4" Padding="10,5" CornerRadius="8"
+                                      Background="#FFF0F5FF" VerticalAlignment="Center">
+                                <TextBlock FontSize="12" FontWeight="SemiBold"
+                                           Foreground="#FF174FCB" Text="{Binding Action}" />
+                              </Border>
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
                 </TabItem>
 
                 <TabItem Header="Ignored">
-                  <DataGrid ItemsSource="{Binding PreviewIgnoredFiles}"
-                            AutoGenerateColumns="False"
-                            IsReadOnly="True"
-                            BorderThickness="1"
-                            BorderBrush="#FFE3EAF5"
-                            HeadersVisibility="Column"
-                            RowHeight="36"
-                            FontSize="12"
-                            Foreground="#FF1B2B55">
-                    <DataGrid.Columns>
-                      <DataGridTextColumn Header="File Name" Binding="{Binding SourceFileName}" Width="*" />
-                      <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="*" />
-                    </DataGrid.Columns>
-                  </DataGrid>
+                  <Border BorderThickness="1"
+                          BorderBrush="#FFE3EAF5"
+                          CornerRadius="12"
+                          Background="White">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  Padding="12">
+                    <ItemsControl ItemsSource="{Binding PreviewIgnoredFiles}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Margin="0,0,0,8"
+                                  Padding="16,12"
+                                  BorderBrush="#FFE3EAF5"
+                                  BorderThickness="1"
+                                  CornerRadius="10"
+                                  Background="#FFFAFBFD">
+                            <Grid>
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                              </Grid.ColumnDefinitions>
+                              <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="#FF1B2B55"
+                                         VerticalAlignment="Center" Text="{Binding SourceFileName}" />
+                              <TextBlock Grid.Column="1" FontSize="13" Foreground="#FF60708E"
+                                         VerticalAlignment="Center" Text="{Binding Reason}" />
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Border>
                 </TabItem>
               </TabControl>
             </Grid>
