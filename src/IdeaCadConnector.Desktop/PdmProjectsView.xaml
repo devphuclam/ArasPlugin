@@ -802,6 +802,7 @@
                             BorderThickness="1.5"
                             Foreground="#FF109A93"
                             FontWeight="SemiBold"
+                            Command="{Binding OpenInIronCadCommand}"
                             Content="Open in IronCAD" />
                     <Button Grid.Column="2"
                             Height="40"

@@ -41,6 +41,7 @@ namespace IdeaCadConnector.Desktop
         private string _connectionDatabase;
         private bool _isAnalyzing;
         private bool _isPushing;
+        private bool _isOpeningInIronCad;
         private PushPreview _pushPreview;
         private string _commitMessage;
 
@@ -82,6 +83,7 @@ namespace IdeaCadConnector.Desktop
             _browseFolderCommand = new RelayCommand(_ => BrowseFolder());
             BrowseFolderCommand = _browseFolderCommand;
             OpenDocumentCommand = new RelayCommand(doc => OpenDocument(doc as PdmDocumentItem), doc => doc is PdmDocumentItem);
+            OpenInIronCadCommand = new RelayCommand(_ => OpenInIronCad(), _ => CanOpenInIronCad);
 
             AnalyzeFolder();
         }
@@ -196,6 +198,8 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _selectedNode, value))
                 {
                     OnPropertyChanged(nameof(HasSelectedNode));
+                    OnPropertyChanged(nameof(CanOpenInIronCad));
+                    ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
                     RefreshSelectedDocuments();
                 }
             }
@@ -237,6 +241,25 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
+        public bool IsOpeningInIronCad
+        {
+            get => _isOpeningInIronCad;
+            set
+            {
+                if (SetField(ref _isOpeningInIronCad, value))
+                {
+                    OnPropertyChanged(nameof(CanOpenInIronCad));
+                    ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
+                }
+            }
+        }
+
+        public bool CanOpenInIronCad =>
+            !IsOpeningInIronCad &&
+            SelectedNode != null &&
+            !string.IsNullOrWhiteSpace(SelectedNode.PrimaryCad) &&
+            SelectedNode.PrimaryCad != "-";
+
         public string CommitMessage
         {
             get => _commitMessage;
@@ -274,6 +297,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand AnalyzeFolderCommand { get; }
         public ICommand BrowseFolderCommand { get; }
         public ICommand OpenDocumentCommand { get; }
+        public ICommand OpenInIronCadCommand { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -793,6 +817,58 @@ namespace IdeaCadConnector.Desktop
             {
                 StatusMessage = "Failed to open document: " + ex.Message;
             }
+        }
+
+        private async void OpenInIronCad()
+        {
+            if (!CanOpenInIronCad)
+                return;
+
+            IsOpeningInIronCad = true;
+            try
+            {
+                var cadFileName = SelectedNode.PrimaryCad;
+                var cadFolder = ResolveIronCadFolder();
+                var cadPath = string.IsNullOrWhiteSpace(cadFolder)
+                    ? null
+                    : System.IO.Path.Combine(cadFolder, cadFileName);
+
+                if (cadPath == null || !System.IO.File.Exists(cadPath))
+                {
+                    StatusMessage = $"File not found: {cadFileName}. Expected at: {cadPath ?? FolderPath}";
+                    return;
+                }
+
+                var adapter = new IronCadExternalAdapter();
+                await adapter.OpenDocumentAsync(cadPath, Core.Cad.CadOpenMode.ReadOnly, CancellationToken.None);
+                StatusMessage = $"Opened {cadFileName} in IronCAD.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Failed to open in IronCAD: " + ex.Message;
+            }
+            finally
+            {
+                IsOpeningInIronCad = false;
+            }
+        }
+
+        private string ResolveIronCadFolder()
+        {
+            if (string.IsNullOrWhiteSpace(FolderPath) || !Directory.Exists(FolderPath))
+                return null;
+
+            // Try ARAS01 subfolder first (convention from PDM-Sample-Data-DPV2303-001)
+            var aras01Sub = System.IO.Path.Combine(FolderPath, "ARAS01");
+            if (Directory.Exists(aras01Sub))
+                return aras01Sub;
+
+            // If FolderPath itself is an ARAS01 folder, use it directly
+            if (new DirectoryInfo(FolderPath).Name.Equals("ARAS01", StringComparison.OrdinalIgnoreCase))
+                return FolderPath;
+
+            // Otherwise assume files are in the folder itself
+            return FolderPath;
         }
 
         private void AddDocument(string partCode, string name, string kind, string sourcePath = null)
