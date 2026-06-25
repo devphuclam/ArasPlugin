@@ -54,7 +54,9 @@ namespace IdeaCadConnector.Desktop
                 "Working folder analysis",
                 "C1 - Initial project import"
             };
-            Structure = new ObservableCollection<PdmStructureNode>();
+            PdmStructure = new ObservableCollection<PdmStructureNode>();
+            CadStructure = new ObservableCollection<PdmStructureNode>();
+            StructureMappings = new ObservableCollection<PdmStructureMappingItem>();
             Changes = new ObservableCollection<PdmFileChange>();
             Documents = new ObservableCollection<PdmDocumentItem>();
             NamingPreview = new ObservableCollection<PdmNamingPreviewItem>();
@@ -91,7 +93,9 @@ namespace IdeaCadConnector.Desktop
         public ObservableCollection<string> Repositories { get; }
         public ObservableCollection<string> Branches { get; }
         public ObservableCollection<string> Commits { get; }
-        public ObservableCollection<PdmStructureNode> Structure { get; }
+        public ObservableCollection<PdmStructureNode> PdmStructure { get; }
+        public ObservableCollection<PdmStructureNode> CadStructure { get; }
+        public ObservableCollection<PdmStructureMappingItem> StructureMappings { get; }
         public ObservableCollection<PdmFileChange> Changes { get; }
         public ObservableCollection<PdmDocumentItem> Documents { get; }
         public ObservableCollection<PdmNamingPreviewItem> NamingPreview { get; }
@@ -183,7 +187,10 @@ namespace IdeaCadConnector.Desktop
             (_pushPreview?.Readiness?.CanPush ?? false) &&
             MainViewModel.SharedPdmClient != null;
 
-        public bool HasStructure => Structure.Count > 0;
+        public bool HasPdmStructure => PdmStructure.Count > 0;
+        public bool HasCadStructure => CadStructure.Count > 0;
+        public bool HasStructure => HasPdmStructure || HasCadStructure;
+        public bool HasStructureMappings => StructureMappings.Count > 0;
         public bool HasProjectFiles => ProjectFiles.Count > 0;
         public bool HasChanges => Changes.Count > 0;
         public bool HasNamingPreview => NamingPreview.Count > 0;
@@ -508,7 +515,9 @@ namespace IdeaCadConnector.Desktop
                 _latestAnalysis.AssemblyFiles.Add(rootDrawing);
             }
 
-            Structure.Clear();
+            PdmStructure.Clear();
+            CadStructure.Clear();
+            StructureMappings.Clear();
             Changes.Clear();
             Documents.Clear();
             NamingPreview.Clear();
@@ -539,12 +548,17 @@ namespace IdeaCadConnector.Desktop
 
             BuildNamingPreview(_latestAnalysis);
             BuildChanges(_latestAnalysis);
-            BuildStructure(_latestAnalysis, _latestBusinessStructure);
+            BuildPdmStructure(_latestAnalysis, _latestBusinessStructure);
+            BuildCadStructure(_latestAnalysis, _latestBusinessStructure);
+            BuildStructureMappings(_latestAnalysis, _latestBusinessStructure);
             BuildDocuments(_latestAnalysis, _latestBusinessStructure, sources.PackageFolder ?? FolderPath, sources.CadFolder ?? FolderPath);
             BuildProjectFiles(sources);
             BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
             BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
 
+            OnPropertyChanged(nameof(HasPdmStructure));
+            OnPropertyChanged(nameof(HasCadStructure));
+            OnPropertyChanged(nameof(HasStructureMappings));
             OnPropertyChanged(nameof(HasStructure));
             OnPropertyChanged(nameof(HasProjectFiles));
             OnPropertyChanged(nameof(HasChanges));
@@ -620,7 +634,7 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        private void BuildStructure(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
+        private void BuildPdmStructure(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
         {
             if (string.IsNullOrWhiteSpace(analysis.ProjectCode))
             {
@@ -635,8 +649,9 @@ namespace IdeaCadConnector.Desktop
                 "Assembly",
                 1,
                 analysis.PrimaryAssembly?.Revision ?? "-",
-                businessStructure != null && businessStructure.HasStructure ? "Hybrid structure preview" : (analysis.IsValid ? "Ready to push" : "Fix naming"),
+                businessStructure != null && businessStructure.HasStructure ? "Business structure preview" : (analysis.IsValid ? "Ready to push" : "Fix naming"),
                 "#FF7C47DC",
+                perspective: "PDM",
                 primaryCad: analysis.PrimaryAssembly?.FileName ?? "-",
                 sourceDocument: businessStructure?.RootDrawingFileName ?? analysis.PrimaryAssembly?.FileName ?? "-");
 
@@ -668,8 +683,53 @@ namespace IdeaCadConnector.Desktop
                 }
             }
 
-            Structure.Add(root);
+            PdmStructure.Add(root);
             SelectedNode = root;
+        }
+
+        private void BuildCadStructure(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
+        {
+            if (analysis == null)
+            {
+                return;
+            }
+
+            var projectCode = string.IsNullOrWhiteSpace(analysis.ProjectCode) ? "CAD" : analysis.ProjectCode;
+            var rootName = analysis.PrimaryAssembly?.FileName
+                ?? businessStructure?.RootDrawingFileName
+                ?? projectCode;
+
+            var root = new PdmStructureNode(
+                rootName,
+                projectCode,
+                "Assembly",
+                1,
+                analysis.PrimaryAssembly?.Revision ?? "-",
+                "Parsed from CAD folder",
+                "#FF2967EF",
+                perspective: "CAD",
+                primaryCad: analysis.PrimaryAssembly?.FileName ?? "-",
+                sourceDocument: analysis.PrimaryAssembly?.FileName ?? "-");
+
+            foreach (var detail in analysis.DetailFiles.OrderBy(file => file.Sequence ?? int.MaxValue).ThenBy(file => file.FileName))
+            {
+                root.Children.Add(new PdmStructureNode(
+                    detail.DisplayName,
+                    detail.LogicalPartCode,
+                    "Component",
+                    1,
+                    detail.Version ?? "-",
+                    "Parsed from CAD name",
+                    "#FF1F9D55",
+                    perspective: "CAD",
+                    primaryCad: detail.FileName,
+                    sourceDocument: detail.FileName));
+            }
+
+            if (analysis.PrimaryAssembly != null || root.Children.Count > 0)
+            {
+                CadStructure.Add(root);
+            }
         }
 
         private PdmStructureNode CreateBusinessStructureNode(
@@ -692,6 +752,7 @@ namespace IdeaCadConnector.Desktop
                 "-",
                 "Package inferred",
                 businessNode.NodeType == "Assembly" ? "#FF2967EF" : "#FF1F9D55",
+                perspective: "PDM",
                 primaryCad: primaryCad,
                 sourceDocument: businessNode.SourceFileName);
 
@@ -701,6 +762,90 @@ namespace IdeaCadConnector.Desktop
             }
 
             return node;
+        }
+
+        private void BuildStructureMappings(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
+        {
+            if (analysis == null)
+            {
+                return;
+            }
+
+            if (analysis.PrimaryAssembly != null)
+            {
+                StructureMappings.Add(new PdmStructureMappingItem(
+                    analysis.ProjectCode ?? "PROJECT",
+                    analysis.ProjectCode ?? "Project Root",
+                    "Assembly",
+                    analysis.PrimaryAssembly.FileName,
+                    "Root CAD mapped"));
+            }
+
+            if (businessStructure == null || !businessStructure.HasStructure)
+            {
+                foreach (var detail in analysis.DetailFiles.OrderBy(file => file.Sequence ?? int.MaxValue))
+                {
+                    StructureMappings.Add(new PdmStructureMappingItem(
+                        detail.LogicalPartCode ?? detail.FileName,
+                        detail.DisplayName ?? detail.FileName,
+                        "Component",
+                        detail.FileName,
+                        "Direct CAD node"));
+                }
+
+                return;
+            }
+
+            var detailCadMap = BuildDetailCadMap(analysis, businessStructure);
+            foreach (var businessNode in FlattenBusinessNodes(businessStructure.RootNodes))
+            {
+                string mappedCad = "-";
+                string status;
+
+                if (businessNode.NodeType == "Assembly")
+                {
+                    status = "Business grouping";
+                }
+                else if (!string.IsNullOrWhiteSpace(businessNode.SourceFileName) &&
+                         detailCadMap.TryGetValue(businessNode.SourceFileName, out var detailCad))
+                {
+                    mappedCad = detailCad.FileName;
+                    status = "Mapped to CAD";
+                }
+                else
+                {
+                    status = "Missing CAD mapping";
+                }
+
+                StructureMappings.Add(new PdmStructureMappingItem(
+                    businessNode.Code ?? "-",
+                    FormatBusinessNodeName(businessNode.Name),
+                    businessNode.NodeType ?? "-",
+                    mappedCad,
+                    status));
+            }
+        }
+
+        private static IEnumerable<PdmBusinessNode> FlattenBusinessNodes(IEnumerable<PdmBusinessNode> nodes)
+        {
+            if (nodes == null)
+            {
+                yield break;
+            }
+
+            foreach (var node in nodes)
+            {
+                if (node == null)
+                {
+                    continue;
+                }
+
+                yield return node;
+                foreach (var child in FlattenBusinessNodes(node.Children))
+                {
+                    yield return child;
+                }
+            }
         }
 
         private void BuildDocuments(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure, string packageFolder, string cadFolder)
@@ -1091,7 +1236,7 @@ namespace IdeaCadConnector.Desktop
                 {
                     var componentCount = businessStructure.RootNodes.Sum(node => node.Children.Count);
                     AnalysisSummary = string.Format(
-                        "{0} is valid for naming policy {1}. Business structure shows {2} groups and {3} child components; CAD sequence comes from {4}.",
+                        "{0} is valid for naming policy {1}. PDM structure shows {2} groups and {3} child components; CAD structure is shown separately from {4}.",
                         analysis.ProjectCode ?? "Folder",
                         NamingPolicyVersion,
                         businessStructure.RootNodes.Count,
@@ -1101,7 +1246,7 @@ namespace IdeaCadConnector.Desktop
                 else
                 {
                     AnalysisSummary = string.Format(
-                        "{0} is valid for naming policy {1}. Structure preview includes {2} assembly file(s) and {3} component file(s).",
+                        "{0} is valid for naming policy {1}. CAD structure includes {2} assembly file(s) and {3} component file(s).",
                         analysis.ProjectCode ?? "Folder",
                         NamingPolicyVersion,
                         analysis.AssemblyFiles.Count,
@@ -1326,6 +1471,7 @@ namespace IdeaCadConnector.Desktop
             string state,
             string accent,
             ObservableCollection<PdmStructureNode> children = null,
+            string perspective = null,
             string primaryCad = null,
             string lockedBy = null,
             string sourceDocument = null)
@@ -1338,6 +1484,7 @@ namespace IdeaCadConnector.Desktop
             State = state;
             Accent = accent;
             Children = children ?? new ObservableCollection<PdmStructureNode>();
+            Perspective = perspective ?? "PDM";
             PrimaryCad = primaryCad ?? "-";
             LockedBy = lockedBy ?? "-";
             SourceDocument = sourceDocument ?? "-";
@@ -1350,10 +1497,29 @@ namespace IdeaCadConnector.Desktop
         public string Revision { get; }
         public string State { get; }
         public string Accent { get; }
+        public string Perspective { get; }
         public string PrimaryCad { get; }
         public string LockedBy { get; }
         public string SourceDocument { get; }
         public ObservableCollection<PdmStructureNode> Children { get; }
+    }
+
+    public sealed class PdmStructureMappingItem
+    {
+        public PdmStructureMappingItem(string pdmCode, string pdmName, string nodeType, string mappedCad, string status)
+        {
+            PdmCode = pdmCode;
+            PdmName = pdmName;
+            NodeType = nodeType;
+            MappedCad = mappedCad;
+            Status = status;
+        }
+
+        public string PdmCode { get; }
+        public string PdmName { get; }
+        public string NodeType { get; }
+        public string MappedCad { get; }
+        public string Status { get; }
     }
 
     public sealed class PdmFileChange

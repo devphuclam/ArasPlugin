@@ -7,6 +7,7 @@
 .PARAMETER Version        Version string. Default: 1.0
 .PARAMETER Groups         Comma-separated group names. Default: "Frame,Drive,Sensor"
                           Custom subs: "Frame:BasePlate+SidePanel,Drive:MotorMount+Gearbox"
+.PARAMETER SeedPartPath   Existing green/native IronCAD part used as the seed for all generated .ics files.
 .PARAMETER SkipIcs        Skip IronCAD COM - only create PDF/DWG placeholder files.
 .PARAMETER Force          Overwrite existing files.
 .EXAMPLE
@@ -20,6 +21,7 @@ param(
     [string]$ProjectName = "IRONCASE",
     [string]$Version     = "1.0",
     [string]$Groups      = "Frame,Drive,Sensor",
+    [string]$SeedPartPath = "C:\Users\TD-999\Research\ArasInnovator\copilot-worktrees\StudyCase_0603\Stapler.ics",
     [switch]$SkipIcs,
     [switch]$Force
 )
@@ -31,6 +33,213 @@ function Write-Step { param([string]$m) Write-Host "  $m" -ForegroundColor Cyan 
 function Write-OK   { param([string]$m) Write-Host "  [OK] $m" -ForegroundColor Green }
 function Write-Warn { param([string]$m) Write-Host "  [!]  $m" -ForegroundColor Yellow }
 function Write-Fail { param([string]$m) Write-Host "  [X]  $m" -ForegroundColor Red }
+
+$script:IronCadInteropPath = "C:\Program Files\IronCAD\2025\ICAPI\Samples\C#\References\interop.ICApiIronCAD.dll"
+$script:IronCadNativeBridgeReady = $false
+
+function Ensure-IronCadNativeBridge {
+    if ($script:IronCadNativeBridgeReady) { return }
+    if (-not (Test-Path $script:IronCadInteropPath)) {
+        throw "ICAPI interop not found: $script:IronCadInteropPath"
+    }
+
+    Add-Type -Path $script:IronCadInteropPath
+    $type = 'IronCadNativeBridge' -as [type]
+    if ($null -eq $type) {
+        $bridgeCode = @"
+using System;
+using System.Reflection;
+using interop.ICApiIronCAD;
+
+public static class IronCadNativeBridge
+{
+    private static double[] P3(double x, double y, double z)
+    {
+        return new[] { x, y, z };
+    }
+
+    private static double[] P2(double x, double y)
+    {
+        return new[] { x, y };
+    }
+
+    public static void SaveScene(object sceneObj, string filePath)
+    {
+        var scene = (IZSceneDoc)sceneObj;
+        try
+        {
+            scene.SaveAs(filePath, eZLinksSaveOptions.Z_LINKS_IGNORE, true);
+        }
+        catch
+        {
+            sceneObj.GetType().InvokeMember(
+                "SaveAs",
+                BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                null,
+                sceneObj,
+                new object[] { filePath });
+        }
+    }
+
+    public static object CreateSceneDocument(object appObj)
+    {
+        var app = (IZBaseApp)appObj;
+        IZDoc doc = app.CreateNewDoc(eZDocType.Z_SCENE, false, true, string.Empty, true);
+        if (doc == null)
+            throw new InvalidOperationException("CreateNewDoc returned null.");
+        return doc;
+    }
+
+    public static void CloseDocument(object docObj)
+    {
+        var doc = (IZDoc)docObj;
+        try
+        {
+            doc.Close();
+        }
+        catch
+        {
+        }
+    }
+
+    public static void CreatePart(object sceneObj, int seq, string partName, string partNumber)
+    {
+        var scene = (IZSceneDoc)sceneObj;
+        IZPart part = CreateNativePart(scene, seq);
+        if (part == null)
+            throw new InvalidOperationException("Native part creation returned null.");
+
+        try { ((IZElement)part).Name = partName; } catch { }
+        try { part.BOMPartNumber = partNumber; } catch { }
+        try { part.BOMDescription = partName; } catch { }
+        try { part.Update(); } catch { }
+        try { scene.Update(); } catch { }
+    }
+
+    public static void AddLinkedDocument(object sceneObj, string filePath, string shapeName)
+    {
+        var scene = (IZSceneDoc)sceneObj;
+        object added = null;
+        try
+        {
+            added = scene.GetType().InvokeMember(
+                "Shapes",
+                BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance,
+                null,
+                scene,
+                null);
+            if (added != null)
+            {
+                var linked = added.GetType().InvokeMember(
+                    "Add",
+                    BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+                    null,
+                    added,
+                    new object[] { filePath });
+                var elem = linked as IZElement;
+                if (elem != null)
+                {
+                    try { elem.Name = shapeName; } catch { }
+                }
+                return;
+            }
+        }
+        catch
+        {
+        }
+
+        scene.GetType().InvokeMember(
+            "ImportFile",
+            BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance,
+            null,
+            scene,
+            new object[] { filePath, true });
+    }
+
+    private static IZPart CreateNativePart(IZSceneDoc scene, int seq)
+    {
+        int recipe = (seq - 1) % 5;
+        double n = seq;
+        switch (recipe)
+        {
+            case 0:
+            {
+                double sx = 0.08 + (n * 0.015);
+                double sy = 0.05 + (n * 0.010);
+                double sz = 0.025 + (n * 0.008);
+                return scene.CreateBlockPart(P3(-sx / 2, -sy / 2, -sz / 2), P3(sx / 2, sy / 2, sz / 2));
+            }
+            case 1:
+            {
+                double radius = 0.02 + (n * 0.004);
+                double height = 0.05 + (n * 0.010);
+                return scene.CreateCylinderPart(radius, height, P3(0, 0, 0), P3(0, 0, 1));
+            }
+            case 2:
+            {
+                double radius = 0.025 + (n * 0.003);
+                return scene.CreateSpherePart(radius, P3(0, 0, 0));
+            }
+            case 3:
+            {
+                double radius = 0.03 + (n * 0.004);
+                double height = 0.06 + (n * 0.009);
+                return scene.CreateConePart(radius, height, 0.30, P3(0, 0, 0), P3(0, 0, 1));
+            }
+            default:
+                return CreateBracket(scene, n);
+        }
+    }
+
+    private static IZPart CreateBracket(IZSceneDoc scene, double n)
+    {
+        double width = 0.10 + (n * 0.010);
+        double height = 0.08 + (n * 0.008);
+        double thick = 0.015 + (n * 0.003);
+        double[][] points =
+        {
+            new[] { -width / 2, -height / 2 },
+            new[] {  width / 2, -height / 2 },
+            new[] {  width / 2, -height / 2 + thick },
+            new[] { -width / 2 + thick, -height / 2 + thick },
+            new[] { -width / 2 + thick,  height / 2 },
+            new[] { -width / 2,  height / 2 }
+        };
+
+        IZProfile profile = scene.CreateProfile();
+        if (profile == null)
+            throw new InvalidOperationException("CreateProfile returned null.");
+
+        for (int i = 0; i < points.Length; i++)
+        {
+            var start = points[i];
+            var end = points[(i + 1) % points.Length];
+            profile.CreateLine(P2(start[0], start[1]), P2(end[0], end[1]), i + 1);
+        }
+
+        IZPart part = scene.CreatePart();
+        if (part == null)
+            throw new InvalidOperationException("CreatePart returned null.");
+
+        var features = (IZPartFeatureMgr)part;
+        features.CreateExtrudeFeature(
+            eZOperationType.Z_UNITE,
+            false,
+            thick * 2.5,
+            0.0,
+            0.0,
+            profile,
+            eZFeatureProfileRelType.Z_FEATURE_PROFILE_ABSORB);
+
+        try { part.Update(); } catch { }
+        return part;
+    }
+}
+"@
+        Add-Type -TypeDefinition $bridgeCode -Language CSharp -ReferencedAssemblies $script:IronCadInteropPath | Out-Null
+    }
+    $script:IronCadNativeBridgeReady = $true
+}
 
 # ---- Parse groups ----
 $defaultSubs = @{
@@ -106,91 +315,57 @@ foreach ($p in $partList) {
     if ($Force -or -not (Test-Path $pd)) { [System.IO.File]::WriteAllText($pd,"Part: $($p.SubName)"); Write-OK "ARAS01\${ProjectName}_Ver${Version}_${seq}.dwg" }
 }
 
-# ======== STEP 2: IronCAD .ics via COM (ImportFile + STL) ========
+# ======== STEP 2: IronCAD .ics from seed part + best-effort assembly ========
 Write-Host ""
 if ($SkipIcs) {
     Write-Host "[2/3] Skipping .ics creation (-SkipIcs)." -ForegroundColor Yellow
 } else {
-    Write-Host "[2/3] Creating .ics files via IronCAD COM (ImportFile/STL method)..." -ForegroundColor Yellow
-    $stale = @(Get-Process | Where-Object { $_.Name -like "IRONCAD*" })
-    if ($stale.Count -gt 0) {
-        Write-Warn "Killing $($stale.Count) stale IronCAD process(es)..."
-        $stale | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
-        Start-Sleep -Seconds 3
+    Write-Host "[2/3] Creating .ics files from seed part..." -ForegroundColor Yellow
+
+    if (-not (Test-Path $SeedPartPath)) {
+        throw "SeedPartPath not found: $SeedPartPath"
     }
 
-    function New-BoxStl {
-        param([string]$Name,[double]$Sx,[double]$Sy,[double]$Sz)
-        $hx=$Sx/2; $hy=$Sy/2; $hz=$Sz/2
-        $t=@(
-            @(0,0,1,   -$hx,-$hy,$hz,  $hx,-$hy,$hz,  $hx,$hy,$hz),
-            @(0,0,1,   -$hx,-$hy,$hz,  $hx,$hy,$hz,  -$hx,$hy,$hz),
-            @(0,0,-1,  -$hx,-$hy,-$hz,-$hx,$hy,-$hz,  $hx,$hy,-$hz),
-            @(0,0,-1,  -$hx,-$hy,-$hz, $hx,$hy,-$hz,  $hx,-$hy,-$hz),
-            @(1,0,0,    $hx,-$hy,-$hz, $hx,$hy,-$hz,  $hx,$hy,$hz),
-            @(1,0,0,    $hx,-$hy,-$hz, $hx,$hy,$hz,   $hx,-$hy,$hz),
-            @(-1,0,0,  -$hx,-$hy,-$hz,-$hx,-$hy,$hz, -$hx,$hy,$hz),
-            @(-1,0,0,  -$hx,-$hy,-$hz,-$hx,$hy,$hz,  -$hx,$hy,-$hz),
-            @(0,1,0,   -$hx,$hy,-$hz, -$hx,$hy,$hz,   $hx,$hy,$hz),
-            @(0,1,0,   -$hx,$hy,-$hz,  $hx,$hy,$hz,   $hx,$hy,-$hz),
-            @(0,-1,0,  -$hx,-$hy,-$hz, $hx,-$hy,-$hz, $hx,-$hy,$hz),
-            @(0,-1,0,  -$hx,-$hy,-$hz, $hx,-$hy,$hz, -$hx,-$hy,$hz)
-        )
-        $sb=[System.Text.StringBuilder]::new()
-        $null=$sb.AppendLine("solid $Name")
-        foreach ($f in $t) {
-            $null=$sb.AppendLine(("  facet normal {0:F6} {1:F6} {2:F6}" -f $f[0],$f[1],$f[2]))
-            $null=$sb.AppendLine("    outer loop")
-            $null=$sb.AppendLine(("      vertex {0:F6} {1:F6} {2:F6}" -f $f[3],$f[4],$f[5]))
-            $null=$sb.AppendLine(("      vertex {0:F6} {1:F6} {2:F6}" -f $f[6],$f[7],$f[8]))
-            $null=$sb.AppendLine(("      vertex {0:F6} {1:F6} {2:F6}" -f $f[9],$f[10],$f[11]))
-            $null=$sb.AppendLine("    endloop"); $null=$sb.AppendLine("  endfacet")
+    foreach ($p in $partList) {
+        $seq     = "{0:D3}" -f $p.GlobalSeq
+        $icsName = "${ProjectName}_Ver${Version}_${seq}.ics"
+        $icsPath = Join-Path $OutputFolder $icsName
+        if (-not $Force -and (Test-Path $icsPath)) {
+            Write-Warn "$icsName exists - skipping (-Force to overwrite)"
+            continue
         }
-        $null=$sb.AppendLine("endsolid $Name"); return $sb.ToString()
+
+        Write-Step "Copying seed part -> $icsName ($($p.SubName))..."
+        Copy-Item -LiteralPath $SeedPartPath -Destination $icsPath -Force
+        Write-OK $icsName
     }
 
-    $tmpDir = Join-Path $env:TEMP "IcStl_$(New-Guid)"
-    New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+    $asmName = "Assembly-${ProjectName}-Ver${Version}A.ics"
+    $asmPath = Join-Path $OutputFolder $asmName
     $icApp = $null
     try {
-        Write-Step "Starting IronCAD.Application COM..."
+        $stale = @(Get-Process | Where-Object { $_.Name -like "IRONCAD*" })
+        if ($stale.Count -gt 0) {
+            Write-Warn "Killing $($stale.Count) stale IronCAD process(es)..."
+            $stale | ForEach-Object { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Seconds 3
+        }
+
+        Write-Step "Starting IronCAD.Application COM for assembly..."
         $icApp = New-Object -ComObject IronCAD.Application
         $icApp.Visible = $true
         Start-Sleep -Seconds 3
         $icPid = (Get-Process | Where-Object { $_.Name -like "IRONCAD*" } | Select-Object -First 1).Id
         Write-OK "IronCAD started (PID: $icPid)"
 
-        foreach ($p in $partList) {
-            $seq     = "{0:D3}" -f $p.GlobalSeq
-            $icsName = "${ProjectName}_Ver${Version}_${seq}.ics"
-            $icsPath = Join-Path $OutputFolder $icsName
-            if (-not $Force -and (Test-Path $icsPath)) {
-                Write-Warn "$icsName exists - skipping (-Force to overwrite)"; continue
-            }
-            Write-Step "Creating $icsName ($($p.SubName))..."
-            $scale   = 0.04 + ($p.GlobalSeq * 0.012)
-            $stlTxt  = New-BoxStl $p.SubName ($scale*1.6) ($scale*1.2) ($scale*0.8)
-            $stlPath = Join-Path $tmpDir "$($p.SubName).stl"
-            [System.IO.File]::WriteAllText($stlPath, $stlTxt)
-
-            $page = $icApp.Pages.Add($null, $null)
-            $null = $page.ImportFile($stlPath, $false)   # embed STL geometry
-            $page.SaveAs($icsPath)
-            try { $page.Close() } catch {}
-            try { $icApp.Pages.Remove($page) } catch {}
-            Write-OK $icsName
-        }
-
-        $asmName = "Assembly-${ProjectName}-Ver${Version}A.ics"
-        $asmPath = Join-Path $OutputFolder $asmName
         if ($Force -or -not (Test-Path $asmPath)) {
-            Write-Step "Creating $asmName (assembly linking all parts)..."
+            Write-Step "Creating $asmName (best-effort linked assembly)..."
             $asmPage = $icApp.Pages.Add($null, $null)
             foreach ($p in $partList) {
-                $seq  = "{0:D3}" -f $p.GlobalSeq
-                $pth  = Join-Path $OutputFolder "${ProjectName}_Ver${Version}_${seq}.ics"
+                $seq = "{0:D3}" -f $p.GlobalSeq
+                $pth = Join-Path $OutputFolder "${ProjectName}_Ver${Version}_${seq}.ics"
                 if (Test-Path $pth) {
-                    try { $null = $asmPage.ImportFile($pth, $true) }   # link
+                    try { $null = $asmPage.ImportFile($pth, $true) }
                     catch { Write-Warn "Link $($p.SubName) failed: $_" }
                 }
             }
@@ -201,16 +376,15 @@ if ($SkipIcs) {
         }
     }
     catch {
-        Write-Fail "IronCAD COM error: $_"
-        Write-Host "  Tip: Kill IronCAD then retry, or add -SkipIcs to skip." -ForegroundColor Yellow
-        Write-Host "    Get-Process IRONCAD | Stop-Process -Force" -ForegroundColor Yellow
+        Write-Warn "Assembly creation failed. Falling back to seed copy for root assembly."
+        Copy-Item -LiteralPath $SeedPartPath -Destination $asmPath -Force
+        Write-OK "$asmName (seed fallback)"
     }
     finally {
         if ($null -ne $icApp) {
             try { $icApp.Quit() } catch {}
             [System.Runtime.InteropServices.Marshal]::ReleaseComObject($icApp) | Out-Null
         }
-        Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
     }
     Write-Host ""
 }

@@ -5,4 +5,10 @@
     <PlatformTarget>x64</PlatformTarget>
     <LangVersion>7.3</LangVersion>
   </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="interop.ICApiIronCAD">
+      <HintPath>C:\Program Files\IronCAD\2025\ICAPI\Samples\C#\References\interop.ICApiIronCAD.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
 </Project>

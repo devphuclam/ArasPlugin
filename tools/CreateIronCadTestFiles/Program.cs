@@ -1,85 +1,119 @@
 using System;
 using System.IO;
+using interop.ICApiIronCAD;
 
 namespace CreateIronCadTestFiles
 {
-    class Program
+    internal static class Program
     {
-        static void CreateBoxStl(string filePath, string name, double sx, double sy, double sz)
+        private static double[] Point3(double x, double y, double z)
         {
-            double hx = sx / 2, hy = sy / 2, hz = sz / 2;
-            using (var w = new StreamWriter(filePath))
-            {
-                w.WriteLine($"solid {name}");
-
-                // 6 faces, 2 triangles each = 12 triangle definitions
-                // Each triangle: normal (nx,ny,nz), v0 (x,y,z), v1 (x,y,z), v2 (x,y,z)
-                double[][][] tris = {
-                    // +Z
-                    new double[][] { new[] {0.0,0.0,1.0}, new[] {-hx,-hy,hz}, new[] {hx,-hy,hz}, new[] {hx,hy,hz} },
-                    new double[][] { new[] {0.0,0.0,1.0}, new[] {-hx,-hy,hz}, new[] {hx,hy,hz}, new[] {-hx,hy,hz} },
-                    // -Z
-                    new double[][] { new[] {0.0,0.0,-1.0}, new[] {-hx,-hy,-hz}, new[] {-hx,hy,-hz}, new[] {hx,hy,-hz} },
-                    new double[][] { new[] {0.0,0.0,-1.0}, new[] {-hx,-hy,-hz}, new[] {hx,hy,-hz}, new[] {hx,-hy,-hz} },
-                    // +X
-                    new double[][] { new[] {1.0,0.0,0.0}, new[] {hx,-hy,-hz}, new[] {hx,hy,-hz}, new[] {hx,hy,hz} },
-                    new double[][] { new[] {1.0,0.0,0.0}, new[] {hx,-hy,-hz}, new[] {hx,hy,hz}, new[] {hx,-hy,hz} },
-                    // -X
-                    new double[][] { new[] {-1.0,0.0,0.0}, new[] {-hx,-hy,-hz}, new[] {-hx,-hy,hz}, new[] {-hx,hy,hz} },
-                    new double[][] { new[] {-1.0,0.0,0.0}, new[] {-hx,-hy,-hz}, new[] {-hx,hy,hz}, new[] {-hx,hy,-hz} },
-                    // +Y
-                    new double[][] { new[] {0.0,1.0,0.0}, new[] {-hx,hy,-hz}, new[] {-hx,hy,hz}, new[] {hx,hy,hz} },
-                    new double[][] { new[] {0.0,1.0,0.0}, new[] {-hx,hy,-hz}, new[] {hx,hy,hz}, new[] {hx,hy,-hz} },
-                    // -Y
-                    new double[][] { new[] {0.0,-1.0,0.0}, new[] {-hx,-hy,-hz}, new[] {hx,-hy,-hz}, new[] {hx,-hy,hz} },
-                    new double[][] { new[] {0.0,-1.0,0.0}, new[] {-hx,-hy,-hz}, new[] {hx,-hy,hz}, new[] {-hx,-hy,hz} },
-                };
-
-                foreach (var t in tris)
-                {
-                    var n = t[0]; var v0 = t[1]; var v1 = t[2]; var v2 = t[3];
-                    w.WriteLine($"  facet normal {n[0]:F6} {n[1]:F6} {n[2]:F6}");
-                    w.WriteLine("    outer loop");
-                    w.WriteLine($"      vertex {v0[0]:F6} {v0[1]:F6} {v0[2]:F6}");
-                    w.WriteLine($"      vertex {v1[0]:F6} {v1[1]:F6} {v1[2]:F6}");
-                    w.WriteLine($"      vertex {v2[0]:F6} {v2[1]:F6} {v2[2]:F6}");
-                    w.WriteLine("    endloop");
-                    w.WriteLine("  endfacet");
-                }
-                w.WriteLine($"endsolid {name}");
-            }
+            return new[] { x, y, z };
         }
 
-        static object Invoke(object obj, string method, params object[] args)
+        private static double[] Point2(double x, double y)
+        {
+            return new[] { x, y };
+        }
+
+        private static void SaveScene(IZSceneDoc sceneDoc, string filePath)
         {
             try
             {
-                return obj.GetType().InvokeMember(method,
-                    System.Reflection.BindingFlags.InvokeMethod | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
-                    null, obj, args);
+                sceneDoc.SaveAs(filePath, eZLinksSaveOptions.Z_LINKS_IGNORE, true);
             }
-            catch (System.Reflection.TargetInvocationException ex)
+            catch
             {
-                throw ex.InnerException ?? ex;
+                sceneDoc.SaveAs(filePath);
             }
         }
 
-        static object Get(object obj, string prop)
+        private static IZPart CreateExtrudedProfilePart(IZSceneDoc sceneDoc, double[][] points, double depth)
         {
-            return obj.GetType().InvokeMember(prop,
-                System.Reflection.BindingFlags.GetProperty | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
-                null, obj, null);
+            IZProfile profile = sceneDoc.CreateProfile();
+            if (profile == null)
+                throw new InvalidOperationException("CreateProfile returned null.");
+
+            for (int i = 0; i < points.Length; i++)
+            {
+                double[] start = points[i];
+                double[] end = points[(i + 1) % points.Length];
+                profile.CreateLine(Point2(start[0], start[1]), Point2(end[0], end[1]), i + 1);
+            }
+
+            IZPart part = sceneDoc.CreatePart();
+            if (part == null)
+                throw new InvalidOperationException("CreatePart returned null.");
+
+            IZPartFeatureMgr features = (IZPartFeatureMgr)part;
+            features.CreateExtrudeFeature(
+                eZOperationType.Z_UNITE,
+                false,
+                depth,
+                0.0,
+                0.0,
+                profile,
+                eZFeatureProfileRelType.Z_FEATURE_PROFILE_ABSORB);
+
+            try { part.Update(); } catch { }
+            return part;
         }
 
-        static void Set(object obj, string prop, object value)
+        private static IZPart CreateNativePart(IZSceneDoc sceneDoc, int seq)
         {
-            obj.GetType().InvokeMember(prop,
-                System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
-                null, obj, new[] { value });
+            int recipe = (seq - 1) % 5;
+            double n = seq;
+
+            switch (recipe)
+            {
+                case 0:
+                    {
+                        double sx = 0.08 + (n * 0.015);
+                        double sy = 0.05 + (n * 0.010);
+                        double sz = 0.025 + (n * 0.008);
+                        return sceneDoc.CreateBlockPart(
+                            Point3(-sx / 2, -sy / 2, -sz / 2),
+                            Point3(sx / 2, sy / 2, sz / 2));
+                    }
+                case 1:
+                    {
+                        double radius = 0.02 + (n * 0.004);
+                        double height = 0.05 + (n * 0.010);
+                        return sceneDoc.CreateCylinderPart(radius, height, Point3(0, 0, 0), Point3(0, 0, 1));
+                    }
+                case 2:
+                    {
+                        double radius = 0.025 + (n * 0.003);
+                        return sceneDoc.CreateSpherePart(radius, Point3(0, 0, 0));
+                    }
+                case 3:
+                    {
+                        double radius = 0.03 + (n * 0.004);
+                        double height = 0.06 + (n * 0.009);
+                        double semiAngle = 0.30;
+                        return sceneDoc.CreateConePart(radius, height, semiAngle, Point3(0, 0, 0), Point3(0, 0, 1));
+                    }
+                default:
+                    {
+                        double width = 0.10 + (n * 0.010);
+                        double height = 0.08 + (n * 0.008);
+                        double thick = 0.015 + (n * 0.003);
+                        double[][] points =
+                        {
+                            new[] { -width / 2, -height / 2 },
+                            new[] {  width / 2, -height / 2 },
+                            new[] {  width / 2, -height / 2 + thick },
+                            new[] { -width / 2 + thick, -height / 2 + thick },
+                            new[] { -width / 2 + thick,  height / 2 },
+                            new[] { -width / 2,  height / 2 }
+                        };
+                        return CreateExtrudedProfilePart(sceneDoc, points, thick * 2.5);
+                    }
+            }
         }
 
         [STAThread]
-        static void Main(string[] args)
+        private static int Main(string[] args)
         {
             string outputDir = args.Length > 0
                 ? args[0]
@@ -87,33 +121,37 @@ namespace CreateIronCadTestFiles
 
             Directory.CreateDirectory(outputDir);
 
-            string[] partNames = {
-                "BasePlate",     // 001
-                "SidePanel",     // 002
-                "MotorMount",    // 003
-                "Gearbox",       // 004
-                "BeltPulley",    // 005
-                "PCBBracket",    // 006
-                "WiringDuct",    // 007
-                "ValveBlock",    // 008
-                "Cylinder",      // 009
-                "HoseConnector", // 010
-                "SensorMount",   // 011
-                "CoverLid"       // 012
+            string[] partNames =
+            {
+                "BasePlate",
+                "SidePanel",
+                "MotorMount",
+                "Gearbox",
+                "BeltPulley",
+                "PCBBracket",
+                "WiringDuct",
+                "ValveBlock",
+                "Cylinder",
+                "HoseConnector",
+                "SensorMount",
+                "CoverLid"
             };
-
-            string tempDir = Path.Combine(Path.GetTempPath(), "IdeaCadStl_" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(tempDir);
 
             Console.Write("Starting IronCAD...");
             Type icType = Type.GetTypeFromProgID("IronCAD.Application");
-            object icApp = Activator.CreateInstance(icType);
-            Set(icApp, "visible", false);
+            if (icType == null)
+            {
+                Console.WriteLine(" FAILED.");
+                Console.WriteLine("IronCAD.Application COM ProgID was not found.");
+                return 1;
+            }
+
+            dynamic icApp = Activator.CreateInstance(icType);
+            icApp.Visible = false;
             Console.WriteLine(" OK.");
 
             try
             {
-                // Step 1: Create STL files and import into IronCAD, save as .ics
                 for (int i = 0; i < partNames.Length; i++)
                 {
                     int seq = i + 1;
@@ -128,37 +166,25 @@ namespace CreateIronCadTestFiles
 
                     Console.Write($"  Creating {icsFileName} ({partNames[i]})...");
 
-                    // Create STL
-                    double sx = 0.08 * (seq + 2);
-                    double sy = 0.06 * (seq + 2);
-                    double sz = 0.02 * (seq + 3);
-                    string stlPath = Path.Combine(tempDir, $"{partNames[i]}.stl");
-                    CreateBoxStl(stlPath, partNames[i], sx, sy, sz);
+                    IZSceneDoc page = (IZSceneDoc)icApp.Pages.Add(Type.Missing, Type.Missing);
+                    IZPart nativePart = CreateNativePart(page, seq);
+                    if (nativePart == null)
+                        throw new InvalidOperationException($"Native part creation returned null for {icsFileName}.");
 
-                    // Create a new blank page
-                    object pages = Get(icApp, "Pages");
-                    object page = Invoke(pages, "Add", Type.Missing, Type.Missing);
+                    try { ((IZElement)nativePart).Name = partNames[i]; } catch { }
+                    try { nativePart.BOMPartNumber = $"IRONCASE_Ver1.0_{seq:D3}"; } catch { }
+                    try { nativePart.BOMDescription = partNames[i]; } catch { }
+                    try { nativePart.Update(); } catch { }
+                    try { page.RegenerateParts(); } catch { }
+                    try { page.Update(); } catch { }
 
-                    // Import STL into the page
-                    object imported = Invoke(page, "ImportFile", stlPath);
-
-                    if (imported != null)
-                    {
-                        // Try to set name of imported shape
-                        object shape = Get(page, "Shape");
-                        if (shape != null) Set(shape, "Name", partNames[i]);
-                    }
-
-                    // Save as .ics
-                    Invoke(page, "SaveAs", icsFilePath);
-                    Invoke(page, "Close");
-                    // Remove the page from Pages collection
-                    try { Invoke(pages, "Remove", page); } catch { }
+                    SaveScene(page, icsFilePath);
+                    try { ((dynamic)page).Close(); } catch { }
+                    try { icApp.Pages.Remove(page); } catch { }
 
                     Console.WriteLine(" OK.");
                 }
 
-                // Step 2: Create assembly by importing all .ics files
                 string assemblyFileName = "Assembly-IRONCASE-Ver1.0A.ics";
                 string assemblyPath = Path.Combine(outputDir, assemblyFileName);
 
@@ -170,9 +196,7 @@ namespace CreateIronCadTestFiles
                 {
                     Console.Write($"  Creating {assemblyFileName}...");
 
-                    object pages = Get(icApp, "Pages");
-                    object asmPage = Invoke(pages, "Add", assemblyPath, true);
-                    if (asmPage == null) asmPage = Get(icApp, "ActivePage");
+                    dynamic asmPage = icApp.Pages.Add(Type.Missing, Type.Missing);
 
                     for (int i = 0; i < partNames.Length; i++)
                     {
@@ -188,42 +212,46 @@ namespace CreateIronCadTestFiles
 
                         try
                         {
-                            object added = Invoke(Get(asmPage, "Shapes"), "Add", detailPath);
-                            if (added != null)
+                            object added = asmPage.Shapes.Add(detailPath);
+                            if (added is IZElement elem)
                             {
-                                try { Set(added, "Name", partNames[i]); } catch { }
+                                try { elem.Name = partNames[i]; } catch { }
                             }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"\n  Import of {detailFileName} failed: {ex.Message}");
+                            Console.WriteLine($"\n  Shapes.Add failed for {detailFileName}: {ex.Message}");
+                            try
+                            {
+                                asmPage.ImportFile(detailPath, true);
+                            }
+                            catch (Exception importEx)
+                            {
+                                Console.WriteLine($"\n  Link fallback failed for {detailFileName}: {importEx.Message}");
+                            }
                         }
                     }
 
-                    Invoke(asmPage, "SaveAs", assemblyPath);
-                    Invoke(asmPage, "Close");
-                    try { Invoke(pages, "Remove", asmPage); } catch { }
+                    try { ((IZSceneDoc)asmPage).Update(); } catch { }
+                    SaveScene((IZSceneDoc)asmPage, assemblyPath);
+                    try { asmPage.Close(); } catch { }
+                    try { icApp.Pages.Remove(asmPage); } catch { }
 
                     Console.WriteLine(" OK.");
                 }
 
                 Console.WriteLine("Done. All files created successfully.");
+                return 0;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"\nERROR: {ex.Message}");
                 Console.WriteLine(ex.StackTrace);
-                Console.WriteLine("\nPress Enter to exit...");
-                Console.ReadLine();
+                return 1;
             }
             finally
             {
-                try
-                {
-                    Invoke(icApp, "Quit");
-                }
-                catch { }
-                try { Directory.Delete(tempDir, true); } catch { }
+                try { icApp.Quit(); } catch { }
             }
         }
     }
