@@ -303,9 +303,9 @@
   </Window.Resources>
 
   <Border Background="{StaticResource AppBackgroundBrush}">
-    <Grid>
+    <Grid x:Name="RootGrid">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="232" />
+        <ColumnDefinition x:Name="SidebarColumn" Width="232" />
         <ColumnDefinition Width="*" />
       </Grid.ColumnDefinitions>
 
@@ -488,14 +488,24 @@
               </Grid>
             </Border>
 
-            <Button Style="{StaticResource SidebarButtonStyle}" Margin="0">
+            <Button x:Name="SidebarCollapseButton"
+                    Style="{StaticResource SidebarButtonStyle}"
+                    Margin="0"
+                    Click="OnSidebarCollapseClick">
               <Grid>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="32" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE76B;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Collapse" />
+                <TextBlock x:Name="SidebarCollapseIcon"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="18"
+                           VerticalAlignment="Center"
+                           Text="&#xE76B;" />
+                <TextBlock Grid.Column="1"
+                           VerticalAlignment="Center"
+                           FontSize="15"
+                           Text="Collapse" />
               </Grid>
             </Button>
           </StackPanel>

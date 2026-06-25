@@ -141,6 +141,27 @@
                    Text="{Binding Kind}" />
       </Grid>
     </HierarchicalDataTemplate>
+
+    <Style x:Key="CardHeaderButtonStyle" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border Background="{TemplateBinding Background}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    BorderBrush="{TemplateBinding BorderBrush}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Border>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </UserControl.Resources>
 
   <Grid Margin="20">
@@ -346,12 +367,12 @@
         </TabControl.Resources>
 
         <TabItem Header="Structure">
-          <Grid Margin="0,14,0,0">
+          <Grid x:Name="StructureGrid" Margin="0,14,0,0">
             <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="1.08*" />
-              <ColumnDefinition Width="14" />
-              <ColumnDefinition Width="1.02*" />
-              <ColumnDefinition Width="14" />
+              <ColumnDefinition x:Name="LeftPanelColumn" Width="1.08*" />
+              <ColumnDefinition x:Name="LeftSpacer1Column" Width="14" />
+              <ColumnDefinition x:Name="MiddlePanelColumn" Width="1.02*" />
+              <ColumnDefinition x:Name="LeftSpacer2Column" Width="14" />
               <ColumnDefinition Width="1.08*" />
             </Grid.ColumnDefinitions>
 
@@ -359,53 +380,76 @@
               <Grid>
                 <Grid.RowDefinitions>
                   <RowDefinition Height="Auto" />
-                  <RowDefinition Height="Auto" />
                   <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Margin="18,14,18,10"
-                           Style="{DynamicResource SectionTitleStyle}"
-                           Text="PDM Structure" />
+                <Button x:Name="PdmStructureToggleBtn"
+                        Grid.Row="0"
+                        Style="{StaticResource CardHeaderButtonStyle}"
+                        IsTabStop="False"
+                        Margin="18,14,18,10"
+                        Click="OnPdmStructureToggleClick">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="PdmStructureTitle"
+                               Style="{DynamicResource SectionTitleStyle}"
+                               Text="PDM Structure" />
+                    <TextBlock x:Name="PdmStructureIcon"
+                               Grid.Column="1"
+                               FontSize="14"
+                               Foreground="#FF60708E"
+                               Text="&#x25C0;" />
+                  </Grid>
+                </Button>
 
-                <DockPanel Grid.Row="1" Margin="18,0,18,12">
-                  <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                    <Button Margin="0,0,10,0"
-                            Padding="10,6"
-                            Background="Transparent"
-                            BorderBrush="Transparent"
-                            Foreground="#FF405173"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Click="OnExpandAllClick"
-                            Content="Expand All" />
-                    <Button Margin="0,0,10,0"
-                            Padding="10,6"
-                            Background="Transparent"
-                            BorderBrush="Transparent"
-                            Foreground="#FF405173"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Click="OnCollapseAllClick"
-                            Content="Collapse All" />
-                  </StackPanel>
-                  <DockPanel DockPanel.Dock="Right">
-                    <TextBlock FontFamily="Segoe MDL2 Assets"
-                               Margin="0,0,6,0"
-                               VerticalAlignment="Center"
-                               Foreground="#FF52627F"
-                               Text="&#xE721;" />
-                    <TextBlock VerticalAlignment="Center"
-                               FontSize="12"
-                               Foreground="#FF52627F"
-                               Text="Search" />
-                  </DockPanel>
-                </DockPanel>
-
-                <Grid Grid.Row="2">
+                <Grid x:Name="PdmStructureSlideContent" Grid.Row="1">
                   <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                   </Grid.RowDefinitions>
+
+                  <DockPanel Grid.Row="0" Margin="18,0,18,12">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                      <Button Margin="0,0,10,0"
+                              Padding="10,6"
+                              Background="Transparent"
+                              BorderBrush="Transparent"
+                              Foreground="#FF405173"
+                              FontSize="12"
+                              FontWeight="SemiBold"
+                              Click="OnExpandAllClick"
+                              Content="Expand All" />
+                      <Button Margin="0,0,10,0"
+                              Padding="10,6"
+                              Background="Transparent"
+                              BorderBrush="Transparent"
+                              Foreground="#FF405173"
+                              FontSize="12"
+                              FontWeight="SemiBold"
+                              Click="OnCollapseAllClick"
+                              Content="Collapse All" />
+                    </StackPanel>
+                    <DockPanel DockPanel.Dock="Right">
+                      <TextBlock FontFamily="Segoe MDL2 Assets"
+                                 Margin="0,0,6,0"
+                                 VerticalAlignment="Center"
+                                 Foreground="#FF52627F"
+                                 Text="&#xE721;" />
+                      <TextBlock VerticalAlignment="Center"
+                                 FontSize="12"
+                                 Foreground="#FF52627F"
+                                 Text="Search" />
+                    </DockPanel>
+                  </DockPanel>
+
+                  <Grid x:Name="PdmStructureContent" Grid.Row="1">
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
                   <Border Margin="0,0,0,8"
                           Padding="18,10"
@@ -571,6 +615,7 @@
                   </StackPanel>
                 </Grid>
               </Grid>
+              </Grid>
             </Border>
 
             <Border Grid.Column="2" Style="{DynamicResource AppCardStyle}">
@@ -578,142 +623,167 @@
                 <Grid.RowDefinitions>
                   <RowDefinition Height="Auto" />
                   <RowDefinition Height="*" />
-                  <RowDefinition Height="Auto" />
-                  <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Margin="18,14,18,10"
-                           Style="{DynamicResource SectionTitleStyle}"
-                           Text="CAD Structure" />
-
-                <Border Grid.Row="1"
-                        Margin="18,0,18,14"
-                        BorderBrush="#FFE7EDF6"
-                        BorderThickness="1"
-                        CornerRadius="12"
-                        Padding="8">
-                  <TreeView x:Name="CadStructureTree"
-                            BorderThickness="0"
-                            Background="Transparent"
-                            ItemsSource="{Binding CadStructure}"
-                            SelectedItemChanged="OnStructureSelectionChanged" />
-                </Border>
-
-                <TextBlock Grid.Row="2"
-                           Margin="18,0,18,8"
-                           Style="{DynamicResource SectionTitleStyle}"
-                           Text="Mapping" />
-
-                <Border Grid.Row="3"
-                        Margin="18,0,18,18"
-                        BorderBrush="#FFE7EDF6"
-                        BorderThickness="1"
-                        CornerRadius="12"
-                        Padding="0">
+                <Button x:Name="CadStructureToggleBtn"
+                        Grid.Row="0"
+                        Style="{StaticResource CardHeaderButtonStyle}"
+                        IsTabStop="False"
+                        Margin="18,14,18,10"
+                        Click="OnCadStructureToggleClick">
                   <Grid>
-                    <Grid.RowDefinitions>
-                      <RowDefinition Height="Auto" />
-                      <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*" />
+                      <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="CadStructureTitle"
+                               Style="{DynamicResource SectionTitleStyle}"
+                               Text="CAD Structure" />
+                    <TextBlock x:Name="CadStructureIcon"
+                               Grid.Column="1"
+                               FontSize="14"
+                               Foreground="#FF60708E"
+                               Text="&#x25C0;" />
+                  </Grid>
+                </Button>
 
-                    <Border Padding="14,10"
-                            BorderBrush="#FFE6ECF5"
-                            BorderThickness="0,0,0,1">
-                      <Grid>
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="1.3*" />
-                          <ColumnDefinition Width="84" />
-                          <ColumnDefinition Width="1.5*" />
-                          <ColumnDefinition Width="120" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock FontSize="12" Foreground="#FF60708E" Text="PDM Node" />
-                        <TextBlock Grid.Column="1" HorizontalAlignment="Center" FontSize="12" Foreground="#FF60708E" Text="Type" />
-                        <TextBlock Grid.Column="2" FontSize="12" Foreground="#FF60708E" Text="Mapped CAD" />
-                        <TextBlock Grid.Column="3" HorizontalAlignment="Right" FontSize="12" Foreground="#FF60708E" Text="Status" />
-                      </Grid>
+                <Grid x:Name="CadStructureBody" Grid.Row="1">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                  </Grid.RowDefinitions>
+
+                  <Grid x:Name="CadStructureContent" Grid.Row="0">
+                    <Border Margin="18,0,18,14"
+                            BorderBrush="#FFE7EDF6"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="8">
+                      <TreeView x:Name="CadStructureTree"
+                                BorderThickness="0"
+                                Background="Transparent"
+                                ItemsSource="{Binding CadStructure}"
+                                SelectedItemChanged="OnStructureSelectionChanged" />
                     </Border>
+                  </Grid>
 
-                    <ListBox Grid.Row="1"
-                             ItemsSource="{Binding StructureMappings}"
-                             BorderThickness="0"
-                             Background="Transparent"
-                             ScrollViewer.VerticalScrollBarVisibility="Auto"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                      <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                          <Setter Property="Padding" Value="0" />
-                          <Setter Property="Margin" Value="0" />
-                          <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                          <Setter Property="Template">
-                            <Setter.Value>
-                              <ControlTemplate TargetType="ListBoxItem">
-                                <Border Background="{TemplateBinding Background}">
-                                  <ContentPresenter />
+                  <TextBlock Grid.Row="1"
+                             Margin="18,0,18,8"
+                             Style="{DynamicResource SectionTitleStyle}"
+                             Text="Mapping" />
+
+                  <Border Grid.Row="2"
+                          Margin="18,0,18,18"
+                          BorderBrush="#FFE7EDF6"
+                          BorderThickness="1"
+                          CornerRadius="12"
+                          Padding="0">
+                    <Grid>
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                      </Grid.RowDefinitions>
+
+                      <Border Padding="14,10"
+                              BorderBrush="#FFE6ECF5"
+                              BorderThickness="0,0,0,1">
+                        <Grid>
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.3*" />
+                            <ColumnDefinition Width="84" />
+                            <ColumnDefinition Width="1.5*" />
+                            <ColumnDefinition Width="120" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock FontSize="12" Foreground="#FF60708E" Text="PDM Node" />
+                          <TextBlock Grid.Column="1" HorizontalAlignment="Center" FontSize="12" Foreground="#FF60708E" Text="Type" />
+                          <TextBlock Grid.Column="2" FontSize="12" Foreground="#FF60708E" Text="Mapped CAD" />
+                          <TextBlock Grid.Column="3" HorizontalAlignment="Right" FontSize="12" Foreground="#FF60708E" Text="Status" />
+                        </Grid>
+                      </Border>
+
+                      <ListBox Grid.Row="1"
+                               ItemsSource="{Binding StructureMappings}"
+                               BorderThickness="0"
+                               Background="Transparent"
+                               ScrollViewer.VerticalScrollBarVisibility="Auto"
+                               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                          <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="Margin" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="Template">
+                              <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                  <Border Background="{TemplateBinding Background}">
+                                    <ContentPresenter />
+                                  </Border>
+                                </ControlTemplate>
+                              </Setter.Value>
+                            </Setter>
+                          </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                          <DataTemplate>
+                            <Border Padding="14,12"
+                                    BorderBrush="#FFF0F3F8"
+                                    BorderThickness="0,0,0,1">
+                              <Grid>
+                                <Grid.ColumnDefinitions>
+                                  <ColumnDefinition Width="1.3*" />
+                                  <ColumnDefinition Width="84" />
+                                  <ColumnDefinition Width="1.5*" />
+                                  <ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                  <TextBlock FontSize="12"
+                                             FontWeight="SemiBold"
+                                             Foreground="#FF1B2B55"
+                                             Text="{Binding PdmName}" />
+                                  <TextBlock Margin="0,2,0,0"
+                                             FontSize="10"
+                                             Foreground="#FF7A879F"
+                                             Text="{Binding PdmCode}" />
+                                </StackPanel>
+
+                                <Border Grid.Column="1"
+                                        Width="72"
+                                        HorizontalAlignment="Center"
+                                        Padding="8,4"
+                                        CornerRadius="8"
+                                        Background="#FFF4F7FC">
+                                  <TextBlock HorizontalAlignment="Center"
+                                             FontSize="11"
+                                             FontWeight="SemiBold"
+                                             Foreground="#FF52627F"
+                                             Text="{Binding NodeType}" />
                                 </Border>
-                              </ControlTemplate>
-                            </Setter.Value>
-                          </Setter>
-                        </Style>
-                      </ListBox.ItemContainerStyle>
-                      <ListBox.ItemTemplate>
-                        <DataTemplate>
-                          <Border Padding="14,12"
-                                  BorderBrush="#FFF0F3F8"
-                                  BorderThickness="0,0,0,1">
-                            <Grid>
-                              <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.3*" />
-                                <ColumnDefinition Width="84" />
-                                <ColumnDefinition Width="1.5*" />
-                                <ColumnDefinition Width="120" />
-                              </Grid.ColumnDefinitions>
 
-                              <StackPanel>
-                                <TextBlock FontSize="12"
-                                           FontWeight="SemiBold"
-                                           Foreground="#FF1B2B55"
-                                           Text="{Binding PdmName}" />
-                                <TextBlock Margin="0,2,0,0"
-                                           FontSize="10"
-                                           Foreground="#FF7A879F"
-                                           Text="{Binding PdmCode}" />
-                              </StackPanel>
+                                <TextBlock Grid.Column="2"
+                                           Margin="12,0,12,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="11"
+                                           Foreground="#FF405173"
+                                           Text="{Binding MappedCad}"
+                                           TextTrimming="CharacterEllipsis" />
 
-                              <Border Grid.Column="1"
-                                      Width="72"
-                                      HorizontalAlignment="Center"
-                                      Padding="8,4"
-                                      CornerRadius="8"
-                                      Background="#FFF4F7FC">
-                                <TextBlock HorizontalAlignment="Center"
+                                <TextBlock Grid.Column="3"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Right"
                                            FontSize="11"
                                            FontWeight="SemiBold"
-                                           Foreground="#FF52627F"
-                                           Text="{Binding NodeType}" />
-                              </Border>
-
-                              <TextBlock Grid.Column="2"
-                                         Margin="12,0,12,0"
-                                         VerticalAlignment="Center"
-                                         FontSize="11"
-                                         Foreground="#FF405173"
-                                         Text="{Binding MappedCad}"
-                                         TextTrimming="CharacterEllipsis" />
-
-                              <TextBlock Grid.Column="3"
-                                         VerticalAlignment="Center"
-                                         HorizontalAlignment="Right"
-                                         FontSize="11"
-                                         FontWeight="SemiBold"
-                                         Foreground="#FF174FCB"
-                                         Text="{Binding Status}" />
-                            </Grid>
-                          </Border>
-                        </DataTemplate>
-                      </ListBox.ItemTemplate>
-                    </ListBox>
-                  </Grid>
-                </Border>
+                                           Foreground="#FF174FCB"
+                                           Text="{Binding Status}" />
+                              </Grid>
+                            </Border>
+                          </DataTemplate>
+                        </ListBox.ItemTemplate>
+                      </ListBox>
+                    </Grid>
+                  </Border>
+                </Grid>
               </Grid>
             </Border>
 
@@ -731,6 +801,7 @@
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="76" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
 
                   <Border Width="64" Height="64" CornerRadius="16" Background="#FF8A3FFC">
@@ -741,6 +812,21 @@
                                VerticalAlignment="Center"
                                Text="&#xE8FD;" />
                   </Border>
+
+                  <Button Grid.Column="2"
+                          x:Name="LeftPanelToggleButton"
+                          Width="24"
+                          Height="24"
+                          Margin="0,2,0,0"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Foreground="#FF60708E"
+                          FontSize="14"
+                          VerticalAlignment="Top"
+                          HorizontalAlignment="Right"
+                          ToolTip="Toggle structure panels"
+                          Click="OnLeftPanelToggleClick"
+                          Content="&#x25C0;" />
 
                   <StackPanel Grid.Column="1" Margin="14,0,0,0">
                     <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Selected Node" />
@@ -784,8 +870,20 @@
 
               <Border Grid.Row="2" Style="{DynamicResource AppCardStyle}">
                 <StackPanel>
-                  <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Primary CAD" />
-                  <DockPanel Margin="0,14,0,0">
+                  <Button Style="{StaticResource CardHeaderButtonStyle}"
+                          Command="{Binding ToggleCadSectionCommand}"
+                          IsTabStop="False">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Primary CAD" />
+                      <TextBlock Grid.Column="1" FontSize="14" Foreground="#FF60708E" Text="{Binding CadSectionIcon}" />
+                    </Grid>
+                  </Button>
+                  <StackPanel Visibility="{Binding IsCadSectionExpanded, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <DockPanel Margin="0,14,0,0">
                     <Border Width="40" Height="40" CornerRadius="10" Background="#FF13A8A1" DockPanel.Dock="Left">
                       <TextBlock FontFamily="Segoe MDL2 Assets"
                                  FontSize="18"
@@ -855,6 +953,7 @@
                           Foreground="#FFF14E4E"
                           FontWeight="SemiBold"
                           Content="Cancel Checkout" />
+                  </StackPanel>
                 </StackPanel>
               </Border>
 
@@ -864,8 +963,20 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                   </Grid.RowDefinitions>
-                  <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Documents" />
+                  <Button Style="{StaticResource CardHeaderButtonStyle}"
+                          Command="{Binding ToggleDocumentsSectionCommand}"
+                          IsTabStop="False">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Documents" />
+                      <TextBlock Grid.Column="1" FontSize="14" Foreground="#FF60708E" Text="{Binding DocumentsSectionIcon}" />
+                    </Grid>
+                  </Button>
                   <ListBox Grid.Row="1"
+                           Visibility="{Binding IsDocumentsSectionExpanded, Converter={StaticResource BoolToVisibilityConverter}}"
                            Margin="0,14,0,0"
                            BorderThickness="0"
                            Background="Transparent"

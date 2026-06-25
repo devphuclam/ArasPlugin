@@ -7,6 +7,7 @@ namespace IdeaCadConnector.Desktop
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _viewModel;
+        private bool _isSidebarCollapsed;
 
         public MainWindow()
         {
@@ -66,6 +67,21 @@ namespace IdeaCadConnector.Desktop
 
             activeButton.Background = FindResource("SidebarActiveBrush") as Brush;
             activeButton.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0x90, 0xB8, 0xFF));
+        }
+
+        private void OnSidebarCollapseClick(object sender, RoutedEventArgs e)
+        {
+            _isSidebarCollapsed = !_isSidebarCollapsed;
+            if (_isSidebarCollapsed)
+            {
+                SidebarColumn.Width = new GridLength(92);
+                SidebarCollapseIcon.Text = "\uE76C";
+            }
+            else
+            {
+                SidebarColumn.Width = new GridLength(232);
+                SidebarCollapseIcon.Text = "\uE76B";
+            }
         }
 
         private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e)

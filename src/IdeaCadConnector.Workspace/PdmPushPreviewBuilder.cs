@@ -20,8 +20,8 @@ namespace IdeaCadConnector.Workspace
             var cads = MapCads(analyzeResult);
             var documents = MapDocuments(analyzeResult);
             var ignored = MapIgnored(analyzeResult);
-            var warnings = MapWarnings(analyzeResult);
-            var readiness = BuildReadiness(analyzeResult, warnings);
+            var warnings = MapWarnings(analyzeResult, targetBranch);
+            var readiness = BuildReadiness(analyzeResult, targetBranch, warnings);
 
             return new PushPreview
             {
@@ -126,6 +126,9 @@ namespace IdeaCadConnector.Workspace
             {
                 var classification = doc.DocumentRole switch
                 {
+                    "PackageGroup" => "Package Manifest",
+                    "PackageDetail" => "Technical Drawing",
+                    "Reference" => ClassifyReferenceDocument(doc.SourcePath),
                     _ => "Document"
                 };
 
@@ -157,9 +160,9 @@ namespace IdeaCadConnector.Workspace
                 .ToList();
         }
 
-        private static IReadOnlyList<PreviewWarning> MapWarnings(AnalyzeResult result)
+        private static IReadOnlyList<PreviewWarning> MapWarnings(AnalyzeResult result, string targetBranch)
         {
-            return result.Warnings
+            var warnings = result.Warnings
                 .Select(w => new PreviewWarning
                 {
                     Source = w.Source,
@@ -167,21 +170,54 @@ namespace IdeaCadConnector.Workspace
                     BlocksPush = w.BlocksPush
                 })
                 .ToList();
+
+            if (!string.Equals(targetBranch, "main", StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add(new PreviewWarning
+                {
+                    Source = "TargetBranch",
+                    Message = $"Branch '{targetBranch ?? "-"}' is preview-only. Live push is blocked outside main.",
+                    BlocksPush = true
+                });
+            }
+
+            return warnings;
         }
 
-        private static PushReadiness BuildReadiness(AnalyzeResult result, IReadOnlyList<PreviewWarning> warnings)
+        private static PushReadiness BuildReadiness(AnalyzeResult result, string targetBranch, IReadOnlyList<PreviewWarning> warnings)
         {
             var blockingCount = warnings.Count(w => w.BlocksPush);
-            var canPush = result.Summary.IsValid && blockingCount == 0 && result.StructureNodes.Count > 0;
+            var isMainBranch = string.Equals(targetBranch, "main", StringComparison.OrdinalIgnoreCase);
+            var canPush = result.Summary.IsValid && blockingCount == 0 && result.StructureNodes.Count > 0 && isMainBranch;
+
+            string summary;
+            if (!isMainBranch)
+            {
+                summary = $"Branch '{targetBranch ?? "-"}' is preview-only. Switch to main before live push.";
+            }
+            else if (canPush)
+            {
+                summary = $"Ready to push {result.StructureNodes.Count} part(s), {result.Summary.CadFileCount} CAD file(s), {result.Summary.DocumentFileCount} document(s).";
+            }
+            else if (blockingCount > 0)
+            {
+                summary = $"{blockingCount} blocking issue(s) found. Fix before push.";
+            }
+            else if (result.StructureNodes.Count == 0)
+            {
+                summary = "No structure nodes were produced by Analyze. Push is blocked.";
+            }
+            else
+            {
+                summary = "Push preview is incomplete. Review Analyze results before pushing.";
+            }
 
             return new PushReadiness
             {
                 CanPush = canPush,
                 HasBlockingIssues = blockingCount > 0,
                 BlockingIssueCount = blockingCount,
-                Summary = canPush
-                    ? $"Ready to push {result.StructureNodes.Count} part(s), {result.Summary.CadFileCount} CAD file(s), {result.Summary.DocumentFileCount} document(s)."
-                    : $"{blockingCount} blocking issue(s) found. Fix before push."
+                Summary = summary
             };
         }
 
@@ -202,10 +238,53 @@ namespace IdeaCadConnector.Workspace
         private static string GenerateDocumentNumber(string repositoryCode, AnalyzedDocumentFile doc)
         {
             if (string.IsNullOrWhiteSpace(repositoryCode))
-                return "DOC-001";
+                return "DOC-" + BuildDocumentSuffix(doc);
 
-            var prefix = string.IsNullOrWhiteSpace(doc.LogicalCode) ? "PRJ" : doc.LogicalCode;
-            return repositoryCode + "-DOC-" + prefix;
+            var prefix = string.IsNullOrWhiteSpace(doc.LogicalCode)
+                ? "PRJ"
+                : doc.LogicalCode;
+            return repositoryCode + "-DOC-" + prefix + "-" + BuildDocumentSuffix(doc);
+        }
+
+        private static string ClassifyReferenceDocument(string sourcePath)
+        {
+            var extension = System.IO.Path.GetExtension(sourcePath ?? string.Empty);
+            if (extension.Equals(".dwg", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Technical Drawing";
+            }
+
+            if (extension.Equals(".xls", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Input/Reference";
+            }
+
+            return "Reference";
+        }
+
+        private static string BuildDocumentSuffix(AnalyzedDocumentFile doc)
+        {
+            var source = System.IO.Path.GetFileNameWithoutExtension(doc.SourcePath ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return "FILE";
+            }
+
+            var chars = source
+                .ToUpperInvariant()
+                .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+                .ToArray();
+            var compact = new string(chars);
+            while (compact.Contains("--"))
+            {
+                compact = compact.Replace("--", "-");
+            }
+
+            compact = compact.Trim('-');
+            return string.IsNullOrWhiteSpace(compact) ? "FILE" : compact;
         }
     }
 }

@@ -42,6 +42,8 @@ namespace IdeaCadConnector.Desktop
         private bool _isAnalyzing;
         private bool _isPushing;
         private bool _isOpeningInIronCad;
+        private bool _isCadSectionExpanded = true;
+        private bool _isDocumentsSectionExpanded = true;
         private PushPreview _pushPreview;
         private string _commitMessage;
 
@@ -86,6 +88,9 @@ namespace IdeaCadConnector.Desktop
             BrowseFolderCommand = _browseFolderCommand;
             OpenDocumentCommand = new RelayCommand(doc => OpenDocument(doc as PdmDocumentItem), doc => doc is PdmDocumentItem);
             OpenInIronCadCommand = new RelayCommand(_ => OpenInIronCad(), _ => CanOpenInIronCad);
+            ToggleCadSectionCommand = new RelayCommand(_ => ToggleCadSection());
+            ToggleDocumentsSectionCommand = new RelayCommand(_ => ToggleDocumentsSection());
+
 
             AnalyzeFolder();
         }
@@ -119,6 +124,7 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _selectedBranch, value))
                 {
                     OnPropertyChanged(nameof(IsMainBranch));
+                    RefreshPushPreview();
                 }
             }
         }
@@ -261,6 +267,38 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
+        public bool IsCadSectionExpanded
+        {
+            get => _isCadSectionExpanded;
+            set
+            {
+                if (SetField(ref _isCadSectionExpanded, value))
+                {
+                    OnPropertyChanged(nameof(IsCadSectionExpanded));
+                    OnPropertyChanged(nameof(CadSectionIcon));
+                }
+            }
+        }
+
+        public bool IsDocumentsSectionExpanded
+        {
+            get => _isDocumentsSectionExpanded;
+            set
+            {
+                if (SetField(ref _isDocumentsSectionExpanded, value))
+                {
+                    OnPropertyChanged(nameof(IsDocumentsSectionExpanded));
+                    OnPropertyChanged(nameof(DocumentsSectionIcon));
+                }
+            }
+        }
+
+        public string CadSectionIcon => IsCadSectionExpanded ? "\u25C0" : "\u25B6";
+        public string DocumentsSectionIcon => IsDocumentsSectionExpanded ? "\u25C0" : "\u25B6";
+
+        public void ToggleCadSection() => IsCadSectionExpanded = !IsCadSectionExpanded;
+        public void ToggleDocumentsSection() => IsDocumentsSectionExpanded = !IsDocumentsSectionExpanded;
+
         public bool CanOpenInIronCad =>
             !IsOpeningInIronCad &&
             SelectedNode != null &&
@@ -270,7 +308,13 @@ namespace IdeaCadConnector.Desktop
         public string CommitMessage
         {
             get => _commitMessage;
-            set => SetField(ref _commitMessage, value);
+            set
+            {
+                if (SetField(ref _commitMessage, value))
+                {
+                    RefreshPushPreview();
+                }
+            }
         }
 
         public PushReadiness PushPreviewReadiness => _pushPreview?.Readiness;
@@ -305,6 +349,8 @@ namespace IdeaCadConnector.Desktop
         public ICommand BrowseFolderCommand { get; }
         public ICommand OpenDocumentCommand { get; }
         public ICommand OpenInIronCadCommand { get; }
+        public ICommand ToggleCadSectionCommand { get; }
+        public ICommand ToggleDocumentsSectionCommand { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -1292,6 +1338,20 @@ namespace IdeaCadConnector.Desktop
 
             foreach (var ignored in _pushPreview.IgnoredFiles)
                 PreviewIgnoredFiles.Add(ignored);
+
+            OnPropertyChanged(nameof(PushPreviewReadiness));
+            OnPropertyChanged(nameof(CanPush));
+            _pushCommand.RaiseCanExecuteChanged();
+        }
+
+        private void RefreshPushPreview()
+        {
+            if (_latestAnalysis == null)
+            {
+                return;
+            }
+
+            BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
         }
 
         private static PdmAnalysisSources ResolveAnalysisSources(string folderPath)
