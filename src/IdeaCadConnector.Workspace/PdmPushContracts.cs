@@ -105,6 +105,7 @@ namespace IdeaCadConnector.Workspace
     public sealed class CadPreviewRow
     {
         public string SourceFileName { get; set; }
+        public string SourceFilePath { get; set; }
         public string LogicalCode { get; set; }
         public string CadNumber { get; set; }
         public string Classification { get; set; }

@@ -25,6 +25,7 @@ namespace IdeaCadConnector.Desktop
         private readonly Dictionary<string, List<PdmDocumentItem>> _documentsByPartCode = new Dictionary<string, List<PdmDocumentItem>>(StringComparer.OrdinalIgnoreCase);
         private PdmFolderAnalysis _latestAnalysis;
         private PdmBusinessStructureAnalysis _latestBusinessStructure;
+        private PdmAnalysisSources _latestSources;
         private PdmStructureNode _selectedNode;
         private string _selectedRepository;
         private string _selectedBranch;
@@ -37,6 +38,7 @@ namespace IdeaCadConnector.Desktop
         private int _trackedFileCount;
         private int _ignoredFileCount;
         private int _blockingIssueCount;
+        private int _previewRefreshVersion;
         private string _connectionDisplayName;
         private string _connectionDatabase;
         private bool _isAnalyzing;
@@ -67,6 +69,7 @@ namespace IdeaCadConnector.Desktop
             PreviewCads = new ObservableCollection<CadPreviewRow>();
             PreviewDocuments = new ObservableCollection<DocumentPreviewRow>();
             PreviewIgnoredFiles = new ObservableCollection<IgnoredPreviewRow>();
+            RelatedFiles = new ObservableCollection<PdmDocumentItem>();
 
             SelectedBranch = Branches[0];
             SelectedCommit = Commits[0];
@@ -109,6 +112,7 @@ namespace IdeaCadConnector.Desktop
         public ObservableCollection<CadPreviewRow> PreviewCads { get; }
         public ObservableCollection<DocumentPreviewRow> PreviewDocuments { get; }
         public ObservableCollection<IgnoredPreviewRow> PreviewIgnoredFiles { get; }
+        public ObservableCollection<PdmDocumentItem> RelatedFiles { get; }
 
         public string SelectedRepository
         {
@@ -202,6 +206,7 @@ namespace IdeaCadConnector.Desktop
         public bool HasChanges => Changes.Count > 0;
         public bool HasNamingPreview => NamingPreview.Count > 0;
         public bool HasDocuments => Documents.Count > 0;
+        public bool HasRelatedFiles => RelatedFiles.Count > 0;
         public bool HasSelectedNode => SelectedNode != null;
 
         public PdmStructureNode SelectedNode
@@ -398,12 +403,14 @@ namespace IdeaCadConnector.Desktop
 
                 if (result.Success)
                 {
-                    var msg = string.Format(
-                        "Push complete. Created {0} part(s), {1} CAD(s), {2} document(s). Commit: {3}",
-                        result.PartResults?.Count(r => r.Success) ?? 0,
-                        result.CadResults?.Count(r => r.Success) ?? 0,
-                        result.DocumentResults?.Count(r => r.Success) ?? 0,
-                        result.CommitId ?? "-");
+                    var msg = result.StagingOnly
+                        ? $"Staging snapshot created for branch '{request.TargetBranch}'. Live business data was not updated. Commit: {result.CommitId ?? "-"}"
+                        : string.Format(
+                            "Push complete. Created/Reused {0} part(s), {1} CAD(s), {2} document(s). Commit: {3}",
+                            result.PartResults?.Count(r => r.Success) ?? 0,
+                            result.CadResults?.Count(r => r.Success) ?? 0,
+                            result.DocumentResults?.Count(r => r.Success) ?? 0,
+                            result.CommitId ?? "-");
 
                     if (result.Warnings?.Count > 0)
                     {
@@ -454,6 +461,7 @@ namespace IdeaCadConnector.Desktop
                 Cads = _pushPreview.Cads.Select(c => new PdmCadRequest
                 {
                     SourceFileName = c.SourceFileName,
+                    SourceFilePath = c.SourceFilePath,
                     LogicalCode = c.LogicalCode,
                     CadNumber = c.CadNumber,
                     Classification = c.Classification,
@@ -480,7 +488,7 @@ namespace IdeaCadConnector.Desktop
                     var res = result.PartResults[i];
                     var row = PreviewParts[i];
                     if (res.Success)
-                        row.Action = "Created";
+                        row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
                     else
                         row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
                 }
@@ -493,9 +501,18 @@ namespace IdeaCadConnector.Desktop
                     var res = result.CadResults[i];
                     var row = PreviewCads[i];
                     if (res.Success)
-                        row.Action = "Created";
+                    {
+                        row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(res.ArasId))
+                    {
+                        var metaAction = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                        row.Action = metaAction + " (file failed): " + (res.ErrorMessage ?? "Unknown");
+                    }
                     else
+                    {
                         row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                    }
                 }
             }
 
@@ -506,7 +523,7 @@ namespace IdeaCadConnector.Desktop
                     var res = result.DocumentResults[i];
                     var row = PreviewDocuments[i];
                     if (res.Success)
-                        row.Action = "Created";
+                        row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
                     else
                         row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
                 }
@@ -520,6 +537,7 @@ namespace IdeaCadConnector.Desktop
             NamingPolicyVersion = policy.PolicyVersion;
 
             var sources = ResolveAnalysisSources(FolderPath);
+            _latestSources = sources;
             if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
             {
                 _latestAnalysis = new Aras01FolderAnalyzer(policy).Analyze(sources.CadFolder);
@@ -612,6 +630,7 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(HasChanges));
             OnPropertyChanged(nameof(HasNamingPreview));
             OnPropertyChanged(nameof(HasDocuments));
+            OnPropertyChanged(nameof(HasRelatedFiles));
             OnPropertyChanged(nameof(HasPushPreview));
             OnPropertyChanged(nameof(PushPreviewReadiness));
             OnPropertyChanged(nameof(CanPush));
@@ -974,10 +993,18 @@ namespace IdeaCadConnector.Desktop
         private void RefreshSelectedDocuments()
         {
             Documents.Clear();
+            RelatedFiles.Clear();
 
             if (SelectedNode == null || string.IsNullOrWhiteSpace(SelectedNode.PartCode))
             {
                 return;
+            }
+
+            var primaryCad = SelectedNode.PrimaryCad;
+            if (!string.IsNullOrWhiteSpace(primaryCad) && primaryCad != "-")
+            {
+                var sourcePath = ResolvePrimaryCadPath(primaryCad);
+                RelatedFiles.Add(new PdmDocumentItem(primaryCad, "CAD assembly", sourcePath));
             }
 
             if (_documentsByPartCode.TryGetValue(SelectedNode.PartCode, out var selectedDocuments))
@@ -985,8 +1012,35 @@ namespace IdeaCadConnector.Desktop
                 foreach (var document in selectedDocuments)
                 {
                     Documents.Add(document);
+                    RelatedFiles.Add(document);
                 }
             }
+
+            OnPropertyChanged(nameof(HasRelatedFiles));
+        }
+
+        private string ResolvePrimaryCadPath(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName) || _latestSources == null)
+                return null;
+
+            var candidates = new[]
+            {
+                _latestSources.CadFolder,
+                _latestSources.PackageFolder,
+                _latestSources.SelectedFolder
+            };
+
+            foreach (var folder in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(folder))
+                    continue;
+                var path = System.IO.Path.Combine(folder, fileName);
+                if (System.IO.File.Exists(path))
+                    return path;
+            }
+
+            return null;
         }
 
         private void OpenDocument(PdmDocumentItem document)
@@ -1359,16 +1413,37 @@ namespace IdeaCadConnector.Desktop
             if (request == null)
                 return;
 
+            var refreshVersion = Interlocked.Increment(ref _previewRefreshVersion);
+
             try
             {
-                var existence = await client.PreviewExistenceAsync(request, CancellationToken.None).ConfigureAwait(false);
+                var existence = await client.PreviewExistenceAsync(request, CancellationToken.None);
                 if (existence == null)
+                    return;
+
+                if (refreshVersion != _previewRefreshVersion)
                     return;
 
                 PreviewParts.Clear();
                 foreach (var part in _pushPreview.Parts)
                 {
                     var exists = existence.PartsByNumber.TryGetValue(part.PartNumber, out var e) && e;
+                    var action = exists ? "Reuse" : "Create";
+                    if (exists &&
+                        !string.IsNullOrWhiteSpace(part.ParentLogicalCode) &&
+                        existence.BomByChildLogicalCode != null &&
+                        existence.BomByChildLogicalCode.TryGetValue(part.LogicalCode, out var bomInfo))
+                    {
+                        if (!bomInfo.Exists)
+                        {
+                            action = "Update BOM";
+                        }
+                        else if (bomInfo.ExistingQuantity.HasValue && bomInfo.ExistingQuantity.Value != part.Quantity)
+                        {
+                            action = "Update Qty";
+                        }
+                    }
+
                     PreviewParts.Add(new PartPreviewRow
                     {
                         LogicalCode = part.LogicalCode,
@@ -1377,7 +1452,7 @@ namespace IdeaCadConnector.Desktop
                         Name = part.Name,
                         Classification = part.Classification,
                         Quantity = part.Quantity,
-                        Action = exists ? "Reuse" : "Create"
+                        Action = action
                     });
                 }
 
@@ -1412,8 +1487,9 @@ namespace IdeaCadConnector.Desktop
                     });
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                StatusMessage = "Could not compare preview with Aras. Showing local preview only. " + ex.Message;
             }
         }
 
@@ -1462,6 +1538,13 @@ namespace IdeaCadConnector.Desktop
                 {
                     result.CadFolder = null;
                 }
+                return result;
+            }
+
+            if (Directory.GetFiles(folderPath, "*.ics", SearchOption.TopDirectoryOnly).Length > 0)
+            {
+                result.CadFolder = folderPath;
+                result.PackageFolder = folderPath;
                 return result;
             }
 

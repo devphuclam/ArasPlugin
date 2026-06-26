@@ -17,6 +17,13 @@ namespace IdeaCadConnector.Core.Contracts
         public IReadOnlyDictionary<string, bool> PartsByNumber { get; set; }
         public IReadOnlyDictionary<string, bool> CadsByNumber { get; set; }
         public IReadOnlyDictionary<string, bool> DocumentsByNumber { get; set; }
+        public IReadOnlyDictionary<string, PdmBomExistenceInfo> BomByChildLogicalCode { get; set; }
+    }
+
+    public sealed class PdmBomExistenceInfo
+    {
+        public bool Exists { get; set; }
+        public int? ExistingQuantity { get; set; }
     }
 
     public sealed class PdmPushRequest
@@ -45,6 +52,7 @@ namespace IdeaCadConnector.Core.Contracts
     public sealed class PdmCadRequest
     {
         public string SourceFileName { get; set; }
+        public string SourceFilePath { get; set; }
         public string LogicalCode { get; set; }
         public string CadNumber { get; set; }
         public string Classification { get; set; }
@@ -64,6 +72,8 @@ namespace IdeaCadConnector.Core.Contracts
     public sealed class PdmPushResult
     {
         public bool Success { get; set; }
+        public bool LiveDataUpdated { get; set; }
+        public bool StagingOnly { get; set; }
         public string CommitId { get; set; }
         public IReadOnlyList<PdmItemResult> PartResults { get; set; }
         public IReadOnlyList<PdmItemResult> CadResults { get; set; }
@@ -78,6 +88,7 @@ namespace IdeaCadConnector.Core.Contracts
         public string ArasId { get; set; }
         public string ItemNumber { get; set; }
         public bool Success { get; set; }
+        public string ActionTaken { get; set; }
         public string ErrorMessage { get; set; }
     }
 }

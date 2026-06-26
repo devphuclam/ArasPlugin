@@ -88,6 +88,7 @@ namespace IdeaCadConnector.Workspace
                 rows.Add(new CadPreviewRow
                 {
                     SourceFileName = System.IO.Path.GetFileName(cad.SourcePath),
+                    SourceFilePath = cad.SourcePath,
                     LogicalCode = cad.LogicalCode,
                     CadNumber = GenerateCadNumber(result.RepositoryCode, cad),
                     Classification = classification,

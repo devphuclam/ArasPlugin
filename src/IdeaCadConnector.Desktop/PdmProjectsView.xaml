@@ -971,7 +971,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
-                      <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Documents" />
+                      <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Related Files" />
                       <TextBlock Grid.Column="1" FontSize="14" Foreground="#FF60708E" Text="{Binding DocumentsSectionIcon}" />
                     </Grid>
                   </Button>
@@ -980,7 +980,7 @@
                            Margin="0,14,0,0"
                            BorderThickness="0"
                            Background="Transparent"
-                           ItemsSource="{Binding Documents}"
+                            ItemsSource="{Binding RelatedFiles}"
                            MouseDoubleClick="DocumentListBox_MouseDoubleClick">
                     <ListBox.ItemTemplate>
                       <DataTemplate>

@@ -16,7 +16,7 @@ namespace IdeaCadConnector.Workspace
 
             var structureNodes = MapStructureNodes(folderAnalysis, businessAnalysis, projectCode);
             var cadFiles = MapCadFiles(folderAnalysis);
-            var documentFiles = MapDocumentFiles(businessAnalysis);
+            var documentFiles = MapDocumentFiles(businessAnalysis, folderAnalysis);
             var ignoredFiles = MapIgnoredFiles(folderAnalysis);
             var warnings = MapWarnings(folderAnalysis, businessAnalysis);
             var summary = BuildSummary(structureNodes, cadFiles, documentFiles, ignoredFiles, warnings);
@@ -132,9 +132,17 @@ namespace IdeaCadConnector.Workspace
         private static IReadOnlyList<AnalyzedCadFile> MapCadFiles(PdmFolderAnalysis folderAnalysis)
         {
             var cads = new List<AnalyzedCadFile>();
+            var hasIcs = folderAnalysis.TrackedFiles.Any(f =>
+                f.FileName.EndsWith(".ics", StringComparison.OrdinalIgnoreCase));
 
             foreach (var file in folderAnalysis.TrackedFiles)
             {
+                if (hasIcs &&
+                    file.FileName.EndsWith(".dwg", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var role = DetermineCadRole(file, folderAnalysis);
                 cads.Add(new AnalyzedCadFile
                 {
@@ -162,9 +170,50 @@ namespace IdeaCadConnector.Workspace
             return "PrimaryCad";
         }
 
-        private static IReadOnlyList<AnalyzedDocumentFile> MapDocumentFiles(PdmBusinessStructureAnalysis businessAnalysis)
+        private static IReadOnlyList<AnalyzedDocumentFile> MapDocumentFiles(
+            PdmBusinessStructureAnalysis businessAnalysis,
+            PdmFolderAnalysis folderAnalysis = null)
         {
             var docs = new List<AnalyzedDocumentFile>();
+            var businessSourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (businessAnalysis != null)
+            {
+                foreach (var rootNode in businessAnalysis.RootNodes)
+                {
+                    if (!string.IsNullOrWhiteSpace(rootNode.SourceFileName))
+                        businessSourcePaths.Add(rootNode.SourceFileName);
+
+                    foreach (var child in rootNode.Children)
+                    {
+                        if (!string.IsNullOrWhiteSpace(child.SourceFileName))
+                            businessSourcePaths.Add(child.SourceFileName);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(businessAnalysis.RootDrawingFileName))
+                    businessSourcePaths.Add(businessAnalysis.RootDrawingFileName);
+            }
+
+            if (folderAnalysis?.DocumentFiles != null)
+            {
+                foreach (var docFile in folderAnalysis.DocumentFiles)
+                {
+                    var sourceName = Path.GetFileName(docFile.FullPath ?? docFile.RelativePath);
+                    if (!string.IsNullOrWhiteSpace(sourceName) && businessSourcePaths.Contains(sourceName))
+                        continue;
+
+                    docs.Add(new AnalyzedDocumentFile
+                    {
+                        SourcePath = docFile.FullPath ?? docFile.RelativePath,
+                        RelativePath = docFile.RelativePath ?? docFile.FileName,
+                        LogicalCode = docFile.LogicalPartCode ?? docFile.ProjectCode ?? "DOC",
+                        DocumentRole = docFile.NodeType == "Reference" ? "Reference" : "PackageDetail",
+                        LinkTargetType = "Project",
+                        Fingerprint = docFile.LastWriteTime.Ticks.ToString()
+                    });
+                }
+            }
 
             if (businessAnalysis == null)
                 return docs;
@@ -289,13 +338,23 @@ namespace IdeaCadConnector.Workspace
             var seqToStructCode = new Dictionary<int, string>();
             if (businessAnalysis?.HasStructure == true)
             {
+                var orderedChildren = new List<PdmBusinessNode>();
                 foreach (var group in businessAnalysis.RootNodes)
                 {
                     foreach (var child in group.Children)
                     {
-                        var codeParts = (child.Code ?? "").Split('-');
-                        if (codeParts.Length > 1 && int.TryParse(codeParts.Last(), out var seq))
-                            seqToStructCode[seq] = child.Code;
+                        orderedChildren.Add(child);
+                    }
+                }
+
+                for (var i = 0; i < orderedChildren.Count; i++)
+                {
+                    var child = orderedChildren[i];
+                    if (!string.IsNullOrWhiteSpace(child.Code))
+                    {
+                        // ARAS01 detail files use a flat 001..N sequence, while the business tree uses
+                        // grouped codes like 01-01 / 01-02 / 02-01. Map by business package order first.
+                        seqToStructCode[i + 1] = child.Code;
                     }
                 }
             }

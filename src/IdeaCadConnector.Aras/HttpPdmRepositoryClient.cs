@@ -17,6 +17,7 @@ namespace IdeaCadConnector.Aras
         private readonly ILogger<HttpPdmRepositoryClient> _logger;
         private ArasHttpClient _http;
         private ArasAmlClient _aml;
+        private VaultClient _vault;
         private bool _disposed;
 
         public HttpPdmRepositoryClient(ArasClientOptions options, ILogger<HttpPdmRepositoryClient> logger = null)
@@ -33,6 +34,7 @@ namespace IdeaCadConnector.Aras
             }
             _http.SetBearerToken(accessToken, tokenType ?? "Bearer");
             _aml = new ArasAmlClient(_http, database ?? _options.Database);
+            _vault = new VaultClient(_http, _options);
         }
 
         public async Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct)
@@ -45,46 +47,67 @@ namespace IdeaCadConnector.Aras
             var partsByNumber = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var cadsByNumber = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             var docsByNumber = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-
-            var itemTasks = new List<Task>();
+            var bomByChildLogicalCode = new Dictionary<string, PdmBomExistenceInfo>(StringComparer.OrdinalIgnoreCase);
+            var partIdsByLogicalCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var partNumberByLogicalCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var part in request.Parts ?? Array.Empty<PdmPartRequest>())
             {
                 var number = part.PartNumber;
-                itemTasks.Add(Task.Run(async () =>
+                var id = await FindItemByNumberAsync("Part", number, ct).ConfigureAwait(false);
+                partsByNumber[number] = id != null;
+                partNumberByLogicalCode[part.LogicalCode] = number;
+                if (!string.IsNullOrWhiteSpace(id))
                 {
-                    var id = await FindItemByNumberAsync("Part", number, ct);
-                    lock (partsByNumber) { partsByNumber[number] = id != null; }
-                }, ct));
+                    partIdsByLogicalCode[part.LogicalCode] = id;
+                }
             }
 
             foreach (var cad in request.Cads ?? Array.Empty<PdmCadRequest>())
             {
                 var number = cad.CadNumber;
-                itemTasks.Add(Task.Run(async () =>
-                {
-                    var id = await FindItemByNumberAsync("CAD", number, ct);
-                    lock (cadsByNumber) { cadsByNumber[number] = id != null; }
-                }, ct));
+                var id = await FindItemByNumberAsync("CAD", number, ct).ConfigureAwait(false);
+                cadsByNumber[number] = id != null;
             }
 
             foreach (var doc in request.Documents ?? Array.Empty<PdmDocumentRequest>())
             {
                 var number = doc.DocumentNumber;
-                itemTasks.Add(Task.Run(async () =>
-                {
-                    var id = await FindItemByNumberAsync("Document", number, ct);
-                    lock (docsByNumber) { docsByNumber[number] = id != null; }
-                }, ct));
+                var id = await FindItemByNumberAsync("Document", number, ct).ConfigureAwait(false);
+                docsByNumber[number] = id != null;
             }
 
-            await Task.WhenAll(itemTasks).ConfigureAwait(false);
+            foreach (var part in request.Parts ?? Array.Empty<PdmPartRequest>())
+            {
+                if (string.IsNullOrWhiteSpace(part.ParentLogicalCode))
+                {
+                    continue;
+                }
+
+                var info = new PdmBomExistenceInfo();
+                if (partIdsByLogicalCode.TryGetValue(part.ParentLogicalCode, out var parentId) &&
+                    partIdsByLogicalCode.TryGetValue(part.LogicalCode, out var childId))
+                {
+                    info = await FindPartBomInfoAsync(parentId, childId, ct).ConfigureAwait(false);
+                }
+                else if (partNumberByLogicalCode.ContainsKey(part.ParentLogicalCode) &&
+                    partNumberByLogicalCode.ContainsKey(part.LogicalCode))
+                {
+                    info = new PdmBomExistenceInfo
+                    {
+                        Exists = false
+                    };
+                }
+
+                bomByChildLogicalCode[part.LogicalCode] = info;
+            }
 
             return new PdmExistencePreview
             {
                 PartsByNumber = partsByNumber,
                 CadsByNumber = cadsByNumber,
-                DocumentsByNumber = docsByNumber
+                DocumentsByNumber = docsByNumber,
+                BomByChildLogicalCode = bomByChildLogicalCode
             };
         }
 
@@ -111,14 +134,24 @@ namespace IdeaCadConnector.Aras
                 {
                     var commitId = await CreatePdmCommitAsync(request, partResults, cadResults, docResults, ct);
                     result.CommitId = commitId;
+                    result.Success = !string.IsNullOrWhiteSpace(commitId);
+                    result.StagingOnly = true;
+                    result.LiveDataUpdated = false;
+                    result.Warnings = new[] { stagingMsg };
+                    if (!result.Success)
+                    {
+                        result.ErrorMessage = $"Non-main branch '{request.TargetBranch}' is blocked from live push, and staging snapshot did not return a commit id.";
+                    }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex, "PDM Commit schema unavailable. Staging snapshot skipped.");
+                    result.Success = false;
+                    result.StagingOnly = false;
+                    result.LiveDataUpdated = false;
+                    result.ErrorMessage = $"Non-main branch '{request.TargetBranch}' is blocked from live push, and staging snapshot could not be created.";
+                    result.Warnings = new[] { stagingMsg, "PDM Commit schema unavailable. Staging snapshot skipped." };
                 }
-
-                result.Success = true;
-                result.Warnings = new[] { stagingMsg };
                 result.PartResults = partResults;
                 result.CadResults = cadResults;
                 result.DocumentResults = docResults;
@@ -177,13 +210,26 @@ namespace IdeaCadConnector.Aras
                     docResults.Add(id);
                 }
 
-                var allBusinessSuccess = partResults.All(r => r.Success) &&
-                    cadResults.All(r => r.Success) &&
-                    docResults.All(r => r.Success);
+                var partsSucceeded = partResults.All(r => r.Success);
+                var docsSucceeded = docResults.All(r => r.Success);
+                var cadsMetadataSucceeded = cadResults.All(r => r.Success);
+                var allBusinessSuccess = partsSucceeded && docsSucceeded;
 
                 if (allBusinessSuccess)
                 {
                     result.Success = true;
+                    result.LiveDataUpdated = true;
+                    result.StagingOnly = false;
+
+                    var warnings = new List<string>(result.Warnings ?? Array.Empty<string>());
+                    if (!cadsMetadataSucceeded)
+                    {
+                        var fileFailures = cadResults
+                            .Where(r => !r.Success)
+                            .Select(r => $"CAD '{r.SourceKey}': {r.ErrorMessage ?? "native file attach failed"}")
+                            .ToList();
+                        warnings.AddRange(fileFailures);
+                    }
 
                     try
                     {
@@ -192,17 +238,18 @@ namespace IdeaCadConnector.Aras
                     }
                     catch (Exception ex)
                     {
-                        var warnings = new List<string>(result.Warnings ?? Array.Empty<string>())
-                        {
-                            "Commit snapshot skipped because PDM Commit ItemType is not deployed on server: " + ex.Message
-                        };
-                        result.Warnings = warnings;
+                        warnings.Add("Commit snapshot skipped because PDM Commit ItemType is not deployed on server: " + ex.Message);
                         _logger.LogWarning(ex, "PDM Commit schema unavailable. Business push completed without commit snapshot.");
                     }
+
+                    if (warnings.Count > 0)
+                        result.Warnings = warnings;
                 }
                 else
                 {
                     result.Success = false;
+                    result.LiveDataUpdated = false;
+                    result.StagingOnly = false;
                     var failedParts = partResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
                     var failedCads = cadResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
                     var failedDocs = docResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
@@ -213,6 +260,8 @@ namespace IdeaCadConnector.Aras
             {
                 _logger.LogError(ex, "PDM push failed");
                 result.Success = false;
+                result.LiveDataUpdated = false;
+                result.StagingOnly = false;
                 result.ErrorMessage = ex.Message;
             }
 
@@ -234,7 +283,8 @@ namespace IdeaCadConnector.Aras
                         SourceKey = part.LogicalCode,
                         ArasId = existingId,
                         ItemNumber = part.PartNumber,
-                        Success = true
+                        Success = true,
+                        ActionTaken = "Reused"
                     };
                 }
 
@@ -252,6 +302,7 @@ namespace IdeaCadConnector.Aras
                     ArasId = newId,
                     ItemNumber = part.PartNumber,
                     Success = !string.IsNullOrWhiteSpace(newId),
+                    ActionTaken = !string.IsNullOrWhiteSpace(newId) ? "Created" : null,
                     ErrorMessage = newId == null
                         ? $"Part add failed. number='{part.PartNumber}', classification='{part.Classification} (preview-only, not sent to Aras)', name='{part.Name ?? part.LogicalCode}'. Aras returned no id."
                         : null
@@ -274,43 +325,71 @@ namespace IdeaCadConnector.Aras
             try
             {
                 var existingId = await FindItemByNumberAsync("CAD", cad.CadNumber, ct);
-                if (existingId != null)
-                {
-                    if (!string.IsNullOrWhiteSpace(linkedPartId))
-                    {
-                        await EnsureRelationshipAsync("Part CAD", linkedPartId, existingId, ct);
-                    }
+                var isNew = string.IsNullOrWhiteSpace(existingId);
+                var actionTaken = isNew ? "Created" : "Reused";
+                string cadId;
 
-                    return new PdmItemResult
+                if (isNew)
+                {
+                    var aml = $"<Item type=\"CAD\" action=\"add\">" +
+                        $"<item_number>{EscapeAml(cad.CadNumber)}</item_number>" +
+                        $"<classification>{EscapeAml(cad.Classification)}</classification>" +
+                        "<name>" + EscapeAml(cad.SourceFileName) + "</name>" +
+                        "</Item>";
+
+                    var response = await _aml.ApplyAmlAsync(aml, "add", "CAD", null, ct);
+                    cadId = response?["id"]?.ToString();
+
+                    if (string.IsNullOrWhiteSpace(cadId))
                     {
-                        SourceKey = cad.SourceFileName,
-                        ArasId = existingId,
-                        ItemNumber = cad.CadNumber,
-                        Success = true
-                    };
+                        return new PdmItemResult
+                        {
+                            SourceKey = cad.SourceFileName,
+                            ItemNumber = cad.CadNumber,
+                            Success = false,
+                            ErrorMessage = "CAD add returned no id from Aras"
+                        };
+                    }
+                }
+                else
+                {
+                    cadId = existingId;
                 }
 
-                var aml = $"<Item type=\"CAD\" action=\"add\">" +
-                    $"<item_number>{EscapeAml(cad.CadNumber)}</item_number>" +
-                    $"<classification>{EscapeAml(cad.Classification)}</classification>" +
-                    "<name>" + EscapeAml(cad.SourceFileName) + "</name>" +
-                    "</Item>";
-
-                var response = await _aml.ApplyAmlAsync(aml, "add", "CAD", null, ct);
-                var newId = response?["id"]?.ToString();
-
-                if (!string.IsNullOrWhiteSpace(newId) && !string.IsNullOrWhiteSpace(linkedPartId))
+                if (!string.IsNullOrWhiteSpace(linkedPartId))
                 {
-                    await EnsureRelationshipAsync("Part CAD", linkedPartId, newId, ct);
+                    await EnsureRelationshipAsync("Part CAD", linkedPartId, cadId, ct);
+                }
+
+                if (!string.IsNullOrWhiteSpace(cad.SourceFilePath))
+                {
+                    var uploadSuccess = await AttachNativeFileToCadAsync(cadId, cad.SourceFilePath, cad.SourceFileName, ct);
+                    if (uploadSuccess)
+                    {
+                        actionTaken = isNew ? "Created+File" : "Reused+File";
+                    }
+                    else
+                    {
+                        return new PdmItemResult
+                        {
+                            SourceKey = cad.SourceFileName,
+                            ArasId = cadId,
+                            ItemNumber = cad.CadNumber,
+                            Success = false,
+                            ActionTaken = actionTaken,
+                            ErrorMessage = "CAD metadata " + actionTaken.ToLowerInvariant() +
+                                " but native file attach failed. Path: " + cad.SourceFilePath
+                        };
+                    }
                 }
 
                 return new PdmItemResult
                 {
                     SourceKey = cad.SourceFileName,
-                    ArasId = newId,
+                    ArasId = cadId,
                     ItemNumber = cad.CadNumber,
-                    Success = !string.IsNullOrWhiteSpace(newId),
-                    ErrorMessage = newId == null ? "No id returned from Aras" : null
+                    Success = true,
+                    ActionTaken = actionTaken
                 };
             }
             catch (Exception ex)
@@ -322,6 +401,37 @@ namespace IdeaCadConnector.Aras
                     Success = false,
                     ErrorMessage = ex.Message
                 };
+            }
+        }
+
+        private async Task<bool> AttachNativeFileToCadAsync(string cadId, string filePath, string fileName, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(cadId) || string.IsNullOrWhiteSpace(filePath))
+                return false;
+
+            try
+            {
+                if (!System.IO.File.Exists(filePath))
+                {
+                    _logger.LogWarning("Native file not found for CAD '{CadNumber}': {Path}", cadId, filePath);
+                    return false;
+                }
+
+                var fileId = await _vault.UploadFileAsync(filePath, fileName, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(fileId))
+                    return false;
+
+                var aml = $"<Item type=\"CAD\" action=\"edit\" id=\"{EscapeAml(cadId)}\">" +
+                    $"<native_file>{EscapeAml(fileId)}</native_file>" +
+                    "</Item>";
+
+                await _aml.ApplyAmlAsync(aml, "edit", "CAD", cadId, ct).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to attach native file to CAD '{CadNumber}'", cadId);
+                return false;
             }
         }
 
@@ -346,7 +456,8 @@ namespace IdeaCadConnector.Aras
                         SourceKey = doc.SourceFileName,
                         ArasId = existingId,
                         ItemNumber = doc.DocumentNumber,
-                        Success = true
+                        Success = true,
+                        ActionTaken = "Reused"
                     };
                 }
 
@@ -369,6 +480,7 @@ namespace IdeaCadConnector.Aras
                     ArasId = newId,
                     ItemNumber = doc.DocumentNumber,
                     Success = !string.IsNullOrWhiteSpace(newId),
+                    ActionTaken = !string.IsNullOrWhiteSpace(newId) ? "Created" : null,
                     ErrorMessage = newId == null
                         ? $"Document add failed. number='{doc.DocumentNumber}', classification='{doc.Classification} (preview-only, not sent to Aras)', source='{doc.SourceFileName}'. Aras returned no id."
                         : null
@@ -402,6 +514,41 @@ namespace IdeaCadConnector.Aras
                 "</Item>";
 
             await _aml.ApplyAmlAsync(aml, "add", "Part BOM", null, ct).ConfigureAwait(false);
+        }
+
+        private async Task<PdmBomExistenceInfo> FindPartBomInfoAsync(string parentId, string childId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(parentId) || string.IsNullOrWhiteSpace(childId))
+            {
+                return new PdmBomExistenceInfo();
+            }
+
+            try
+            {
+                var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"id,quantity\">" +
+                    $"<source_id>{EscapeAml(parentId)}</source_id>" +
+                    $"<related_id>{EscapeAml(childId)}</related_id>" +
+                    "</Item>";
+
+                var response = await _aml.ApplyAmlAsync(aml, "get", "Part BOM", null, ct).ConfigureAwait(false);
+                var items = response?["Items"];
+                if (items == null || !items.HasValues)
+                {
+                    return new PdmBomExistenceInfo();
+                }
+
+                var quantityToken = items[0]?["quantity"]?.ToString();
+                int parsedQuantity;
+                return new PdmBomExistenceInfo
+                {
+                    Exists = true,
+                    ExistingQuantity = int.TryParse(quantityToken, out parsedQuantity) ? parsedQuantity : (int?)null
+                };
+            }
+            catch
+            {
+                return new PdmBomExistenceInfo();
+            }
         }
 
         private async Task EnsureRelationshipAsync(string relType, string sourceId, string relatedId, CancellationToken ct)

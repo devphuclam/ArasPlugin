@@ -17,9 +17,11 @@ namespace IdeaCadConnector.Workspace
         public string AssemblyPattern { get; set; } =
             @"^Assembly-(?<project>.+?)-Ver(?<version>\d+\.\d+)(?<revision>[A-Za-z])(?:-(?<date>\d{6})-(?<run>\d+))?$";
 
-        public string[] TrackedExtensions { get; set; } = { ".dwg" };
+        public string[] TrackedExtensions { get; set; } = { ".dwg", ".ics" };
 
-        public string[] IgnoredExtensions { get; set; } = { ".bak", ".tmp", ".lck" };
+        public string[] DocumentExtensions { get; set; } = { ".pdf" };
+
+        public string[] IgnoredExtensions { get; set; } = { ".bak", ".tmp", ".lck", ".txt" };
 
         public string ProjectSeparator { get; set; } = "-";
 
@@ -41,6 +43,8 @@ namespace IdeaCadConnector.Workspace
         public IList<PdmParsedFile> DetailFiles { get; } = new List<PdmParsedFile>();
 
         public IList<PdmParsedFile> AssemblyFiles { get; } = new List<PdmParsedFile>();
+
+        public IList<PdmParsedFile> DocumentFiles { get; } = new List<PdmParsedFile>();
 
         public IList<PdmParsedFile> IgnoredFiles { get; } = new List<PdmParsedFile>();
 
@@ -255,6 +259,9 @@ namespace IdeaCadConnector.Workspace
         private readonly PdmNamingPolicy _policy;
         private readonly Regex _detailRegex;
         private readonly Regex _assemblyRegex;
+        private static readonly Regex RootDrawingRefRegex = new Regex(
+            @"^(?<project>[A-Za-z0-9][A-Za-z0-9 -]*)_Ver(?<version>\d+\.\d+)$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         public Aras01FolderAnalyzer(PdmNamingPolicy policy)
         {
@@ -293,6 +300,13 @@ namespace IdeaCadConnector.Workspace
                     continue;
                 }
 
+                if (Contains(_policy.DocumentExtensions, extension))
+                {
+                    parsed.Status = "Document";
+                    result.DocumentFiles.Add(parsed);
+                    continue;
+                }
+
                 if (!Contains(_policy.TrackedExtensions, extension))
                 {
                     parsed.Status = "Unrecognized";
@@ -323,6 +337,20 @@ namespace IdeaCadConnector.Workspace
                     result.DetailFiles.Add(parsed);
                     result.TrackedFiles.Add(parsed);
                     continue;
+                }
+
+                if (extension.Equals(".dwg", StringComparison.OrdinalIgnoreCase))
+                {
+                    var rootMatch = RootDrawingRefRegex.Match(stem);
+                    if (rootMatch.Success)
+                    {
+                        parsed.ProjectCode = NormalizeProjectCode(rootMatch.Groups["project"].Value, _policy.ProjectSeparator);
+                        parsed.Version = rootMatch.Groups["version"].Value;
+                        parsed.NodeType = "Reference";
+                        parsed.Status = "Drawing";
+                        result.DocumentFiles.Add(parsed);
+                        continue;
+                    }
                 }
 
                 parsed.Status = "Invalid name";
