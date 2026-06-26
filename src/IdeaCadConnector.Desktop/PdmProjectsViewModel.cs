@@ -191,7 +191,8 @@ namespace IdeaCadConnector.Desktop
         public bool CanPush =>
             !IsPushing &&
             (_pushPreview?.Readiness?.CanPush ?? false) &&
-            MainViewModel.SharedPdmClient != null;
+            MainViewModel.SharedPdmClient != null &&
+            IsMainBranch;
 
         public bool HasPdmStructure => PdmStructure.Count > 0;
         public bool HasCadStructure => CadStructure.Count > 0;
@@ -601,6 +602,7 @@ namespace IdeaCadConnector.Desktop
             BuildProjectFiles(sources);
             BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
             BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
+            _ = RefreshPreviewFromServerAsync();
 
             OnPropertyChanged(nameof(HasPdmStructure));
             OnPropertyChanged(nameof(HasCadStructure));
@@ -1344,6 +1346,77 @@ namespace IdeaCadConnector.Desktop
             _pushCommand.RaiseCanExecuteChanged();
         }
 
+        private async Task RefreshPreviewFromServerAsync()
+        {
+            if (_pushPreview == null)
+                return;
+
+            var client = MainViewModel.SharedPdmClient;
+            if (client == null)
+                return;
+
+            var request = BuildPushRequest();
+            if (request == null)
+                return;
+
+            try
+            {
+                var existence = await client.PreviewExistenceAsync(request, CancellationToken.None).ConfigureAwait(false);
+                if (existence == null)
+                    return;
+
+                PreviewParts.Clear();
+                foreach (var part in _pushPreview.Parts)
+                {
+                    var exists = existence.PartsByNumber.TryGetValue(part.PartNumber, out var e) && e;
+                    PreviewParts.Add(new PartPreviewRow
+                    {
+                        LogicalCode = part.LogicalCode,
+                        ParentLogicalCode = part.ParentLogicalCode,
+                        PartNumber = part.PartNumber,
+                        Name = part.Name,
+                        Classification = part.Classification,
+                        Quantity = part.Quantity,
+                        Action = exists ? "Reuse" : "Create"
+                    });
+                }
+
+                PreviewCads.Clear();
+                foreach (var cad in _pushPreview.Cads)
+                {
+                    var exists = existence.CadsByNumber.TryGetValue(cad.CadNumber, out var e) && e;
+                    PreviewCads.Add(new CadPreviewRow
+                    {
+                        SourceFileName = cad.SourceFileName,
+                        LogicalCode = cad.LogicalCode,
+                        CadNumber = cad.CadNumber,
+                        Classification = cad.Classification,
+                        Action = exists ? "Reuse" : "Create",
+                        LinkedPartLogicalCode = cad.LinkedPartLogicalCode
+                    });
+                }
+
+                PreviewDocuments.Clear();
+                foreach (var doc in _pushPreview.Documents)
+                {
+                    var exists = existence.DocumentsByNumber.TryGetValue(doc.DocumentNumber, out var e) && e;
+                    PreviewDocuments.Add(new DocumentPreviewRow
+                    {
+                        SourceFileName = doc.SourceFileName,
+                        LogicalCode = doc.LogicalCode,
+                        DocumentNumber = doc.DocumentNumber,
+                        Classification = doc.Classification,
+                        LinkTargetType = doc.LinkTargetType,
+                        Action = exists ? "Reuse" : "Create",
+                        LinkedPartLogicalCode = doc.LinkedPartLogicalCode
+                    });
+                }
+            }
+            catch
+            {
+            }
+        }
+
         private void RefreshPushPreview()
         {
             if (_latestAnalysis == null)
@@ -1352,6 +1425,7 @@ namespace IdeaCadConnector.Desktop
             }
 
             BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
+            _ = RefreshPreviewFromServerAsync();
         }
 
         private static PdmAnalysisSources ResolveAnalysisSources(string folderPath)

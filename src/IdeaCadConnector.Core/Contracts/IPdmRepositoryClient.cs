@@ -8,6 +8,15 @@ namespace IdeaCadConnector.Core.Contracts
     public interface IPdmRepositoryClient : System.IDisposable
     {
         Task<PdmPushResult> PushAsync(PdmPushRequest request, CancellationToken ct);
+
+        Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct);
+    }
+
+    public sealed class PdmExistencePreview
+    {
+        public IReadOnlyDictionary<string, bool> PartsByNumber { get; set; }
+        public IReadOnlyDictionary<string, bool> CadsByNumber { get; set; }
+        public IReadOnlyDictionary<string, bool> DocumentsByNumber { get; set; }
     }
 
     public sealed class PdmPushRequest

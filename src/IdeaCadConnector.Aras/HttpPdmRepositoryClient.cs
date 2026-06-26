@@ -35,6 +35,59 @@ namespace IdeaCadConnector.Aras
             _aml = new ArasAmlClient(_http, database ?? _options.Database);
         }
 
+        public async Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            EnsureAuthenticated();
+
+            var partsByNumber = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            var cadsByNumber = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            var docsByNumber = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
+            var itemTasks = new List<Task>();
+
+            foreach (var part in request.Parts ?? Array.Empty<PdmPartRequest>())
+            {
+                var number = part.PartNumber;
+                itemTasks.Add(Task.Run(async () =>
+                {
+                    var id = await FindItemByNumberAsync("Part", number, ct);
+                    lock (partsByNumber) { partsByNumber[number] = id != null; }
+                }, ct));
+            }
+
+            foreach (var cad in request.Cads ?? Array.Empty<PdmCadRequest>())
+            {
+                var number = cad.CadNumber;
+                itemTasks.Add(Task.Run(async () =>
+                {
+                    var id = await FindItemByNumberAsync("CAD", number, ct);
+                    lock (cadsByNumber) { cadsByNumber[number] = id != null; }
+                }, ct));
+            }
+
+            foreach (var doc in request.Documents ?? Array.Empty<PdmDocumentRequest>())
+            {
+                var number = doc.DocumentNumber;
+                itemTasks.Add(Task.Run(async () =>
+                {
+                    var id = await FindItemByNumberAsync("Document", number, ct);
+                    lock (docsByNumber) { docsByNumber[number] = id != null; }
+                }, ct));
+            }
+
+            await Task.WhenAll(itemTasks).ConfigureAwait(false);
+
+            return new PdmExistencePreview
+            {
+                PartsByNumber = partsByNumber,
+                CadsByNumber = cadsByNumber,
+                DocumentsByNumber = docsByNumber
+            };
+        }
+
         public async Task<PdmPushResult> PushAsync(PdmPushRequest request, CancellationToken ct)
         {
             if (request == null)
@@ -46,6 +99,31 @@ namespace IdeaCadConnector.Aras
             var partResults = new List<PdmItemResult>();
             var cadResults = new List<PdmItemResult>();
             var docResults = new List<PdmItemResult>();
+
+            var isMainBranch = string.Equals(request.TargetBranch, "main", StringComparison.OrdinalIgnoreCase);
+
+            if (!isMainBranch)
+            {
+                var stagingMsg = $"Non-main branch '{request.TargetBranch}': push created staging snapshot only. Live Part/BOM/CAD/Document data was not updated.";
+                _logger.LogInformation(stagingMsg);
+
+                try
+                {
+                    var commitId = await CreatePdmCommitAsync(request, partResults, cadResults, docResults, ct);
+                    result.CommitId = commitId;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "PDM Commit schema unavailable. Staging snapshot skipped.");
+                }
+
+                result.Success = true;
+                result.Warnings = new[] { stagingMsg };
+                result.PartResults = partResults;
+                result.CadResults = cadResults;
+                result.DocumentResults = docResults;
+                return result;
+            }
 
             try
             {
