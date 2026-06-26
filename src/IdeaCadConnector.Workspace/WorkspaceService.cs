@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using IdeaCadConnector.Core.Validation;
+using Newtonsoft.Json;
 
 namespace IdeaCadConnector.Workspace
 {
@@ -39,6 +40,59 @@ namespace IdeaCadConnector.Workspace
             {
                 Directory.CreateDirectory(directory);
             }
+        }
+
+        public string GetManifestDirectory(string projectFolder)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolder))
+                return null;
+            var dir = Path.Combine(projectFolder, ".idea-pdm");
+            Directory.CreateDirectory(dir);
+            return dir;
+        }
+
+        public string GetManifestFilePath(string projectFolder)
+        {
+            var dir = GetManifestDirectory(projectFolder);
+            return dir == null ? null : Path.Combine(dir, "workspace.json");
+        }
+
+        public WorkspaceManifest LoadManifest(string projectFolder)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolder))
+                return null;
+            var path = GetManifestFilePath(projectFolder);
+            if (path == null || !File.Exists(path))
+                return null;
+            try
+            {
+                var json = File.ReadAllText(path);
+                return JsonConvert.DeserializeObject<WorkspaceManifest>(json);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public void SaveManifest(WorkspaceManifest manifest)
+        {
+            if (manifest == null || string.IsNullOrWhiteSpace(manifest.ProjectFolder))
+                return;
+            var dir = GetManifestDirectory(manifest.ProjectFolder);
+            if (dir == null) return;
+            var path = Path.Combine(dir, "workspace.json");
+            var json = JsonConvert.SerializeObject(manifest, Formatting.Indented);
+            File.WriteAllText(path, json);
+        }
+
+        public void ClearManifest(string projectFolder)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolder))
+                return;
+            var path = GetManifestFilePath(projectFolder);
+            if (path != null && File.Exists(path))
+                File.Delete(path);
         }
 
         private static string GetDefaultRootPath()

@@ -111,6 +111,12 @@ namespace IdeaCadConnector.Aras
             };
         }
 
+        public async Task<string> FindItemIdByNumberAsync(string itemType, string itemNumber, CancellationToken ct)
+        {
+            EnsureAuthenticated();
+            return await FindItemByNumberAsync(itemType, itemNumber, ct).ConfigureAwait(false);
+        }
+
         public async Task<PdmPushResult> PushAsync(PdmPushRequest request, CancellationToken ct)
         {
             if (request == null)

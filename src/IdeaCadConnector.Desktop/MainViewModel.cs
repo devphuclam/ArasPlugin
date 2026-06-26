@@ -25,9 +25,12 @@ namespace IdeaCadConnector.Desktop
         private readonly WorkspaceService _workspaceService;
         private readonly ICadApplicationAdapter _cadAdapter;
         private readonly ArasClientOptions _options;
+        private CheckoutService _checkoutService;
         private IArasCadClient _arasClient;
         private ArasLoginResult _loginResult;
         internal static IPdmRepositoryClient SharedPdmClient { get; set; }
+        internal static IArasCadClient SharedArasCadClient { get; set; }
+        internal static string SharedUserName { get; set; }
 
         private string _statusMessage = "Sign in to Aras to start.";
         private PartSearchResult _selectedSearchResult;
@@ -423,18 +426,21 @@ namespace IdeaCadConnector.Desktop
                 var request = _loginViewModel.CreateRequest();
                 (_arasClient as IDisposable)?.Dispose();
                 _arasClient = null;
+                SharedArasCadClient = null;
 
                 _arasClient = new HttpArasCadClient(new ArasClientOptions
                 {
                     BaseUri = new Uri(request.ServerUrl),
                     Database = request.Database
                 });
+                SharedArasCadClient = _arasClient;
 
                 _loginResult = await _arasClient.LoginAsync(request, CancellationToken.None);
                 _loginViewModel.IsConnected = true;
                 IsLoginPanelVisible = false;
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));
+                SharedUserName = _loginResult.UserName;
                 StatusMessage = $"Connected as {_loginResult.UserName}. Search for a part to continue.";
 
                 (SharedPdmClient as IDisposable)?.Dispose();
@@ -479,6 +485,9 @@ namespace IdeaCadConnector.Desktop
                 _arasClient = null;
                 (SharedPdmClient as IDisposable)?.Dispose();
                 SharedPdmClient = null;
+                (SharedArasCadClient as IDisposable)?.Dispose();
+                SharedArasCadClient = null;
+                SharedUserName = null;
                 IsLoginPanelVisible = true;
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));
@@ -594,30 +603,22 @@ namespace IdeaCadConnector.Desktop
                 IsBusy = true;
                 StatusMessage = "Checking out CAD...";
 
-                var result = await _arasClient.CheckoutAsync(
-                    new CadCheckoutRequest { PartId = SelectedPartId, CadId = SelectedCadId },
+                var targetDir = GetWorkspaceDirectory();
+                var result = await GetCheckoutService().CheckoutAndDownloadAsync(
+                    SelectedCadId,
+                    targetDir,
                     CancellationToken.None);
 
-                _lockToken = result.LockToken;
-                ApplyCadSelection(result.Cad, clearSessionLock: false);
+                if (!result.Success)
+                {
+                    throw new InvalidOperationException(result.ErrorMessage ?? "Checkout failed.");
+                }
 
-                var targetDir = GetWorkspaceDirectory();
-                if (result.Cad != null && result.Cad.HasNativeFile)
-                {
-                    _lastDownloadedFilePath = await _arasClient.DownloadNativeFileAsync(result.Cad.NativeFileId, targetDir, CancellationToken.None);
-                    await _cadAdapter.OpenDocumentAsync(_lastDownloadedFilePath, CadOpenMode.Edit, CancellationToken.None);
-                    StatusMessage = $"Checked out and opened {Path.GetFileName(_lastDownloadedFilePath)}.";
-                }
-                else
-                {
-                    var partNumber = SelectedSearchResult?.Part?.PartNumber ?? "new-part";
-                    var fileName = $"{partNumber}.ics";
-                    var filePath = Path.Combine(targetDir, fileName);
-                    File.WriteAllBytes(filePath, Array.Empty<byte>());
-                    _lastDownloadedFilePath = filePath;
-                    await _cadAdapter.OpenDocumentAsync(filePath, CadOpenMode.Edit, CancellationToken.None);
-                    StatusMessage = $"Checked out. Design and save to {fileName}.";
-                }
+                _lockToken = result.LockToken;
+                _lastDownloadedFilePath = result.LocalFilePath;
+                ApplyCadSelection(result.Cad, clearSessionLock: false);
+                await _cadAdapter.OpenDocumentAsync(_lastDownloadedFilePath, CadOpenMode.Edit, CancellationToken.None);
+                StatusMessage = $"Checked out and opened {Path.GetFileName(_lastDownloadedFilePath)}.";
             }
             catch (Exception ex)
             {
@@ -645,21 +646,21 @@ namespace IdeaCadConnector.Desktop
                 IsBusy = true;
                 StatusMessage = "Opening CAD read-only...";
 
-                var result = await _arasClient.OpenReadOnlyAsync(
-                    new CadOpenReadOnlyRequest { PartId = SelectedPartId, CadId = SelectedCadId },
+                var targetDir = GetWorkspaceDirectory();
+                var result = await GetCheckoutService().OpenReadOnlyAsync(
+                    SelectedCadId,
+                    targetDir,
                     CancellationToken.None);
 
-                ApplyCadSelection(result.Cad, clearSessionLock: false);
-
-                if (result.Cad == null || !result.Cad.HasNativeFile)
+                if (!result.Success || string.IsNullOrWhiteSpace(result.LocalFilePath))
                 {
-                    MessageBox.Show("The selected CAD does not have a native file yet.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    StatusMessage = "CAD has no native file.";
+                    MessageBox.Show(result.ErrorMessage ?? "The selected CAD does not have a native file yet.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    StatusMessage = result.ErrorMessage ?? "CAD has no native file.";
                     return;
                 }
 
-                var targetDir = GetWorkspaceDirectory();
-                _lastDownloadedFilePath = await _arasClient.DownloadNativeFileAsync(result.Cad.NativeFileId, targetDir, CancellationToken.None);
+                ApplyCadSelection(result.Cad, clearSessionLock: false);
+                _lastDownloadedFilePath = result.LocalFilePath;
                 await _cadAdapter.OpenDocumentAsync(_lastDownloadedFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
 
                 StatusMessage = $"Opened {Path.GetFileName(_lastDownloadedFilePath)} in read-only mode.";
@@ -696,20 +697,16 @@ namespace IdeaCadConnector.Desktop
                     return;
                 }
 
-                var uploadResult = await _arasClient.UploadFileAsync(new FileUploadRequest
-                {
-                    FilePath = filePath,
-                    FileName = Path.GetFileName(filePath)
-                }, CancellationToken.None);
+                var result = await GetCheckoutService().UploadAndCheckinAsync(
+                    SelectedCadId,
+                    _lockToken,
+                    filePath,
+                    _cadAdapter.ReadMetadata(),
+                    CancellationToken.None);
 
-                var request = CadCheckinRequest.CreateNew();
-                request.CadId = SelectedCadId;
-                request.LockToken = _lockToken;
-                request.UploadedFileId = uploadResult.UploadedFileId;
-                request.LocalFilePath = filePath;
-                request.Metadata = _cadAdapter.ReadMetadata();
+                if (!result.Success)
+                    throw new InvalidOperationException(result.ErrorMessage ?? "Check-in failed.");
 
-                var result = await _arasClient.CheckinAsync(request, CancellationToken.None);
                 _lockToken = null;
                 ApplyCadSelection(result.Cad, clearSessionLock: false);
 
@@ -741,7 +738,9 @@ namespace IdeaCadConnector.Desktop
                 IsBusy = true;
                 StatusMessage = "Cancelling checkout...";
 
-                await _arasClient.CancelCheckoutAsync(new CancelCheckoutRequest { CadId = SelectedCadId }, CancellationToken.None);
+                var success = await GetCheckoutService().CancelCheckoutAsync(SelectedCadId, CancellationToken.None);
+                if (!success)
+                    throw new InvalidOperationException("Cancel checkout failed.");
                 _lockToken = null;
 
                 if (_currentCad != null)
@@ -771,6 +770,16 @@ namespace IdeaCadConnector.Desktop
                 IsBusy = false;
                 RefreshCanExecute();
             }
+        }
+
+        private CheckoutService GetCheckoutService()
+        {
+            if (_checkoutService == null)
+            {
+                _checkoutService = new CheckoutService(_arasClient, _workspaceService);
+            }
+
+            return _checkoutService;
         }
 
         private bool CanExecuteAction(CadBusinessActionKind kind)

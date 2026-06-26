@@ -10,6 +10,8 @@ namespace IdeaCadConnector.Core.Contracts
         Task<PdmPushResult> PushAsync(PdmPushRequest request, CancellationToken ct);
 
         Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct);
+
+        Task<string> FindItemIdByNumberAsync(string itemType, string itemNumber, CancellationToken ct);
     }
 
     public sealed class PdmExistencePreview

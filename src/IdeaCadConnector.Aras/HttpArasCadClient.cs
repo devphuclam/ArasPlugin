@@ -437,8 +437,11 @@ namespace IdeaCadConnector.Aras
             return new CadOperationContext(
                 cadId: cad?.Id ?? cadId,
                 cadNumber: cad?.CadNumber ?? "",
+                revision: cad?.Revision ?? "",
+                generation: cad?.Generation ?? 0,
                 cadState: cad?.State ?? "",
                 modifiedOn: modifiedOn,
+                hasNativeFile: cad?.HasNativeFile ?? false,
                 isLocked: cad?.IsLocked ?? false,
                 lockOwnerId: lockedById,
                 lockOwnerName: lockOwnerName,

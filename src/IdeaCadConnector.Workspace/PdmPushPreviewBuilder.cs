@@ -231,9 +231,21 @@ namespace IdeaCadConnector.Workspace
             {
                 "RootDrawing" => repositoryCode + "-CAD-ASM",
                 "AssemblyRevision" => repositoryCode + "-CAD-" + (cad.LogicalCode ?? "REV"),
-                "PrimaryCad" => repositoryCode + "-CAD-" + (cad.LinkedPartLogicalCode ?? cad.LogicalCode ?? cad.VersionToken ?? "000"),
+                "PrimaryCad" => BuildPrimaryPartCadNumber(repositoryCode, cad),
                 _ => repositoryCode + "-CAD-" + (cad.LogicalCode ?? "000")
             };
+        }
+
+        private static string BuildPrimaryPartCadNumber(string repositoryCode, AnalyzedCadFile cad)
+        {
+            var logicalCode = cad.LinkedPartLogicalCode ?? cad.LogicalCode;
+            if (string.IsNullOrWhiteSpace(logicalCode) ||
+                string.Equals(logicalCode, repositoryCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return repositoryCode + "-ICS";
+            }
+
+            return repositoryCode + "-" + logicalCode + "-ICS";
         }
 
         private static string GenerateDocumentNumber(string repositoryCode, AnalyzedDocumentFile doc)

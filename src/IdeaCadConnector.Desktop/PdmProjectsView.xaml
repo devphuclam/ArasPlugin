@@ -902,10 +902,14 @@
 
                   <Grid Margin="0,14,0,0">
                     <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="110" />
+                      <ColumnDefinition Width="118" />
                       <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
+                      <RowDefinition Height="Auto" />
                       <RowDefinition Height="Auto" />
                       <RowDefinition Height="Auto" />
                       <RowDefinition Height="Auto" />
@@ -913,12 +917,20 @@
                     <TextBlock Style="{StaticResource MetricLabelStyle}" Text="State" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                       <Ellipse Width="9" Height="9" Fill="#FF13A444" Margin="0,0,8,0" VerticalAlignment="Center" />
-                      <TextBlock FontSize="13" Foreground="#FF172B57" Text="Checked out" />
+                      <TextBlock FontSize="13" Foreground="#FF172B57" Text="{Binding CadLockStateText, TargetNullValue=Unknown}" />
                     </StackPanel>
-                    <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="Source doc" />
-                    <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding SelectedNode.SourceDocument, TargetNullValue=-}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource MetricLabelStyle}" Text="Locked By" />
-                    <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding SelectedNode.LockedBy, TargetNullValue=admin}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="File" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13" Foreground="#FF172B57" TextWrapping="Wrap" Text="{Binding CadFileStateText, TargetNullValue=-}" />
+                    <TextBlock Grid.Row="2" Style="{StaticResource MetricLabelStyle}" Text="Revision" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding CadRevisionText, TargetNullValue=-}" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource MetricLabelStyle}" Text="Generation" />
+                    <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding CadGenerationText, TargetNullValue=-}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource MetricLabelStyle}" Text="Lifecycle" />
+                    <TextBlock Grid.Row="4" Grid.Column="1" FontSize="13" Foreground="#FF172B57" TextWrapping="Wrap" Text="{Binding CadLifecycleText, TargetNullValue=-}" />
+                    <TextBlock Grid.Row="5" Style="{StaticResource MetricLabelStyle}" Text="Locked By" />
+                    <TextBlock Grid.Row="5" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding LockedByText, TargetNullValue=-}" />
+                    <TextBlock Grid.Row="6" Style="{StaticResource MetricLabelStyle}" Text="Edit rule" />
+                    <TextBlock Grid.Row="6" Grid.Column="1" FontSize="13" Foreground="#FF172B57" TextWrapping="Wrap" Text="{Binding CadEditPolicyText, TargetNullValue=-}" />
                   </Grid>
 
                   <Grid Margin="0,16,0,0">
@@ -942,6 +954,7 @@
                             BorderBrush="#FF14B1A7"
                             Foreground="White"
                             FontWeight="SemiBold"
+                            Command="{Binding CheckInCommand}"
                             Content="Check-in" />
                   </Grid>
 
@@ -952,7 +965,51 @@
                           BorderThickness="1.5"
                           Foreground="#FFF14E4E"
                           FontWeight="SemiBold"
+                          Command="{Binding CancelCheckoutCommand}"
                           Content="Cancel Checkout" />
+
+                  <StackPanel Margin="0,14,0,0"
+                              Visibility="{Binding HasAnyCadBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <TextBlock FontSize="12"
+                               Foreground="#FF60708E"
+                               TextWrapping="Wrap"
+                               Text="{Binding WorkflowStatusText}" />
+                    <UniformGrid Columns="2" Margin="0,10,0,0">
+                      <Button Margin="0,0,8,8"
+                              Height="36"
+                              Background="#FF2868F0"
+                              BorderBrush="#FF2868F0"
+                              Foreground="White"
+                              FontWeight="SemiBold"
+                              Command="{Binding StartDetailedDesignCommand}"
+                              Content="Start Detailed Design" />
+                      <Button Margin="0,0,0,8"
+                              Height="36"
+                              Background="#FF6A5AE0"
+                              BorderBrush="#FF6A5AE0"
+                              Foreground="White"
+                              FontWeight="SemiBold"
+                              Command="{Binding SubmitForReviewCommand}"
+                              Content="Submit for Review" />
+                      <Button Margin="0,0,8,0"
+                              Height="36"
+                              Background="#FF139A6C"
+                              BorderBrush="#FF139A6C"
+                              Foreground="White"
+                              FontWeight="SemiBold"
+                              Command="{Binding ApproveCadCommand}"
+                              Content="Approve" />
+                      <Button Margin="0,0,0,0"
+                              Height="36"
+                              Background="White"
+                              BorderBrush="#FFC97F1B"
+                              BorderThickness="1.2"
+                              Foreground="#FFB76C09"
+                              FontWeight="SemiBold"
+                              Command="{Binding RequestReworkCommand}"
+                              Content="Request Rework" />
+                    </UniformGrid>
+                  </StackPanel>
                   </StackPanel>
                 </StackPanel>
               </Border>
