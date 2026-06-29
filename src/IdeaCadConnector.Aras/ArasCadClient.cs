@@ -21,6 +21,10 @@ namespace IdeaCadConnector.Aras
     /// </summary>
     public sealed class ArasCadClient : IArasCadClient, IDisposable
     {
+        private const string StartDetailedDesignMethodName = "idea_StartDetailedDesign";
+        private const string SubmitCadForReviewMethodName = "idea_SubmitCadForReview";
+        private const string ApproveCadReviewMethodName = "idea_ApproveCadReview";
+        private const string RequestCadReworkMethodName = "idea_RequestCadRework";
 
         private readonly ArasClientOptions _options;
         private readonly ILogger<ArasCadClient> _logger;
@@ -452,8 +456,6 @@ namespace IdeaCadConnector.Aras
                     "CAD was modified in Aras since the last refresh. Refresh and try again.");
             }
 
-            var freshAction = ResolveFreshAction(freshContext, request);
-
             switch (request.Action)
             {
                 case CadBusinessActionKind.StartDetailedDesign:
@@ -461,12 +463,14 @@ namespace IdeaCadConnector.Aras
                     break;
 
                 case CadBusinessActionKind.SubmitForReview:
-                    await ExecuteSubmitForReviewAsync(request, freshContext, freshAction, ct);
+                    await ExecuteSubmitForReviewAsync(request, freshContext, ct);
                     break;
 
                 case CadBusinessActionKind.Approve:
+                    await ExecuteApproveCadReviewAsync(request, freshContext, ct);
+                    break;
                 case CadBusinessActionKind.RequestRework:
-                    await ExecuteVoteActionAsync(request, freshAction, ct);
+                    await ExecuteRequestCadReworkAsync(request, freshContext, ct);
                     break;
 
                 default:
@@ -833,22 +837,20 @@ namespace IdeaCadConnector.Aras
 
             var result = await RunIomAsync(() =>
             {
-                var methodItem = _authenticator.Innovator.newItem("Method", "idea_StartDetailedDesign");
+                var methodItem = _authenticator.Innovator.newItem("Method", StartDetailedDesignMethodName);
                 methodItem.setProperty("cad_id", request.CadId);
                 methodItem.setProperty("comment", "Start Detailed Design");
                 return methodItem.apply();
             }, ct);
 
-            CheckIomError(result, "idea_StartDetailedDesign");
+            CheckIomError(result, StartDetailedDesignMethodName);
         }
 
         private async Task ExecuteSubmitForReviewAsync(
             ExecuteCadBusinessActionRequest request,
             CadOperationContext context,
-            CadBusinessAction freshAction,
             CancellationToken ct)
         {
-            // State check before any workflow action
             if (!CadLifecyclePolicy.CanSubmitForReview(context.CadState))
             {
                 throw new ArasOperationException(
@@ -856,94 +858,61 @@ namespace IdeaCadConnector.Aras
                     CadLifecyclePolicy.GetSubmitForReviewBlockedMessage(context.CadState));
             }
 
-            // Check if there's already an active workflow process
-            var activeWf = await FindActiveWorkflowProcessAsync(request.CadId, ct);
-
-            if (activeWf != null)
+            var result = await RunIomAsync(() =>
             {
-                // Situation A: active workflow exists â†’ evaluate the submit task
-                if (string.IsNullOrWhiteSpace(freshAction?.WorkflowTaskId)
-                    || string.IsNullOrWhiteSpace(freshAction?.WorkflowPathId))
-                {
-                    throw new ArasOperationException(
-                        ArasErrorCode.WorkflowActionNotAvailable,
-                        "Active workflow found but no task or path was specified for submission.");
-                }
+                var methodItem = _authenticator.Innovator.newItem("Method", SubmitCadForReviewMethodName);
+                methodItem.setProperty("cad_id", request.CadId);
+                methodItem.setProperty("comment", request.Comment ?? "Submit for Review");
+                return methodItem.apply();
+            }, ct);
 
-                await EvaluateActivityAsync(
-                    freshAction.WorkflowTaskId,
-                    freshAction.WorkflowPathId,
-                    request.Comment,
-                    ct);
-            }
-            else
-            {
-                // Situation B: no workflow â†’ initiate one
-                await RunIomAsync(() =>
-                {
-                    var initItem = _authenticator.Innovator.newItem("CAD", "startWorkflow");
-                    initItem.setID(request.CadId);
-                    var initResult = initItem.apply();
-
-                    if (initResult == null || initResult.isError())
-                    {
-                        var errMsg = initResult?.getErrorString() ?? "startWorkflow returned null";
-                        throw new ArasOperationException(
-                            ArasErrorCode.WorkflowActionNotAvailable,
-                            $"Failed to initiate workflow: {errMsg}");
-                    }
-
-                    return true;
-                }, ct);
-
-                // Reload and try to evaluate the submit path for current user
-                var freshWf = await FindActiveWorkflowProcessAsync(request.CadId, ct);
-                if (freshWf != null)
-                {
-                    var freshContext = await GetCadOperationContextAsync(request.CadId, ct);
-                    var submitAction = ResolveFreshAction(
-                        freshContext,
-                        new ExecuteCadBusinessActionRequest(
-                            request.CadId,
-                            CadBusinessActionKind.SubmitForReview,
-                            null,
-                            null,
-                            null,
-                            request.Comment));
-
-                    if (!string.IsNullOrWhiteSpace(submitAction.WorkflowTaskId)
-                        && !string.IsNullOrWhiteSpace(submitAction.WorkflowPathId))
-                    {
-                        await EvaluateActivityAsync(
-                            submitAction.WorkflowTaskId,
-                            submitAction.WorkflowPathId,
-                            request.Comment,
-                            ct);
-                    }
-                }
-            }
+            CheckIomError(result, SubmitCadForReviewMethodName);
         }
 
-        private async Task ExecuteVoteActionAsync(
+        private async Task ExecuteApproveCadReviewAsync(
             ExecuteCadBusinessActionRequest request,
-            CadBusinessAction freshAction,
+            CadOperationContext context,
             CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(freshAction?.WorkflowTaskId))
+            if (!CadLifecyclePolicy.CanApproveReview(context.CadState))
+            {
                 throw new ArasOperationException(
                     ArasErrorCode.WorkflowActionNotAvailable,
-                    "No workflow assignment was found for this action.");
+                    CadLifecyclePolicy.GetApproveReviewBlockedMessage(context.CadState));
+            }
 
-            if (string.IsNullOrWhiteSpace(freshAction?.WorkflowPathId))
+            var result = await RunIomAsync(() =>
+            {
+                var methodItem = _authenticator.Innovator.newItem("Method", ApproveCadReviewMethodName);
+                methodItem.setProperty("cad_id", request.CadId);
+                methodItem.setProperty("comment", request.Comment ?? "Approve CAD Review");
+                return methodItem.apply();
+            }, ct);
+
+            CheckIomError(result, ApproveCadReviewMethodName);
+        }
+
+        private async Task ExecuteRequestCadReworkAsync(
+            ExecuteCadBusinessActionRequest request,
+            CadOperationContext context,
+            CancellationToken ct)
+        {
+            if (!CadLifecyclePolicy.CanRequestRework(context.CadState))
+            {
                 throw new ArasOperationException(
-                    ArasErrorCode.WorkflowPathNotFound,
-                    "No workflow path was specified for the vote action.");
+                    ArasErrorCode.WorkflowActionNotAvailable,
+                    CadLifecyclePolicy.GetRequestReworkBlockedMessage(context.CadState));
+            }
 
-            await EvaluateActivityAsync(
-                freshAction.WorkflowTaskId,
-                freshAction.WorkflowPathId,
-                request.Comment,
-                ct);
+            var result = await RunIomAsync(() =>
+            {
+                var methodItem = _authenticator.Innovator.newItem("Method", RequestCadReworkMethodName);
+                methodItem.setProperty("cad_id", request.CadId);
+                methodItem.setProperty("comment", request.Comment ?? "Request CAD Rework");
+                return methodItem.apply();
+            }, ct);
+
+            CheckIomError(result, RequestCadReworkMethodName);
         }
 
         private async Task EvaluateActivityAsync(

@@ -25,6 +25,9 @@ namespace IdeaCadConnector.Aras
         private const string EnsurePrimaryCadMethodName = "idea_EnsurePrimaryIronCadPartCad";
         private const string CommitCadCheckinMethodName = "idea_CommitCadCheckin";
         private const string StartDetailedDesignMethodName = "idea_StartDetailedDesign";
+        private const string SubmitCadForReviewMethodName = "idea_SubmitCadForReview";
+        private const string ApproveCadReviewMethodName = "idea_ApproveCadReview";
+        private const string RequestCadReworkMethodName = "idea_RequestCadRework";
 
         private readonly ArasClientOptions _options;
         private readonly ILogger<HttpArasCadClient> _logger;
@@ -475,8 +478,6 @@ namespace IdeaCadConnector.Aras
                     "CAD was modified in Aras since the last refresh. Refresh and try again.");
             }
 
-            var freshAction = ResolveFreshAction(freshContext, request);
-
             switch (request.Action)
             {
                 case CadBusinessActionKind.StartDetailedDesign:
@@ -484,11 +485,13 @@ namespace IdeaCadConnector.Aras
                     break;
 
                 case CadBusinessActionKind.SubmitForReview:
-                    await ExecuteSubmitForReviewHttpAsync(request, freshContext, freshAction, ct);
+                    await ExecuteSubmitForReviewHttpAsync(request, freshContext, ct);
                     break;
                 case CadBusinessActionKind.Approve:
+                    await ExecuteApproveCadReviewHttpAsync(request, freshContext, ct);
+                    break;
                 case CadBusinessActionKind.RequestRework:
-                    await ExecuteVoteActionHttpAsync(request, freshAction, ct);
+                    await ExecuteRequestCadReworkHttpAsync(request, freshContext, ct);
                     break;
                 default:
                     throw new ArasOperationException(
@@ -802,7 +805,6 @@ namespace IdeaCadConnector.Aras
         private async Task ExecuteSubmitForReviewHttpAsync(
             ExecuteCadBusinessActionRequest request,
             CadOperationContext context,
-            CadBusinessAction freshAction,
             CancellationToken ct)
         {
             if (!CadLifecyclePolicy.CanSubmitForReview(context.CadState))
@@ -812,70 +814,85 @@ namespace IdeaCadConnector.Aras
                     CadLifecyclePolicy.GetSubmitForReviewBlockedMessage(context.CadState));
             }
 
-            var activeWf = await FindActiveWorkflowProcessHttpAsync(request.CadId, ct);
-
-            if (activeWf != null)
+            try
             {
-                if (string.IsNullOrWhiteSpace(freshAction?.WorkflowTaskId)
-                    || string.IsNullOrWhiteSpace(freshAction?.WorkflowPathId))
-                {
-                    throw new ArasOperationException(ArasErrorCode.WorkflowActionNotAvailable,
-                        "Active workflow found but no task or path specified.");
-                }
-                await EvaluateActivityHttpAsync(freshAction.WorkflowTaskId, freshAction.WorkflowPathId, request.Comment, ct);
-            }
-            else
-            {
-                // Initiate workflow
-                var initAml = "<Item type=\"CAD\" action=\"startWorkflow\" id=\"" + EscapeAml(request.CadId) + "\" />";
-                try
-                {
-                    await _aml.ApplyAmlAsync(initAml, "startWorkflow", "CAD", request.CadId, ct);
-                }
-                catch (ArasOperationException ex)
-                {
-                    throw new ArasOperationException(
-                        ArasErrorCode.WorkflowActionNotAvailable,
-                        "Failed to initiate workflow: " + ex.Message);
-                }
-
-                // Try auto-evaluate submit path
-                var freshWf = await FindActiveWorkflowProcessHttpAsync(request.CadId, ct);
-                if (freshWf != null)
-                {
-                    var freshContext = await GetCadOperationContextAsync(request.CadId, ct);
-                    var submitAction = ResolveFreshAction(
-                        freshContext,
-                        new ExecuteCadBusinessActionRequest(
-                            request.CadId,
-                            CadBusinessActionKind.SubmitForReview,
-                            null,
-                            null,
-                            null,
-                            request.Comment));
-
-                    if (!string.IsNullOrWhiteSpace(submitAction.WorkflowTaskId)
-                        && !string.IsNullOrWhiteSpace(submitAction.WorkflowPathId))
+                await _aml.ApplyMethodAsync(
+                    SubmitCadForReviewMethodName,
+                    new Dictionary<string, string>
                     {
-                        await EvaluateActivityHttpAsync(submitAction.WorkflowTaskId, submitAction.WorkflowPathId, request.Comment, ct);
-                    }
-                }
+                        { "cad_id", request.CadId },
+                        { "comment", request.Comment ?? "Submit for Review" }
+                    },
+                    ct).ConfigureAwait(false);
+            }
+            catch (ArasOperationException ex)
+            {
+                throw new ArasOperationException(
+                    ArasErrorCode.WorkflowActionNotAvailable,
+                    "Failed to move CAD to 'In Review': " + ex.Message);
             }
         }
 
-        private async Task ExecuteVoteActionHttpAsync(
+        private async Task ExecuteApproveCadReviewHttpAsync(
             ExecuteCadBusinessActionRequest request,
-            CadBusinessAction freshAction,
+            CadOperationContext context,
             CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(freshAction?.WorkflowTaskId))
-                throw new ArasOperationException(ArasErrorCode.WorkflowActionNotAvailable,
-                    "No workflow assignment found.");
-            if (string.IsNullOrWhiteSpace(freshAction?.WorkflowPathId))
-                throw new ArasOperationException(ArasErrorCode.WorkflowPathNotFound,
-                    "No workflow path specified.");
+            if (!CadLifecyclePolicy.CanApproveReview(context.CadState))
+            {
+                throw new ArasOperationException(
+                    ArasErrorCode.WorkflowActionNotAvailable,
+                    CadLifecyclePolicy.GetApproveReviewBlockedMessage(context.CadState));
+            }
 
-            await EvaluateActivityHttpAsync(freshAction.WorkflowTaskId, freshAction.WorkflowPathId, request.Comment, ct);
+            try
+            {
+                await _aml.ApplyMethodAsync(
+                    ApproveCadReviewMethodName,
+                    new Dictionary<string, string>
+                    {
+                        { "cad_id", request.CadId },
+                        { "comment", request.Comment ?? "Approve CAD Review" }
+                    },
+                    ct).ConfigureAwait(false);
+            }
+            catch (ArasOperationException ex)
+            {
+                throw new ArasOperationException(
+                    ArasErrorCode.WorkflowActionNotAvailable,
+                    "Failed to move CAD to 'Released': " + ex.Message);
+            }
+        }
+
+        private async Task ExecuteRequestCadReworkHttpAsync(
+            ExecuteCadBusinessActionRequest request,
+            CadOperationContext context,
+            CancellationToken ct)
+        {
+            if (!CadLifecyclePolicy.CanRequestRework(context.CadState))
+            {
+                throw new ArasOperationException(
+                    ArasErrorCode.WorkflowActionNotAvailable,
+                    CadLifecyclePolicy.GetRequestReworkBlockedMessage(context.CadState));
+            }
+
+            try
+            {
+                await _aml.ApplyMethodAsync(
+                    RequestCadReworkMethodName,
+                    new Dictionary<string, string>
+                    {
+                        { "cad_id", request.CadId },
+                        { "comment", request.Comment ?? "Request CAD Rework" }
+                    },
+                    ct).ConfigureAwait(false);
+            }
+            catch (ArasOperationException ex)
+            {
+                throw new ArasOperationException(
+                    ArasErrorCode.WorkflowActionNotAvailable,
+                    "Failed to move CAD back to 'Thiet ke chi tiet': " + ex.Message);
+            }
         }
 
         private async Task EvaluateActivityHttpAsync(string assignmentId, string pathId, string comment, CancellationToken ct)

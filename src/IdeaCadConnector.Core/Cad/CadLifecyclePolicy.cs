@@ -70,6 +70,18 @@ namespace IdeaCadConnector.Core.Cad
                 && IsState(state, Initial);
         }
 
+        public static bool CanApproveReview(string state)
+        {
+            return !string.IsNullOrWhiteSpace(state)
+                && IsState(state, InReview);
+        }
+
+        public static bool CanRequestRework(string state)
+        {
+            return !string.IsNullOrWhiteSpace(state)
+                && IsState(state, InReview);
+        }
+
         public static string GetSubmitForReviewBlockedMessage(string state)
         {
             if (string.IsNullOrWhiteSpace(state))
@@ -108,6 +120,46 @@ namespace IdeaCadConnector.Core.Cad
                 return "CAD is no longer active and cannot enter detailed design.";
 
             return $"CAD state '{state}' does not allow starting detailed design.";
+        }
+
+        public static string GetApproveReviewBlockedMessage(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "CAD state is missing. Cannot approve review.";
+
+            if (IsState(state, DetailedDesign))
+                return "CAD must be submitted to 'In Review' before approve becomes available.";
+
+            if (IsState(state, Released))
+                return "CAD is already released.";
+
+            if (IsState(state, Initial))
+                return "CAD is still in 'Khoi tao'.";
+
+            if (IsState(state, InChange) || IsState(state, Superseded) || IsState(state, Obsolete))
+                return $"CAD state '{state}' does not allow direct approval.";
+
+            return $"CAD state '{state}' does not allow approval.";
+        }
+
+        public static string GetRequestReworkBlockedMessage(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "CAD state is missing. Cannot request rework.";
+
+            if (IsState(state, DetailedDesign))
+                return "CAD is already in 'Thiet ke chi tiet'.";
+
+            if (IsState(state, Initial))
+                return "CAD has not entered review yet.";
+
+            if (IsState(state, Released))
+                return "Released CAD cannot be sent back by this action.";
+
+            if (IsState(state, InChange) || IsState(state, Superseded) || IsState(state, Obsolete))
+                return $"CAD state '{state}' does not allow request rework.";
+
+            return $"CAD state '{state}' does not allow request rework.";
         }
     }
 }

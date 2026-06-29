@@ -806,6 +806,18 @@ namespace IdeaCadConnector.Desktop
                     && CadLifecyclePolicy.CanSubmitForReview(_currentCad.State);
             }
 
+            if (kind == CadBusinessActionKind.Approve)
+            {
+                return _currentCad != null
+                    && CadLifecyclePolicy.CanApproveReview(_currentCad.State);
+            }
+
+            if (kind == CadBusinessActionKind.RequestRework)
+            {
+                return _currentCad != null
+                    && CadLifecyclePolicy.CanRequestRework(_currentCad.State);
+            }
+
             return AvailableActionButtons?.Any(a => a.Kind == kind && a.IsAvailable) == true;
         }
 
@@ -857,34 +869,11 @@ namespace IdeaCadConnector.Desktop
                 if (string.IsNullOrWhiteSpace(selectedCadId))
                     throw new InvalidOperationException("No CAD is selected for this workflow action.");
 
-                // Only approve/rework require an active workflow task
-                if (kind != CadBusinessActionKind.SubmitForReview
-                    && kind != CadBusinessActionKind.StartDetailedDesign
-                    && _cadOperationContext?.ActiveTask == null)
-                    return;
-
                 var action = _cadOperationContext?.AvailableActions?.FirstOrDefault(a => a.Kind == kind);
-                if (action == null
-                    && (kind == CadBusinessActionKind.StartDetailedDesign
-                        || kind == CadBusinessActionKind.SubmitForReview))
-                {
-                    action = new CadBusinessAction(
-                        kind,
-                        kind == CadBusinessActionKind.StartDetailedDesign ? "Start Detailed Design" : "Submit for Review",
-                        true,
-                        null,
-                        false,
-                        null,
-                        null);
-                }
-
-                if (action == null)
-                    throw new InvalidOperationException($"Action '{kind}' is not available for the selected CAD.");
+                action ??= new CadBusinessAction(kind, kind.ToString(), true, null, false, null, null);
 
                 var beforeContext = _cadOperationContext;
-                var requiresLiveTaskContext =
-                    kind != CadBusinessActionKind.StartDetailedDesign
-                    && kind != CadBusinessActionKind.SubmitForReview;
+                var requiresLiveTaskContext = false;
 
                 if (requiresLiveTaskContext
                     && (beforeContext == null || !string.Equals(beforeContext.CadId, selectedCadId, StringComparison.OrdinalIgnoreCase)))
@@ -911,19 +900,7 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 CadBusinessAction resolvedAction;
-                if (kind == CadBusinessActionKind.StartDetailedDesign
-                    || kind == CadBusinessActionKind.SubmitForReview)
-                {
-                    resolvedAction = action;
-                }
-                else
-                {
-                    resolvedAction = ResolveActionForExecution(
-                        freshContext,
-                        kind,
-                        action.WorkflowTaskId,
-                        action.WorkflowPathId);
-                }
+                resolvedAction = action;
 
                 var request = new ExecuteCadBusinessActionRequest(
                     selectedCadId,

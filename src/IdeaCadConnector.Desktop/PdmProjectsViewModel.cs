@@ -1691,6 +1691,12 @@ namespace IdeaCadConnector.Desktop
             if (kind == CadBusinessActionKind.SubmitForReview)
                 return !string.IsNullOrWhiteSpace(_liveCadState) && CadLifecyclePolicy.CanSubmitForReview(_liveCadState);
 
+            if (kind == CadBusinessActionKind.Approve)
+                return !string.IsNullOrWhiteSpace(_liveCadState) && CadLifecyclePolicy.CanApproveReview(_liveCadState);
+
+            if (kind == CadBusinessActionKind.RequestRework)
+                return !string.IsNullOrWhiteSpace(_liveCadState) && CadLifecyclePolicy.CanRequestRework(_liveCadState);
+
             return _cadOperationContext?.AvailableActions?.Any(a => a.Kind == kind && a.IsAvailable) == true;
         }
 
@@ -1742,24 +1748,8 @@ namespace IdeaCadConnector.Desktop
 
                 SetCadOperationContext(freshContext);
 
-                var action = freshContext.AvailableActions?.FirstOrDefault(a => a.Kind == kind && a.IsAvailable);
-                if (action == null &&
-                    (kind == CadBusinessActionKind.StartDetailedDesign || kind == CadBusinessActionKind.SubmitForReview))
-                {
-                    action = new CadBusinessAction(
-                        kind,
-                        kind == CadBusinessActionKind.StartDetailedDesign ? "Start Detailed Design" : "Submit for Review",
-                        true,
-                        null,
-                        true,
-                        null,
-                        null);
-                }
-
-                if (action == null)
-                {
-                    throw new InvalidOperationException($"Action '{kind}' is not available for the selected CAD.");
-                }
+                var action = freshContext.AvailableActions?.FirstOrDefault(a => a.Kind == kind && a.IsAvailable)
+                    ?? new CadBusinessAction(kind, kind.ToString(), true, null, false, null, null);
 
                 var request = new ExecuteCadBusinessActionRequest(
                     _liveCadId,
