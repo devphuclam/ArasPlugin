@@ -5,5 +5,7 @@ namespace IdeaCadConnector.Core.Dto
         public string PartId { get; set; }
 
         public string PartNumber { get; set; }
+
+        public string PartClassification { get; set; }
     }
 }

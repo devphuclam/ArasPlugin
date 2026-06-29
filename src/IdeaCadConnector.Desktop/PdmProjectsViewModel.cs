@@ -345,6 +345,7 @@ namespace IdeaCadConnector.Desktop
         public bool CanOpenInIronCad =>
             !IsOpeningInIronCad &&
             SelectedNode != null &&
+            !IsSelectedRootAssemblyNode() &&
             !string.IsNullOrWhiteSpace(SelectedNode.PrimaryCad) &&
             SelectedNode.PrimaryCad != "-" &&
             MainViewModel.SharedArasCadClient != null &&
@@ -1469,8 +1470,30 @@ namespace IdeaCadConnector.Desktop
             UpdateCadUiState();
         }
 
+        private bool IsSelectedRootAssemblyNode()
+        {
+            return SelectedNode != null
+                && PdmStructure.Count > 0
+                && string.Equals(SelectedNode.PartCode, PdmStructure[0].PartCode, StringComparison.OrdinalIgnoreCase);
+        }
+
         private void UpdateCadUiState()
         {
+            if (IsSelectedRootAssemblyNode())
+            {
+                CadLockStateText = "Root assembly";
+                LockedByText = "-";
+                CadFileStateText = "Managed by assembly mapping/push flow";
+                CadRevisionText = SelectedNode?.Revision ?? "-";
+                CadGenerationText = "-";
+                CadLifecycleText = "-";
+                CadEditPolicyText = CadNodeHelper.GetRootAssemblyCadHint();
+                IsCheckedOutByMe = false;
+                IsCheckedOutByOther = false;
+                IsAvailable = false;
+                return;
+            }
+
             var currentUser = MainViewModel.SharedUserName ?? string.Empty;
             var manifest = _workspaceService.LoadManifest(FolderPath);
             var validManifest = manifest != null &&

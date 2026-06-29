@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Errors;
@@ -340,6 +341,7 @@ namespace IdeaCadConnector.Aras
                     var aml = $"<Item type=\"CAD\" action=\"add\">" +
                         $"<item_number>{EscapeAml(cad.CadNumber)}</item_number>" +
                         $"<classification>{EscapeAml(cad.Classification)}</classification>" +
+                        $"<authoring_tool>{EscapeAml(CadConstants.IronCadAuthoringTool)}</authoring_tool>" +
                         "<name>" + EscapeAml(cad.SourceFileName) + "</name>" +
                         "</Item>";
 
@@ -361,6 +363,8 @@ namespace IdeaCadConnector.Aras
                 {
                     cadId = existingId;
                 }
+
+                await EnsureCadMetadataAsync(cadId, cad.Classification, ct).ConfigureAwait(false);
 
                 if (!string.IsNullOrWhiteSpace(linkedPartId))
                 {
@@ -408,6 +412,19 @@ namespace IdeaCadConnector.Aras
                     ErrorMessage = ex.Message
                 };
             }
+        }
+
+        private async Task EnsureCadMetadataAsync(string cadId, string classification, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(cadId))
+                return;
+
+            var aml = $"<Item type=\"CAD\" action=\"edit\" id=\"{EscapeAml(cadId)}\">" +
+                $"<classification>{EscapeAml(string.IsNullOrWhiteSpace(classification) ? CadConstants.IronCadPartClassification : classification)}</classification>" +
+                $"<authoring_tool>{EscapeAml(CadConstants.IronCadAuthoringTool)}</authoring_tool>" +
+                "</Item>";
+
+            await _aml.ApplyAmlAsync(aml, "edit", "CAD", cadId, ct).ConfigureAwait(false);
         }
 
         private async Task<bool> AttachNativeFileToCadAsync(string cadId, string filePath, string fileName, CancellationToken ct)

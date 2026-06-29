@@ -65,7 +65,7 @@ namespace IdeaCadConnector.Desktop
             SearchPartsCommand = new RelayCommand(_ => ExecuteSearchAsync(1), _ => !IsBusy && IsConnected);
             NextPageCommand = new RelayCommand(_ => ExecuteSearchAsync(_currentPage + 1), _ => !IsBusy && HasNextPage);
             PreviousPageCommand = new RelayCommand(_ => ExecuteSearchAsync(_currentPage - 1), _ => !IsBusy && HasPreviousPage);
-            SelectAndCreateCadCommand = new RelayCommand(_ => ExecuteSelectAndCreateCadAsync(), _ => !IsBusy && SelectedSearchResult?.Part != null);
+            SelectAndCreateCadCommand = new RelayCommand(_ => ExecuteSelectAndCreateCadAsync(), _ => !IsBusy && SelectedSearchResult?.Part != null && !IsSelectedSearchAssemblyCandidate());
             CheckoutCommand = new RelayCommand(_ => ExecuteCheckoutAsync(), _ => !IsBusy && CanCheckoutCurrentCad());
             OpenReadOnlyCommand = new RelayCommand(_ => ExecuteOpenReadOnlyAsync(), _ => !IsBusy && CanOpenReadOnlyCurrentCad());
             CheckInCommand = new RelayCommand(_ => ExecuteCheckInAsync(), _ => !IsBusy && !string.IsNullOrWhiteSpace(SelectedCadId) && !string.IsNullOrWhiteSpace(_lockToken));
@@ -357,6 +357,9 @@ namespace IdeaCadConnector.Desktop
                 if (SelectedSearchResult?.Part == null)
                     return "Select a part from the results table.";
 
+                if (IsSelectedSearchAssemblyCandidate())
+                    return CadNodeHelper.GetAssemblySearchCadHint();
+
                 if (!HasCurrentCad)
                     return "No linked CAD is selected yet. Use Select / Create CAD first.";
 
@@ -564,6 +567,12 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            if (IsSelectedSearchAssemblyCandidate())
+            {
+                MessageBox.Show(CadNodeHelper.GetAssemblySearchCadHint(), "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             try
             {
                 IsBusy = true;
@@ -572,7 +581,8 @@ namespace IdeaCadConnector.Desktop
                 var result = await _arasClient.CreateCadAsync(new CreateCadRequest
                 {
                     PartId = SelectedSearchResult.Part.Id,
-                    PartNumber = SelectedSearchResult.Part.PartNumber
+                    PartNumber = SelectedSearchResult.Part.PartNumber,
+                    PartClassification = SelectedSearchResult.Part.PartType
                 }, CancellationToken.None);
 
                 ApplyCadSelection(result.Cad, clearSessionLock: true);
@@ -824,10 +834,17 @@ namespace IdeaCadConnector.Desktop
                     || kind == CadBusinessActionKind.SubmitForReview)
                     && SelectedSearchResult?.Part != null)
                 {
+                    if (IsSelectedSearchAssemblyCandidate())
+                    {
+                        MessageBox.Show(CadNodeHelper.GetAssemblySearchCadHint(), "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
                     var ensuredCad = await _arasClient.CreateCadAsync(new CreateCadRequest
                     {
                         PartId = SelectedSearchResult.Part.Id,
-                        PartNumber = SelectedSearchResult.Part.PartNumber
+                        PartNumber = SelectedSearchResult.Part.PartNumber,
+                        PartClassification = SelectedSearchResult.Part.PartType
                     }, CancellationToken.None);
 
                     if (ensuredCad?.Cad != null)
@@ -1218,6 +1235,15 @@ namespace IdeaCadConnector.Desktop
         private static string Safe(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
+        }
+
+        // The search screen only has flat Part rows plus classification.
+        // It does not know the business-tree/root position, so we block
+        // component-CAD creation for assembly-classified rows in this screen.
+        private bool IsSelectedSearchAssemblyCandidate()
+        {
+            return SelectedSearchResult?.Part != null
+                && CadNodeHelper.IsAssemblyClassification(SelectedSearchResult.Part.PartType);
         }
 
         private void RefreshCanExecute()

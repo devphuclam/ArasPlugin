@@ -95,6 +95,11 @@ namespace IdeaCadConnector.Aras
             if (string.IsNullOrWhiteSpace(request.PartId))
                 throw new ArasOperationException(ArasErrorCode.ValidationFailed, "PartId is required.");
 
+            if (CadNodeHelper.IsAssemblyClassification(request.PartClassification))
+                throw new ArasOperationException(
+                    ArasErrorCode.ValidationFailed,
+                    "Cannot create a component-style primary CAD for an assembly-classified Part. Root assembly CAD is managed by the assembly mapping/push flow.");
+
             EnsureAuthenticated();
 
             var result = await RunIomAsync(() =>
