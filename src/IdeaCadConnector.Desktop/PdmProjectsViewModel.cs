@@ -1425,6 +1425,7 @@ namespace IdeaCadConnector.Desktop
             if (SelectedNode == null || cadClient == null)
             {
                 UpdateCadUiState();
+                RefreshCanOpenInIronCad();
                 return;
             }
 
@@ -1432,6 +1433,7 @@ namespace IdeaCadConnector.Desktop
             if (string.IsNullOrWhiteSpace(cadId))
             {
                 UpdateCadUiState();
+                RefreshCanOpenInIronCad();
                 return;
             }
 
@@ -1468,6 +1470,13 @@ namespace IdeaCadConnector.Desktop
             }
 
             UpdateCadUiState();
+            RefreshCanOpenInIronCad();
+        }
+
+        private void RefreshCanOpenInIronCad()
+        {
+            OnPropertyChanged(nameof(CanOpenInIronCad));
+            ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
         }
 
         private bool IsSelectedRootAssemblyNode()
@@ -1475,6 +1484,27 @@ namespace IdeaCadConnector.Desktop
             return SelectedNode != null
                 && PdmStructure.Count > 0
                 && string.Equals(SelectedNode.PartCode, PdmStructure[0].PartCode, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string BuildCadLockStateLabel(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "Unknown";
+
+            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Released))
+                return "Released (read-only)";
+
+            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.InReview))
+                return "In Review";
+
+            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.InChange))
+                return "In Change";
+
+            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Superseded)
+                || CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Obsolete))
+                return "Inactive";
+
+            return "Read-only";
         }
 
         private void UpdateCadUiState()
@@ -1563,7 +1593,7 @@ namespace IdeaCadConnector.Desktop
             if (!string.IsNullOrWhiteSpace(_liveCadState) &&
                 !CadLifecyclePolicy.CanCheckout(_liveCadState))
             {
-                CadLockStateText = "Read-only";
+                CadLockStateText = BuildCadLockStateLabel(_liveCadState);
                 LockedByText = "-";
                 CadFileStateText = CadLifecyclePolicy.GetCheckoutBlockedMessage(_liveCadState);
                 ApplyCadRevisionState();
