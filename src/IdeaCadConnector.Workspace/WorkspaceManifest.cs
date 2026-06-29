@@ -16,5 +16,7 @@ namespace IdeaCadConnector.Workspace
         public DateTime CheckedOutAt { get; set; }
         public DateTime? LastKnownModifiedOn { get; set; }
         public string Branch { get; set; }
+        public string LastKnownRevision { get; set; }
+        public int LastKnownGeneration { get; set; }
     }
 }

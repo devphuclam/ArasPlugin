@@ -1058,6 +1058,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                       </Grid.RowDefinitions>
 
                       <TextBlock Grid.Row="0" Style="{StaticResource MetaLabelStyle}" Text="Revision" />
@@ -1066,8 +1067,10 @@
                       <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.State, TargetNullValue=-}" />
                       <TextBlock Grid.Row="2" Style="{StaticResource MetaLabelStyle}" Text="Classification" />
                       <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Classification, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="Locked By" />
-                      <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.LockedBy, TargetNullValue=-}" />
+                      <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="Generation" />
+                      <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Generation, TargetNullValue=-}" />
+                      <TextBlock Grid.Row="4" Style="{StaticResource MetaLabelStyle}" Text="Locked By" />
+                      <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.LockedBy, TargetNullValue=-}" />
                     </Grid>
 
                     <Border Background="#FFF4F9FF"

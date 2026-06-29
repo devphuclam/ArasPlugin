@@ -105,6 +105,28 @@ namespace IdeaCadConnector.Core.Cad
             return $"CAD state '{state}' does not allow submitting for review.";
         }
 
+        public static bool CanStartNewRevision(string state)
+        {
+            return !string.IsNullOrWhiteSpace(state) && IsState(state, Released);
+        }
+
+        public static string GetStartNewRevisionMessage()
+        {
+            return "This CAD is Released. To start a new revision, use the Aras web UI to create an ECO/change order, " +
+                   "promote the Part to 'In Change', then return here to check out the new working revision.";
+        }
+
+        public static string GetStartNewRevisionBlockedMessage(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "CAD state is missing. Cannot determine revision path.";
+
+            if (CanStartNewRevision(state))
+                return null;
+
+            return $"CAD state '{state}' does not require a new revision path. Normal checkout is available.";
+        }
+
         public static string GetStartDetailedDesignBlockedMessage(string state)
         {
             if (string.IsNullOrWhiteSpace(state))
@@ -160,6 +182,73 @@ namespace IdeaCadConnector.Core.Cad
                 return $"CAD state '{state}' does not allow request rework.";
 
             return $"CAD state '{state}' does not allow request rework.";
+        }
+
+        public static string GetStateCategory(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "Unknown";
+            if (CanCheckout(state))
+                return "Editable";
+            if (IsState(state, InReview))
+                return "ReviewOnly";
+            if (IsState(state, Released) || IsState(state, InChange))
+                return "ReadOnly";
+            if (IsState(state, Superseded) || IsState(state, Obsolete))
+                return "Inactive";
+            return "Unknown";
+        }
+
+        public static string GetStateSummary(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "CAD state is missing. Refresh from Aras.";
+
+            if (IsState(state, Initial))
+                return "Initial drafting stage (Khoi tao). Editable.";
+
+            if (IsState(state, DetailedDesign))
+                return "Detailed design stage (Thiet ke chi tiet). Editable.";
+
+            if (IsState(state, InReview))
+                return "Under review. Read-only. Reviewer actions available if you are assigned.";
+
+            if (IsState(state, Released))
+                return "Released and read-only. Use the approved change process for further work.";
+
+            if (IsState(state, InChange))
+                return "In a controlled change. Read-only until the change completes.";
+
+            if (IsState(state, Superseded) || IsState(state, Obsolete))
+                return "Inactive. No longer in active use.";
+
+            return $"State '{state}' is not recognized.";
+        }
+
+        public static string GetStateActionGuidance(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "Refresh Aras state before deciding what to do next.";
+
+            if (IsState(state, Initial))
+                return "Use Start Detailed Design to move this CAD into 'Thiet ke chi tiet', or Checkout to create the first local file.";
+
+            if (IsState(state, DetailedDesign))
+                return "Use Checkout to edit, or Submit for Review when design is complete.";
+
+            if (IsState(state, InReview))
+                return "Review in progress. Approve or Request Rework if you are the assigned reviewer. Otherwise wait for review to complete.";
+
+            if (IsState(state, Released))
+                return "Released CAD is read-only. Use Start New Revision for guidance on the next revision path.";
+
+            if (IsState(state, InChange))
+                return "CAD is in a controlled change. Complete the approved change process in Aras before editing.";
+
+            if (IsState(state, Superseded) || IsState(state, Obsolete))
+                return "This CAD is no longer active. Continue work through a replacement or new approved revision path.";
+
+            return "Check the Aras web UI for details on this state.";
         }
     }
 }

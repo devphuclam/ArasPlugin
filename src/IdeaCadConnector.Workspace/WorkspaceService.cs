@@ -95,6 +95,43 @@ namespace IdeaCadConnector.Workspace
                 File.Delete(path);
         }
 
+        public string GetCommitHistoryFilePath(string projectFolder)
+        {
+            var dir = GetManifestDirectory(projectFolder);
+            return dir == null ? null : Path.Combine(dir, "commits.json");
+        }
+
+        public WorkspaceCommitHistory LoadCommitHistory(string projectFolder)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolder))
+                return new WorkspaceCommitHistory();
+            var path = GetCommitHistoryFilePath(projectFolder);
+            if (path == null || !File.Exists(path))
+                return new WorkspaceCommitHistory();
+            try
+            {
+                var json = File.ReadAllText(path);
+                return JsonConvert.DeserializeObject<WorkspaceCommitHistory>(json) ?? new WorkspaceCommitHistory();
+            }
+            catch
+            {
+                return new WorkspaceCommitHistory();
+            }
+        }
+
+        public void SaveCommitHistory(string projectFolder, WorkspaceCommitHistory history)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolder))
+                return;
+            var path = GetCommitHistoryFilePath(projectFolder);
+            if (path == null) return;
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            var json = JsonConvert.SerializeObject(history, Formatting.Indented);
+            File.WriteAllText(path, json);
+        }
+
         private static string GetDefaultRootPath()
         {
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

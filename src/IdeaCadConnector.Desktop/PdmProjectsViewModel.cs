@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
@@ -35,7 +36,7 @@ namespace IdeaCadConnector.Desktop
         private PdmStructureNode _selectedNode;
         private string _selectedRepository;
         private string _selectedBranch;
-        private string _selectedCommit;
+        private WorkspaceCommit _selectedCommit;
         private string _statusMessage;
         private string _folderPath;
         private string _namingPolicyVersion;
@@ -64,6 +65,7 @@ namespace IdeaCadConnector.Desktop
         private string _cadGenerationText;
         private string _cadLifecycleText;
         private string _cadEditPolicyText;
+        private string _cadDriftText;
         private string _liveCadId;
         private string _liveCadState;
         private string _liveCadRevision;
@@ -79,11 +81,7 @@ namespace IdeaCadConnector.Desktop
             _workspaceService = new WorkspaceService(new WorkspaceOptions());
             Repositories = new ObservableCollection<string>();
             Branches = new ObservableCollection<string> { "main", "experiment" };
-            Commits = new ObservableCollection<string>
-            {
-                "Working folder analysis",
-                "C1 - Initial project import"
-            };
+            WorkspaceCommits = new ObservableCollection<WorkspaceCommit>();
             PdmStructure = new ObservableCollection<PdmStructureNode>();
             CadStructure = new ObservableCollection<PdmStructureNode>();
             StructureMappings = new ObservableCollection<PdmStructureMappingItem>();
@@ -98,7 +96,6 @@ namespace IdeaCadConnector.Desktop
             RelatedFiles = new ObservableCollection<PdmDocumentItem>();
 
             SelectedBranch = Branches[0];
-            SelectedCommit = Commits[0];
             FolderPath = GetDefaultSampleFolder();
             AnalysisSummary = "Select a project folder to preview the product structure.";
             StatusMessage = "PDM repository preview is ready.";
@@ -108,7 +105,7 @@ namespace IdeaCadConnector.Desktop
             PullCommand = new RelayCommand(_ => StatusMessage = "Pull is not connected to Aras yet.");
             _pushCommand = new RelayCommand(_ => PushWorkspace(), _ => !IsPushing && CanPush);
             PushCommand = _pushCommand;
-            NewBranchCommand = new RelayCommand(_ => StatusMessage = "New branch will start from the selected commit.");
+            NewBranchCommand = new RelayCommand(_ => StatusMessage = "Branch creation is not implemented yet. Local commits can already be grouped by the selected branch.");
             _refreshCommand = new RelayCommand(_ => AnalyzeFolder());
             RefreshCommand = _refreshCommand;
             _analyzeFolderCommand = new RelayCommand(_ => AnalyzeFolder());
@@ -127,6 +124,8 @@ namespace IdeaCadConnector.Desktop
             ApproveCadCommand = _approveCadCommand;
             _requestReworkCommand = new RelayCommand(_ => ExecuteCadBusinessActionAsync(CadBusinessActionKind.RequestRework), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.RequestRework));
             RequestReworkCommand = _requestReworkCommand;
+            StartNewRevisionCommand = new RelayCommand(_ => ExecuteStartNewRevisionAsync(), _ => CanStartNewRevision);
+            CommitCommand = new RelayCommand(_ => _ = ExecuteCommitAsync(), _ => CanCommit);
             ToggleCadSectionCommand = new RelayCommand(_ => ToggleCadSection());
             ToggleDocumentsSectionCommand = new RelayCommand(_ => ToggleDocumentsSection());
 
@@ -136,7 +135,7 @@ namespace IdeaCadConnector.Desktop
 
         public ObservableCollection<string> Repositories { get; }
         public ObservableCollection<string> Branches { get; }
-        public ObservableCollection<string> Commits { get; }
+        public ObservableCollection<WorkspaceCommit> WorkspaceCommits { get; }
         public ObservableCollection<PdmStructureNode> PdmStructure { get; }
         public ObservableCollection<PdmStructureNode> CadStructure { get; }
         public ObservableCollection<PdmStructureMappingItem> StructureMappings { get; }
@@ -164,12 +163,16 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _selectedBranch, value))
                 {
                     OnPropertyChanged(nameof(IsMainBranch));
+                    OnPropertyChanged(nameof(BranchPushAllowed));
+                    OnPropertyChanged(nameof(BranchStatusText));
+                    LoadCommitHistoryForFolder();
+                    OnPropertyChanged(nameof(LatestCommitSummary));
                     RefreshPushPreview();
                 }
             }
         }
 
-        public string SelectedCommit
+        public WorkspaceCommit SelectedCommit
         {
             get => _selectedCommit;
             set => SetField(ref _selectedCommit, value);
@@ -225,6 +228,10 @@ namespace IdeaCadConnector.Desktop
         }
 
         public bool IsMainBranch => string.Equals(SelectedBranch, "main", StringComparison.OrdinalIgnoreCase);
+        public bool BranchPushAllowed => IsMainBranch;
+        public string BranchStatusText => IsMainBranch
+            ? "Live branch (push allowed)"
+            : "Preview branch (no live push)";
 
         public bool HasBlockingIssues => BlockingIssueCount > 0;
 
@@ -342,12 +349,37 @@ namespace IdeaCadConnector.Desktop
         public void ToggleCadSection() => IsCadSectionExpanded = !IsCadSectionExpanded;
         public void ToggleDocumentsSection() => IsDocumentsSectionExpanded = !IsDocumentsSectionExpanded;
 
+        private async void ExecuteStartNewRevisionAsync()
+        {
+            var cadId = _liveCadId;
+            var cadNumber = SelectedNode?.PrimaryCad ?? "-";
+            var lifecycleState = _liveCadState ?? "unknown";
+
+            var msg =
+                $"The CAD \"{cadNumber}\" is in state \"{lifecycleState}\".\n\n" +
+                "To start a new revision:\n" +
+                "  1. Open Aras web UI and create an ECO/change order for the linked Part.\n" +
+                "  2. Promote the Part through \"In Change\" back to an editable state.\n" +
+                "  3. Return here to check out the new working revision.\n\n" +
+                "This action is not available directly from the desktop app yet.";
+
+            await Task.CompletedTask;
+            MessageBox.Show(msg, "Start New Revision", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         public bool CanOpenInIronCad =>
             !IsOpeningInIronCad &&
             SelectedNode != null &&
             !IsSelectedRootAssemblyNode() &&
+            !IsReleasedCad() &&
             !string.IsNullOrWhiteSpace(SelectedNode.PrimaryCad) &&
             SelectedNode.PrimaryCad != "-" &&
+            MainViewModel.SharedArasCadClient != null &&
+            !string.IsNullOrWhiteSpace(_liveCadId);
+
+        public bool CanStartNewRevision =>
+            SelectedNode != null &&
+            IsReleasedCad() &&
             MainViewModel.SharedArasCadClient != null &&
             !string.IsNullOrWhiteSpace(_liveCadId);
 
@@ -358,8 +390,36 @@ namespace IdeaCadConnector.Desktop
             {
                 if (SetField(ref _commitMessage, value))
                 {
+                    OnPropertyChanged(nameof(CanCommit));
                     RefreshPushPreview();
                 }
+            }
+        }
+
+        public ICommand CommitCommand { get; private set; }
+
+        public bool CanCommit =>
+            !string.IsNullOrWhiteSpace(FolderPath) &&
+            !string.IsNullOrWhiteSpace(CommitMessage) &&
+            _latestAnalysis != null;
+
+        public bool HasUncommittedChanges => _latestAnalysis != null;
+
+        public string LatestCommitSummary
+        {
+            get
+            {
+                var history = _workspaceService.LoadCommitHistory(FolderPath);
+                if (history?.Commits == null || history.Commits.Count == 0)
+                    return "No commits yet";
+                var branch = SelectedBranch ?? "main";
+                var branchCommits = history.Commits
+                    .Where(c => string.Equals(c.Branch, branch, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (branchCommits.Count == 0)
+                    return "No commits on this branch yet";
+                var last = branchCommits[branchCommits.Count - 1];
+                return last.Message + " (" + last.Timestamp.ToString("g") + ")";
             }
         }
 
@@ -401,6 +461,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand SubmitForReviewCommand { get; }
         public ICommand ApproveCadCommand { get; }
         public ICommand RequestReworkCommand { get; }
+        public ICommand StartNewRevisionCommand { get; }
         public ICommand ToggleCadSectionCommand { get; }
         public ICommand ToggleDocumentsSectionCommand { get; }
 
@@ -445,6 +506,18 @@ namespace IdeaCadConnector.Desktop
             get => _cadEditPolicyText ?? "-";
             set => SetField(ref _cadEditPolicyText, value);
         }
+
+        public string CadDriftText
+        {
+            get => _cadDriftText;
+            set
+            {
+                if (SetField(ref _cadDriftText, value))
+                    OnPropertyChanged(nameof(HasCadDrift));
+            }
+        }
+
+        public bool HasCadDrift => !string.IsNullOrWhiteSpace(_cadDriftText);
 
         public bool IsCheckedOutByMe
         {
@@ -769,12 +842,18 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(HasNamingPreview));
             OnPropertyChanged(nameof(HasDocuments));
             OnPropertyChanged(nameof(HasRelatedFiles));
+            LoadCommitHistoryForFolder();
+
             OnPropertyChanged(nameof(HasPushPreview));
             OnPropertyChanged(nameof(PushPreviewReadiness));
             OnPropertyChanged(nameof(CanPush));
             OnPropertyChanged(nameof(WorkingTreeSummary));
+            OnPropertyChanged(nameof(HasUncommittedChanges));
+            OnPropertyChanged(nameof(CanCommit));
+            OnPropertyChanged(nameof(LatestCommitSummary));
 
             _pushCommand.RaiseCanExecuteChanged();
+            (CommitCommand as RelayCommand)?.RaiseCanExecuteChanged();
             _refreshCommand.RaiseCanExecuteChanged();
             _analyzeFolderCommand.RaiseCanExecuteChanged();
             _browseFolderCommand.RaiseCanExecuteChanged();
@@ -1344,7 +1423,9 @@ namespace IdeaCadConnector.Desktop
                     LockToken = checkoutInfo.LockToken,
                     LockedBy = MainViewModel.SharedUserName ?? "unknown",
                     CheckedOutAt = DateTime.UtcNow,
-                    Branch = SelectedBranch
+                    Branch = SelectedBranch,
+                    LastKnownRevision = checkoutInfo.Cad?.Revision,
+                    LastKnownGeneration = checkoutInfo.Cad?.Generation ?? 0
                 });
 
                 var editAdapter = new IronCadExternalAdapter();
@@ -1477,6 +1558,8 @@ namespace IdeaCadConnector.Desktop
         {
             OnPropertyChanged(nameof(CanOpenInIronCad));
             ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(CanStartNewRevision));
+            ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
         }
 
         private bool IsSelectedRootAssemblyNode()
@@ -1484,6 +1567,12 @@ namespace IdeaCadConnector.Desktop
             return SelectedNode != null
                 && PdmStructure.Count > 0
                 && string.Equals(SelectedNode.PartCode, PdmStructure[0].PartCode, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsReleasedCad()
+        {
+            return !string.IsNullOrWhiteSpace(_liveCadState)
+                && CadLifecyclePolicy.IsState(_liveCadState, CadLifecyclePolicy.Released);
         }
 
         private static string BuildCadLockStateLabel(string state)
@@ -1565,6 +1654,32 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            if (myLockInManifest && !myLocalFileExists)
+            {
+                CadLockStateText = "Checked out by me (file missing)";
+                LockedByText = manifest.LockedBy;
+                CadFileStateText = "Local file not found. Cancel checkout to release the lock, or save the file from IronCAD.";
+                ApplyCadRevisionState();
+                IsCheckedOutByMe = true;
+                IsCheckedOutByOther = false;
+                IsAvailable = false;
+                return;
+            }
+
+            if (validManifest && !string.IsNullOrWhiteSpace(manifest.LockToken) &&
+                !string.IsNullOrWhiteSpace(_liveCadState) &&
+                !CadLifecyclePolicy.CanCheckout(_liveCadState))
+            {
+                CadLockStateText = "Local session stale";
+                LockedByText = manifest.LockedBy ?? "-";
+                CadFileStateText = "CAD state changed to '" + _liveCadState + "'. Local session is no longer valid for editing.";
+                ApplyCadRevisionState();
+                IsCheckedOutByMe = false;
+                IsCheckedOutByOther = false;
+                IsAvailable = false;
+                return;
+            }
+
             if (validManifest && !string.IsNullOrWhiteSpace(manifest.LockToken) &&
                 !string.Equals(manifest.LockedBy, currentUser, StringComparison.OrdinalIgnoreCase))
             {
@@ -1634,42 +1749,41 @@ namespace IdeaCadConnector.Desktop
                 : "-";
             CadLifecycleText = string.IsNullOrWhiteSpace(_liveCadState) ? "-" : _liveCadState;
             CadEditPolicyText = BuildCadEditPolicyText(_liveCadState);
+            CadDriftText = BuildCadDriftText();
+        }
+
+        private string BuildCadDriftText()
+        {
+            var manifest = _workspaceService.LoadManifest(FolderPath);
+            if (manifest == null || string.IsNullOrWhiteSpace(manifest.LastKnownRevision))
+                return null;
+
+            var parts = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(_liveCadRevision) &&
+                !string.Equals(manifest.LastKnownRevision, _liveCadRevision, StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add($"Revision changed from {manifest.LastKnownRevision} to {_liveCadRevision}");
+            }
+
+            if (manifest.LastKnownGeneration > 0 && _liveCadGeneration > 0 &&
+                manifest.LastKnownGeneration != _liveCadGeneration)
+            {
+                parts.Add($"Generation changed from {manifest.LastKnownGeneration} to {_liveCadGeneration}");
+            }
+
+            return parts.Count > 0 ? string.Join("; ", parts) : null;
         }
 
         private static string BuildCadEditPolicyText(string state)
         {
             if (string.IsNullOrWhiteSpace(state))
-            {
                 return "Refresh Aras state before deciding whether this CAD can be edited or revised.";
-            }
 
             if (CadLifecyclePolicy.CanCheckout(state))
-            {
                 return "Editable working state. Normal checkout/check-in is allowed.";
-            }
 
-            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Released))
-            {
-                return "Released CAD is read-only. The next step should be a new approved revision path, not direct editing.";
-            }
-
-            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.InReview))
-            {
-                return "CAD is under review. Finish review before more design edits or start the approved rework path.";
-            }
-
-            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.InChange))
-            {
-                return "CAD is already in a controlled change flow. Resume that approved path before editing again.";
-            }
-
-            if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Superseded) ||
-                CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Obsolete))
-            {
-                return "This CAD is no longer active. Continue work through a replacement or new approved revision path.";
-            }
-
-            return CadLifecyclePolicy.GetCheckoutBlockedMessage(state);
+            return CadLifecyclePolicy.GetStateActionGuidance(state);
         }
 
         private void SetCadOperationContext(CadOperationContext context)
@@ -2098,6 +2212,32 @@ namespace IdeaCadConnector.Desktop
             var builder = new PdmPushPreviewBuilder();
             _pushPreview = builder.Build(analyzeResult, SelectedBranch, CommitMessage);
 
+            var staleWarnings = BuildStalePushWarnings();
+            if (staleWarnings.Count > 0)
+            {
+                var allWarnings = new List<PreviewWarning>(_pushPreview.Warnings);
+                allWarnings.AddRange(staleWarnings);
+                _pushPreview = new PushPreview
+                {
+                    RepositoryCode = _pushPreview.RepositoryCode,
+                    ProjectName = _pushPreview.ProjectName,
+                    TargetBranch = _pushPreview.TargetBranch,
+                    CommitMessage = _pushPreview.CommitMessage,
+                    Parts = _pushPreview.Parts,
+                    Cads = _pushPreview.Cads,
+                    Documents = _pushPreview.Documents,
+                    IgnoredFiles = _pushPreview.IgnoredFiles,
+                    Warnings = allWarnings,
+                    Readiness = new PushReadiness
+                    {
+                        CanPush = false,
+                        HasBlockingIssues = true,
+                        BlockingIssueCount = allWarnings.Count(w => w.BlocksPush),
+                        Summary = "Workspace session is stale. Resolve stale session before push."
+                    }
+                };
+            }
+
             PreviewParts.Clear();
             PreviewCads.Clear();
             PreviewDocuments.Clear();
@@ -2118,6 +2258,125 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(PushPreviewReadiness));
             OnPropertyChanged(nameof(CanPush));
             _pushCommand.RaiseCanExecuteChanged();
+        }
+
+        private List<PreviewWarning> BuildStalePushWarnings()
+        {
+            var manifest = _workspaceService.LoadManifest(FolderPath);
+            var warnings = new List<PreviewWarning>();
+
+            if (manifest == null || string.IsNullOrWhiteSpace(manifest.LockToken))
+                return warnings;
+
+            var manifestMatchesLive = !string.IsNullOrWhiteSpace(_liveCadId) &&
+                string.Equals(manifest.CadId, _liveCadId, StringComparison.OrdinalIgnoreCase);
+
+            var currentUser = MainViewModel.SharedUserName ?? string.Empty;
+            var mySession = string.Equals(manifest.LockedBy, currentUser, StringComparison.OrdinalIgnoreCase);
+
+            if (!mySession)
+            {
+                warnings.Add(new PreviewWarning
+                {
+                    Source = "WorkspaceSession",
+                    Message = "Local checkout session belongs to '" + manifest.LockedBy + "'. Push is blocked until the correct user resolves the session.",
+                    BlocksPush = true
+                });
+                return warnings;
+            }
+
+            var myLocalFileExists = !string.IsNullOrWhiteSpace(manifest.LocalFilePath) &&
+                System.IO.File.Exists(manifest.LocalFilePath);
+
+            if (!myLocalFileExists)
+            {
+                warnings.Add(new PreviewWarning
+                {
+                    Source = "WorkspaceSession",
+                    Message = "Local file missing for active checkout session. Cancel checkout to release the lock before push, or restore the file from the workspace.",
+                    BlocksPush = true
+                });
+            }
+
+            if (manifestMatchesLive &&
+                !string.IsNullOrWhiteSpace(_liveCadState) &&
+                !CadLifecyclePolicy.CanCheckout(_liveCadState))
+            {
+                warnings.Add(new PreviewWarning
+                {
+                    Source = "WorkspaceSession",
+                    Message = "Live CAD state changed to '" + _liveCadState + "'. Local checkout session is no longer valid. Cancel checkout before push.",
+                    BlocksPush = true
+                });
+            }
+
+            return warnings;
+        }
+
+        private void LoadCommitHistoryForFolder()
+        {
+            WorkspaceCommits.Clear();
+            var history = _workspaceService.LoadCommitHistory(FolderPath);
+            if (history?.Commits != null)
+            {
+                var branch = SelectedBranch ?? "main";
+                foreach (var c in history.Commits.Where(c => string.Equals(c.Branch, branch, StringComparison.OrdinalIgnoreCase)))
+                    WorkspaceCommits.Add(c);
+            }
+            if (WorkspaceCommits.Count > 0)
+                SelectedCommit = WorkspaceCommits[WorkspaceCommits.Count - 1];
+            else
+                SelectedCommit = null;
+        }
+
+        private Task ExecuteCommitAsync()
+        {
+            if (!CanCommit)
+                return Task.CompletedTask;
+
+            var commit = new WorkspaceCommit
+            {
+                CommitId = Guid.NewGuid().ToString("N"),
+                Timestamp = DateTime.UtcNow,
+                Branch = SelectedBranch ?? "main",
+                Message = CommitMessage ?? "Workspace commit",
+                ProjectFolder = FolderPath,
+                RepositoryCode = _latestAnalysis?.ProjectCode,
+                StructureNodeCount = CountBusinessNodes(_latestBusinessStructure),
+                CadFileCount = (_latestAnalysis?.AssemblyFiles?.Count ?? 0) + (_latestAnalysis?.DetailFiles?.Count ?? 0),
+                DocumentFileCount = _latestAnalysis?.DocumentFiles?.Count ?? 0
+            };
+
+            var history = _workspaceService.LoadCommitHistory(FolderPath);
+            history.Commits.Add(commit);
+            _workspaceService.SaveCommitHistory(FolderPath, history);
+
+            WorkspaceCommits.Add(commit);
+            SelectedCommit = commit;
+
+            CommitMessage = null;
+            OnPropertyChanged(nameof(LatestCommitSummary));
+            OnPropertyChanged(nameof(HasUncommittedChanges));
+            (CommitCommand as RelayCommand)?.RaiseCanExecuteChanged();
+
+            StatusMessage = "Commit saved locally on branch " + commit.Branch + ".";
+            return Task.CompletedTask;
+        }
+
+        private static int CountBusinessNodes(PdmBusinessStructureAnalysis businessStructure)
+        {
+            if (businessStructure?.RootNodes == null)
+                return 0;
+
+            return businessStructure.RootNodes.Sum(CountBusinessNodeRecursive);
+        }
+
+        private static int CountBusinessNodeRecursive(PdmBusinessNode node)
+        {
+            if (node == null)
+                return 0;
+
+            return 1 + node.Children.Sum(CountBusinessNodeRecursive);
         }
 
         private async Task RefreshPreviewFromServerAsync()

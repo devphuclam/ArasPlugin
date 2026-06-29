@@ -329,7 +329,11 @@ namespace IdeaCadConnector.Desktop
                     return "No linked CAD selected yet.";
 
                 if (!string.IsNullOrWhiteSpace(_lockToken))
+                {
+                    if (!CadLifecyclePolicy.CanCheckout(_currentCad.State))
+                        return "Checked out by you (session stale -- CAD state changed to '" + _currentCad.State + "').";
                     return "Checked out by you in this session.";
+                }
 
                 if (_currentCad.IsLocked)
                     return "This CAD is locked by another user.";
@@ -337,16 +341,7 @@ namespace IdeaCadConnector.Desktop
                 if (!_currentCad.HasNativeFile)
                     return "This CAD exists, but it does not have a native file yet.";
 
-                if (CadLifecyclePolicy.CanCheckout(_currentCad.State))
-                    return "This CAD is editable in the current lifecycle state.";
-
-                if (CadLifecyclePolicy.IsState(_currentCad.State, CadLifecyclePolicy.InReview))
-                    return "This CAD is waiting for TNTKC review in Aras.";
-
-                if (CadLifecyclePolicy.IsState(_currentCad.State, CadLifecyclePolicy.Released))
-                    return "This CAD is released. Editing requires the approved Aras change process.";
-
-                return CadLifecyclePolicy.GetCheckoutBlockedMessage(_currentCad.State);
+                return CadLifecyclePolicy.GetStateSummary(_currentCad.State);
             }
         }
 
@@ -364,7 +359,11 @@ namespace IdeaCadConnector.Desktop
                     return "No linked CAD is selected yet. Use Select / Create CAD first.";
 
                 if (!string.IsNullOrWhiteSpace(_lockToken))
+                {
+                    if (!CadLifecyclePolicy.CanCheckout(_currentCad.State))
+                        return "CAD state changed since checkout. Use Cancel Checkout to release the lock, then check out the latest revision.";
                     return "CAD is checked out in this session. You can check in or cancel checkout.";
+                }
 
                 if (_currentCad != null && _currentCad.IsLocked)
                     return "Another user currently holds the lock. Open read-only if you only need to inspect.";
@@ -377,21 +376,13 @@ namespace IdeaCadConnector.Desktop
                 if (_currentCad != null && !_currentCad.HasNativeFile)
                     return "No native file exists, and the current Aras state does not allow checkout.";
 
+                if (_currentCad != null && CadLifecyclePolicy.CanStartDetailedDesign(_currentCad.State))
+                    return "Initial drafting stage. Use Start Detailed Design to move this CAD into 'Thiet ke chi tiet', or Checkout to create the first local file.";
+
                 if (_currentCad != null && CadLifecyclePolicy.CanCheckout(_currentCad.State))
                     return "CAD is in an editable state. Use Checkout to edit or Open Read-Only to inspect.";
 
-                if (_currentCad != null && CadLifecyclePolicy.CanStartDetailedDesign(_currentCad.State))
-                    return "Initial drafting is complete. Use Start Detailed Design to move this CAD into 'Thiet ke chi tiet'.";
-
-                if (_currentCad != null
-                    && CadLifecyclePolicy.IsState(_currentCad.State, CadLifecyclePolicy.InReview))
-                    return "TNTKC must approve or request rework in Aras. The plugin stays read-only.";
-
-                if (_currentCad != null
-                    && CadLifecyclePolicy.IsState(_currentCad.State, CadLifecyclePolicy.Released))
-                    return "Released CAD is read-only here. Use the approved Aras change process for further work.";
-
-                return CadLifecyclePolicy.GetCheckoutBlockedMessage(_currentCad?.State);
+                return CadLifecyclePolicy.GetStateActionGuidance(_currentCad?.State);
             }
         }
 
