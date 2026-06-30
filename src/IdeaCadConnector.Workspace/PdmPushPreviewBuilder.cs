@@ -192,25 +192,31 @@ namespace IdeaCadConnector.Workspace
             var canPush = result.Summary.IsValid && blockingCount == 0 && result.StructureNodes.Count > 0 && isMainBranch;
 
             string summary;
+            PushReadinessLevel level;
             if (!isMainBranch)
             {
                 summary = $"Branch '{targetBranch ?? "-"}' is preview-only. Switch to main before live push.";
+                level = PushReadinessLevel.Blocking;
             }
             else if (canPush)
             {
                 summary = $"Ready to push {result.StructureNodes.Count} part(s), {result.Summary.CadFileCount} CAD file(s), {result.Summary.DocumentFileCount} document(s).";
+                level = PushReadinessLevel.Ready;
             }
             else if (blockingCount > 0)
             {
                 summary = $"{blockingCount} blocking issue(s) found. Fix before push.";
+                level = PushReadinessLevel.Blocking;
             }
             else if (result.StructureNodes.Count == 0)
             {
                 summary = "No structure nodes were produced by Analyze. Push is blocked.";
+                level = PushReadinessLevel.Blocking;
             }
             else
             {
                 summary = "Push preview is incomplete. Review Analyze results before pushing.";
+                level = PushReadinessLevel.Warning;
             }
 
             return new PushReadiness
@@ -218,6 +224,7 @@ namespace IdeaCadConnector.Workspace
                 CanPush = canPush,
                 HasBlockingIssues = blockingCount > 0,
                 BlockingIssueCount = blockingCount,
+                Level = level,
                 Summary = summary
             };
         }

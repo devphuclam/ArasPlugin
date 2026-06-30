@@ -137,11 +137,22 @@ namespace IdeaCadConnector.Workspace
         public bool BlocksPush { get; set; }
     }
 
+    public enum PushReadinessLevel
+    {
+        Ready,
+        Warning,
+        Blocking
+    }
+
     public sealed class PushReadiness
     {
         public bool CanPush { get; set; }
         public bool HasBlockingIssues { get; set; }
         public int BlockingIssueCount { get; set; }
+        public PushReadinessLevel Level { get; set; }
         public string Summary { get; set; }
+        public string DisplayText => string.IsNullOrWhiteSpace(Summary)
+            ? Level.ToString().ToUpperInvariant()
+            : Level.ToString().ToUpperInvariant() + ": " + Summary;
     }
 }

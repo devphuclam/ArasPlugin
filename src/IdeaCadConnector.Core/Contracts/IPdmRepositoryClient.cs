@@ -11,7 +11,14 @@ namespace IdeaCadConnector.Core.Contracts
 
         Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct);
 
+        Task<PdmCloneResult> CloneLatestToWorkspaceAsync(PdmCloneRequest request, CancellationToken ct);
+
         Task<string> FindItemIdByNumberAsync(string itemType, string itemNumber, CancellationToken ct);
+
+        // TODO(PERM-REVISE-METHOD): Implement server-side revision when
+        // PDM schema supports ReviseCadAsync. Current implementation
+        // returns not-implemented result.
+        Task<PdmReviseResult> ReviseCadAsync(PdmReviseRequest request, CancellationToken ct);
     }
 
     public sealed class PdmExistencePreview
@@ -84,6 +91,27 @@ namespace IdeaCadConnector.Core.Contracts
         public IReadOnlyList<string> Warnings { get; set; }
     }
 
+    public sealed class PdmCloneRequest
+    {
+        public string RepositoryCode { get; set; }
+        public string TargetFolder { get; set; }
+        public string BranchName { get; set; }
+    }
+
+    public sealed class PdmCloneResult
+    {
+        public bool Success { get; set; }
+        public string RepositoryCode { get; set; }
+        public string RootPartId { get; set; }
+        public string RootPartNumber { get; set; }
+        public string ResolvedProjectFolder { get; set; }
+        public string ResolvedCadFolder { get; set; }
+        public int DownloadedCadFileCount { get; set; }
+        public int PlaceholderDocumentCount { get; set; }
+        public IReadOnlyList<string> Warnings { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
     public sealed class PdmItemResult
     {
         public string SourceKey { get; set; }
@@ -92,5 +120,31 @@ namespace IdeaCadConnector.Core.Contracts
         public bool Success { get; set; }
         public string ActionTaken { get; set; }
         public string ErrorMessage { get; set; }
+    }
+
+    public sealed class PdmReviseRequest
+    {
+        public string PartId { get; set; }
+        public string CadId { get; set; }
+        public string PartNumber { get; set; }
+        public string CadNumber { get; set; }
+        public string Reason { get; set; }
+    }
+
+    public sealed class PdmReviseResult
+    {
+        public bool Success { get; set; }
+        public string NewPartId { get; set; }
+        public string NewCadId { get; set; }
+        public string NewRevision { get; set; }
+        public string NewLifecycleState { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
+    public sealed class PdmRevisePreconditionResult
+    {
+        public bool CanRevise { get; set; }
+        public IReadOnlyList<string> BlockingReasons { get; set; }
+        public IReadOnlyList<string> Warnings { get; set; }
     }
 }

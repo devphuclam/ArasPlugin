@@ -1113,16 +1113,18 @@
 
                       <Button Margin="0,0,0,10"
                               Style="{StaticResource SecondaryButtonStyle}"
-                              Command="{Binding OpenReadOnlyCommand}">
+                              Command="{Binding OpenReadOnlyCommand}"
+                              Visibility="{Binding HasOpenReadOnlyAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" />
-                          <TextBlock Margin="8,0,0,0" Text="Open in IronCAD" />
+                          <TextBlock Margin="8,0,0,0" Text="Open Read-Only" />
                         </StackPanel>
                       </Button>
 
                       <Button Margin="0,0,8,10"
                               Style="{StaticResource SecondaryButtonStyle}"
-                              Command="{Binding CheckoutCommand}">
+                              Command="{Binding CheckoutCommand}"
+                              Visibility="{Binding HasCheckoutAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72E;" />
                           <TextBlock Margin="8,0,0,0" Text="Checkout" />
@@ -1131,31 +1133,42 @@
 
                       <Button Margin="0,0,0,10"
                               Style="{StaticResource PrimaryButtonStyle}"
-                              Command="{Binding CheckInCommand}">
+                              Command="{Binding CheckInCommand}"
+                              Visibility="{Binding HasCheckInAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" />
                           <TextBlock Margin="8,0,0,0" Text="Checkin" />
                         </StackPanel>
                       </Button>
 
-                      <Button Margin="0,0,8,0"
-                              Style="{StaticResource GhostButtonStyle}"
-                              Command="{Binding OpenReadOnlyCommand}">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                          <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72E;" />
-                          <TextBlock Margin="8,0,0,0" Text="Readonly" />
-                        </StackPanel>
-                      </Button>
-
                       <Button Margin="0"
                               Style="{StaticResource GhostButtonStyle}"
-                              Command="{Binding CancelCheckoutCommand}">
+                              Command="{Binding CancelCheckoutCommand}"
+                              Visibility="{Binding HasCancelCheckoutAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE711;" />
                           <TextBlock Margin="8,0,0,0" Text="Cancel Checkout" />
                         </StackPanel>
                       </Button>
                     </UniformGrid>
+
+                    <Button Margin="0,14,0,0"
+                            Height="36"
+                            Background="#FF5A6B8A"
+                            BorderBrush="#FF5A6B8A"
+                            Foreground="White"
+                            FontWeight="SemiBold"
+                            Command="{Binding StartNewRevisionGuideCommand}"
+                            Content="New Revision Guide"
+                            Visibility="{Binding HasSearchRevisionGuideEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}"
+                            ToolTip="Guidance only — this app does not create new revisions. Click to learn the manual revision path in Aras." />
+
+                    <TextBlock Margin="0,6,0,0"
+                               FontSize="11"
+                               Foreground="#FF60708E"
+                               TextWrapping="Wrap"
+                               Text="{Binding SearchRevisionGuideHint}"
+                               Visibility="{Binding HasSearchRevisionGuideHint, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                     <Border Margin="0,16,0,0"
                             Padding="14"
@@ -1191,22 +1204,26 @@
                         <UniformGrid Columns="2" Margin="0,12,0,0">
                           <Button Margin="0,0,8,8"
                                   Style="{StaticResource PrimaryButtonStyle}"
-                                  Command="{Binding StartDetailedDesignCommand}">
+                                  Command="{Binding StartDetailedDesignCommand}"
+                                  Visibility="{Binding HasStartDetailedDesignAction, Converter={StaticResource BoolToVisibilityConverter}}">
                             <TextBlock Text="Start Detailed Design" />
                           </Button>
                           <Button Margin="0,0,0,8"
                                   Style="{StaticResource PrimaryButtonStyle}"
-                                  Command="{Binding SubmitForReviewCommand}">
+                                  Command="{Binding SubmitForReviewCommand}"
+                                  Visibility="{Binding HasSubmitForReviewAction, Converter={StaticResource BoolToVisibilityConverter}}">
                             <TextBlock Text="Submit for Review" />
                           </Button>
                           <Button Margin="0,0,8,0"
                                   Style="{StaticResource PrimaryButtonStyle}"
-                                  Command="{Binding ApproveCommand}">
+                                  Command="{Binding ApproveCommand}"
+                                  Visibility="{Binding HasApproveAction, Converter={StaticResource BoolToVisibilityConverter}}">
                             <TextBlock Text="Approve" />
                           </Button>
                           <Button Margin="0,0,0,0"
                                   Style="{StaticResource SecondaryButtonStyle}"
-                                  Command="{Binding RequestReworkCommand}">
+                                  Command="{Binding RequestReworkCommand}"
+                                  Visibility="{Binding HasRequestReworkAction, Converter={StaticResource BoolToVisibilityConverter}}">
                             <TextBlock Text="Request Rework" />
                           </Button>
                         </UniformGrid>

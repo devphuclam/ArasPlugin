@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using IdeaCadConnector.Core.Validation;
 using Newtonsoft.Json;
 
@@ -101,6 +102,10 @@ namespace IdeaCadConnector.Workspace
             return dir == null ? null : Path.Combine(dir, "commits.json");
         }
 
+        // TODO(PERF-INTERFACE): Extract IWorkspaceCommitStore from
+        // LoadCommitHistory / SaveCommitHistory.
+        // TODO(PERF-ERROR-HANDLING): Add logging in catch blocks.
+        // Currently returns empty defaults silently on any error.
         public WorkspaceCommitHistory LoadCommitHistory(string projectFolder)
         {
             if (string.IsNullOrWhiteSpace(projectFolder))
@@ -130,6 +135,60 @@ namespace IdeaCadConnector.Workspace
                 Directory.CreateDirectory(dir);
             var json = JsonConvert.SerializeObject(history, Formatting.Indented);
             File.WriteAllText(path, json);
+        }
+
+        public string GetBranchRegistryFilePath(string projectFolder)
+        {
+            var dir = GetManifestDirectory(projectFolder);
+            return dir == null ? null : Path.Combine(dir, "branches.json");
+        }
+
+        // TODO(PERF-INTERFACE): Extract IWorkspaceBranchStore from
+        // LoadBranchRegistry / SaveBranchRegistry / EnsureMainBranch.
+        // TODO(PERF-ERROR-HANDLING): Add logging in catch blocks.
+        // Currently returns empty defaults silently on any error.
+        public WorkspaceBranchRegistry LoadBranchRegistry(string projectFolder)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolder))
+                return new WorkspaceBranchRegistry();
+            var path = GetBranchRegistryFilePath(projectFolder);
+            if (path == null || !File.Exists(path))
+                return new WorkspaceBranchRegistry();
+            try
+            {
+                var json = File.ReadAllText(path);
+                return JsonConvert.DeserializeObject<WorkspaceBranchRegistry>(json) ?? new WorkspaceBranchRegistry();
+            }
+            catch
+            {
+                return new WorkspaceBranchRegistry();
+            }
+        }
+
+        public void SaveBranchRegistry(string projectFolder, WorkspaceBranchRegistry registry)
+        {
+            if (string.IsNullOrWhiteSpace(projectFolder))
+                return;
+            var path = GetBranchRegistryFilePath(projectFolder);
+            if (path == null) return;
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            var json = JsonConvert.SerializeObject(registry, Formatting.Indented);
+            File.WriteAllText(path, json);
+        }
+
+        public void EnsureMainBranch(string projectFolder)
+        {
+            var registry = LoadBranchRegistry(projectFolder);
+            if (registry.Branches.Any(b => string.Equals(b.Name, "main", StringComparison.OrdinalIgnoreCase)))
+                return;
+            registry.Branches.Add(new WorkspaceBranch
+            {
+                Name = "main",
+                CreatedAt = DateTime.UtcNow
+            });
+            SaveBranchRegistry(projectFolder, registry);
         }
 
         private static string GetDefaultRootPath()

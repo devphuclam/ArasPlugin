@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -14,6 +15,7 @@ namespace IdeaCadConnector.Aras
 {
     public sealed class HttpPdmRepositoryClient : IPdmRepositoryClient, IDisposable
     {
+        private const string IronCadAssemblyClassification = "Mechanical/Assembly";
         private readonly ArasClientOptions _options;
         private readonly ILogger<HttpPdmRepositoryClient> _logger;
         private ArasHttpClient _http;
@@ -116,6 +118,137 @@ namespace IdeaCadConnector.Aras
         {
             EnsureAuthenticated();
             return await FindItemByNumberAsync(itemType, itemNumber, ct).ConfigureAwait(false);
+        }
+
+        public async Task<PdmCloneResult> CloneLatestToWorkspaceAsync(PdmCloneRequest request, CancellationToken ct)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+            if (string.IsNullOrWhiteSpace(request.RepositoryCode))
+                throw new ArgumentException("RepositoryCode is required.", nameof(request));
+            if (string.IsNullOrWhiteSpace(request.TargetFolder))
+                throw new ArgumentException("TargetFolder is required.", nameof(request));
+
+            EnsureAuthenticated();
+
+            var warnings = new List<string>();
+            var repositoryCode = request.RepositoryCode.Trim();
+            var projectFolder = request.TargetFolder.Trim();
+            var cadFolder = Path.Combine(projectFolder, "ARAS01");
+
+            Directory.CreateDirectory(projectFolder);
+            Directory.CreateDirectory(cadFolder);
+
+            var rootPart = await GetPartByNumberAsync(repositoryCode, ct).ConfigureAwait(false);
+            if (rootPart == null)
+            {
+                return new PdmCloneResult
+                {
+                    Success = false,
+                    RepositoryCode = repositoryCode,
+                    ResolvedProjectFolder = projectFolder,
+                    ResolvedCadFolder = cadFolder,
+                    ErrorMessage = "Root Part not found on Aras for repository '" + repositoryCode + "'."
+                };
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.BranchName) &&
+                !string.Equals(request.BranchName, "main", StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add("Clone currently uses latest live data on Aras. Branch '" + request.BranchName + "' is local-only and was not resolved on server.");
+            }
+
+            var partQueue = new Queue<ClonePartInfo>();
+            var partIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var cadFileIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var documentNamesSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var downloadedCadCount = 0;
+            var placeholderDocumentCount = 0;
+
+            partQueue.Enqueue(rootPart);
+            partIdsSeen.Add(rootPart.Id);
+
+            while (partQueue.Count > 0)
+            {
+                var part = partQueue.Dequeue();
+
+                var cadCandidates = await GetPartCadCandidatesAsync(part.Id, ct).ConfigureAwait(false);
+                var selectedCad = SelectPreferredCad(cadCandidates, part.ItemNumber, string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase));
+                if (selectedCad != null)
+                {
+                    if (string.IsNullOrWhiteSpace(selectedCad.NativeFileId))
+                    {
+                        warnings.Add("CAD '" + selectedCad.ItemNumber + "' exists but has no native file on Aras.");
+                    }
+                    else if (cadFileIdsSeen.Add(selectedCad.NativeFileId))
+                    {
+                        await _vault.DownloadFileAsync(selectedCad.NativeFileId, cadFolder, ct).ConfigureAwait(false);
+                        downloadedCadCount++;
+                    }
+                }
+                else
+                {
+                    warnings.Add("No usable IronCAD record found for Part '" + part.ItemNumber + "'.");
+                }
+
+                var partDocumentNames = await GetRelatedDocumentNamesAsync("Part Document", part.Id, ct).ConfigureAwait(false);
+                foreach (var documentName in partDocumentNames)
+                {
+                    if (documentNamesSeen.Add(documentName))
+                    {
+                        var targetPath = Path.Combine(projectFolder, documentName);
+                        EnsurePlaceholderFile(targetPath);
+                        placeholderDocumentCount++;
+                    }
+                }
+
+                var childIds = await GetChildPartIdsAsync(part.Id, ct).ConfigureAwait(false);
+                foreach (var childId in childIds)
+                {
+                    if (!partIdsSeen.Add(childId))
+                        continue;
+
+                    var childPart = await GetPartByIdAsync(childId, ct).ConfigureAwait(false);
+                    if (childPart == null)
+                    {
+                        warnings.Add("Child Part id '" + childId + "' could not be loaded during clone.");
+                        continue;
+                    }
+
+                    partQueue.Enqueue(childPart);
+                }
+            }
+
+            var projectId = await FindItemByNumberAsync("Project", repositoryCode, ct).ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(projectId))
+            {
+                var projectDocumentNames = await GetRelatedDocumentNamesAsync("Project Document", projectId, ct).ConfigureAwait(false);
+                foreach (var documentName in projectDocumentNames)
+                {
+                    if (documentNamesSeen.Add(documentName))
+                    {
+                        var targetPath = Path.Combine(projectFolder, documentName);
+                        EnsurePlaceholderFile(targetPath);
+                        placeholderDocumentCount++;
+                    }
+                }
+            }
+
+            return new PdmCloneResult
+            {
+                Success = downloadedCadCount > 0 || placeholderDocumentCount > 0,
+                RepositoryCode = repositoryCode,
+                RootPartId = rootPart.Id,
+                RootPartNumber = rootPart.ItemNumber,
+                ResolvedProjectFolder = projectFolder,
+                ResolvedCadFolder = cadFolder,
+                DownloadedCadFileCount = downloadedCadCount,
+                PlaceholderDocumentCount = placeholderDocumentCount,
+                Warnings = warnings,
+                ErrorMessage = downloadedCadCount == 0 && placeholderDocumentCount == 0
+                    ? "No CAD native files or related document placeholders could be cloned from Aras."
+                    : null
+            };
         }
 
         public async Task<PdmPushResult> PushAsync(PdmPushRequest request, CancellationToken ct)
@@ -591,6 +724,8 @@ namespace IdeaCadConnector.Aras
             await _aml.ApplyAmlAsync(aml, "add", relType, null, ct).ConfigureAwait(false);
         }
 
+        // TODO(PERM-COMMIT-AUTHOR): Add <author> field from session user.
+        // Currently not sent; server field exists but client never populates it.
         private async Task<string> CreatePdmCommitAsync(
             PdmPushRequest request,
             List<PdmItemResult> parts,
@@ -682,6 +817,11 @@ namespace IdeaCadConnector.Aras
             }
         }
 
+        // TODO(PERM-COMMIT-FILE-VAULT): Add vault_file_id after file upload.
+        // Without vault_file_id, CloneAsync cannot know which vault file to
+        // download. Currently not sent.
+        // TODO(PERM-COMMIT-FILE-CHANGE-TYPE): Derive change_type from diff
+        // engine (added/modified/deleted). Currently hardcoded to "added".
         private async Task CreateCommitFileEntryAsync(string commitId, string relativePath, string fileRole, CancellationToken ct)
         {
             var fileAml = $"<Item type=\"PDM Commit File\" action=\"add\">" +
@@ -718,12 +858,242 @@ namespace IdeaCadConnector.Aras
             }
         }
 
+        private async Task<ClonePartInfo> GetPartByNumberAsync(string itemNumber, CancellationToken ct)
+        {
+            var aml = $"<Item type=\"Part\" action=\"get\" select=\"id,item_number,name\">" +
+                $"<item_number>{EscapeAml(itemNumber)}</item_number>" +
+                "</Item>";
+
+            var response = await _aml.ApplyAmlAsync(aml, "get", "Part", null, ct).ConfigureAwait(false);
+            return MapPartInfo(response?["Items"]?[0]);
+        }
+
+        private async Task<ClonePartInfo> GetPartByIdAsync(string partId, CancellationToken ct)
+        {
+            var aml = $"<Item type=\"Part\" action=\"get\" select=\"id,item_number,name\">" +
+                $"<id>{EscapeAml(partId)}</id>" +
+                "</Item>";
+
+            var response = await _aml.ApplyAmlAsync(aml, "get", "Part", partId, ct).ConfigureAwait(false);
+            return MapPartInfo(response?["Items"]?[0]);
+        }
+
+        private async Task<IReadOnlyList<string>> GetChildPartIdsAsync(string parentPartId, CancellationToken ct)
+        {
+            var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"related_id\">" +
+                $"<source_id>{EscapeAml(parentPartId)}</source_id>" +
+                "</Item>";
+
+            var response = await _aml.ApplyAmlAsync(aml, "get", "Part BOM", null, ct).ConfigureAwait(false);
+            var items = response?["Items"];
+            if (items == null || !items.HasValues)
+                return Array.Empty<string>();
+
+            var ids = new List<string>();
+            foreach (var item in items)
+            {
+                var relatedId = item?["related_id"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(relatedId))
+                {
+                    ids.Add(relatedId);
+                }
+            }
+
+            return ids;
+        }
+
+        private async Task<IReadOnlyList<CloneCadInfo>> GetPartCadCandidatesAsync(string partId, CancellationToken ct)
+        {
+            var relAml = $"<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
+                $"<source_id>{EscapeAml(partId)}</source_id>" +
+                "</Item>";
+
+            var response = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", null, ct).ConfigureAwait(false);
+            var items = response?["Items"];
+            if (items == null || !items.HasValues)
+                return Array.Empty<CloneCadInfo>();
+
+            var cads = new List<CloneCadInfo>();
+            foreach (var item in items)
+            {
+                var cadId = item?["related_id"]?.ToString();
+                if (string.IsNullOrWhiteSpace(cadId))
+                    continue;
+
+                var cadAml = $"<Item type=\"CAD\" action=\"get\" select=\"id,item_number,name,classification,authoring_tool,native_file,generation\">" +
+                    $"<id>{EscapeAml(cadId)}</id>" +
+                    "</Item>";
+
+                var cadResponse = await _aml.ApplyAmlAsync(cadAml, "get", "CAD", cadId, ct).ConfigureAwait(false);
+                var cadToken = cadResponse?["Items"]?[0];
+                if (cadToken == null)
+                    continue;
+
+                cads.Add(new CloneCadInfo
+                {
+                    Id = cadToken["id"]?.ToString(),
+                    ItemNumber = cadToken["item_number"]?.ToString(),
+                    Name = cadToken["name"]?.ToString(),
+                    Classification = cadToken["classification"]?.ToString(),
+                    AuthoringTool = cadToken["authoring_tool"]?.ToString(),
+                    NativeFileId = cadToken["native_file"]?.ToString()
+                });
+            }
+
+            return cads;
+        }
+
+        private async Task<IReadOnlyList<string>> GetRelatedDocumentNamesAsync(string relationshipType, string sourceId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(sourceId))
+                return Array.Empty<string>();
+
+            var relAml = $"<Item type=\"{EscapeAml(relationshipType)}\" action=\"get\" select=\"related_id\">" +
+                $"<source_id>{EscapeAml(sourceId)}</source_id>" +
+                "</Item>";
+
+            var response = await _aml.ApplyAmlAsync(relAml, "get", relationshipType, null, ct).ConfigureAwait(false);
+            var items = response?["Items"];
+            if (items == null || !items.HasValues)
+                return Array.Empty<string>();
+
+            var names = new List<string>();
+            foreach (var item in items)
+            {
+                var documentId = item?["related_id"]?.ToString();
+                if (string.IsNullOrWhiteSpace(documentId))
+                    continue;
+
+                var docAml = $"<Item type=\"Document\" action=\"get\" select=\"id,name,item_number\">" +
+                    $"<id>{EscapeAml(documentId)}</id>" +
+                    "</Item>";
+
+                var docResponse = await _aml.ApplyAmlAsync(docAml, "get", "Document", documentId, ct).ConfigureAwait(false);
+                var docToken = docResponse?["Items"]?[0];
+                var documentName = docToken?["name"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(documentName))
+                {
+                    names.Add(documentName);
+                }
+            }
+
+            return names;
+        }
+
+        private static ClonePartInfo MapPartInfo(Newtonsoft.Json.Linq.JToken token)
+        {
+            if (token == null)
+                return null;
+
+            return new ClonePartInfo
+            {
+                Id = token["id"]?.ToString(),
+                ItemNumber = token["item_number"]?.ToString(),
+                Name = token["name"]?.ToString()
+            };
+        }
+
+        private static CloneCadInfo SelectPreferredCad(IEnumerable<CloneCadInfo> candidates, string partNumber, bool isRootPart)
+        {
+            if (candidates == null)
+                return null;
+
+            var filtered = candidates
+                .Where(cad => cad != null &&
+                    string.Equals(cad.AuthoringTool, CadConstants.IronCadAuthoringTool, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (filtered.Count == 0)
+                return null;
+
+            if (isRootPart)
+            {
+                var rootAssembly = filtered.FirstOrDefault(cad =>
+                    string.Equals(cad.Classification, IronCadAssemblyClassification, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(cad.NativeFileId));
+                if (rootAssembly != null)
+                    return rootAssembly;
+
+                rootAssembly = filtered.FirstOrDefault(cad =>
+                    !string.IsNullOrWhiteSpace(cad.ItemNumber) &&
+                    cad.ItemNumber.EndsWith("-CAD-ASM", StringComparison.OrdinalIgnoreCase));
+                if (rootAssembly != null)
+                    return rootAssembly;
+            }
+            else
+            {
+                var partCad = filtered.FirstOrDefault(cad =>
+                    string.Equals(cad.Classification, CadConstants.IronCadPartClassification, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(cad.NativeFileId));
+                if (partCad != null)
+                    return partCad;
+            }
+
+            return filtered
+                .OrderByDescending(cad => !string.IsNullOrWhiteSpace(cad.NativeFileId))
+                .ThenByDescending(cad => string.Equals(cad.Classification, IronCadAssemblyClassification, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(cad => !string.IsNullOrWhiteSpace(partNumber) &&
+                    !string.IsNullOrWhiteSpace(cad.ItemNumber) &&
+                    cad.ItemNumber.StartsWith(partNumber, StringComparison.OrdinalIgnoreCase))
+                .ThenBy(cad => cad.ItemNumber ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+        }
+
+        private static void EnsurePlaceholderFile(string path)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            if (!File.Exists(path))
+            {
+                File.WriteAllBytes(path, Array.Empty<byte>());
+            }
+        }
+
+        private sealed class ClonePartInfo
+        {
+            public string Id { get; set; }
+            public string ItemNumber { get; set; }
+            public string Name { get; set; }
+        }
+
+        private sealed class CloneCadInfo
+        {
+            public string Id { get; set; }
+            public string ItemNumber { get; set; }
+            public string Name { get; set; }
+            public string Classification { get; set; }
+            public string AuthoringTool { get; set; }
+            public string NativeFileId { get; set; }
+        }
+
         private void EnsureAuthenticated()
         {
             if (_http == null || _aml == null)
                 throw new ArasOperationException(
                     ArasErrorCode.AuthInvalid,
                     "HttpPdmRepositoryClient is not authenticated. Call SetSession() after login.");
+        }
+
+        public Task<PdmReviseResult> ReviseCadAsync(PdmReviseRequest request, CancellationToken ct)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            _logger.LogWarning(
+                "ReviseCadAsync called for CAD '{CadId}' / Part '{PartId}' but server-side revise method is not yet implemented.",
+                request.CadId, request.PartId);
+
+            var result = new PdmReviseResult
+            {
+                Success = false,
+                ErrorMessage = "Server-side revise method not yet implemented. See the New Revision Guide for the manual revision path."
+            };
+
+            return Task.FromResult(result);
         }
 
         private static string EscapeAml(string value)

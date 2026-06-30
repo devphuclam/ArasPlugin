@@ -245,13 +245,16 @@
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column="0" Margin="0,0,12,0">
           <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="Repository" />
           <ComboBox Height="40"
                     ItemsSource="{Binding Repositories}"
-                    SelectedItem="{Binding SelectedRepository}"
+                    IsEditable="True"
+                    IsTextSearchEnabled="False"
+                    Text="{Binding SelectedRepository, UpdateSourceTrigger=PropertyChanged}"
                     Style="{DynamicResource TextInputComboStyle}" />
         </StackPanel>
 
@@ -259,11 +262,23 @@
           <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="Branch" />
           <DockPanel>
             <ComboBox Height="40"
-                      Width="150"
+                      Width="130"
                       ItemsSource="{Binding Branches}"
                       SelectedItem="{Binding SelectedBranch}"
                       Style="{DynamicResource TextInputComboStyle}" />
-            <Border Margin="8,0,0,0"
+            <Button Width="36"
+                    Height="36"
+                    Margin="6,0,0,0"
+                    VerticalAlignment="Center"
+                    Background="#FFE8EEF6"
+                    BorderThickness="0"
+                    FontSize="18"
+                    FontWeight="Bold"
+                    Foreground="#FF405173"
+                    Command="{Binding NewBranchCommand}"
+                    Content="+"
+                    ToolTip="Create a new local branch" />
+            <Border Margin="6,0,0,0"
                     Padding="10,0"
                     Height="28"
                     VerticalAlignment="Center"
@@ -275,7 +290,7 @@
         </StackPanel>
 
         <StackPanel Grid.Column="2" Margin="0,0,12,0">
-          <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="Commit" />
+          <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="Local Commit (workspace history)" />
           <ComboBox Height="40"
                     ItemsSource="{Binding WorkspaceCommits}"
                     SelectedItem="{Binding SelectedCommit}"
@@ -295,21 +310,29 @@
                 Height="40"
                 MinWidth="92"
                 Style="{DynamicResource SecondaryButtonStyle}"
+                Command="{Binding CloneCommand}"
+                Content="Clone" />
+        <Button Grid.Column="5"
+                Margin="0,20,10,0"
+                Height="40"
+                MinWidth="92"
+                Style="{DynamicResource SecondaryButtonStyle}"
                 Command="{Binding AnalyzeFolderCommand}"
                 Content="Analyze" />
-        <Button Grid.Column="5"
+        <Button Grid.Column="6"
                 Margin="0,20,10,0"
                 Height="40"
                 MinWidth="92"
                 Style="{DynamicResource PrimaryButtonStyle}"
                 Command="{Binding PushCommand}"
                 Content="Push" />
-        <Button Grid.Column="6"
+        <Button Grid.Column="7"
                 Margin="0,20,0,0"
                 Height="40"
                 MinWidth="92"
                 Style="{DynamicResource PrimaryButtonStyle}"
                 Command="{Binding CommitCommand}"
+                ToolTip="Save a local workspace snapshot. Does not push to Aras."
                 Content="Commit" />
 
         <TextBlock Grid.Row="1"
@@ -332,7 +355,8 @@
                  Margin="10,12,10,0"
                  Height="38"
                  Style="{DynamicResource TextInputStyle}"
-                 Text="{Binding CommitMessage, UpdateSourceTrigger=PropertyChanged}" />
+                 Text="{Binding CommitMessage, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Enter a message for the local workspace commit (does not affect Aras revision history)" />
         <TextBlock Grid.Row="2"
                    Grid.ColumnSpan="3"
                    Margin="0,14,0,0"
@@ -983,7 +1007,8 @@
                             Foreground="#FF109A93"
                             FontWeight="SemiBold"
                             Command="{Binding OpenInIronCadCommand}"
-                            Content="Open in IronCAD" />
+                            Visibility="{Binding HasOpenInIronCadAction, Converter={StaticResource BoolToVisibilityConverter}}"
+                            Content="{Binding OpenInIronCadModeText}" />
                     <Button Grid.Column="2"
                             Height="40"
                             Background="#FF14B1A7"
@@ -991,6 +1016,7 @@
                             Foreground="White"
                             FontWeight="SemiBold"
                             Command="{Binding CheckInCommand}"
+                            Visibility="{Binding HasCheckInCadAction, Converter={StaticResource BoolToVisibilityConverter}}"
                             Content="Check-in" />
                   </Grid>
 
@@ -1002,17 +1028,26 @@
                           Foreground="#FFF14E4E"
                           FontWeight="SemiBold"
                           Command="{Binding CancelCheckoutCommand}"
+                          Visibility="{Binding HasCancelCheckoutCadAction, Converter={StaticResource BoolToVisibilityConverter}}"
                           Content="Cancel Checkout" />
 
                   <Button Margin="0,10,0,0"
                           Height="40"
-                          Background="#FF6B4DE0"
-                          BorderBrush="#FF6B4DE0"
+                          Background="#FF5A6B8A"
+                          BorderBrush="#FF5A6B8A"
                           Foreground="White"
                           FontWeight="SemiBold"
                           Command="{Binding StartNewRevisionCommand}"
-                          Content="Start New Revision"
-                          Visibility="{Binding CanStartNewRevision, Converter={StaticResource BoolToVisibilityConverter}}" />
+                          Content="New Revision Guide"
+                          ToolTip="Guidance only — this app does not create new revisions. Click to learn the manual revision path in Aras."
+                          Visibility="{Binding HasCadRevisionGuideEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}" />
+
+                  <TextBlock Margin="0,6,0,0"
+                             FontSize="11"
+                             Foreground="#FF60708E"
+                             TextWrapping="Wrap"
+                             Text="{Binding CadRevisionReadinessText}"
+                             Visibility="{Binding HasCadRevisionReadinessInfo, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                   <StackPanel Margin="0,14,0,0"
                               Visibility="{Binding HasAnyCadBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}">
@@ -1028,6 +1063,7 @@
                               Foreground="White"
                               FontWeight="SemiBold"
                               Command="{Binding StartDetailedDesignCommand}"
+                              Visibility="{Binding HasStartDetailedDesignBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
                               Content="Start Detailed Design" />
                       <Button Margin="0,0,0,8"
                               Height="36"
@@ -1036,6 +1072,7 @@
                               Foreground="White"
                               FontWeight="SemiBold"
                               Command="{Binding SubmitForReviewCommand}"
+                              Visibility="{Binding HasSubmitForReviewBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
                               Content="Submit for Review" />
                       <Button Margin="0,0,8,0"
                               Height="36"
@@ -1044,6 +1081,7 @@
                               Foreground="White"
                               FontWeight="SemiBold"
                               Command="{Binding ApproveCadCommand}"
+                              Visibility="{Binding HasApproveBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
                               Content="Approve" />
                       <Button Margin="0,0,0,0"
                               Height="36"
@@ -1053,6 +1091,7 @@
                               Foreground="#FFB76C09"
                               FontWeight="SemiBold"
                               Command="{Binding RequestReworkCommand}"
+                              Visibility="{Binding HasRequestReworkBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
                               Content="Request Rework" />
                     </UniformGrid>
                   </StackPanel>
@@ -1135,7 +1174,7 @@
                         CornerRadius="10"
                         Background="#FFF0F5FF">
                   <TextBlock Style="{StaticResource BadgeTextStyle}"
-                             Text="{Binding PushPreviewReadiness.Summary, TargetNullValue=Analyze folder to generate preview}" />
+                             Text="{Binding PushPreviewReadiness.DisplayText, TargetNullValue=Analyze folder to generate preview}" />
                 </Border>
               </DockPanel>
 

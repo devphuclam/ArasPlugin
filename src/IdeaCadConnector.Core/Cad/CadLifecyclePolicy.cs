@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using IdeaCadConnector.Core.Dto;
 
 namespace IdeaCadConnector.Core.Cad
 {
@@ -82,6 +83,28 @@ namespace IdeaCadConnector.Core.Cad
                 && IsState(state, InReview);
         }
 
+        public static bool ShouldShowBusinessAction(CadBusinessActionKind kind, string state)
+        {
+            return CanExecuteBusinessAction(kind, state);
+        }
+
+        public static bool CanExecuteBusinessAction(CadBusinessActionKind kind, string state)
+        {
+            switch (kind)
+            {
+                case CadBusinessActionKind.StartDetailedDesign:
+                    return CanStartDetailedDesign(state);
+                case CadBusinessActionKind.SubmitForReview:
+                    return CanSubmitForReview(state);
+                case CadBusinessActionKind.Approve:
+                    return CanApproveReview(state);
+                case CadBusinessActionKind.RequestRework:
+                    return CanRequestRework(state);
+                default:
+                    return false;
+            }
+        }
+
         public static string GetSubmitForReviewBlockedMessage(string state)
         {
             if (string.IsNullOrWhiteSpace(state))
@@ -105,15 +128,24 @@ namespace IdeaCadConnector.Core.Cad
             return $"CAD state '{state}' does not allow submitting for review.";
         }
 
+        // TODO(PERF-REVISION-SEAM): Move into IRevisionService when
+        // server-side revise is implemented. Currently checks Released
+        // state only; future must also check part existence and lock state.
         public static bool CanStartNewRevision(string state)
         {
             return !string.IsNullOrWhiteSpace(state) && IsState(state, Released);
         }
 
-        public static string GetStartNewRevisionMessage()
+        // TODO(PERF-REVISION-SEAM): Extract into IRevisionService when
+        // server-side revise is implemented. Currently guidance-only.
+        public static string GetStartNewRevisionMessage(string cadNumber, string lifecycleState)
         {
-            return "This CAD is Released. To start a new revision, use the Aras web UI to create an ECO/change order, " +
-                   "promote the Part to 'In Change', then return here to check out the new working revision.";
+            return
+                $"The CAD \"{cadNumber}\" is in state \"{lifecycleState}\".\n\n" +
+                "This desktop app does not create new revisions. To revise:\n" +
+                "  1. Open the Aras web UI and create an ECO/change order for the linked Part.\n" +
+                "  2. Promote the Part through \"In Change\" back to an editable state.\n" +
+                "  3. Return here to check out the new working revision.";
         }
 
         public static string GetStartNewRevisionBlockedMessage(string state)
@@ -240,7 +272,7 @@ namespace IdeaCadConnector.Core.Cad
                 return "Review in progress. Approve or Request Rework if you are the assigned reviewer. Otherwise wait for review to complete.";
 
             if (IsState(state, Released))
-                return "Released CAD is read-only. Use Start New Revision for guidance on the next revision path.";
+                return "Released CAD is read-only. A new revision requires a change order in the Aras web UI.";
 
             if (IsState(state, InChange))
                 return "CAD is in a controlled change. Complete the approved change process in Aras before editing.";
@@ -249,6 +281,101 @@ namespace IdeaCadConnector.Core.Cad
                 return "This CAD is no longer active. Continue work through a replacement or new approved revision path.";
 
             return "Check the Aras web UI for details on this state.";
+        }
+
+        public static string GetUnlockedCadActionGuidance(string state, bool hasNativeFile)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "Refresh Aras state before deciding what to do next.";
+
+            if (!hasNativeFile && CanCheckout(state))
+                return "No native file exists yet. Checkout will create the first local IronCAD file.";
+
+            if (!hasNativeFile)
+                return "No native file exists, and the current Aras state does not allow checkout.";
+
+            if (CanCheckout(state))
+                return "CAD is in an editable state. Use Checkout to edit or Open Read-Only to inspect.";
+
+            return GetStateActionGuidance(state);
+        }
+
+        public static string GetStaleSessionMessage(string liveState)
+        {
+            if (string.IsNullOrWhiteSpace(liveState))
+                return "Local session is stale. Refresh Aras state before continuing.";
+
+            return $"Local session is stale because live CAD state changed to '{liveState}'. Cancel checkout and refresh before editing.";
+        }
+
+        public static string GetStaleSessionLabel()
+        {
+            return "Local session stale";
+        }
+
+        public static string GetDifferentUserSessionMessage(string lockedBy)
+        {
+            if (string.IsNullOrWhiteSpace(lockedBy))
+                return "Session belongs to a different user.";
+
+            return $"Session belongs to {lockedBy}.";
+        }
+
+        public static string GetReadOnlySessionStaleMessage(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                return "Opened in read-only mode (session stale).";
+
+            return $"Opened {fileName} in read-only mode (session stale).";
+        }
+
+        public static string GetCheckedOutByMeFileMissingStaleLabel()
+        {
+            return "Checked out by me (file missing, session stale)";
+        }
+
+        public static string GetPushSessionStaleMessage(string liveState)
+        {
+            if (string.IsNullOrWhiteSpace(liveState))
+                return "Local checkout session is no longer valid. Cancel checkout before push.";
+
+            return $"Live CAD state changed to '{liveState}'. Local checkout session is no longer valid. Cancel checkout before push.";
+        }
+
+        public static string GetRevisionDriftMessage(string lastKnownRevision, string liveRevision)
+        {
+            return $"CAD revision changed from {lastKnownRevision} to {liveRevision} since checkout. Push may create a conflict.";
+        }
+
+        public static string GetGenerationDriftMessage(long lastKnownGeneration, long liveGeneration)
+        {
+            return $"CAD generation changed from {lastKnownGeneration} to {liveGeneration} since checkout. Push may create a conflict.";
+        }
+
+        public static string GetWorkflowIdleStatusText(string state)
+        {
+            if (string.IsNullOrWhiteSpace(state))
+                return "No active workflow task.";
+
+            if (IsState(state, Initial))
+                return "Initial CAD is ready to move into detailed design.";
+
+            if (IsState(state, DetailedDesign))
+                return "Design is ready to submit for review.";
+
+            if (IsState(state, InReview))
+                return "CAD is in review. Approve or Request Rework is available only to the assigned reviewer.";
+
+            if (IsState(state, Released))
+                return "CAD is released. Workflow actions are complete; use revision guidance for the next controlled change.";
+
+            if (IsState(state, InChange))
+                return "CAD is in change staging. Continue the approved Aras change process.";
+
+            if (IsState(state, Superseded) || IsState(state, Obsolete))
+                return "CAD is inactive. No workflow actions are available.";
+
+            return "No active workflow task.";
         }
     }
 }
