@@ -1439,22 +1439,145 @@ namespace IdeaCadConnector.Aras
                     "HttpPdmRepositoryClient is not authenticated. Call SetSession() after login.");
         }
 
-        public Task<PdmReviseResult> ReviseCadAsync(PdmReviseRequest request, CancellationToken ct)
+        /// <summary>
+        /// ReviseCadAsync — creates a new major revision of a Released CAD and its linked Part
+        /// by calling the server-side Aras method <c>idea_ReviseCad</c>.
+        ///
+        /// EXPECTED SERVER-SIDE METHOD BEHAVIOR:
+        ///
+        /// The server method <c>idea_ReviseCad</c> should be implemented as an Aras
+        /// C# IOM server method and must:
+        ///   1. Version the Part (create new major revision, same Part Number).
+        ///   2. Version the CAD (create new major revision, same CAD Number).
+        ///   3. Set the new CAD lifecycle state to "Khoi tao".
+        ///   4. Link the new CAD to the new Part (Part CAD relationship).
+        ///   5. Return an &lt;Item&gt; with the following attributes/properties:
+        ///        - new_part_id (attribute or element)
+        ///        - new_cad_id (attribute or element)
+        ///        - new_revision (attribute or element)
+        ///        - new_lifecycle_state (attribute or element)
+        ///
+        /// REQUEST SHAPE (sent via ApplyMethod):
+        ///   &lt;Item type="Method" action="idea_ReviseCad"&gt;
+        ///     &lt;cad_id&gt;{request.CadId}&lt;/cad_id&gt;
+        ///     &lt;part_id&gt;{request.PartId}&lt;/part_id&gt;
+        ///     &lt;part_number&gt;{request.PartNumber}&lt;/part_number&gt;
+        ///     &lt;cad_number&gt;{request.CadNumber}&lt;/cad_number&gt;
+        ///     &lt;reason&gt;{request.Reason}&lt;/reason&gt;
+        ///   &lt;/Item&gt;
+        ///
+        /// CURRENT BEHAVIOR:
+        /// Sends a real AML/SOAP request via <see cref="ArasAmlClient.ApplyMethodAsync"/>.
+        /// If the server method does not exist (SOAP fault), returns a graceful
+        /// failure with a descriptive <see cref="PdmReviseResult"/>.
+        /// On success, parses the response and populates <see cref="PdmReviseResult"/>
+        /// with the new IDs, revision, and lifecycle state.
+        /// </summary>
+        public async Task<PdmReviseResult> ReviseCadAsync(PdmReviseRequest request, CancellationToken ct)
         {
             if (request == null)
                 throw new ArgumentNullException(nameof(request));
 
-            _logger.LogWarning(
-                "ReviseCadAsync called for CAD '{CadId}' / Part '{PartId}' but server-side revise method is not yet implemented.",
-                request.CadId, request.PartId);
+            EnsureAuthenticated();
 
-            var result = new PdmReviseResult
+            var parameters = new Dictionary<string, string>
             {
-                Success = false,
-                ErrorMessage = "Server-side revise method not yet implemented. See the New Revision Guide for the manual revision path."
+                ["cad_id"] = request.CadId,
+                ["part_id"] = request.PartId,
+                ["part_number"] = request.PartNumber,
+                ["cad_number"] = request.CadNumber,
+                ["reason"] = request.Reason
             };
 
-            return Task.FromResult(result);
+            try
+            {
+                var response = await _aml.ApplyMethodAsync("idea_ReviseCad", parameters, ct)
+                    .ConfigureAwait(false);
+
+                var result = new PdmReviseResult();
+
+                if (response == null || !response.HasValues)
+                {
+                    result.Success = false;
+                    result.ErrorMessage = "Server returned an empty response.";
+                    return result;
+                }
+
+                // Extract fields with resilient fallbacks for three response shapes:
+                //
+                // Shape A — properties as child elements (server uses setProperty):
+                //   <Item type="CAD" id="cad123">
+                //     <new_part_id>part456</new_part_id>
+                //     <new_cad_id>cad789</new_cad_id>
+                //     <new_revision>B</new_revision>
+                //     <new_lifecycle_state>Khoi tao</new_lifecycle_state>
+                //     ...
+                //   </Item>
+                //
+                // Shape B — attributes on Item element:
+                //   <Item type="CAD" id="cad123" new_part_id="part456" new_cad_id="cad789"
+                //         new_revision="B" new_lifecycle_state="Khoi tao" />
+                //
+                // Shape C — minimal CAD item return (fallbacks):
+                //   <Item type="CAD" id="cad789" major_rev="B" ... />
+                //
+                // Fallback chain:
+                //   new_part_id:         explicit field → null (no "id" fallback — "id" is the CAD id, not Part id)
+                //   new_cad_id:          explicit field → response Item's "id" attribute
+                //   new_revision:        explicit field → "major_rev" property (present on CAD items)
+                //   new_lifecycle_state: explicit field → "Khoi tao" (expected default)
+                string newPartId = response.Value<string>("new_part_id");
+                string newCadId = response.Value<string>("new_cad_id")
+                    ?? response.Value<string>("id");
+                string newRevision = response.Value<string>("new_revision")
+                    ?? response.Value<string>("major_rev");
+                string newLifecycleState = response.Value<string>("new_lifecycle_state")
+                    ?? "Khoi tao";
+
+                if (string.IsNullOrWhiteSpace(newCadId))
+                {
+                    result.Success = false;
+                    result.ErrorMessage = "Server response is missing both 'new_cad_id' and 'id' attributes. Revise did not create a new CAD.";
+                    return result;
+                }
+
+                result.Success = true;
+                result.NewPartId = newPartId;
+                result.NewCadId = newCadId;
+                result.NewRevision = newRevision;
+                result.NewLifecycleState = newLifecycleState;
+
+                _logger.LogInformation(
+                    "ReviseCadAsync succeeded for CAD '{CadNumber}' ({CadId}): NewPartId={NewPartId}, NewCadId={NewCadId}, NewRevision={NewRevision}",
+                    request.CadNumber, request.CadId,
+                    result.NewPartId, result.NewCadId, result.NewRevision);
+
+                return result;
+            }
+            catch (ArasOperationException ex)
+            {
+                _logger.LogWarning(ex,
+                    "ReviseCadAsync failed for CAD '{CadId}' / Part '{PartId}': {Error}",
+                    request.CadId, request.PartId, ex.Message);
+
+                return new PdmReviseResult
+                {
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "ReviseCadAsync unexpected error for CAD '{CadId}' / Part '{PartId}': {Error}",
+                    request.CadId, request.PartId, ex.Message);
+
+                return new PdmReviseResult
+                {
+                    Success = false,
+                    ErrorMessage = "Unexpected error: " + ex.Message
+                };
+            }
         }
 
         private static string EscapeAml(string value)

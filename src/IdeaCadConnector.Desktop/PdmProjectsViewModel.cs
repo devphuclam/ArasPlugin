@@ -367,8 +367,6 @@ namespace IdeaCadConnector.Desktop
         public void ToggleDocumentsSection() => IsDocumentsSectionExpanded = !IsDocumentsSectionExpanded;
 
         // TODO(PERF-REVISION-SEAM): Wire real server path when PDM schema
-        // supports ReviseCadAsync. Current: delegates to GuidanceRevisionService
-        // which shows MessageBox guidance — no live revise.
         private async void ExecuteStartNewRevisionAsync()
         {
             var request = new PdmReviseRequest
@@ -379,7 +377,26 @@ namespace IdeaCadConnector.Desktop
                 PartNumber = SelectedNode?.PartCode ?? "-"
             };
             var result = await _revisionService.ReviseAsync(request, CancellationToken.None);
-            if (!result.Success && !string.IsNullOrWhiteSpace(result.ErrorMessage))
+            if (result.Success)
+            {
+                StatusMessage = $"New revision created: {result.NewRevision ?? "-"}";
+                // Clear the old manifest — the checkout session pointed to the released CAD
+                // and is no longer valid after revision.
+                _workspaceService.ClearManifest(FolderPath);
+                await RefreshCadStateAsync(result.NewCadId, result.NewPartId);
+                if (string.IsNullOrWhiteSpace(_liveCadRevision) && !string.IsNullOrWhiteSpace(result.NewRevision))
+                    _liveCadRevision = result.NewRevision;
+                if (string.IsNullOrWhiteSpace(_liveCadState) && !string.IsNullOrWhiteSpace(result.NewLifecycleState))
+                    _liveCadState = result.NewLifecycleState;
+                if (!string.IsNullOrWhiteSpace(result.NewCadId))
+                    _liveCadId = result.NewCadId;
+                if (!string.IsNullOrWhiteSpace(result.NewPartId))
+                    _livePartId = result.NewPartId;
+                UpdateCadUiState();
+                await RefreshRevisionPreconditionsAsync();
+                RefreshCanOpenInIronCad();
+            }
+            else if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
             {
                 StatusMessage = result.ErrorMessage;
             }
@@ -555,15 +572,15 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _cadRevisionReadinessText, value))
                 {
                     OnPropertyChanged(nameof(HasCadRevisionReadinessInfo));
-                    OnPropertyChanged(nameof(HasCadRevisionGuideEntryPoint));
+                    OnPropertyChanged(nameof(HasCadRevisionEntryPoint));
                 }
             }
         }
 
         public bool HasCadRevisionReadinessInfo => !string.IsNullOrWhiteSpace(_cadRevisionReadinessText);
 
-        public bool HasCadRevisionGuideEntryPoint =>
-            GuidanceRevisionService.ShouldShowGuideEntryPoint(_liveCadId, CadRevisionReadinessText);
+        public bool HasCadRevisionEntryPoint =>
+            GuidanceRevisionService.ShouldShowRevisionEntryPoint(_liveCadId, CadRevisionReadinessText);
 
         public bool HasOpenInIronCadAction =>
             SelectedNode != null &&
@@ -1671,7 +1688,7 @@ namespace IdeaCadConnector.Desktop
             return FolderPath;
         }
 
-        private async Task RefreshCadStateAsync()
+        private async Task RefreshCadStateAsync(string preferredCadId = null, string preferredPartId = null)
         {
             var cadClient = MainViewModel.SharedArasCadClient;
             _liveCadId = null;
@@ -1691,7 +1708,9 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            var cadId = await ResolveCadIdForNodeAsync(SelectedNode, CancellationToken.None);
+            var cadId = !string.IsNullOrWhiteSpace(preferredCadId)
+                ? preferredCadId
+                : await ResolveCadIdForNodeAsync(SelectedNode, CancellationToken.None);
             if (string.IsNullOrWhiteSpace(cadId))
             {
                 UpdateCadUiState();
@@ -1733,7 +1752,9 @@ namespace IdeaCadConnector.Desktop
             }
 
             var manifest = _workspaceService.LoadManifest(FolderPath);
-            _livePartId = manifest?.PartId;
+            _livePartId = !string.IsNullOrWhiteSpace(preferredPartId)
+                ? preferredPartId
+                : manifest?.PartId;
 
             UpdateCadUiState();
             await RefreshRevisionPreconditionsAsync();
@@ -1745,7 +1766,7 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(CanOpenInIronCad));
             OnPropertyChanged(nameof(HasOpenInIronCadAction));
             OnPropertyChanged(nameof(OpenInIronCadModeText));
-            OnPropertyChanged(nameof(HasCadRevisionGuideEntryPoint));
+            OnPropertyChanged(nameof(HasCadRevisionEntryPoint));
             ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CanStartNewRevision));
             ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
@@ -1998,9 +2019,7 @@ namespace IdeaCadConnector.Desktop
 
         private void ApplyCadRevisionState()
         {
-            CadRevisionText = string.IsNullOrWhiteSpace(_liveCadRevision)
-                ? (SelectedNode?.Revision ?? "-")
-                : _liveCadRevision;
+            CadRevisionText = string.IsNullOrWhiteSpace(_liveCadRevision) ? "-" : _liveCadRevision;
             CadGenerationText = _liveCadGeneration > 0
                 ? _liveCadGeneration.ToString(CultureInfo.InvariantCulture)
                 : "-";

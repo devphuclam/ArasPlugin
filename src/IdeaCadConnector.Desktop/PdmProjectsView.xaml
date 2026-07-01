@@ -259,7 +259,7 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1" Margin="0,0,12,0">
-          <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="Branch" />
+          <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="Workspace Branch" />
           <DockPanel>
             <ComboBox Height="40"
                       Width="130"
@@ -914,11 +914,11 @@
                       <TextBlock Grid.Column="1" FontSize="13" Foreground="#FF7045D7" Text="{Binding SelectedNode.NodeType, TargetNullValue=-}" />
                       <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="Quantity" />
                       <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding SelectedNode.Quantity, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="2" Style="{StaticResource MetricLabelStyle}" Text="Revision" />
+                      <TextBlock Grid.Row="2" Style="{StaticResource MetricLabelStyle}" Text="Structure Version" />
                       <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding SelectedNode.Revision, TargetNullValue=-}" />
                       <TextBlock Grid.Row="3" Style="{StaticResource MetricLabelStyle}" Text="Perspective" />
                       <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding SelectedNode.Perspective, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="4" Style="{StaticResource MetricLabelStyle}" Text="Branch" />
+                      <TextBlock Grid.Row="4" Style="{StaticResource MetricLabelStyle}" Text="Workspace Branch" />
                       <TextBlock Grid.Row="4" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding SelectedBranch, TargetNullValue=-}" />
                     </Grid>
                   </StackPanel>
@@ -979,11 +979,11 @@
                     </StackPanel>
                     <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="File" />
                     <TextBlock Grid.Row="1" Grid.Column="1" FontSize="13" Foreground="#FF172B57" TextWrapping="Wrap" Text="{Binding CadFileStateText, TargetNullValue=-}" />
-                    <TextBlock Grid.Row="2" Style="{StaticResource MetricLabelStyle}" Text="Revision" />
+<TextBlock Grid.Row="2" Style="{StaticResource MetricLabelStyle}" Text="Aras Revision" />
                     <TextBlock Grid.Row="2" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding CadRevisionText, TargetNullValue=-}" />
-                    <TextBlock Grid.Row="3" Style="{StaticResource MetricLabelStyle}" Text="Generation" />
+                    <TextBlock Grid.Row="3" Style="{StaticResource MetricLabelStyle}" Text="Aras Generation" />
                     <TextBlock Grid.Row="3" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding CadGenerationText, TargetNullValue=-}" />
-                    <TextBlock Grid.Row="4" Style="{StaticResource MetricLabelStyle}" Text="Drift" Visibility="{Binding HasCadDrift, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <TextBlock Grid.Row="4" Style="{StaticResource MetricLabelStyle}" Text="Version Drift" Visibility="{Binding HasCadDrift, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <TextBlock Grid.Row="4" Grid.Column="1" FontSize="13" Foreground="#FFA500" TextWrapping="Wrap" Text="{Binding CadDriftText}" Visibility="{Binding HasCadDrift, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <TextBlock Grid.Row="5" Style="{StaticResource MetricLabelStyle}" Text="Lifecycle" />
                     <TextBlock Grid.Row="5" Grid.Column="1" FontSize="13" Foreground="#FF172B57" TextWrapping="Wrap" Text="{Binding CadLifecycleText, TargetNullValue=-}" />
@@ -1038,9 +1038,9 @@
                           Foreground="White"
                           FontWeight="SemiBold"
                           Command="{Binding StartNewRevisionCommand}"
-                          Content="New Revision Guide"
-                          ToolTip="Guidance only — this app does not create new revisions. Click to learn the manual revision path in Aras."
-                          Visibility="{Binding HasCadRevisionGuideEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}" />
+                          Content="Start New Revision"
+                          ToolTip="Requests a new revision through the app revision flow. Server-side support is still required."
+                          Visibility="{Binding HasCadRevisionEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                   <TextBlock Margin="0,6,0,0"
                              FontSize="11"
@@ -1433,3 +1433,4 @@
     </Grid>
   </Grid>
 </UserControl>
+

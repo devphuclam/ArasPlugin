@@ -1,8 +1,6 @@
 using System;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 
@@ -32,7 +30,7 @@ namespace IdeaCadConnector.Desktop
                 : (unavailableMessage ?? string.Empty);
         }
 
-        public static bool ShouldShowGuideEntryPoint(string cadId, string readinessText)
+        public static bool ShouldShowRevisionEntryPoint(string cadId, string readinessText)
         {
             return !string.IsNullOrWhiteSpace(cadId)
                 && !string.IsNullOrWhiteSpace(readinessText);
@@ -72,21 +70,19 @@ namespace IdeaCadConnector.Desktop
             return Task.FromResult(result);
         }
 
-        public Task<PdmReviseResult> ReviseAsync(PdmReviseRequest request, CancellationToken ct)
+        public async Task<PdmReviseResult> ReviseAsync(PdmReviseRequest request, CancellationToken ct)
         {
-            var cadNumber = request.CadNumber ?? "-";
-            var lifecycleState = "Released";
-            var msg = CadLifecyclePolicy.GetStartNewRevisionMessage(cadNumber, lifecycleState);
-
-            MessageBox.Show(msg, "New Revision Guide", MessageBoxButton.OK, MessageBoxImage.Information);
-
-            var result = new PdmReviseResult
+            var repoClient = MainViewModel.SharedPdmClient;
+            if (repoClient == null)
             {
-                Success = false,
-                ErrorMessage = "Guidance only — this desktop app does not create new revisions."
-            };
+                return new PdmReviseResult
+                {
+                    Success = false,
+                    ErrorMessage = "Not connected to Aras. Sign in and select a CAD to create a new revision."
+                };
+            }
 
-            return Task.FromResult(result);
+            return await repoClient.ReviseCadAsync(request, ct);
         }
     }
 }

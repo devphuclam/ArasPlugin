@@ -100,9 +100,9 @@ namespace IdeaCadConnector.Desktop
                 _ => ExecuteToggleFavoriteAsync(),
                 _ => SelectedSearchResult?.Part != null);
 
-            StartNewRevisionGuideCommand = new RelayCommand(
-                _ => { _ = ExecuteStartNewRevisionGuideAsync(); },
-                _ => !IsBusy && CanStartNewRevisionGuide);
+            StartNewRevisionCommand = new RelayCommand(
+                _ => { _ = ExecuteStartNewRevisionAsync(); },
+                _ => !IsBusy && CanStartNewRevision);
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -129,7 +129,7 @@ namespace IdeaCadConnector.Desktop
 
         public ICommand ToggleFavoriteCommand { get; }
 
-        public ICommand StartNewRevisionGuideCommand { get; }
+        public ICommand StartNewRevisionCommand { get; }
 
         public string StatusMessage
         {
@@ -290,9 +290,9 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(CurrentCadFileStateText));
                 OnPropertyChanged(nameof(CurrentCadStatusText));
                 OnPropertyChanged(nameof(ActionHint));
-                OnPropertyChanged(nameof(HasSearchRevisionGuideEntryPoint));
-                OnPropertyChanged(nameof(SearchRevisionGuideHint));
-                OnPropertyChanged(nameof(HasSearchRevisionGuideHint));
+                OnPropertyChanged(nameof(HasSearchRevisionEntryPoint));
+                OnPropertyChanged(nameof(SearchRevisionHint));
+                OnPropertyChanged(nameof(HasSearchRevisionHint));
                 OnPropertyChanged(nameof(HasOpenReadOnlyAction));
                 OnPropertyChanged(nameof(HasCheckoutAction));
                 OnPropertyChanged(nameof(HasCheckInAction));
@@ -406,12 +406,12 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        public bool HasSearchRevisionGuideEntryPoint =>
-            GuidanceRevisionService.ShouldShowGuideEntryPoint(_currentCad?.Id, SearchRevisionGuideHint);
+        public bool HasSearchRevisionEntryPoint =>
+            GuidanceRevisionService.ShouldShowRevisionEntryPoint(_currentCad?.Id, SearchRevisionHint);
 
-        public bool CanStartNewRevisionGuide => _revisionPreconditions?.CanRevise ?? false;
+        public bool CanStartNewRevision => _revisionPreconditions?.CanRevise ?? false;
 
-        public string SearchRevisionGuideHint
+        public string SearchRevisionHint
         {
             get => _searchRevisionReadinessText ?? string.Empty;
             private set
@@ -419,14 +419,14 @@ namespace IdeaCadConnector.Desktop
                 if (_searchRevisionReadinessText != value)
                 {
                     _searchRevisionReadinessText = value;
-                    OnPropertyChanged(nameof(SearchRevisionGuideHint));
-                    OnPropertyChanged(nameof(HasSearchRevisionGuideHint));
-                    OnPropertyChanged(nameof(HasSearchRevisionGuideEntryPoint));
+                    OnPropertyChanged(nameof(SearchRevisionHint));
+                    OnPropertyChanged(nameof(HasSearchRevisionHint));
+                    OnPropertyChanged(nameof(HasSearchRevisionEntryPoint));
                 }
             }
         }
 
-        public bool HasSearchRevisionGuideHint => !string.IsNullOrWhiteSpace(SearchRevisionGuideHint);
+        public bool HasSearchRevisionHint => !string.IsNullOrWhiteSpace(SearchRevisionHint);
 
         public bool HasOpenReadOnlyAction =>
             !string.IsNullOrWhiteSpace(SelectedCadId)
@@ -1089,13 +1089,13 @@ namespace IdeaCadConnector.Desktop
                 _lockToken,
                 CancellationToken.None);
 
-            SearchRevisionGuideHint = GuidanceRevisionService.BuildReadinessText(
+            SearchRevisionHint = GuidanceRevisionService.BuildReadinessText(
                 _revisionPreconditions,
-                "Ready: CAD is released and no blockers found. Click New Revision Guide to see the manual revision path in Aras.",
-                "Revision guidance becomes available after the linked CAD reaches Released.");
+                "Ready: CAD is released and no blockers found. Click Start New Revision to request a real revision from Aras.",
+                "Start New Revision becomes available after the linked CAD reaches Released.");
 
-            OnPropertyChanged(nameof(CanStartNewRevisionGuide));
-            ((RelayCommand)StartNewRevisionGuideCommand).RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(CanStartNewRevision));
+            ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
         }
 
         private void ResetSelectionState()
@@ -1114,14 +1114,14 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(CurrentCadFileStateText));
             OnPropertyChanged(nameof(CurrentCadStatusText));
             OnPropertyChanged(nameof(ActionHint));
-            OnPropertyChanged(nameof(HasSearchRevisionGuideEntryPoint));
+            OnPropertyChanged(nameof(HasSearchRevisionEntryPoint));
             OnPropertyChanged(nameof(HasOpenReadOnlyAction));
             OnPropertyChanged(nameof(HasCheckoutAction));
             OnPropertyChanged(nameof(HasCheckInAction));
             OnPropertyChanged(nameof(HasCancelCheckoutAction));
-            OnPropertyChanged(nameof(CanStartNewRevisionGuide));
-            SearchRevisionGuideHint = string.Empty;
-            ((RelayCommand)StartNewRevisionGuideCommand).RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(CanStartNewRevision));
+            SearchRevisionHint = string.Empty;
+            ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
         }
 
         private void ApplyCadSelection(CadSummary cad, bool clearSessionLock)
@@ -1147,7 +1147,7 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(CurrentCadFileStateText));
             OnPropertyChanged(nameof(CurrentCadStatusText));
             OnPropertyChanged(nameof(ActionHint));
-            OnPropertyChanged(nameof(HasSearchRevisionGuideEntryPoint));
+            OnPropertyChanged(nameof(HasSearchRevisionEntryPoint));
             OnPropertyChanged(nameof(HasOpenReadOnlyAction));
             OnPropertyChanged(nameof(HasCheckoutAction));
             OnPropertyChanged(nameof(HasCheckInAction));
@@ -1296,7 +1296,7 @@ namespace IdeaCadConnector.Desktop
                 && CadNodeHelper.IsAssemblyClassification(SelectedSearchResult.Part.PartType);
         }
 
-        private async Task ExecuteStartNewRevisionGuideAsync()
+        private async Task ExecuteStartNewRevisionAsync()
         {
             if (_currentCad == null) return;
 
@@ -1308,7 +1308,17 @@ namespace IdeaCadConnector.Desktop
                 CadNumber = _currentCad.CadNumber
             };
 
-            await _revisionService.ReviseAsync(request, CancellationToken.None);
+            var result = await _revisionService.ReviseAsync(request, CancellationToken.None);
+            if (result.Success)
+            {
+                StatusMessage = $"New revision created: {result.NewRevision ?? "-"}";
+                ResetSelectionState();
+                ExecuteSearchAsync(_currentPage);
+            }
+            else if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+            {
+                StatusMessage = result.ErrorMessage;
+            }
         }
 
         private void RefreshCanExecute()
@@ -1328,7 +1338,7 @@ namespace IdeaCadConnector.Desktop
             ((RelayCommand)ApproveCommand).RaiseCanExecuteChanged();
             ((RelayCommand)RequestReworkCommand).RaiseCanExecuteChanged();
             ((RelayCommand)RefreshWorkflowCommand).RaiseCanExecuteChanged();
-            ((RelayCommand)StartNewRevisionGuideCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
         }
 
         private void OnPropertyChanged([CallerMemberName] string propertyName = null)

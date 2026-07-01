@@ -802,7 +802,7 @@
                           </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         <DataGridTextColumn Width="220" Header="Part Name" Binding="{Binding Part.Name}" />
-                        <DataGridTextColumn Width="72" Header="Rev" Binding="{Binding Part.Revision}" />
+                        <DataGridTextColumn Width="72" Header="Part Rev" Binding="{Binding Part.Revision}" />
                         <DataGridTemplateColumn Width="160" Header="State">
                           <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -1061,13 +1061,13 @@
                         <RowDefinition Height="Auto" />
                       </Grid.RowDefinitions>
 
-                      <TextBlock Grid.Row="0" Style="{StaticResource MetaLabelStyle}" Text="Revision" />
+<TextBlock Grid.Row="0" Style="{StaticResource MetaLabelStyle}" Text="CAD Revision" />
                       <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Revision, TargetNullValue=-}" />
                       <TextBlock Grid.Row="1" Style="{StaticResource MetaLabelStyle}" Text="State" />
                       <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.State, TargetNullValue=-}" />
                       <TextBlock Grid.Row="2" Style="{StaticResource MetaLabelStyle}" Text="Classification" />
                       <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Classification, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="Generation" />
+                      <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="Aras Generation" />
                       <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Generation, TargetNullValue=-}" />
                       <TextBlock Grid.Row="4" Style="{StaticResource MetaLabelStyle}" Text="Locked By" />
                       <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.LockedBy, TargetNullValue=-}" />
@@ -1158,17 +1158,17 @@
                             BorderBrush="#FF5A6B8A"
                             Foreground="White"
                             FontWeight="SemiBold"
-                            Command="{Binding StartNewRevisionGuideCommand}"
-                            Content="New Revision Guide"
-                            Visibility="{Binding HasSearchRevisionGuideEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}"
-                            ToolTip="Guidance only — this app does not create new revisions. Click to learn the manual revision path in Aras." />
+                            Command="{Binding StartNewRevisionCommand}"
+                            Content="Start New Revision"
+                            Visibility="{Binding HasSearchRevisionEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}"
+                            ToolTip="Requests a new revision through the app revision flow. Server-side support is still required." />
 
                     <TextBlock Margin="0,6,0,0"
                                FontSize="11"
                                Foreground="#FF60708E"
                                TextWrapping="Wrap"
-                               Text="{Binding SearchRevisionGuideHint}"
-                               Visibility="{Binding HasSearchRevisionGuideHint, Converter={StaticResource BoolToVisibilityConverter}}" />
+                               Text="{Binding SearchRevisionHint}"
+                               Visibility="{Binding HasSearchRevisionHint, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                     <Border Margin="0,16,0,0"
                             Padding="14"
@@ -1263,3 +1263,4 @@
     </Grid>
   </Border>
 </Window>
+
