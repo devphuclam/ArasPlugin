@@ -286,6 +286,7 @@ namespace IdeaCadConnector.Workspace
             }
 
             foreach (var path in Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories)
+                .Where(value => !IsInsideIgnoredWorkspaceFolder(folderPath, value))
                 .OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
             {
                 var fileInfo = new FileInfo(path);
@@ -366,6 +367,29 @@ namespace IdeaCadConnector.Workspace
             ResolvePrimaryAssembly(result);
             ValidateSequences(result);
             return result;
+        }
+
+        private static bool IsInsideIgnoredWorkspaceFolder(string rootFolder, string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(rootFolder) || string.IsNullOrWhiteSpace(filePath))
+            {
+                return false;
+            }
+
+            var relativePath = filePath.StartsWith(rootFolder, StringComparison.OrdinalIgnoreCase)
+                ? filePath.Substring(rootFolder.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                : filePath;
+
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                return false;
+            }
+
+            var segments = relativePath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+            return segments.Any(segment =>
+                segment.Equals(".idea-pdm", StringComparison.OrdinalIgnoreCase) ||
+                segment.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
+                segment.Equals(".vs", StringComparison.OrdinalIgnoreCase));
         }
 
         public static string NormalizeProjectCode(string value, string separator)

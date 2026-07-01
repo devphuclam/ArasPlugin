@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Core.Cad;
@@ -10,6 +11,7 @@ using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Errors;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
 
 namespace IdeaCadConnector.Aras
 {
@@ -134,10 +136,11 @@ namespace IdeaCadConnector.Aras
             var warnings = new List<string>();
             var repositoryCode = request.RepositoryCode.Trim();
             var projectFolder = request.TargetFolder.Trim();
-            var cadFolder = Path.Combine(projectFolder, "ARAS01");
+            var cadFolder = projectFolder;
+            var drawingsFolder = Path.Combine(projectFolder, "ARAS01");
 
             Directory.CreateDirectory(projectFolder);
-            Directory.CreateDirectory(cadFolder);
+            Directory.CreateDirectory(drawingsFolder);
 
             var rootPart = await GetPartByNumberAsync(repositoryCode, ct).ConfigureAwait(false);
             if (rootPart == null)
@@ -162,20 +165,29 @@ namespace IdeaCadConnector.Aras
             var partIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var cadFileIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var documentNamesSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var clonedParts = new Dictionary<string, ClonePartInfo>(StringComparer.OrdinalIgnoreCase);
+            var selectedCadByPartId = new Dictionary<string, CloneCadInfo>(StringComparer.OrdinalIgnoreCase);
             var downloadedCadCount = 0;
             var placeholderDocumentCount = 0;
 
             partQueue.Enqueue(rootPart);
             partIdsSeen.Add(rootPart.Id);
+            clonedParts[rootPart.Id] = rootPart;
 
             while (partQueue.Count > 0)
             {
                 var part = partQueue.Dequeue();
+                var cadExpected = IsCadExpectedForPart(part.ItemNumber, string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase));
 
                 var cadCandidates = await GetPartCadCandidatesAsync(part.Id, ct).ConfigureAwait(false);
                 var selectedCad = SelectPreferredCad(cadCandidates, part.ItemNumber, string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase));
+                if (selectedCad == null && cadExpected)
+                {
+                    selectedCad = await FindFallbackCadAsync(part.ItemNumber, string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase), ct).ConfigureAwait(false);
+                }
                 if (selectedCad != null)
                 {
+                    selectedCadByPartId[part.Id] = selectedCad;
                     if (string.IsNullOrWhiteSpace(selectedCad.NativeFileId))
                     {
                         warnings.Add("CAD '" + selectedCad.ItemNumber + "' exists but has no native file on Aras.");
@@ -186,7 +198,7 @@ namespace IdeaCadConnector.Aras
                         downloadedCadCount++;
                     }
                 }
-                else
+                else if (cadExpected)
                 {
                     warnings.Add("No usable IronCAD record found for Part '" + part.ItemNumber + "'.");
                 }
@@ -215,6 +227,8 @@ namespace IdeaCadConnector.Aras
                         continue;
                     }
 
+                    childPart.ParentId = part.Id;
+                    clonedParts[childPart.Id] = childPart;
                     partQueue.Enqueue(childPart);
                 }
             }
@@ -233,6 +247,14 @@ namespace IdeaCadConnector.Aras
                     }
                 }
             }
+
+            placeholderDocumentCount += GeneratePackageShapeFiles(
+                repositoryCode,
+                projectFolder,
+                drawingsFolder,
+                rootPart,
+                clonedParts.Values,
+                selectedCadByPartId);
 
             return new PdmCloneResult
             {
@@ -860,87 +882,119 @@ namespace IdeaCadConnector.Aras
 
         private async Task<ClonePartInfo> GetPartByNumberAsync(string itemNumber, CancellationToken ct)
         {
-            var aml = $"<Item type=\"Part\" action=\"get\" select=\"id,item_number,name\">" +
-                $"<item_number>{EscapeAml(itemNumber)}</item_number>" +
-                "</Item>";
+            try
+            {
+                var aml = $"<Item type=\"Part\" action=\"get\" select=\"id,item_number,name\">" +
+                    $"<item_number>{EscapeAml(itemNumber)}</item_number>" +
+                    "</Item>";
 
-            var response = await _aml.ApplyAmlAsync(aml, "get", "Part", null, ct).ConfigureAwait(false);
-            return MapPartInfo(response?["Items"]?[0]);
+                var response = await _aml.ApplyAmlAsync(aml, "get", "Part", null, ct).ConfigureAwait(false);
+                return MapPartInfo(response?["Items"]?[0]);
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                return null;
+            }
         }
 
         private async Task<ClonePartInfo> GetPartByIdAsync(string partId, CancellationToken ct)
         {
-            var aml = $"<Item type=\"Part\" action=\"get\" select=\"id,item_number,name\">" +
-                $"<id>{EscapeAml(partId)}</id>" +
-                "</Item>";
+            if (string.IsNullOrWhiteSpace(partId))
+                return null;
 
-            var response = await _aml.ApplyAmlAsync(aml, "get", "Part", partId, ct).ConfigureAwait(false);
-            return MapPartInfo(response?["Items"]?[0]);
+            try
+            {
+                var response = await _aml.ApplyItemAsync("Part", partId, "get", "id,item_number,name", ct).ConfigureAwait(false);
+                return MapPartInfo(response);
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                return null;
+            }
         }
 
         private async Task<IReadOnlyList<string>> GetChildPartIdsAsync(string parentPartId, CancellationToken ct)
         {
-            var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"related_id\">" +
-                $"<source_id>{EscapeAml(parentPartId)}</source_id>" +
-                "</Item>";
-
-            var response = await _aml.ApplyAmlAsync(aml, "get", "Part BOM", null, ct).ConfigureAwait(false);
-            var items = response?["Items"];
-            if (items == null || !items.HasValues)
-                return Array.Empty<string>();
-
-            var ids = new List<string>();
-            foreach (var item in items)
+            try
             {
-                var relatedId = item?["related_id"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(relatedId))
-                {
-                    ids.Add(relatedId);
-                }
-            }
+                var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"related_id\">" +
+                    $"<source_id>{EscapeAml(parentPartId)}</source_id>" +
+                    "</Item>";
 
-            return ids;
+                var response = await _aml.ApplyAmlAsync(aml, "get", "Part BOM", null, ct).ConfigureAwait(false);
+                var items = response?["Items"];
+                if (items == null || !items.HasValues)
+                    return Array.Empty<string>();
+
+                var ids = new List<string>();
+                foreach (var item in items)
+                {
+                    var relatedId = item?["related_id"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(relatedId))
+                    {
+                        ids.Add(relatedId);
+                    }
+                }
+
+                return ids;
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                return Array.Empty<string>();
+            }
         }
 
         private async Task<IReadOnlyList<CloneCadInfo>> GetPartCadCandidatesAsync(string partId, CancellationToken ct)
         {
-            var relAml = $"<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
-                $"<source_id>{EscapeAml(partId)}</source_id>" +
-                "</Item>";
-
-            var response = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", null, ct).ConfigureAwait(false);
-            var items = response?["Items"];
-            if (items == null || !items.HasValues)
-                return Array.Empty<CloneCadInfo>();
-
-            var cads = new List<CloneCadInfo>();
-            foreach (var item in items)
+            try
             {
-                var cadId = item?["related_id"]?.ToString();
-                if (string.IsNullOrWhiteSpace(cadId))
-                    continue;
-
-                var cadAml = $"<Item type=\"CAD\" action=\"get\" select=\"id,item_number,name,classification,authoring_tool,native_file,generation\">" +
-                    $"<id>{EscapeAml(cadId)}</id>" +
+                var relAml = $"<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
+                    $"<source_id>{EscapeAml(partId)}</source_id>" +
                     "</Item>";
 
-                var cadResponse = await _aml.ApplyAmlAsync(cadAml, "get", "CAD", cadId, ct).ConfigureAwait(false);
-                var cadToken = cadResponse?["Items"]?[0];
-                if (cadToken == null)
-                    continue;
+                var response = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", null, ct).ConfigureAwait(false);
+                var items = response?["Items"];
+                if (items == null || !items.HasValues)
+                    return Array.Empty<CloneCadInfo>();
 
-                cads.Add(new CloneCadInfo
+                var cads = new List<CloneCadInfo>();
+                foreach (var item in items)
                 {
-                    Id = cadToken["id"]?.ToString(),
-                    ItemNumber = cadToken["item_number"]?.ToString(),
-                    Name = cadToken["name"]?.ToString(),
-                    Classification = cadToken["classification"]?.ToString(),
-                    AuthoringTool = cadToken["authoring_tool"]?.ToString(),
-                    NativeFileId = cadToken["native_file"]?.ToString()
-                });
-            }
+                    var cadId = item?["related_id"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(cadId))
+                        continue;
 
-            return cads;
+                    JObject cadResponse;
+                    try
+                    {
+                        cadResponse = await _aml.ApplyItemAsync("CAD", cadId, "get", "id,item_number,name,classification,authoring_tool,native_file,generation", ct).ConfigureAwait(false);
+                    }
+                    catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+                    {
+                        continue;
+                    }
+
+                    var cadToken = cadResponse;
+                    if (cadToken == null)
+                        continue;
+
+                    cads.Add(new CloneCadInfo
+                    {
+                        Id = cadToken["id"]?.ToString(),
+                        ItemNumber = cadToken["item_number"]?.ToString(),
+                        Name = cadToken["name"]?.ToString(),
+                        Classification = cadToken["classification"]?.ToString(),
+                        AuthoringTool = cadToken["authoring_tool"]?.ToString(),
+                        NativeFileId = cadToken["native_file"]?.ToString()
+                    });
+                }
+
+                return cads;
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                return Array.Empty<CloneCadInfo>();
+            }
         }
 
         private async Task<IReadOnlyList<string>> GetRelatedDocumentNamesAsync(string relationshipType, string sourceId, CancellationToken ct)
@@ -948,36 +1002,48 @@ namespace IdeaCadConnector.Aras
             if (string.IsNullOrWhiteSpace(sourceId))
                 return Array.Empty<string>();
 
-            var relAml = $"<Item type=\"{EscapeAml(relationshipType)}\" action=\"get\" select=\"related_id\">" +
-                $"<source_id>{EscapeAml(sourceId)}</source_id>" +
-                "</Item>";
-
-            var response = await _aml.ApplyAmlAsync(relAml, "get", relationshipType, null, ct).ConfigureAwait(false);
-            var items = response?["Items"];
-            if (items == null || !items.HasValues)
-                return Array.Empty<string>();
-
-            var names = new List<string>();
-            foreach (var item in items)
+            try
             {
-                var documentId = item?["related_id"]?.ToString();
-                if (string.IsNullOrWhiteSpace(documentId))
-                    continue;
-
-                var docAml = $"<Item type=\"Document\" action=\"get\" select=\"id,name,item_number\">" +
-                    $"<id>{EscapeAml(documentId)}</id>" +
+                var relAml = $"<Item type=\"{EscapeAml(relationshipType)}\" action=\"get\" select=\"related_id\">" +
+                    $"<source_id>{EscapeAml(sourceId)}</source_id>" +
                     "</Item>";
 
-                var docResponse = await _aml.ApplyAmlAsync(docAml, "get", "Document", documentId, ct).ConfigureAwait(false);
-                var docToken = docResponse?["Items"]?[0];
-                var documentName = docToken?["name"]?.ToString();
-                if (!string.IsNullOrWhiteSpace(documentName))
-                {
-                    names.Add(documentName);
-                }
-            }
+                var response = await _aml.ApplyAmlAsync(relAml, "get", relationshipType, null, ct).ConfigureAwait(false);
+                var items = response?["Items"];
+                if (items == null || !items.HasValues)
+                    return Array.Empty<string>();
 
-            return names;
+                var names = new List<string>();
+                foreach (var item in items)
+                {
+                    var documentId = item?["related_id"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(documentId))
+                        continue;
+
+                    JObject docResponse;
+                    try
+                    {
+                        docResponse = await _aml.ApplyItemAsync("Document", documentId, "get", "id,name,item_number", ct).ConfigureAwait(false);
+                    }
+                    catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+                    {
+                        continue;
+                    }
+
+                    var docToken = docResponse;
+                    var documentName = docToken?["name"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(documentName))
+                    {
+                        names.Add(documentName);
+                    }
+                }
+
+                return names;
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                return Array.Empty<string>();
+            }
         }
 
         private static ClonePartInfo MapPartInfo(Newtonsoft.Json.Linq.JToken token)
@@ -998,45 +1064,125 @@ namespace IdeaCadConnector.Aras
             if (candidates == null)
                 return null;
 
+            var expectedNumbers = BuildExpectedCadNumbers(partNumber, isRootPart);
             var filtered = candidates
-                .Where(cad => cad != null &&
-                    string.Equals(cad.AuthoringTool, CadConstants.IronCadAuthoringTool, StringComparison.OrdinalIgnoreCase))
+                .Where(cad => cad != null)
                 .ToList();
 
             if (filtered.Count == 0)
                 return null;
 
+            var exactIronCad = filtered
+                .Where(cad => string.Equals(cad.AuthoringTool, CadConstants.IronCadAuthoringTool, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
             if (isRootPart)
             {
-                var rootAssembly = filtered.FirstOrDefault(cad =>
+                var rootAssembly = exactIronCad.FirstOrDefault(cad =>
                     string.Equals(cad.Classification, IronCadAssemblyClassification, StringComparison.OrdinalIgnoreCase) &&
                     !string.IsNullOrWhiteSpace(cad.NativeFileId));
                 if (rootAssembly != null)
                     return rootAssembly;
 
                 rootAssembly = filtered.FirstOrDefault(cad =>
-                    !string.IsNullOrWhiteSpace(cad.ItemNumber) &&
-                    cad.ItemNumber.EndsWith("-CAD-ASM", StringComparison.OrdinalIgnoreCase));
+                    !string.IsNullOrWhiteSpace(cad.NativeFileId) &&
+                    expectedNumbers.Contains(cad.ItemNumber ?? string.Empty, StringComparer.OrdinalIgnoreCase));
                 if (rootAssembly != null)
                     return rootAssembly;
             }
             else
             {
-                var partCad = filtered.FirstOrDefault(cad =>
+                var partCad = exactIronCad.FirstOrDefault(cad =>
                     string.Equals(cad.Classification, CadConstants.IronCadPartClassification, StringComparison.OrdinalIgnoreCase) &&
                     !string.IsNullOrWhiteSpace(cad.NativeFileId));
+                if (partCad != null)
+                    return partCad;
+
+                partCad = filtered.FirstOrDefault(cad =>
+                    !string.IsNullOrWhiteSpace(cad.NativeFileId) &&
+                    expectedNumbers.Contains(cad.ItemNumber ?? string.Empty, StringComparer.OrdinalIgnoreCase));
                 if (partCad != null)
                     return partCad;
             }
 
             return filtered
                 .OrderByDescending(cad => !string.IsNullOrWhiteSpace(cad.NativeFileId))
+                .ThenByDescending(cad => string.Equals(cad.AuthoringTool, CadConstants.IronCadAuthoringTool, StringComparison.OrdinalIgnoreCase))
                 .ThenByDescending(cad => string.Equals(cad.Classification, IronCadAssemblyClassification, StringComparison.OrdinalIgnoreCase))
-                .ThenByDescending(cad => !string.IsNullOrWhiteSpace(partNumber) &&
-                    !string.IsNullOrWhiteSpace(cad.ItemNumber) &&
-                    cad.ItemNumber.StartsWith(partNumber, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(cad => expectedNumbers.Contains(cad.ItemNumber ?? string.Empty, StringComparer.OrdinalIgnoreCase))
                 .ThenBy(cad => cad.ItemNumber ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault();
+        }
+
+        private async Task<CloneCadInfo> FindFallbackCadAsync(string partNumber, bool isRootPart, CancellationToken ct)
+        {
+            foreach (var cadNumber in BuildExpectedCadNumbers(partNumber, isRootPart))
+            {
+                var cadId = await FindItemByNumberAsync("CAD", cadNumber, ct).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(cadId))
+                    continue;
+
+                try
+                {
+                    var cadToken = await _aml.ApplyItemAsync("CAD", cadId, "get", "id,item_number,name,classification,authoring_tool,native_file,generation", ct).ConfigureAwait(false);
+                    if (cadToken == null)
+                        continue;
+
+                    return new CloneCadInfo
+                    {
+                        Id = cadToken["id"]?.ToString(),
+                        ItemNumber = cadToken["item_number"]?.ToString(),
+                        Name = cadToken["name"]?.ToString(),
+                        Classification = cadToken["classification"]?.ToString(),
+                        AuthoringTool = cadToken["authoring_tool"]?.ToString(),
+                        NativeFileId = cadToken["native_file"]?.ToString()
+                    };
+                }
+                catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+                {
+                    continue;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsCadExpectedForPart(string partNumber, bool isRootPart)
+        {
+            if (string.IsNullOrWhiteSpace(partNumber))
+                return false;
+
+            if (isRootPart)
+                return true;
+
+            return partNumber.Count(ch => ch == '-') >= 2;
+        }
+
+        private static IReadOnlyList<string> BuildExpectedCadNumbers(string partNumber, bool isRootPart)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrWhiteSpace(partNumber))
+                return result;
+
+            if (isRootPart)
+            {
+                result.Add(partNumber + "-CAD-ASM");
+                result.Add(partNumber + "-ICS");
+                return result;
+            }
+
+            var match = System.Text.RegularExpressions.Regex.Match(
+                partNumber,
+                @"^(?<project>.+)-(?<group>\d{2})-(?<index>\d{2})$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (match.Success)
+            {
+                result.Add(match.Groups["project"].Value + "-CAD-" + match.Groups["group"].Value + "-" + match.Groups["index"].Value);
+            }
+
+            result.Add(partNumber + "-ICS");
+            return result;
         }
 
         private static void EnsurePlaceholderFile(string path)
@@ -1053,11 +1199,226 @@ namespace IdeaCadConnector.Aras
             }
         }
 
+        private static int GeneratePackageShapeFiles(
+            string repositoryCode,
+            string projectFolder,
+            string drawingsFolder,
+            ClonePartInfo rootPart,
+            IEnumerable<ClonePartInfo> allParts,
+            IReadOnlyDictionary<string, CloneCadInfo> selectedCadByPartId)
+        {
+            var createdCount = 0;
+            var parts = allParts?.Where(p => p != null).ToList() ?? new List<ClonePartInfo>();
+            var partById = parts
+                .Where(p => !string.IsNullOrWhiteSpace(p.Id))
+                .GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            string projectCode = repositoryCode;
+            string version = "1.0";
+
+            foreach (var cad in selectedCadByPartId?.Values ?? Array.Empty<CloneCadInfo>())
+            {
+                var fileName = cad?.Name ?? string.Empty;
+                if (TryParseAssemblyCadName(fileName, out var parsedProject, out var parsedVersion))
+                {
+                    projectCode = parsedProject;
+                    version = parsedVersion;
+                    break;
+                }
+
+                if (TryParseDetailCadName(fileName, out parsedProject, out parsedVersion, out _))
+                {
+                    projectCode = parsedProject;
+                    version = parsedVersion;
+                }
+            }
+
+            createdCount += EnsurePlaceholderFileCreated(Path.Combine(projectFolder, projectCode + "_Ver" + version + ".dwg"));
+
+            foreach (var cad in selectedCadByPartId?.Values ?? Array.Empty<CloneCadInfo>())
+            {
+                var fileName = cad?.Name;
+                if (string.IsNullOrWhiteSpace(fileName))
+                    continue;
+
+                var drawingName = Path.GetFileNameWithoutExtension(fileName) + ".dwg";
+                createdCount += EnsurePlaceholderFileCreated(Path.Combine(drawingsFolder, drawingName));
+            }
+
+            var rootChildren = parts
+                .Where(p => string.Equals(p.ParentId, rootPart.Id, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(p => ExtractPartNumberTuple(p.ItemNumber).group)
+                .ThenBy(p => ExtractPartNumberTuple(p.ItemNumber).index)
+                .ToList();
+
+            foreach (var groupPart in rootChildren)
+            {
+                var tuple = ExtractPartNumberTuple(groupPart.ItemNumber);
+                var groupNumber = tuple.group <= 0 ? 0 : tuple.group;
+                var groupName = NormalizePartDisplayName(groupPart.Name, groupPart.ItemNumber);
+                if (groupNumber > 0)
+                {
+                    createdCount += EnsurePlaceholderFileCreated(Path.Combine(
+                        projectFolder,
+                        groupNumber.ToString("00") + ". " + groupName + ".pdf"));
+                }
+
+                var children = parts
+                    .Where(p => string.Equals(p.ParentId, groupPart.Id, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(p => ExtractPartNumberTuple(p.ItemNumber).index)
+                    .ToList();
+
+                for (var i = 0; i < children.Count; i++)
+                {
+                    var child = children[i];
+                    var childTuple = ExtractPartNumberTuple(child.ItemNumber);
+                    var childNumber = childTuple.index <= 0 ? i + 1 : childTuple.index;
+                    var letter = (char)('A' + i);
+                    var childName = NormalizePartDisplayName(child.Name, child.ItemNumber);
+                    if (groupNumber > 0)
+                    {
+                        var pdfName = groupNumber.ToString("00") + letter + ". " +
+                            groupName + "_" + childNumber.ToString("00") + "_" + childName + ".pdf";
+                        createdCount += EnsurePlaceholderFileCreated(Path.Combine(projectFolder, pdfName));
+                    }
+                }
+            }
+
+            createdCount += EnsureStructureSummaryFile(projectFolder, projectCode, version, rootChildren, partById);
+            return createdCount;
+        }
+
+        private static int EnsureStructureSummaryFile(
+            string projectFolder,
+            string projectCode,
+            string version,
+            IReadOnlyList<ClonePartInfo> rootChildren,
+            IReadOnlyDictionary<string, ClonePartInfo> partById)
+        {
+            var path = Path.Combine(projectFolder, projectCode + "-STRUCTURE.txt");
+            if (File.Exists(path))
+                return 0;
+
+            var lines = new List<string>
+            {
+                "Project   : " + projectCode,
+                "Version   : " + version,
+                "Generated : " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                string.Empty,
+                "Business structure:"
+            };
+
+            foreach (var groupPart in rootChildren)
+            {
+                var tuple = ExtractPartNumberTuple(groupPart.ItemNumber);
+                lines.Add("  " + tuple.group.ToString("00") + ". " + NormalizePartDisplayName(groupPart.Name, groupPart.ItemNumber));
+
+                var childParts = partById.Values
+                    .Where(p => string.Equals(p.ParentId, groupPart.Id, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(p => ExtractPartNumberTuple(p.ItemNumber).index)
+                    .ToList();
+
+                for (var i = 0; i < childParts.Count; i++)
+                {
+                    var child = childParts[i];
+                    var childTuple = ExtractPartNumberTuple(child.ItemNumber);
+                    lines.Add("    " + tuple.group.ToString("00") + (char)('A' + i) + ". " +
+                        NormalizePartDisplayName(child.Name, child.ItemNumber) +
+                        " (" + childTuple.index.ToString("00") + ")");
+                }
+            }
+
+            File.WriteAllLines(path, lines);
+            return 1;
+        }
+
+        private static int EnsurePlaceholderFileCreated(string path)
+        {
+            if (File.Exists(path))
+                return 0;
+
+            EnsurePlaceholderFile(path);
+            return 1;
+        }
+
+        private static bool TryParseAssemblyCadName(string fileName, out string projectCode, out string version)
+        {
+            projectCode = null;
+            version = null;
+            if (string.IsNullOrWhiteSpace(fileName))
+                return false;
+
+            var match = Regex.Match(
+                fileName,
+                @"^Assembly-(?<project>.+)-Ver(?<version>\d+\.\d+)[A-Za-z].*\.ics$",
+                RegexOptions.IgnoreCase);
+
+            if (!match.Success)
+                return false;
+
+            projectCode = match.Groups["project"].Value;
+            version = match.Groups["version"].Value;
+            return true;
+        }
+
+        private static bool TryParseDetailCadName(string fileName, out string projectCode, out string version, out int sequence)
+        {
+            projectCode = null;
+            version = null;
+            sequence = 0;
+            if (string.IsNullOrWhiteSpace(fileName))
+                return false;
+
+            var match = Regex.Match(
+                fileName,
+                @"^(?<project>.+)_Ver(?<version>\d+\.\d+)_(?<sequence>\d{3})\.ics$",
+                RegexOptions.IgnoreCase);
+
+            if (!match.Success)
+                return false;
+
+            projectCode = match.Groups["project"].Value;
+            version = match.Groups["version"].Value;
+            int.TryParse(match.Groups["sequence"].Value, out sequence);
+            return true;
+        }
+
+        private static (int group, int index) ExtractPartNumberTuple(string partNumber)
+        {
+            if (string.IsNullOrWhiteSpace(partNumber))
+                return (0, 0);
+
+            var match = Regex.Match(partNumber, @"-(?<group>\d{2})(?:-(?<index>\d{2}))?$");
+            if (!match.Success)
+                return (0, 0);
+
+            var group = 0;
+            var index = 0;
+            int.TryParse(match.Groups["group"].Value, out group);
+            if (match.Groups["index"].Success)
+                int.TryParse(match.Groups["index"].Value, out index);
+
+            return (group, index);
+        }
+
+        private static string NormalizePartDisplayName(string name, string fallback)
+        {
+            var value = string.IsNullOrWhiteSpace(name) ? fallback : name;
+            if (string.IsNullOrWhiteSpace(value))
+                return "Part";
+
+            value = Regex.Replace(value, @"^\d+\s*", string.Empty).Trim();
+            value = value.Replace("/", "_").Replace("\\", "_").Replace(":", "_");
+            return value;
+        }
+
         private sealed class ClonePartInfo
         {
             public string Id { get; set; }
             public string ItemNumber { get; set; }
             public string Name { get; set; }
+            public string ParentId { get; set; }
         }
 
         private sealed class CloneCadInfo
