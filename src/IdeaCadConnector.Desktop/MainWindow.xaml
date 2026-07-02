@@ -417,6 +417,19 @@
               </Grid>
             </Button>
 
+            <Button x:Name="LibraryNavigationButton"
+                    Style="{StaticResource SidebarButtonStyle}"
+                    Click="OnLibraryNavigationClick">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="32" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8B7;" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Library" />
+              </Grid>
+            </Button>
+
             <Button Style="{StaticResource SidebarButtonStyle}">
               <Grid>
                 <Grid.ColumnDefinitions>
@@ -1275,6 +1288,12 @@
           <local:PdmProjectsView />
         </ScrollViewer>
 
+        <Grid x:Name="LibraryWorkspace"
+              Grid.Row="1"
+              Visibility="Collapsed">
+          <local:LibraryView />
+        </Grid>
+
         <Grid Grid.Row="2" Margin="20,0,20,0">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -1294,4 +1313,3 @@
     </Grid>
   </Border>
 </Window>
-

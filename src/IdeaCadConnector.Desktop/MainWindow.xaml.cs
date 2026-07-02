@@ -44,13 +44,23 @@ namespace IdeaCadConnector.Desktop
         private void OnPdmProjectsNavigationClick(object sender, RoutedEventArgs e)
         {
             ExistingWorkspace.Visibility = Visibility.Collapsed;
+            LibraryWorkspace.Visibility = Visibility.Collapsed;
             PdmWorkspace.Visibility = Visibility.Visible;
             SetActiveNavigation(PdmProjectsNavigationButton);
+        }
+
+        private void OnLibraryNavigationClick(object sender, RoutedEventArgs e)
+        {
+            ExistingWorkspace.Visibility = Visibility.Collapsed;
+            PdmWorkspace.Visibility = Visibility.Collapsed;
+            LibraryWorkspace.Visibility = Visibility.Visible;
+            SetActiveNavigation(LibraryNavigationButton);
         }
 
         private void ShowExistingWorkspace(Button activeButton)
         {
             PdmWorkspace.Visibility = Visibility.Collapsed;
+            LibraryWorkspace.Visibility = Visibility.Collapsed;
             ExistingWorkspace.Visibility = Visibility.Visible;
             SetActiveNavigation(activeButton);
         }
@@ -64,6 +74,8 @@ namespace IdeaCadConnector.Desktop
             SearchNavigationButton.BorderBrush = transparent;
             PdmProjectsNavigationButton.Background = transparent;
             PdmProjectsNavigationButton.BorderBrush = transparent;
+            LibraryNavigationButton.Background = transparent;
+            LibraryNavigationButton.BorderBrush = transparent;
 
             activeButton.Background = FindResource("SidebarActiveBrush") as Brush;
             activeButton.BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0x90, 0xB8, 0xFF));

@@ -18,6 +18,7 @@ namespace IdeaCadConnector.Workspace
         public int StructureNodeCount { get; set; }
         public int CadFileCount { get; set; }
         public int DocumentFileCount { get; set; }
+        public int LibraryReferenceCount { get; set; }
         // TODO(PERF-CONTENT-HASH): Replace SnapshotSignature with SHA256-based
         // PdmContentHasher when Phase 1 index is introduced. Current signature
         // compares file identity only (paths + keys), not file content.

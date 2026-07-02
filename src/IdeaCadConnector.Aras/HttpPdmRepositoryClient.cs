@@ -59,7 +59,9 @@ namespace IdeaCadConnector.Aras
             foreach (var part in request.Parts ?? Array.Empty<PdmPartRequest>())
             {
                 var number = part.PartNumber;
-                var id = await FindItemByNumberAsync("Part", number, ct).ConfigureAwait(false);
+                var id = !string.IsNullOrWhiteSpace(part.ExistingPartId)
+                    ? (await GetPartByIdAsync(part.ExistingPartId, ct).ConfigureAwait(false))?.Id
+                    : await FindItemByNumberAsync("Part", number, ct).ConfigureAwait(false);
                 partsByNumber[number] = id != null;
                 partNumberByLogicalCode[part.LogicalCode] = number;
                 if (!string.IsNullOrWhiteSpace(id))
@@ -437,6 +439,30 @@ namespace IdeaCadConnector.Aras
         {
             try
             {
+                if (!string.IsNullOrWhiteSpace(part.ExistingPartId))
+                {
+                    var existingPartId = (await GetPartByIdAsync(part.ExistingPartId, ct).ConfigureAwait(false))?.Id;
+                    if (string.IsNullOrWhiteSpace(existingPartId))
+                    {
+                        return new PdmItemResult
+                        {
+                            SourceKey = part.LogicalCode,
+                            ItemNumber = part.PartNumber,
+                            Success = false,
+                            ErrorMessage = "Library Part reuse failed because the referenced Aras Part ID was not found."
+                        };
+                    }
+
+                    return new PdmItemResult
+                    {
+                        SourceKey = part.LogicalCode,
+                        ArasId = existingPartId,
+                        ItemNumber = part.PartNumber,
+                        Success = true,
+                        ActionTaken = "ReusedFromLibrary"
+                    };
+                }
+
                 var existingId = await FindItemByNumberAsync("Part", part.PartNumber, ct);
                 if (existingId != null)
                 {
@@ -678,20 +704,26 @@ namespace IdeaCadConnector.Aras
 
         private async Task EnsurePartBomAsync(string parentId, string childId, int quantity, CancellationToken ct)
         {
-            var existingRelId = await FindRelationshipAsync("Part BOM", parentId, childId, ct);
-            if (!string.IsNullOrWhiteSpace(existingRelId))
+            var existing = await FindPartBomInfoAsync(parentId, childId, ct).ConfigureAwait(false);
+            if (!existing.Exists)
             {
+                var relId = Guid.NewGuid().ToString("N").ToUpperInvariant();
+                var aml = $"<Item type=\"Part BOM\" action=\"add\" id=\"{relId}\">" +
+                    $"<source_id>{EscapeAml(parentId)}</source_id>" +
+                    $"<related_id>{EscapeAml(childId)}</related_id>" +
+                    $"<quantity>{quantity}</quantity>" +
+                    "</Item>";
+
+                await _aml.ApplyAmlAsync(aml, "add", "Part BOM", null, ct).ConfigureAwait(false);
                 return;
             }
 
-            var relId = Guid.NewGuid().ToString("N").ToUpperInvariant();
-            var aml = $"<Item type=\"Part BOM\" action=\"add\" id=\"{relId}\">" +
-                $"<source_id>{EscapeAml(parentId)}</source_id>" +
-                $"<related_id>{EscapeAml(childId)}</related_id>" +
-                $"<quantity>{quantity}</quantity>" +
-                "</Item>";
-
-            await _aml.ApplyAmlAsync(aml, "add", "Part BOM", null, ct).ConfigureAwait(false);
+            if (existing.ExistingQuantity.HasValue &&
+                existing.ExistingQuantity.Value != quantity &&
+                !string.IsNullOrWhiteSpace(existing.RelationshipId))
+            {
+                await UpdatePartBomQuantityAsync(existing.RelationshipId, quantity, ct).ConfigureAwait(false);
+            }
         }
 
         private async Task<PdmBomExistenceInfo> FindPartBomInfoAsync(string parentId, string childId, CancellationToken ct)
@@ -720,13 +752,23 @@ namespace IdeaCadConnector.Aras
                 return new PdmBomExistenceInfo
                 {
                     Exists = true,
-                    ExistingQuantity = int.TryParse(quantityToken, out parsedQuantity) ? parsedQuantity : (int?)null
+                    ExistingQuantity = int.TryParse(quantityToken, out parsedQuantity) ? parsedQuantity : (int?)null,
+                    RelationshipId = items[0]?["id"]?.ToString()
                 };
             }
             catch
             {
                 return new PdmBomExistenceInfo();
             }
+        }
+
+        private async Task UpdatePartBomQuantityAsync(string relationshipId, int quantity, CancellationToken ct)
+        {
+            var aml = $"<Item type=\"Part BOM\" action=\"edit\" id=\"{EscapeAml(relationshipId)}\">" +
+                $"<quantity>{quantity}</quantity>" +
+                "</Item>";
+
+            await _aml.ApplyAmlAsync(aml, "edit", "Part BOM", relationshipId, ct).ConfigureAwait(false);
         }
 
         private async Task EnsureRelationshipAsync(string relType, string sourceId, string relatedId, CancellationToken ct)

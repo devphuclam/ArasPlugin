@@ -32,9 +32,23 @@ namespace IdeaCadConnector.Desktop
         private readonly IRevisionService _revisionService;
         private IArasCadClient _arasClient;
         private ArasLoginResult _loginResult;
-        internal static IPdmRepositoryClient SharedPdmClient { get; set; }
-        internal static IArasCadClient SharedArasCadClient { get; set; }
-        internal static string SharedUserName { get; set; }
+        internal static IPdmRepositoryClient SharedPdmClient
+        {
+            get => AppSessionContext.Current.PdmClient;
+            set => AppSessionContext.Current.PdmClient = value;
+        }
+
+        internal static IArasCadClient SharedArasCadClient
+        {
+            get => AppSessionContext.Current.ArasCadClient;
+            set => AppSessionContext.Current.ArasCadClient = value;
+        }
+
+        internal static string SharedUserName
+        {
+            get => AppSessionContext.Current.CurrentUserName;
+            set => AppSessionContext.Current.CurrentUserName = value;
+        }
 
         private string _statusMessage = "Sign in to Aras to start.";
         private PartSearchResult _selectedSearchResult;
@@ -574,6 +588,14 @@ namespace IdeaCadConnector.Desktop
                 });
                 pdmClient.SetSession(_loginResult.SessionToken, null, request.Database);
                 SharedPdmClient = pdmClient;
+                (AppSessionContext.Current.PartLibraryClient as IDisposable)?.Dispose();
+                var partLibraryClient = new HttpPartLibraryClient(new ArasClientOptions
+                {
+                    BaseUri = new Uri(request.ServerUrl),
+                    Database = request.Database
+                });
+                partLibraryClient.SetSession(_loginResult.SessionToken, null, request.Database);
+                AppSessionContext.Current.PartLibraryClient = partLibraryClient;
             }
             catch (Exception ex)
             {
@@ -611,6 +633,9 @@ namespace IdeaCadConnector.Desktop
                 (SharedArasCadClient as IDisposable)?.Dispose();
                 SharedArasCadClient = null;
                 SharedUserName = null;
+                (AppSessionContext.Current.PartLibraryClient as IDisposable)?.Dispose();
+                AppSessionContext.Current.PartLibraryClient = null;
+                AppSessionContext.Current.CurrentPdmProjectsViewModel = null;
                 IsLoginPanelVisible = true;
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));

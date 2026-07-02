@@ -1,0 +1,15 @@
+<Window x:Class="IdeaCadConnector.Desktop.PublishLibraryEntryDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Publish to Standard Library" Width="980" Height="790"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" Background="#F8FAFD">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Border Background="White" BorderBrush="#E4EAF3" BorderThickness="0,0,0,1" Padding="24,20"><StackPanel><TextBlock Text="Publish to Standard Library" FontSize="24" FontWeight="Bold" Foreground="#17305F"/><TextBlock Text="Submit a reusable Part for review before it becomes available to all engineers." Margin="0,5,0,0" Foreground="#687995"/></StackPanel></Border>
+        <Grid Grid.Row="1" Margin="24">
+            <TextBlock Text="Publish workflow UI is included as the next step after the core reuse path. The Aras workflow backend is not wired in this MVP slice."
+                       TextWrapping="Wrap" Foreground="#334B76"/>
+        </Grid>
+        <Border Grid.Row="2" Background="White" BorderBrush="#E4EAF3" BorderThickness="0,1,0,0" Padding="24,16"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Width="96" Height="40" Content="Close" IsCancel="True"/></StackPanel></Border>
+    </Grid>
+</Window>

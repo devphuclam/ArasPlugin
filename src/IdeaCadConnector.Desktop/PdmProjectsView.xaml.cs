@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using IdeaCadConnector.Core.Localization;
+using IdeaCadConnector.Desktop.Services;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -16,7 +17,9 @@ namespace IdeaCadConnector.Desktop
         public PdmProjectsView()
         {
             InitializeComponent();
-            DataContext = new PdmProjectsViewModel();
+            var viewModel = new PdmProjectsViewModel();
+            DataContext = viewModel;
+            AppSessionContext.Current.CurrentPdmProjectsViewModel = viewModel;
             _originalLeftPanelWidth = LeftPanelColumn.Width;
             _originalMiddlePanelWidth = MiddlePanelColumn.Width;
             LocalizationSource.Instance.PropertyChanged += OnLocalizationChanged;

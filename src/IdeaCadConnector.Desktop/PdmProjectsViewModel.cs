@@ -14,7 +14,9 @@ using System.Windows.Input;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Core.Localization;
+using IdeaCadConnector.Desktop.Services;
 using IdeaCadConnector.Workspace;
 using Newtonsoft.Json;
 using WinForms = System.Windows.Forms;
@@ -60,6 +62,7 @@ namespace IdeaCadConnector.Desktop
 
         private CheckoutService _checkoutService;
         private WorkspaceService _workspaceService;
+        private WorkspaceLibraryReferenceStore _libraryReferenceStore;
         private IRevisionService _revisionService;
         private PdmRevisePreconditionResult _revisionPreconditions;
         private string _cadLockStateText;
@@ -83,6 +86,7 @@ namespace IdeaCadConnector.Desktop
         private bool _canCheckIn;
         private bool _canCancelCheckout;
         private CadOperationContext _cadOperationContext;
+        private IReadOnlyList<WorkspaceLibraryReference> _workspaceLibraryReferences = Array.Empty<WorkspaceLibraryReference>();
 
         public PdmProjectsViewModel()
             : this(new GuidanceRevisionService())
@@ -92,6 +96,7 @@ namespace IdeaCadConnector.Desktop
         public PdmProjectsViewModel(IRevisionService revisionService)
         {
             _workspaceService = new WorkspaceService(new WorkspaceOptions());
+            _libraryReferenceStore = new WorkspaceLibraryReferenceStore(_workspaceService);
             _revisionService = revisionService ?? throw new ArgumentNullException(nameof(revisionService));
             Repositories = new ObservableCollection<string>();
             Branches = new ObservableCollection<string>();
@@ -146,6 +151,8 @@ namespace IdeaCadConnector.Desktop
 
             AnalyzeFolder();
         }
+
+        public string RepositoryCodeForDisplay => SelectedRepository ?? _latestAnalysis?.ProjectCode ?? "-";
 
         public ObservableCollection<string> Repositories { get; }
         public ObservableCollection<string> Branches { get; }
@@ -776,7 +783,14 @@ namespace IdeaCadConnector.Desktop
                     PartNumber = p.PartNumber,
                     Name = p.Name,
                     Classification = p.Classification,
-                    Quantity = p.Quantity
+                    Quantity = p.Quantity,
+                    ExistingPartId = p.ExistingPartId,
+                    ExistingPartConfigId = p.ExistingPartConfigId,
+                    ExistingPartRevision = p.ExistingPartRevision,
+                    SourceKind = p.SourceKind,
+                    LibraryEntryId = p.LibraryEntryId,
+                    RevisionPolicy = p.RevisionPolicy,
+                    IsExternalReference = p.IsExternalReference
                 }).ToList(),
                 Cads = _pushPreview.Cads.Select(c => new PdmCadRequest
                 {
@@ -975,6 +989,8 @@ namespace IdeaCadConnector.Desktop
                 _latestAnalysis.AssemblyFiles.Add(rootDrawing);
             }
 
+            _workspaceLibraryReferences = LoadWorkspaceLibraryReferences();
+
             PdmStructure.Clear();
             CadStructure.Clear();
             StructureMappings.Clear();
@@ -1100,6 +1116,11 @@ namespace IdeaCadConnector.Desktop
             {
                 Changes.Add(new PdmFileChange("Blocked", issue.FileName, "#FFD54B4B"));
             }
+
+            foreach (var reference in _workspaceLibraryReferences.OrderBy(item => item.PartNumber, StringComparer.OrdinalIgnoreCase))
+            {
+                Changes.Add(new PdmFileChange("Library", reference.PartNumber + " -> " + reference.ParentLogicalCode, "#FF0F8F86"));
+            }
         }
 
         private void BuildPdmStructure(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
@@ -1150,6 +1171,8 @@ namespace IdeaCadConnector.Desktop
                         sourceDocument: detail.FileName));
                 }
             }
+
+            MergeLibraryReferencesIntoStructure(root);
 
             PdmStructure.Add(root);
             SelectedNode = root;
@@ -1230,6 +1253,183 @@ namespace IdeaCadConnector.Desktop
             }
 
             return node;
+        }
+
+        private IReadOnlyList<WorkspaceLibraryReference> LoadWorkspaceLibraryReferences()
+        {
+            return _libraryReferenceStore.Load(FolderPath)
+                .Where(reference =>
+                    !string.IsNullOrWhiteSpace(reference.ReferenceId) &&
+                    !string.IsNullOrWhiteSpace(reference.ParentLogicalCode) &&
+                    !string.IsNullOrWhiteSpace(reference.PartId))
+                .ToList();
+        }
+
+        private void MergeLibraryReferencesIntoStructure(PdmStructureNode root)
+        {
+            if (root == null || _workspaceLibraryReferences == null || _workspaceLibraryReferences.Count == 0)
+                return;
+
+            foreach (var reference in _workspaceLibraryReferences)
+            {
+                var parent = FindStructureNode(root, reference.ParentLogicalCode);
+                if (parent == null)
+                    continue;
+
+                parent.Children.Add(CreateLibraryStructureNode(reference));
+            }
+        }
+
+        private static PdmStructureNode FindStructureNode(PdmStructureNode node, string partCode)
+        {
+            if (node == null || string.IsNullOrWhiteSpace(partCode))
+                return null;
+
+            if (string.Equals(node.PartCode, partCode, StringComparison.OrdinalIgnoreCase))
+                return node;
+
+            foreach (var child in node.Children)
+            {
+                var match = FindStructureNode(child, partCode);
+                if (match != null)
+                    return match;
+            }
+
+            return null;
+        }
+
+        private static PdmStructureNode CreateLibraryStructureNode(WorkspaceLibraryReference reference)
+        {
+            return new PdmStructureNode(
+                (reference.PartName ?? reference.PartNumber ?? "Library Part") + " [Library]",
+                reference.LocalLogicalCode ?? reference.PartNumber,
+                "Component",
+                Math.Max(1, reference.Quantity),
+                reference.Revision ?? "-",
+                "Library reference • " + (reference.RevisionPolicy ?? "Pinned"),
+                "#FF0F8F86",
+                perspective: "PDM",
+                primaryCad: reference.PartNumber ?? "-",
+                sourceDocument: "Library Entry",
+                sourceKind: LibrarySourceKind.LibraryReference.ToString(),
+                libraryEntryId: reference.LibraryEntryId,
+                arasPartId: reference.PartId,
+                arasConfigId: reference.PartConfigId,
+                revisionPolicy: reference.RevisionPolicy,
+                isLibraryReference: true);
+        }
+
+        private AnalyzeResult AppendLibraryReferenceNodes(AnalyzeResult analyzeResult)
+        {
+            if (analyzeResult == null || _workspaceLibraryReferences == null || _workspaceLibraryReferences.Count == 0)
+                return analyzeResult;
+
+            var structureNodes = analyzeResult.StructureNodes?.ToList() ?? new List<AnalyzedStructureNode>();
+            var maxSortOrder = structureNodes.Count == 0 ? 0 : structureNodes.Max(node => node.SortOrder);
+
+            foreach (var reference in _workspaceLibraryReferences)
+            {
+                structureNodes.Add(new AnalyzedStructureNode
+                {
+                    LogicalCode = reference.LocalLogicalCode,
+                    ParentLogicalCode = reference.ParentLogicalCode,
+                    DisplayName = reference.PartName ?? reference.PartNumber,
+                    NodeType = "Component",
+                    PartNumber = reference.PartNumber,
+                    Quantity = Math.Max(1, reference.Quantity),
+                    SourceDocumentPath = "Library Entry",
+                    PrimaryCadPath = null,
+                    SortOrder = ++maxSortOrder,
+                    SourceKind = LibrarySourceKind.LibraryReference.ToString(),
+                    LibraryEntryId = reference.LibraryEntryId,
+                    ExistingPartId = reference.PartId,
+                    ExistingPartConfigId = reference.PartConfigId,
+                    ExistingPartRevision = reference.Revision,
+                    RevisionPolicy = reference.RevisionPolicy,
+                    IsExternalReference = true
+                });
+            }
+
+            return new AnalyzeResult
+            {
+                RepositoryCode = analyzeResult.RepositoryCode,
+                ProjectName = analyzeResult.ProjectName,
+                PackageSourcePath = analyzeResult.PackageSourcePath,
+                CadSourcePath = analyzeResult.CadSourcePath,
+                PolicyVersion = analyzeResult.PolicyVersion,
+                StructureNodes = structureNodes,
+                CadFiles = analyzeResult.CadFiles,
+                DocumentFiles = analyzeResult.DocumentFiles,
+                IgnoredFiles = analyzeResult.IgnoredFiles,
+                Warnings = analyzeResult.Warnings,
+                Summary = analyzeResult.Summary
+            };
+        }
+
+        public IReadOnlyList<LibraryParentCandidate> GetLibraryParentCandidates()
+        {
+            var candidates = new List<LibraryParentCandidate>();
+            foreach (var root in PdmStructure)
+                CollectParentCandidates(root, candidates);
+            return candidates;
+        }
+
+        public LibraryReferenceMutationResult AddLibraryReference(WorkspaceLibraryReference reference)
+        {
+            if (reference == null)
+            {
+                return new LibraryReferenceMutationResult(false, "No Library reference was provided.");
+            }
+
+            if (string.IsNullOrWhiteSpace(FolderPath))
+            {
+                return new LibraryReferenceMutationResult(false, "Open or clone a PDM project before adding a Library Part.");
+            }
+
+            if (string.IsNullOrWhiteSpace(reference.ParentLogicalCode))
+            {
+                return new LibraryReferenceMutationResult(false, "Choose a target parent in the Product Structure.");
+            }
+
+            if (reference.Quantity <= 0)
+            {
+                return new LibraryReferenceMutationResult(false, "Quantity must be greater than 0.");
+            }
+
+            var existing = _libraryReferenceStore.Load(FolderPath).ToList();
+            var duplicate = existing.FirstOrDefault(item =>
+                string.Equals(item.ParentLogicalCode, reference.ParentLogicalCode, StringComparison.OrdinalIgnoreCase) &&
+                (string.Equals(item.LibraryEntryId, reference.LibraryEntryId, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(item.PartId, reference.PartId, StringComparison.OrdinalIgnoreCase)));
+
+            if (duplicate != null)
+            {
+                duplicate.Quantity = reference.Quantity;
+                duplicate.Revision = reference.Revision;
+                duplicate.RevisionPolicy = reference.RevisionPolicy;
+                _libraryReferenceStore.Save(FolderPath, existing);
+                AnalyzeFolder();
+                return new LibraryReferenceMutationResult(true, "Existing Library reference quantity updated in the workspace.");
+            }
+
+            _libraryReferenceStore.Upsert(FolderPath, reference);
+            AnalyzeFolder();
+            return new LibraryReferenceMutationResult(true, "Library reference added to the current workspace.");
+        }
+
+        private static void CollectParentCandidates(PdmStructureNode node, ICollection<LibraryParentCandidate> candidates)
+        {
+            if (node == null)
+                return;
+
+            candidates.Add(new LibraryParentCandidate
+            {
+                LogicalCode = node.PartCode,
+                DisplayName = node.Name + " (" + node.PartCode + ")"
+            });
+
+            foreach (var child in node.Children)
+                CollectParentCandidates(child, candidates);
         }
 
         private void BuildStructureMappings(PdmFolderAnalysis analysis, PdmBusinessStructureAnalysis businessStructure)
@@ -2476,6 +2676,8 @@ namespace IdeaCadConnector.Desktop
             if (analyzeResult == null)
                 return;
 
+            analyzeResult = AppendLibraryReferenceNodes(analyzeResult);
+
             var builder = new PdmPushPreviewBuilder();
             _pushPreview = builder.Build(analyzeResult, SelectedBranch, CommitMessage);
 
@@ -2687,6 +2889,16 @@ namespace IdeaCadConnector.Desktop
             nodeKeys.Sort(StringComparer.OrdinalIgnoreCase);
             parts.Add("SN:" + string.Join(",", nodeKeys));
 
+            var libraryKeys = _workspaceLibraryReferences
+                .OrderBy(reference => reference.ReferenceId, StringComparer.OrdinalIgnoreCase)
+                .Select(reference =>
+                    (reference.LibraryEntryId ?? string.Empty) + ":" +
+                    (reference.PartId ?? string.Empty) + ":" +
+                    (reference.ParentLogicalCode ?? string.Empty) + ":" +
+                    reference.Quantity + ":" +
+                    (reference.RevisionPolicy ?? string.Empty));
+            parts.Add("LIB:" + string.Join(",", libraryKeys));
+
             return string.Join("|", parts);
         }
 
@@ -2812,6 +3024,7 @@ namespace IdeaCadConnector.Desktop
                 StructureNodeCount = CountBusinessNodes(_latestBusinessStructure),
                 CadFileCount = (_latestAnalysis?.AssemblyFiles?.Count ?? 0) + (_latestAnalysis?.DetailFiles?.Count ?? 0),
                 DocumentFileCount = _latestAnalysis?.DocumentFiles?.Count ?? 0,
+                LibraryReferenceCount = _workspaceLibraryReferences.Count,
                 SnapshotSignature = ComputeSnapshotSignature()
             };
 
@@ -2875,8 +3088,11 @@ namespace IdeaCadConnector.Desktop
                 PreviewParts.Clear();
                 foreach (var part in _pushPreview.Parts)
                 {
-                    var exists = existence.PartsByNumber.TryGetValue(part.PartNumber, out var e) && e;
-                    var action = exists ? "Reuse" : "Create";
+                    var exists = string.Equals(part.SourceKind, LibrarySourceKind.LibraryReference.ToString(), StringComparison.OrdinalIgnoreCase)
+                        || (existence.PartsByNumber.TryGetValue(part.PartNumber, out var e) && e);
+                    var action = string.Equals(part.SourceKind, LibrarySourceKind.LibraryReference.ToString(), StringComparison.OrdinalIgnoreCase)
+                        ? "Reuse from Library"
+                        : (exists ? "Reuse" : "Create");
                     if (exists &&
                         !string.IsNullOrWhiteSpace(part.ParentLogicalCode) &&
                         existence.BomByChildLogicalCode != null &&
@@ -2900,7 +3116,14 @@ namespace IdeaCadConnector.Desktop
                         Name = part.Name,
                         Classification = part.Classification,
                         Quantity = part.Quantity,
-                        Action = action
+                        Action = action,
+                        ExistingPartId = part.ExistingPartId,
+                        ExistingPartConfigId = part.ExistingPartConfigId,
+                        ExistingPartRevision = part.ExistingPartRevision,
+                        SourceKind = part.SourceKind,
+                        LibraryEntryId = part.LibraryEntryId,
+                        RevisionPolicy = part.RevisionPolicy,
+                        IsExternalReference = part.IsExternalReference
                     });
                 }
 
@@ -3163,7 +3386,13 @@ namespace IdeaCadConnector.Desktop
             string perspective = null,
             string primaryCad = null,
             string lockedBy = null,
-            string sourceDocument = null)
+            string sourceDocument = null,
+            string sourceKind = null,
+            string libraryEntryId = null,
+            string arasPartId = null,
+            string arasConfigId = null,
+            string revisionPolicy = null,
+            bool isLibraryReference = false)
         {
             Name = name;
             PartCode = partCode;
@@ -3177,6 +3406,12 @@ namespace IdeaCadConnector.Desktop
             PrimaryCad = primaryCad ?? "-";
             LockedBy = lockedBy ?? "-";
             SourceDocument = sourceDocument ?? "-";
+            SourceKind = sourceKind ?? LibrarySourceKind.Generated.ToString();
+            LibraryEntryId = libraryEntryId;
+            ArasPartId = arasPartId;
+            ArasConfigId = arasConfigId;
+            RevisionPolicy = revisionPolicy;
+            IsLibraryReference = isLibraryReference;
         }
 
         public string Name { get; }
@@ -3190,7 +3425,26 @@ namespace IdeaCadConnector.Desktop
         public string PrimaryCad { get; }
         public string LockedBy { get; }
         public string SourceDocument { get; }
+        public string SourceKind { get; }
+        public string LibraryEntryId { get; }
+        public string ArasPartId { get; }
+        public string ArasConfigId { get; }
+        public string RevisionPolicy { get; }
+        public bool IsLibraryReference { get; }
         public ObservableCollection<PdmStructureNode> Children { get; }
+    }
+
+    public sealed class LibraryReferenceMutationResult
+    {
+        public LibraryReferenceMutationResult(bool success, string message)
+        {
+            Success = success;
+            Message = message;
+        }
+
+        public bool Success { get; }
+
+        public string Message { get; }
     }
 
     public sealed class PdmStructureMappingItem

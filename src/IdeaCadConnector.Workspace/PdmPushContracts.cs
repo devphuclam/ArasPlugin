@@ -24,10 +24,18 @@ namespace IdeaCadConnector.Workspace
         public string ParentLogicalCode { get; set; }
         public string DisplayName { get; set; }
         public string NodeType { get; set; }
+        public string PartNumber { get; set; }
         public int Quantity { get; set; }
         public string SourceDocumentPath { get; set; }
         public string PrimaryCadPath { get; set; }
         public int SortOrder { get; set; }
+        public string SourceKind { get; set; }
+        public string LibraryEntryId { get; set; }
+        public string ExistingPartId { get; set; }
+        public string ExistingPartConfigId { get; set; }
+        public string ExistingPartRevision { get; set; }
+        public string RevisionPolicy { get; set; }
+        public bool IsExternalReference { get; set; }
     }
 
     public sealed class AnalyzedCadFile
@@ -100,6 +108,13 @@ namespace IdeaCadConnector.Workspace
         public string Classification { get; set; }
         public int Quantity { get; set; }
         public string Action { get; set; }
+        public string ExistingPartId { get; set; }
+        public string ExistingPartConfigId { get; set; }
+        public string ExistingPartRevision { get; set; }
+        public string SourceKind { get; set; }
+        public string LibraryEntryId { get; set; }
+        public string RevisionPolicy { get; set; }
+        public bool IsExternalReference { get; set; }
     }
 
     public sealed class CadPreviewRow

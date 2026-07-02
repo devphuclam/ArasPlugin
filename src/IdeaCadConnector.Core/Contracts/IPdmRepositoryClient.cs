@@ -41,6 +41,7 @@ namespace IdeaCadConnector.Core.Contracts
     {
         public bool Exists { get; set; }
         public int? ExistingQuantity { get; set; }
+        public string RelationshipId { get; set; }
     }
 
     public sealed class PdmPushRequest
@@ -64,6 +65,13 @@ namespace IdeaCadConnector.Core.Contracts
         public string Name { get; set; }
         public string Classification { get; set; }
         public int Quantity { get; set; }
+        public string ExistingPartId { get; set; }
+        public string ExistingPartConfigId { get; set; }
+        public string ExistingPartRevision { get; set; }
+        public string SourceKind { get; set; }
+        public string LibraryEntryId { get; set; }
+        public string RevisionPolicy { get; set; }
+        public bool IsExternalReference { get; set; }
     }
 
     public sealed class PdmCadRequest

@@ -51,6 +51,9 @@ namespace IdeaCadConnector.Workspace
                         ? node.LogicalCode
                         : code + "-" + node.LogicalCode);
 
+                if (!string.IsNullOrWhiteSpace(node.PartNumber))
+                    partNumber = node.PartNumber;
+
                 var classification = node.NodeType switch
                 {
                     "Assembly" => "Assembly",
@@ -67,7 +70,16 @@ namespace IdeaCadConnector.Workspace
                     Name = node.DisplayName,
                     Classification = classification,
                     Quantity = node.Quantity,
-                    Action = "Create"
+                    Action = string.Equals(node.SourceKind, "LibraryReference", StringComparison.OrdinalIgnoreCase)
+                        ? "Reuse from Library"
+                        : "Create",
+                    ExistingPartId = node.ExistingPartId,
+                    ExistingPartConfigId = node.ExistingPartConfigId,
+                    ExistingPartRevision = node.ExistingPartRevision,
+                    SourceKind = node.SourceKind,
+                    LibraryEntryId = node.LibraryEntryId,
+                    RevisionPolicy = node.RevisionPolicy,
+                    IsExternalReference = node.IsExternalReference
                 });
             }
 
