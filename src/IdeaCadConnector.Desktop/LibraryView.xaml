@@ -1,6 +1,7 @@
 <UserControl x:Class="IdeaCadConnector.Desktop.LibraryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:IdeaCadConnector.Core.Localization;assembly=IdeaCadConnector.Core"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -11,6 +12,7 @@
         <SolidColorBrush x:Key="LibraryLineBrush" Color="#DDE5F1"/>
         <SolidColorBrush x:Key="LibraryPrimaryBrush" Color="#0B57F0"/>
         <SolidColorBrush x:Key="LibraryPanelBrush" Color="#FFFFFF"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
         <Style x:Key="LibraryCardStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource LibraryPanelBrush}"/>
@@ -91,9 +93,9 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
-                <TextBlock Text="Part Library" FontSize="34" FontWeight="Bold"
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTitle]}" FontSize="34" FontWeight="Bold"
                            Foreground="{StaticResource LibraryTextBrush}"/>
-                <TextBlock Text="Search, organize, and reuse approved Parts across PDM projects."
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibrarySubtitle]}"
                            Margin="0,6,0,0" FontSize="15"
                            Foreground="{StaticResource LibraryMutedBrush}"/>
             </StackPanel>
@@ -147,11 +149,11 @@
                 <ComboBox Grid.Column="6" Style="{StaticResource LibraryComboBoxStyle}"
                           ItemsSource="{Binding RevisionFilters}" SelectedItem="{Binding SelectedRevisionFilter}"/>
                 <Button Grid.Column="8" Style="{StaticResource LibraryButtonStyle}"
-                        Command="{Binding SearchCommand}" Content="Filters"/>
+                        Command="{Binding SearchCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonFilters]}"/>
                 <Button Grid.Column="10" Style="{StaticResource LibraryButtonStyle}"
-                        Command="{Binding CreateLibraryCommand}" Content="+ Create Library"/>
+                        Command="{Binding CreateLibraryCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonCreateLibrary]}"/>
                 <Button Grid.Column="12" Style="{StaticResource LibraryPrimaryButtonStyle}"
-                        Command="{Binding AddPartCommand}" Content="+ Add Part"/>
+                        Command="{Binding AddPartCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonAddPart]}"/>
             </Grid>
         </Border>
 
@@ -171,40 +173,52 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="16,0">
-                        <TextBlock Text="Libraries" FontSize="16" FontWeight="Bold"
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLibrariesHeader]}" FontSize="16" FontWeight="Bold"
                                    VerticalAlignment="Center" Foreground="{StaticResource LibraryTextBrush}"/>
-                        <Button Content="+ New" Command="{Binding CreateLibraryCommand}"
+                        <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonNew]}" Command="{Binding CreateLibraryCommand}"
                                 HorizontalAlignment="Right" VerticalAlignment="Center"
                                 Foreground="{StaticResource LibraryPrimaryBrush}"
                                 Background="Transparent" BorderThickness="0" FontWeight="SemiBold"/>
                     </Grid>
-                    <ListBox Grid.Row="1" ItemsSource="{Binding Libraries}"
-                             SelectedItem="{Binding SelectedLibrary}"
-                             BorderThickness="0" Background="Transparent" Margin="8">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Height="54" Margin="4,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="28"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="24"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons"
-                                               FontSize="17" Foreground="#16407E"
-                                               VerticalAlignment="Center"/>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                                                   Foreground="{StaticResource LibraryTextBrush}"/>
-                                        <TextBlock Text="{Binding ItemCount, StringFormat={}{0} items}"
-                                                   FontSize="11" Foreground="{StaticResource LibraryMutedBrush}"/>
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="&#xE712;" FontFamily="Segoe Fluent Icons"
-                                               Foreground="{StaticResource LibraryMutedBrush}"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+                    <Grid Grid.Row="1" Margin="8">
+                        <ListBox ItemsSource="{Binding Libraries}"
+                                 SelectedItem="{Binding SelectedLibrary}"
+                                 BorderThickness="0" Background="Transparent">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="54" Margin="4,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="24"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons"
+                                                   FontSize="17" Foreground="#16407E"
+                                                   VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource LibraryTextBrush}"/>
+                                            <TextBlock Text="{Binding ItemCount, StringFormat={}{0} items}"
+                                                       FontSize="11" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="&#xE712;" FontFamily="Segoe Fluent Icons"
+                                                   Foreground="{StaticResource LibraryMutedBrush}"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <Border Background="#F7F9FD"
+                                Visibility="{Binding ShowLibrariesOverlay, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="{Binding LibrariesOverlayMessage}"
+                                       Margin="16"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource LibraryMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"/>
+                        </Border>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -217,24 +231,36 @@
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="16,0">
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Library Items" FontSize="16" FontWeight="Bold"
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryItemsHeader]}" FontSize="16" FontWeight="Bold"
                                        Foreground="{StaticResource LibraryTextBrush}"/>
                             <TextBlock Text="{Binding ResultSummary}" FontSize="11"
                                        Foreground="{StaticResource LibraryMutedBrush}"/>
                         </StackPanel>
                     </Grid>
-                    <DataGrid Grid.Row="1" Style="{StaticResource LibraryDataGridStyle}"
-                              ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Part" Binding="{Binding PartNumber}" Width="1.6*"/>
-                            <DataGridTextColumn Header="Type" Binding="{Binding PartType}" Width="0.9*"/>
-                            <DataGridTextColumn Header="Rev" Binding="{Binding Revision}" Width="55"/>
-                            <DataGridTextColumn Header="Lifecycle" Binding="{Binding LifecycleState}" Width="1*"/>
-                            <DataGridTextColumn Header="Revision policy" Binding="{Binding RevisionPolicy}" Width="1.15*"/>
-                            <DataGridTextColumn Header="CAD status" Binding="{Binding CadStatus}" Width="1*"/>
-                            <DataGridTextColumn Header="Usage" Binding="{Binding UsageCount}" Width="70"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <Grid Grid.Row="1">
+                        <DataGrid Style="{StaticResource LibraryDataGridStyle}"
+                                  ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnPart]}" Binding="{Binding PartNumber}" Width="1.6*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnType]}" Binding="{Binding PartType}" Width="0.9*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevision]}" Binding="{Binding Revision}" Width="55"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnLifecycle]}" Binding="{Binding LifecycleState}" Width="1*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevisionPolicy]}" Binding="{Binding RevisionPolicy}" Width="1.15*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnCadStatus]}" Binding="{Binding CadStatus}" Width="1*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnUsage]}" Binding="{Binding UsageCount}" Width="70"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Border Background="#F7F9FD"
+                                Visibility="{Binding ShowEntriesOverlay, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="{Binding EntriesOverlayMessage}"
+                                       Margin="16"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource LibraryMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"/>
+                        </Border>
+                    </Grid>
                     <Grid Grid.Row="2" Margin="16,0">
                         <TextBlock Text="{Binding PagingSummary}" VerticalAlignment="Center"
                                    FontSize="11" Foreground="{StaticResource LibraryMutedBrush}"/>
@@ -257,14 +283,14 @@
                                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding SelectedEntryDetails.PartNumber, TargetNullValue=Select a Part}"
+                                    <TextBlock Text="{Binding SelectedEntryDetails.PartNumber}"
                                                FontSize="22" FontWeight="Bold" Foreground="{StaticResource LibraryTextBrush}"/>
                                     <TextBlock Text="{Binding SelectedEntryDetails.PartName}"
                                                FontSize="12" Foreground="{StaticResource LibraryMutedBrush}"/>
                                 </StackPanel>
                             </Grid>
                             <TabControl Margin="0,14,0,0" BorderThickness="0">
-                                <TabItem Header="Overview">
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabOverview]}">
                                     <Grid Margin="0,12,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="110"/>
@@ -274,26 +300,26 @@
                                             <RowDefinition Height="30"/><RowDefinition Height="30"/><RowDefinition Height="30"/>
                                             <RowDefinition Height="30"/><RowDefinition Height="30"/><RowDefinition Height="30"/>
                                         </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Text="Type" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelType]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedEntryDetails.PartType}"/>
-                                        <TextBlock Grid.Row="1" Text="Revision" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="1" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelRevision]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedEntryDetails.Revision}"/>
-                                        <TextBlock Grid.Row="2" Text="State" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="2" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelState]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedEntryDetails.LifecycleState}"/>
-                                        <TextBlock Grid.Row="3" Text="Library" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="3" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelLibrary]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedEntryDetails.LibraryName}"/>
-                                        <TextBlock Grid.Row="4" Text="Policy" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="4" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelPolicy]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedEntryDetails.RevisionPolicy}"/>
-                                        <TextBlock Grid.Row="5" Text="Usage" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="5" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelUsage]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedEntryDetails.UsageCount}"/>
                                     </Grid>
                                 </TabItem>
-                                <TabItem Header="CAD"/>
-                                <TabItem Header="BOM"/>
-                                <TabItem Header="Revisions"/>
-                                <TabItem Header="Where Used">
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabCad]}"/>
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabBom]}"/>
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabRevisions]}"/>
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabWhereUsed]}">
                                     <Border Padding="12,10,12,4">
-                                        <TextBlock Text="{Binding SelectedEntryDetails.WhereUsedSummary, TargetNullValue=Select View Where Used to load reuse information.}"
+                                        <TextBlock Text="{Binding SelectedEntryDetails.WhereUsedSummary}"
                                                    TextWrapping="Wrap"
                                                    Foreground="{StaticResource LibraryMutedBrush}"/>
                                     </Border>
@@ -304,33 +330,38 @@
 
                     <Border Style="{StaticResource LibraryCardStyle}" Padding="16" Margin="0,12,0,0">
                         <StackPanel>
-                            <TextBlock Text="Primary CAD" FontSize="15" FontWeight="Bold"
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryPrimaryCadTitle]}" FontSize="15" FontWeight="Bold"
                                        Foreground="{StaticResource LibraryTextBrush}"/>
-                            <TextBlock Text="{Binding SelectedEntryDetails.PrimaryCadFileName, TargetNullValue=No linked CAD}"
+                            <TextBlock Text="{Binding SelectedEntryDetails.PrimaryCadFileName}"
                                        Margin="0,12,0,0" TextWrapping="Wrap"
                                        Foreground="{StaticResource LibraryTextBrush}"/>
                             <UniformGrid Columns="2" Margin="0,12,0,0">
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,5,0"
-                                        Command="{Binding OpenInIronCadCommand}" Content="Open in IronCAD"/>
+                                        Command="{Binding OpenInIronCadCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryOpenInIronCad]}"/>
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="5,0,0,0"
-                                        Command="{Binding DownloadCadCommand}" Content="Download"/>
+                                        Command="{Binding DownloadCadCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryDownloadCad]}"/>
                             </UniformGrid>
                             <Button Style="{StaticResource LibraryPrimaryButtonStyle}" Margin="0,10,0,0"
                                     Command="{Binding AddToCurrentProjectCommand}"
-                                    Content="+ Add to Current PDM Project"/>
+                                    Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryAddToProject]}"/>
+                            <TextBlock Text="{Binding AddToProjectHint}"
+                                       Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource LibraryMutedBrush}"
+                                       FontSize="11"/>
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource LibraryCardStyle}" Padding="16" Margin="0,12,0,0">
                         <StackPanel>
-                            <TextBlock Text="Quick Actions" FontSize="15" FontWeight="Bold"
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryQuickActionsTitle]}" FontSize="15" FontWeight="Bold"
                                        Foreground="{StaticResource LibraryTextBrush}"/>
                             <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,10,0,0"
-                                    Command="{Binding ViewWhereUsedCommand}" Content="View Where Used"/>
+                                    Command="{Binding ViewWhereUsedCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryViewWhereUsed]}"/>
                             <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,8,0,0"
-                                    Command="{Binding PinRevisionCommand}" Content="Pin Current Revision"/>
+                                    Command="{Binding PinRevisionCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryPinCurrentRevision]}"/>
                             <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,8,0,0"
-                                    Command="{Binding OpenInArasCommand}" Content="Open in Aras Innovator"/>
+                                    Command="{Binding OpenInArasCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryOpenInArasInnovator]}"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -339,11 +370,11 @@
 
         <Border Grid.Row="3" Background="White" BorderBrush="#E5EBF3" BorderThickness="0,1,0,0" Padding="24,7">
             <Grid>
-                <TextBlock Text="IDEA PDM – IronCAD / Aras Innovator" FontSize="11"
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryFooter]}" FontSize="11"
                            Foreground="{StaticResource LibraryMutedBrush}"/>
                 <TextBlock Text="{Binding StatusMessage}" HorizontalAlignment="Center" FontSize="11"
                            Foreground="{StaticResource LibraryMutedBrush}"/>
-                <TextBlock Text="v1.1.0 library preview" HorizontalAlignment="Right" FontSize="11"
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryFooterVersion]}" HorizontalAlignment="Right" FontSize="11"
                            Foreground="{StaticResource LibraryMutedBrush}"/>
             </Grid>
         </Border>

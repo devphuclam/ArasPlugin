@@ -1207,6 +1207,17 @@
                             Visibility="{Binding HasSearchRevisionEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}"
                             ToolTip="Requests a new revision through the app revision flow. Server-side support is still required." />
 
+                    <Button Margin="0,10,0,0"
+                            Height="36"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Command="{Binding AddSelectedPartToLibraryCommand}"
+                            Visibility="{Binding HasAddSelectedPartToLibraryAction, Converter={StaticResource BoolToVisibilityConverter}}">
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74D;" />
+                        <TextBlock Margin="8,0,0,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryTitle]}" />
+                      </StackPanel>
+                    </Button>
+
                     <TextBlock Margin="0,6,0,0"
                                FontSize="11"
                                Foreground="#FF60708E"

@@ -50,6 +50,12 @@ namespace IdeaCadConnector.Desktop
             set => AppSessionContext.Current.CurrentUserName = value;
         }
 
+        internal static IPartLibraryClient SharedPartLibraryClient
+        {
+            get => AppSessionContext.Current.PartLibraryClient;
+            set => AppSessionContext.Current.PartLibraryClient = value;
+        }
+
         private string _statusMessage = "Sign in to Aras to start.";
         private PartSearchResult _selectedSearchResult;
         private CadSummary _currentCad;
@@ -119,6 +125,10 @@ namespace IdeaCadConnector.Desktop
                 _ => ExecuteToggleFavoriteAsync(),
                 _ => SelectedSearchResult?.Part != null);
 
+            AddSelectedPartToLibraryCommand = new RelayCommand(
+                _ => ExecuteAddSelectedPartToLibraryAsync(),
+                _ => !IsBusy && IsConnected && SelectedSearchResult?.Part != null && SharedPartLibraryClient != null);
+
             StartNewRevisionCommand = new RelayCommand(
                 _ => { _ = ExecuteStartNewRevisionAsync(); },
                 _ => !IsBusy && CanStartNewRevision);
@@ -147,6 +157,8 @@ namespace IdeaCadConnector.Desktop
         public ICommand ViewPartDetailsCommand { get; }
 
         public ICommand ToggleFavoriteCommand { get; }
+
+        public ICommand AddSelectedPartToLibraryCommand { get; }
 
         public ICommand StartNewRevisionCommand { get; }
 
@@ -219,6 +231,7 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(HasCheckInAction));
                 OnPropertyChanged(nameof(HasCancelCheckoutAction));
                 OnPropertyChanged(nameof(StatusMessage));
+                OnPropertyChanged(nameof(HasAddSelectedPartToLibraryAction));
             }
             catch
             {
@@ -380,6 +393,7 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(HasCheckoutAction));
                 OnPropertyChanged(nameof(HasCheckInAction));
                 OnPropertyChanged(nameof(HasCancelCheckoutAction));
+                OnPropertyChanged(nameof(HasAddSelectedPartToLibraryAction));
                 RefreshCanExecute();
             }
         }
@@ -509,6 +523,9 @@ namespace IdeaCadConnector.Desktop
 
         public bool HasSearchRevisionHint => !string.IsNullOrWhiteSpace(SearchRevisionHint);
 
+        public bool HasAddSelectedPartToLibraryAction =>
+            IsConnected && SelectedSearchResult?.Part != null;
+
         public bool HasOpenReadOnlyAction =>
             !string.IsNullOrWhiteSpace(SelectedCadId)
             && _currentCad != null
@@ -588,14 +605,14 @@ namespace IdeaCadConnector.Desktop
                 });
                 pdmClient.SetSession(_loginResult.SessionToken, null, request.Database);
                 SharedPdmClient = pdmClient;
-                (AppSessionContext.Current.PartLibraryClient as IDisposable)?.Dispose();
+                (SharedPartLibraryClient as IDisposable)?.Dispose();
                 var partLibraryClient = new HttpPartLibraryClient(new ArasClientOptions
                 {
                     BaseUri = new Uri(request.ServerUrl),
                     Database = request.Database
                 });
                 partLibraryClient.SetSession(_loginResult.SessionToken, null, request.Database);
-                AppSessionContext.Current.PartLibraryClient = partLibraryClient;
+                SharedPartLibraryClient = partLibraryClient;
             }
             catch (Exception ex)
             {
@@ -633,15 +650,18 @@ namespace IdeaCadConnector.Desktop
                 (SharedArasCadClient as IDisposable)?.Dispose();
                 SharedArasCadClient = null;
                 SharedUserName = null;
-                (AppSessionContext.Current.PartLibraryClient as IDisposable)?.Dispose();
-                AppSessionContext.Current.PartLibraryClient = null;
+                (SharedPartLibraryClient as IDisposable)?.Dispose();
+                SharedPartLibraryClient = null;
                 AppSessionContext.Current.CurrentPdmProjectsViewModel = null;
+                AppSessionContext.Current.PendingLibraryFocusLibraryId = null;
+                AppSessionContext.Current.PendingLibraryFocusEntryId = null;
                 IsLoginPanelVisible = true;
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));
                 OnPropertyChanged(nameof(SelectedSearchResult));
                 OnPropertyChanged(nameof(SelectedCadId));
                 OnPropertyChanged(nameof(HasCurrentCad));
+                OnPropertyChanged(nameof(HasAddSelectedPartToLibraryAction));
                 StatusMessage = Loc(TranslationKeys.StatusSignedOut);
             }
             finally
@@ -1135,6 +1155,62 @@ namespace IdeaCadConnector.Desktop
             StatusMessage = Loc(TranslationKeys.FavoritesComingSoon);
         }
 
+        private async void ExecuteAddSelectedPartToLibraryAsync()
+        {
+            if (!EnsureLoggedIn() || IsBusy) return;
+            var selectedPart = SelectedSearchResult?.Part;
+            if (selectedPart == null)
+            {
+                StatusMessage = Loc(TranslationKeys.StatusSelectPartFirst);
+                return;
+            }
+
+            var workspace = AppSessionContext.Current.CurrentPdmProjectsViewModel;
+            var sourceProject = workspace?.SelectedRepository ?? workspace?.RepositoryCodeForDisplay;
+            var sourceCommit = workspace?.LatestCommitSummary;
+
+            var workflowResult = await SaveToLibraryWorkflow.ExecuteAsync(
+                new PartLibrarySaveSeed
+                {
+                    PartId = selectedPart.Id,
+                    PartNumber = selectedPart.PartNumber,
+                    PartName = selectedPart.Name,
+                    SourceProject = sourceProject,
+                    SourceCommit = sourceCommit
+                },
+                SharedPartLibraryClient).ConfigureAwait(true);
+
+            if (!workflowResult.Submitted)
+                return;
+
+            if (workflowResult.AddResult?.Success == true)
+            {
+                AppSessionContext.Current.PendingLibraryFocusLibraryId = workflowResult.LibraryId;
+                AppSessionContext.Current.PendingLibraryFocusEntryId = workflowResult.AddResult.EntryId;
+                AppSessionContext.Current.NotifyLibraryDataChanged();
+
+                if (workflowResult.AddResult.AlreadyExists)
+                {
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.LibraryStatusPartAlreadyInLibrary),
+                        workflowResult.AddResult.EntryId ?? "-");
+                    AppSessionContext.Current.RequestLibraryWorkspace();
+                }
+                else
+                {
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.LibraryStatusPartSavedToLibrary),
+                        workflowResult.AddResult.EntryId ?? "-");
+                }
+
+                return;
+            }
+
+            StatusMessage = string.Format(
+                Loc(TranslationKeys.LibraryStatusPartSaveFailed),
+                workflowResult.AddResult?.ErrorMessage ?? workflowResult.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
+        }
+
         private string ResolveCheckInFilePath()
         {
             if (!string.IsNullOrWhiteSpace(_lastDownloadedFilePath) && File.Exists(_lastDownloadedFilePath))
@@ -1211,6 +1287,7 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(HasCheckoutAction));
             OnPropertyChanged(nameof(HasCheckInAction));
             OnPropertyChanged(nameof(HasCancelCheckoutAction));
+            OnPropertyChanged(nameof(HasAddSelectedPartToLibraryAction));
             OnPropertyChanged(nameof(CanStartNewRevision));
             SearchRevisionHint = string.Empty;
             ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
@@ -1437,6 +1514,7 @@ namespace IdeaCadConnector.Desktop
             ((RelayCommand)ApproveCommand).RaiseCanExecuteChanged();
             ((RelayCommand)RequestReworkCommand).RaiseCanExecuteChanged();
             ((RelayCommand)RefreshWorkflowCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)AddSelectedPartToLibraryCommand).RaiseCanExecuteChanged();
             ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
         }
 

@@ -8,5 +8,11 @@ namespace IdeaCadConnector.Desktop
         {
             InitializeComponent();
         }
+
+        internal SaveToLibraryDialog(SaveToLibraryDialogViewModel viewModel)
+            : this()
+        {
+            DataContext = viewModel;
+        }
     }
 }

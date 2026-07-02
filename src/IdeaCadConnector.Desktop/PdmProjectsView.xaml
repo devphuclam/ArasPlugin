@@ -1043,6 +1043,17 @@
                           ToolTip="Requests a new revision through the app revision flow. Server-side support is still required."
                           Visibility="{Binding HasCadRevisionEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}" />
 
+                  <Button Margin="0,10,0,0"
+                          Height="40"
+                          Background="White"
+                          BorderBrush="#FF7C3AED"
+                          BorderThickness="1.5"
+                          Foreground="#FF6B21D4"
+                          FontWeight="SemiBold"
+                          Command="{Binding SaveSelectedNodeToLibraryCommand}"
+                          Visibility="{Binding HasSaveToLibraryAction, Converter={StaticResource BoolToVisibilityConverter}}"
+                          Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryTitle]}" />
+
                   <TextBlock Margin="0,6,0,0"
                              FontSize="11"
                              Foreground="#FF60708E"
@@ -1434,4 +1445,3 @@
     </Grid>
   </Grid>
 </UserControl>
-

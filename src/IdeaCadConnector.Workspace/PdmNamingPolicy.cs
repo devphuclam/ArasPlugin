@@ -26,6 +26,12 @@ namespace IdeaCadConnector.Workspace
         public string ProjectSeparator { get; set; } = "-";
 
         public string DetailDisplayPrefix { get; set; } = "Detail";
+
+        /// <summary>
+        /// Subfolder names that are treated as workspace-internal staging areas and excluded from naming validation.
+        /// Default includes "ARAS01" (DWG export staging) alongside the built-in .idea-pdm/.git/.vs exclusions.
+        /// </summary>
+        public string[] IgnoredSubfolders { get; set; } = { "ARAS01" };
     }
 
     public sealed class PdmFolderAnalysis
@@ -369,7 +375,7 @@ namespace IdeaCadConnector.Workspace
             return result;
         }
 
-        private static bool IsInsideIgnoredWorkspaceFolder(string rootFolder, string filePath)
+        private bool IsInsideIgnoredWorkspaceFolder(string rootFolder, string filePath)
         {
             if (string.IsNullOrWhiteSpace(rootFolder) || string.IsNullOrWhiteSpace(filePath))
             {
@@ -386,10 +392,28 @@ namespace IdeaCadConnector.Workspace
             }
 
             var segments = relativePath.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
-            return segments.Any(segment =>
+
+            // Built-in system folders always ignored
+            if (segments.Any(segment =>
                 segment.Equals(".idea-pdm", StringComparison.OrdinalIgnoreCase) ||
                 segment.Equals(".git", StringComparison.OrdinalIgnoreCase) ||
-                segment.Equals(".vs", StringComparison.OrdinalIgnoreCase));
+                segment.Equals(".vs", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            // Policy-configured staging subfolders (e.g. ARAS01)
+            if (_policy.IgnoredSubfolders != null && _policy.IgnoredSubfolders.Length > 0)
+            {
+                if (segments.Any(segment =>
+                    _policy.IgnoredSubfolders.Any(ignored =>
+                        segment.Equals(ignored, StringComparison.OrdinalIgnoreCase))))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static string NormalizeProjectCode(string value, string separator)

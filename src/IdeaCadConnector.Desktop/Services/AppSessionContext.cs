@@ -10,6 +10,12 @@ namespace IdeaCadConnector.Desktop.Services
         IPartLibraryClient PartLibraryClient { get; set; }
         string CurrentUserName { get; set; }
         PdmProjectsViewModel CurrentPdmProjectsViewModel { get; set; }
+        string PendingLibraryFocusLibraryId { get; set; }
+        string PendingLibraryFocusEntryId { get; set; }
+        event EventHandler LibraryDataChanged;
+        event EventHandler LibraryWorkspaceRequested;
+        void NotifyLibraryDataChanged();
+        void RequestLibraryWorkspace();
         bool IsConnected { get; }
     }
 
@@ -32,6 +38,24 @@ namespace IdeaCadConnector.Desktop.Services
         public string CurrentUserName { get; set; }
 
         public PdmProjectsViewModel CurrentPdmProjectsViewModel { get; set; }
+
+        public string PendingLibraryFocusLibraryId { get; set; }
+
+        public string PendingLibraryFocusEntryId { get; set; }
+
+        public event EventHandler LibraryDataChanged;
+
+        public event EventHandler LibraryWorkspaceRequested;
+
+        public void NotifyLibraryDataChanged()
+        {
+            LibraryDataChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void RequestLibraryWorkspace()
+        {
+            LibraryWorkspaceRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         public bool IsConnected => PdmClient != null || ArasCadClient != null;
     }

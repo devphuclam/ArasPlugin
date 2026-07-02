@@ -1,7 +1,8 @@
 <Window x:Class="IdeaCadConnector.Desktop.SaveToLibraryDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Save Part to Library" Width="820" Height="720"
+        xmlns:core="clr-namespace:IdeaCadConnector.Core.Localization;assembly=IdeaCadConnector.Core"
+        Title="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryTitle]}" Width="900" Height="760"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="#F8FAFD">
     <Grid>
@@ -10,20 +11,124 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
         <Border Background="White" BorderBrush="#E4EAF3" BorderThickness="0,0,0,1" Padding="24,20">
             <StackPanel>
-                <TextBlock Text="Save Part to Library" FontSize="24" FontWeight="Bold" Foreground="#17305F"/>
-                <TextBlock Text="Create a reusable reference to the existing Aras Part. No Part or CAD copy will be created."
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryTitle]}" FontSize="24" FontWeight="Bold" Foreground="#17305F"/>
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibrarySubtitle]}"
                            Margin="0,5,0,0" Foreground="#687995"/>
             </StackPanel>
         </Border>
-        <Grid Grid.Row="1" Margin="24">
-            <TextBlock Text="This MVP wires the Library workspace and reuse flow first. Save-to-Library server actions are scaffolded but not connected yet."
-                       TextWrapping="Wrap" Foreground="#334B76"/>
-        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24">
+                <Border BorderBrush="#DDE5F1" BorderThickness="1" CornerRadius="12" Padding="14" Background="#F9FBFF">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="56"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Width="48" Height="48" CornerRadius="12" Background="#7C3AED">
+                            <TextBlock Text="&#xE7B8;" FontFamily="Segoe Fluent Icons" FontSize="24"
+                                       Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibrarySelectedPartSummaryHint]}"
+                                       FontWeight="SemiBold" Foreground="#17305F"/>
+                           <TextBlock Text="{Binding SelectedPartSummary}"
+                                      Margin="0,4,0,0" Foreground="#334B76" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                           <TextBlock Text="{Binding SelectedPartId}"
+                                      Margin="0,2,0,0" Foreground="#687995" FontSize="12" TextWrapping="Wrap"/>
+                           <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryPartIdRequirementHint]}"
+                                      Margin="0,6,0,0" Foreground="#687995" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryTargetLibrary]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <ComboBox Height="42"
+                                  Margin="0,7,0,0"
+                                  ItemsSource="{Binding WritableLibraries}"
+                                  DisplayMemberPath="Name"
+                                  SelectedItem="{Binding SelectedLibrary}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryRevisionPolicyLabel]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <ComboBox Height="42"
+                                  Margin="0,7,0,0"
+                                  ItemsSource="{Binding RevisionPolicies}"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedItem="{Binding SelectedRevisionPolicy}" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryCategory]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <TextBox Height="42" Margin="0,7,0,0" Text="{Binding Category, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryTags]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <TextBox Height="42" Margin="0,7,0,0" Text="{Binding Tags, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Margin="0,16,0,0">
+                    <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryNote]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                    <TextBox Height="92" Margin="0,7,0,0" AcceptsReturn="True" TextWrapping="Wrap" Text="{Binding Note, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibrarySourceProject]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <TextBox Height="42" Margin="0,7,0,0" Text="{Binding SourceProject, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibrarySourceCommit]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <TextBox Height="42" Margin="0,7,0,0" Text="{Binding SourceCommit, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </Grid>
+
+                <Border Margin="0,16,0,0" Padding="12" CornerRadius="10" Background="#FFF8E9" BorderBrush="#FFD59D" BorderThickness="1">
+                    <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryValidationReminders]}"
+                               Foreground="#8B5800" TextWrapping="Wrap"/>
+                </Border>
+
+                <TextBlock Margin="0,10,0,0"
+                           Foreground="#CCB42318"
+                           TextWrapping="Wrap"
+                           Text="{Binding ValidationMessage}" />
+            </StackPanel>
+        </ScrollViewer>
+
         <Border Grid.Row="2" Background="White" BorderBrush="#E4EAF3" BorderThickness="0,1,0,0" Padding="24,16">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Width="96" Height="40" Content="Close" IsCancel="True"/>
+                <Button Width="110"
+                        Height="40"
+                        Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryCancelButton]}"
+                        IsCancel="True"
+                        Command="{Binding CancelCommand}" />
+                <Button Width="220" Height="40" Margin="10,0,0,0"
+                        Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SaveToLibraryDisabledSubmit]}"
+                        Command="{Binding SaveCommand}"
+                        Background="#0B57F0" Foreground="White"/>
             </StackPanel>
         </Border>
     </Grid>

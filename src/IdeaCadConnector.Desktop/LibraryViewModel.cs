@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -12,6 +15,7 @@ using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto.Library;
 using IdeaCadConnector.Core.Errors;
 using IdeaCadConnector.Core.Library;
+using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Desktop.Services;
 using IdeaCadConnector.Workspace;
 
@@ -30,6 +34,8 @@ namespace IdeaCadConnector.Desktop
         private string _selectedRevisionFilter;
         private bool _isLoading;
         private string _statusMessage;
+        private string _errorMessage;
+        private string _permissionMessage;
         private int _totalCount;
         private int _pageNumber = 1;
         private int _pageSize = 25;
@@ -46,31 +52,37 @@ namespace IdeaCadConnector.Desktop
 
             Libraries = new ObservableCollection<PartLibrarySummaryRow>();
             Entries = new ObservableCollection<PartLibraryEntryRow>();
-            TypeFilters = new ObservableCollection<string>(new[] { "All Types", "Assembly", "Component" });
-            StateFilters = new ObservableCollection<string>(new[] { "All States", "Released", "In Review", "Preliminary", "Deprecated" });
-            RevisionFilters = new ObservableCollection<string>(new[] { "All Revisions", "Latest Released", "Pinned", "Latest Current" });
+            TypeFilters = new ObservableCollection<string>();
+            StateFilters = new ObservableCollection<string>();
+            RevisionFilters = new ObservableCollection<string>();
+            RefreshFilterOptions();
 
             _selectedTypeFilter = TypeFilters[0];
             _selectedStateFilter = StateFilters[0];
             _selectedRevisionFilter = RevisionFilters[0];
-            _selectedEntryDetails = new PartLibraryEntryDetailsView();
-            _statusMessage = "Ready.";
+            _selectedEntryDetails = CreateEmptyDetails();
+            _statusMessage = L(TranslationKeys.LibraryStatusReady);
+            _permissionMessage = string.Empty;
+            _errorMessage = string.Empty;
 
             RefreshCommand = new RelayCommand(_ => _ = RefreshAsync(), _ => !IsLoading);
             SearchCommand = new RelayCommand(_ => _ = SearchAsync(), _ => !IsLoading);
-            CreateLibraryCommand = new RelayCommand(_ => StatusMessage = "Library creation requires the Aras Library backend configuration.");
-            AddPartCommand = new RelayCommand(_ => ShowSaveToLibraryDialog());
-            RemoveEntryCommand = new RelayCommand(_ => StatusMessage = "Remove Entry will be enabled when the server Library relationship API is available.", _ => SelectedEntry != null);
-            MoveEntryCommand = new RelayCommand(_ => StatusMessage = "Move Entry will be enabled when the server Library relationship API is available.", _ => SelectedEntry != null);
+            CreateLibraryCommand = new RelayCommand(_ => ShowCreateLibraryNotAvailableMessage(), _ => !IsLoading && !IsOffline);
+            AddPartCommand = new RelayCommand(_ => ShowSaveToLibraryDialog(), _ => !IsLoading && !IsOffline && CanContributeToSelectedLibrary);
+            RemoveEntryCommand = new RelayCommand(_ => _ = RemoveSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading);
+            MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => SelectedEntry != null && SelectedLibrary != null && !IsLoading);
             AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => SelectedEntry != null && HasActivePdmWorkspace && !IsLoading && !SelectedEntry.IsDeprecated);
-            OpenInIronCadCommand = new RelayCommand(_ => StatusMessage = "Open in IronCAD will reuse the existing CAD open flow in the next slice.", _ => SelectedEntry != null);
-            DownloadCadCommand = new RelayCommand(_ => StatusMessage = "Download CAD is not wired yet.", _ => SelectedEntry != null);
+            OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
+            DownloadCadCommand = new RelayCommand(_ => _ = RevealPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
             PublishCommand = new RelayCommand(_ => new PublishLibraryEntryDialog { Owner = Application.Current?.MainWindow }.ShowDialog(), _ => SelectedEntry != null);
-            DeprecateCommand = new RelayCommand(_ => StatusMessage = "Deprecate Entry will be enabled when the server Library workflow is available.", _ => SelectedEntry != null);
-            PinRevisionCommand = new RelayCommand(_ => StatusMessage = "Revision policy editing will be enabled with the server Library client.", _ => SelectedEntry != null);
-            UseLatestReleasedCommand = new RelayCommand(_ => StatusMessage = "Revision policy editing will be enabled with the server Library client.", _ => SelectedEntry != null);
+            DeprecateCommand = new RelayCommand(_ => _ = DeprecateSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
+            PinRevisionCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.Pinned), _ => SelectedEntry != null && !IsLoading);
+            UseLatestReleasedCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.LatestReleased), _ => SelectedEntry != null && !IsLoading);
             ViewWhereUsedCommand = new RelayCommand(_ => _ = ViewWhereUsedAsync(), _ => SelectedEntry != null && !IsLoading);
-            OpenInArasCommand = new RelayCommand(_ => StatusMessage = "Open in Aras will be wired once the Library entry details map to live Aras items.", _ => SelectedEntry != null);
+            OpenInArasCommand = new RelayCommand(_ => OpenInAras(), _ => SelectedEntry != null);
+
+            LocalizationSource.Instance.PropertyChanged += OnLocalizationChanged;
+            _session.LibraryDataChanged += OnLibraryDataChanged;
 
             _ = RefreshAsync();
         }
@@ -93,7 +105,12 @@ namespace IdeaCadConnector.Desktop
             set
             {
                 if (SetField(ref _selectedLibrary, value))
+                {
+                    OnPropertyChanged(nameof(CanContributeToSelectedLibrary));
+                    NotifyPanelStateChanged();
                     _ = SearchAsync();
+                    RaiseCommandStates();
+                }
             }
         }
 
@@ -154,6 +171,54 @@ namespace IdeaCadConnector.Desktop
 
         public bool HasActivePdmWorkspace => _session.CurrentPdmProjectsViewModel != null;
 
+        public bool CanContributeToSelectedLibrary => SelectedLibrary != null && SelectedLibrary.CanContribute;
+
+        public bool IsPermissionState => !string.IsNullOrWhiteSpace(_permissionMessage);
+
+        public bool IsErrorState => !string.IsNullOrWhiteSpace(_errorMessage);
+
+        public bool ShowLibrariesOverlay => IsLoading || IsOffline || IsPermissionState || IsErrorState || Libraries.Count == 0;
+
+        public bool ShowEntriesOverlay => IsLoading || IsOffline || IsPermissionState || IsErrorState || Entries.Count == 0;
+
+        public string LibrariesOverlayMessage
+        {
+            get
+            {
+                if (IsLoading)
+                    return L(TranslationKeys.LibraryOverlayLoadingLibraries);
+                if (IsOffline)
+                    return L(TranslationKeys.LibraryOverlaySignInLibraries);
+                if (IsPermissionState)
+                    return _permissionMessage;
+                if (IsErrorState)
+                    return _errorMessage;
+                return L(TranslationKeys.LibraryOverlayNoAccessibleLibraries);
+            }
+        }
+
+        public string EntriesOverlayMessage
+        {
+            get
+            {
+                if (IsLoading)
+                    return L(TranslationKeys.LibraryOverlayLoadingEntries);
+                if (IsOffline)
+                    return L(TranslationKeys.LibraryOverlaySignInEntries);
+                if (IsPermissionState)
+                    return _permissionMessage;
+                if (IsErrorState)
+                    return _errorMessage;
+                return Libraries.Count == 0
+                    ? L(TranslationKeys.LibraryOverlaySelectLibraryAfterSignIn)
+                    : L(TranslationKeys.LibraryOverlayNoMatchedEntries);
+            }
+        }
+
+        public string AddToProjectHint => HasActivePdmWorkspace
+            ? string.Empty
+            : L(TranslationKeys.LibraryHintOpenPdmWorkspace);
+
         public string StatusMessage
         {
             get => _statusMessage;
@@ -161,29 +226,29 @@ namespace IdeaCadConnector.Desktop
         }
 
         public string ResultSummary => _totalCount <= 0
-            ? "No reusable Parts found"
-            : _totalCount + " reusable Parts";
+            ? L(TranslationKeys.LibraryResultSummaryNone)
+            : Lf(TranslationKeys.LibraryResultSummarySome, _totalCount);
 
         public string PagingSummary
         {
             get
             {
                 if (_totalCount <= 0)
-                    return "0 results";
+                    return L(TranslationKeys.LibraryPagingSummaryZero);
 
                 var start = ((_pageNumber - 1) * _pageSize) + 1;
                 var end = Math.Min(_totalCount, _pageNumber * _pageSize);
-                return "Showing " + start + "-" + end + " of " + _totalCount;
+                return Lf(TranslationKeys.LibraryPagingSummaryRange, start, end, _totalCount);
             }
         }
 
         public string ConnectionTitle => _session.IsConnected
-            ? "Connected as " + (_session.CurrentUserName ?? "engineer")
-            : "Offline";
+            ? Lf(TranslationKeys.LibraryConnectionConnectedAs, _session.CurrentUserName ?? "engineer")
+            : L(TranslationKeys.LibraryConnectionOffline);
 
         public string ConnectionDatabase => _session.IsConnected
-            ? "Library workspace active"
-            : "Connect to Aras to reuse managed Parts";
+            ? L(TranslationKeys.LibraryConnectionWorkspaceActive)
+            : L(TranslationKeys.LibraryConnectionConnectHint);
 
         public ICommand RefreshCommand { get; }
         public ICommand SearchCommand { get; }
@@ -203,6 +268,22 @@ namespace IdeaCadConnector.Desktop
 
         private async Task RefreshAsync()
         {
+            ClearTransientStates();
+            if (IsOffline)
+            {
+                Libraries.Clear();
+                Entries.Clear();
+                SelectedLibrary = null;
+                SelectedEntry = null;
+                SelectedEntryDetails = CreateEmptyDetails();
+                _totalCount = 0;
+                OnPropertyChanged(nameof(ResultSummary));
+                OnPropertyChanged(nameof(PagingSummary));
+                NotifyPanelStateChanged();
+                StatusMessage = L(TranslationKeys.LibraryStatusOffline);
+                return;
+            }
+
             await RunBusyAsync(async () =>
             {
                 var libraries = await _client.GetLibrariesAsync(CancellationToken.None).ConfigureAwait(true);
@@ -220,27 +301,53 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 if (Libraries.Count > 0)
-                    SelectedLibrary = Libraries[0];
+                {
+                    if (!string.IsNullOrWhiteSpace(_session.PendingLibraryFocusLibraryId))
+                    {
+                        var preferredLibrary = Libraries.FirstOrDefault(item =>
+                            string.Equals(item.Id, _session.PendingLibraryFocusLibraryId, StringComparison.OrdinalIgnoreCase));
+                        SelectedLibrary = preferredLibrary ?? Libraries[0];
+                    }
+                    else
+                    {
+                        SelectedLibrary = Libraries[0];
+                    }
+                }
                 else
                     await SearchAsync().ConfigureAwait(true);
 
                 StatusMessage = Libraries.Count > 0
-                    ? "Library data refreshed."
-                    : "No accessible Libraries were returned.";
+                    ? L(TranslationKeys.LibraryStatusDataRefreshed)
+                    : L(TranslationKeys.LibraryOverlayNoAccessibleLibraries);
+                NotifyPanelStateChanged();
             });
         }
 
         private async Task SearchAsync()
         {
+            ClearTransientStates();
+            if (IsOffline)
+            {
+                Entries.Clear();
+                SelectedEntry = null;
+                SelectedEntryDetails = new PartLibraryEntryDetailsView();
+                _totalCount = 0;
+                OnPropertyChanged(nameof(ResultSummary));
+                OnPropertyChanged(nameof(PagingSummary));
+                NotifyPanelStateChanged();
+                StatusMessage = L(TranslationKeys.LibraryStatusSearchOffline);
+                return;
+            }
+
             await RunBusyAsync(async () =>
             {
                 var response = await _client.SearchEntriesAsync(new PartLibrarySearchRequest
                 {
                     LibraryId = SelectedLibrary?.Id,
                     SearchText = SearchText,
-                    TypeFilter = NormalizeFilter(SelectedTypeFilter),
-                    StateFilter = NormalizeFilter(SelectedStateFilter),
-                    RevisionFilter = NormalizeFilter(SelectedRevisionFilter),
+                    TypeFilter = NormalizeTypeFilter(SelectedTypeFilter),
+                    StateFilter = NormalizeStateFilter(SelectedStateFilter),
+                    RevisionFilter = NormalizeRevisionFilter(SelectedRevisionFilter),
                     PageNumber = _pageNumber,
                     PageSize = _pageSize
                 }, CancellationToken.None).ConfigureAwait(true);
@@ -258,13 +365,17 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(PagingSummary));
 
                 if (Entries.Count > 0)
+                {
                     SelectedEntry = Entries[0];
+                    TryFocusPendingEntry();
+                }
                 else
-                    SelectedEntryDetails = new PartLibraryEntryDetailsView();
+                    SelectedEntryDetails = CreateEmptyDetails();
 
                 StatusMessage = Entries.Count > 0
-                    ? "Library results updated."
-                    : "No Library entries matched the current filters.";
+                    ? L(TranslationKeys.LibraryStatusResultsUpdated)
+                    : L(TranslationKeys.LibraryOverlayNoMatchedEntries);
+                NotifyPanelStateChanged();
             });
         }
 
@@ -272,7 +383,7 @@ namespace IdeaCadConnector.Desktop
         {
             if (SelectedEntry == null)
             {
-                SelectedEntryDetails = new PartLibraryEntryDetailsView();
+                SelectedEntryDetails = CreateEmptyDetails();
                 return;
             }
 
@@ -296,7 +407,7 @@ namespace IdeaCadConnector.Desktop
                 LockedBy = details.LockedBy,
                 UsageCount = details.UsageCount,
                 CadStatus = details.CadStatus,
-                WhereUsedSummary = "Select \"View Where Used\" to load live reuse information."
+                WhereUsedSummary = L(TranslationKeys.LibraryWhereUsedHint)
             };
         }
 
@@ -304,14 +415,14 @@ namespace IdeaCadConnector.Desktop
         {
             if (SelectedEntry == null)
             {
-                StatusMessage = "Select a Library Part first.";
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectPartFirst);
                 return;
             }
 
             var partId = SelectedEntryDetails?.PartId ?? SelectedEntry.PartId;
             if (string.IsNullOrWhiteSpace(partId))
             {
-                StatusMessage = "This Library entry does not have a resolved Aras Part ID yet.";
+                StatusMessage = L(TranslationKeys.LibraryStatusNoResolvedPartId);
                 return;
             }
 
@@ -321,8 +432,8 @@ namespace IdeaCadConnector.Desktop
                 var summary = BuildWhereUsedSummary(whereUsed);
                 SelectedEntryDetails = CloneDetailsWithWhereUsed(SelectedEntryDetails, summary);
                 StatusMessage = whereUsed.Count == 0
-                    ? "Where Used returned no parent Parts."
-                    : "Where Used loaded " + whereUsed.Count + " parent Part(s).";
+                    ? L(TranslationKeys.LibraryStatusWhereUsedEmpty)
+                    : Lf(TranslationKeys.LibraryStatusWhereUsedLoaded, whereUsed.Count);
             });
         }
 
@@ -331,7 +442,7 @@ namespace IdeaCadConnector.Desktop
             var workspace = _session.CurrentPdmProjectsViewModel;
             if (workspace == null || SelectedEntry == null)
             {
-                StatusMessage = "Open a PDM workspace before reusing a Library Part.";
+                StatusMessage = L(TranslationKeys.LibraryStatusOpenPdmWorkspaceFirst);
                 return;
             }
 
@@ -384,11 +495,212 @@ namespace IdeaCadConnector.Desktop
 
         private void ShowSaveToLibraryDialog()
         {
-            new SaveToLibraryDialog
+            if (!CanContributeToSelectedLibrary)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectWritableLibrary);
+                return;
+            }
+
+            var dialog = new SaveToLibraryDialog
             {
                 Owner = Application.Current?.MainWindow
-            }.ShowDialog();
-            StatusMessage = "Save-to-Library UI opened.";
+            };
+
+            dialog.ShowDialog();
+            StatusMessage = L(TranslationKeys.LibraryStatusSaveDialogOpened);
+        }
+
+        private void ShowCreateLibraryNotAvailableMessage()
+        {
+            StatusMessage = L(TranslationKeys.LibraryStatusCreateLibraryUnavailable);
+        }
+
+        private async Task RemoveSelectedEntryAsync()
+        {
+            if (SelectedEntry == null)
+                return;
+
+            var confirm = MessageBox.Show(
+                L(TranslationKeys.LibraryConfirmRemoveEntry),
+                L(TranslationKeys.LibraryDialogActionTitle),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            await RunBusyAsync(async () =>
+            {
+                await _client.RemoveEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                StatusMessage = L(TranslationKeys.LibraryStatusEntryRemoved);
+                await RefreshAsync().ConfigureAwait(true);
+            });
+        }
+
+        private async Task MoveSelectedEntryAsync()
+        {
+            if (SelectedEntry == null || SelectedLibrary == null)
+                return;
+
+            if (string.Equals(SelectedEntry.LibraryId, SelectedLibrary.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectDifferentLibrary);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                L(TranslationKeys.LibraryConfirmMoveEntry),
+                L(TranslationKeys.LibraryDialogActionTitle),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            await RunBusyAsync(async () =>
+            {
+                await _client.MoveEntryAsync(SelectedEntry.EntryId, SelectedLibrary.Id, CancellationToken.None).ConfigureAwait(true);
+                StatusMessage = L(TranslationKeys.LibraryStatusEntryMoved);
+                await RefreshAsync().ConfigureAwait(true);
+            });
+        }
+
+        private async Task DeprecateSelectedEntryAsync()
+        {
+            if (SelectedEntry == null)
+                return;
+
+            var confirm = MessageBox.Show(
+                L(TranslationKeys.LibraryConfirmDeprecateEntry),
+                L(TranslationKeys.LibraryDialogActionTitle),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            await RunBusyAsync(async () =>
+            {
+                await _client.DeprecateEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                StatusMessage = L(TranslationKeys.LibraryStatusEntryDeprecated);
+                await RefreshAsync().ConfigureAwait(true);
+            });
+        }
+
+        private async Task ResolveSelectedEntryAsync(LibraryRevisionPolicy policy)
+        {
+            if (SelectedEntry == null)
+                return;
+
+            await RunBusyAsync(async () =>
+            {
+                var resolved = await _client.ResolvePartAsync(SelectedEntry.EntryId, policy, CancellationToken.None).ConfigureAwait(true);
+                if (resolved == null)
+                {
+                    StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
+                    return;
+                }
+
+                SelectedEntryDetails = CloneDetailsWithResolution(SelectedEntryDetails, resolved, policy);
+                StatusMessage = policy == LibraryRevisionPolicy.Pinned
+                    ? L(TranslationKeys.LibraryStatusPinnedLoaded)
+                    : L(TranslationKeys.LibraryStatusLatestReleasedLoaded);
+            });
+        }
+
+        private async Task OpenPrimaryCadAsync()
+        {
+            var fileName = SelectedEntryDetails?.PrimaryCadFileName;
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusNoPrimaryCadFileName);
+                return;
+            }
+
+            var resolved = FindWorkspaceCadFile(fileName);
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadNotFound);
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = resolved,
+                    UseShellExecute = true
+                });
+            }).ConfigureAwait(true);
+
+            StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadOpened);
+        }
+
+        private async Task RevealPrimaryCadAsync()
+        {
+            var fileName = SelectedEntryDetails?.PrimaryCadFileName;
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusNoPrimaryCadFileName);
+                return;
+            }
+
+            var resolved = FindWorkspaceCadFile(fileName);
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadNotFound);
+                return;
+            }
+
+            var folder = Path.GetDirectoryName(resolved);
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadFolderOpenFailed);
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = folder,
+                    UseShellExecute = true
+                });
+            }).ConfigureAwait(true);
+
+            StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadFolderOpened);
+        }
+
+        private void OpenInAras()
+        {
+            var partId = SelectedEntryDetails?.PartId ?? SelectedEntry?.PartId;
+            if (string.IsNullOrWhiteSpace(partId))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusNoResolvedPartId);
+                return;
+            }
+
+            StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
+        }
+
+        private string FindWorkspaceCadFile(string fileName)
+        {
+            var workspaceFolder = _session.CurrentPdmProjectsViewModel?.FolderPath;
+            if (string.IsNullOrWhiteSpace(workspaceFolder) || string.IsNullOrWhiteSpace(fileName) || !Directory.Exists(workspaceFolder))
+                return null;
+
+            try
+            {
+                return Directory.GetFiles(workspaceFolder, fileName, SearchOption.AllDirectories).FirstOrDefault();
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
 
         private async Task RunBusyAsync(Func<Task> action)
@@ -404,23 +716,70 @@ namespace IdeaCadConnector.Desktop
             }
             catch (ArasOperationException ex)
             {
+                if (ex.ErrorCode == ArasErrorCode.PermissionDenied)
+                {
+                    _permissionMessage = L(TranslationKeys.LibraryPermissionDenied);
+                    _errorMessage = string.Empty;
+                }
+                else
+                {
+                    _permissionMessage = string.Empty;
+                    _errorMessage = ex.Message;
+                }
+
+                NotifyPanelStateChanged();
                 StatusMessage = ex.Message;
             }
             catch (Exception ex)
             {
-                StatusMessage = "Part Library failed: " + ex.Message;
+                _permissionMessage = string.Empty;
+                _errorMessage = ex.Message;
+                NotifyPanelStateChanged();
+                StatusMessage = Lf(TranslationKeys.LibraryFailedPrefix, ex.Message);
             }
             finally
             {
                 IsLoading = false;
+                NotifyPanelStateChanged();
             }
         }
 
-        private static string NormalizeFilter(string value)
+        private string NormalizeTypeFilter(string value)
         {
-            if (string.IsNullOrWhiteSpace(value) || value.StartsWith("All ", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllTypes))
                 return null;
+            if (value == L(TranslationKeys.LibraryFilterAssembly))
+                return "Assembly";
+            if (value == L(TranslationKeys.LibraryFilterComponent))
+                return "Component";
+            return value;
+        }
 
+        private string NormalizeStateFilter(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllStates))
+                return null;
+            if (value == L(TranslationKeys.LibraryFilterReleased))
+                return "Released";
+            if (value == L(TranslationKeys.LibraryFilterInReview))
+                return "In Review";
+            if (value == L(TranslationKeys.LibraryFilterPreliminary))
+                return "Preliminary";
+            if (value == L(TranslationKeys.LibraryFilterDeprecated))
+                return "Deprecated";
+            return value;
+        }
+
+        private string NormalizeRevisionFilter(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllRevisions))
+                return null;
+            if (value == L(TranslationKeys.LibraryFilterLatestReleased))
+                return "LatestReleased";
+            if (value == L(TranslationKeys.LibraryFilterPinned))
+                return "Pinned";
+            if (value == L(TranslationKeys.LibraryFilterLatestCurrent))
+                return "LatestCurrent";
             return value;
         }
 
@@ -446,16 +805,16 @@ namespace IdeaCadConnector.Desktop
             };
         }
 
-        private static string BuildWhereUsedSummary(IReadOnlyList<PartWhereUsedItem> whereUsed)
+        private string BuildWhereUsedSummary(IReadOnlyList<PartWhereUsedItem> whereUsed)
         {
             if (whereUsed == null || whereUsed.Count == 0)
-                return "No parent Parts are currently reusing this Part.";
+                return L(TranslationKeys.LibraryWhereUsedNone);
 
             var lines = whereUsed
                 .Take(6)
                 .Select(item =>
                 {
-                    var parent = item.ParentPartNumber ?? item.ParentPartName ?? "Unknown parent";
+                    var parent = item.ParentPartNumber ?? item.ParentPartName ?? L(TranslationKeys.LibraryWhereUsedUnknownParent);
                     var name = string.IsNullOrWhiteSpace(item.ParentPartName) ? string.Empty : " - " + item.ParentPartName;
                     var quantity = item.Quantity > 0 ? " (qty " + item.Quantity + ")" : string.Empty;
                     return parent + name + quantity;
@@ -463,9 +822,19 @@ namespace IdeaCadConnector.Desktop
                 .ToList();
 
             if (whereUsed.Count > lines.Count)
-                lines.Add("...and " + (whereUsed.Count - lines.Count) + " more parent Part(s).");
+                lines.Add(Lf(TranslationKeys.LibraryWhereUsedMore, whereUsed.Count - lines.Count));
 
             return string.Join(Environment.NewLine, lines);
+        }
+
+        private PartLibraryEntryDetailsView CreateEmptyDetails()
+        {
+            return new PartLibraryEntryDetailsView
+            {
+                PartNumber = L(TranslationKeys.LibrarySelectPart),
+                PrimaryCadFileName = L(TranslationKeys.LibraryNoLinkedCad),
+                WhereUsedSummary = L(TranslationKeys.LibraryWhereUsedHint)
+            };
         }
 
         private static PartLibraryEntryDetailsView CloneDetailsWithWhereUsed(PartLibraryEntryDetailsView details, string whereUsedSummary)
@@ -494,10 +863,41 @@ namespace IdeaCadConnector.Desktop
             };
         }
 
+        private static PartLibraryEntryDetailsView CloneDetailsWithResolution(
+            PartLibraryEntryDetailsView details,
+            ResolveLibraryPartResult resolved,
+            LibraryRevisionPolicy policy)
+        {
+            details = details ?? new PartLibraryEntryDetailsView();
+            return new PartLibraryEntryDetailsView
+            {
+                EntryId = details.EntryId,
+                LibraryId = details.LibraryId,
+                LibraryName = details.LibraryName,
+                PartId = resolved?.ResolvedPartId ?? details.PartId,
+                PartConfigId = resolved?.ResolvedPartConfigId ?? details.PartConfigId,
+                PartNumber = details.PartNumber,
+                PartName = details.PartName,
+                PartType = details.PartType,
+                Revision = resolved?.ResolvedRevision ?? details.Revision,
+                LifecycleState = resolved?.LifecycleState ?? details.LifecycleState,
+                RevisionPolicy = policy.ToString(),
+                PrimaryCadId = details.PrimaryCadId,
+                PrimaryCadFileName = details.PrimaryCadFileName,
+                PrimaryCadState = resolved?.CadStatus ?? details.PrimaryCadState,
+                LockedBy = details.LockedBy,
+                UsageCount = details.UsageCount,
+                CadStatus = resolved?.CadStatus ?? details.CadStatus,
+                WhereUsedSummary = details.WhereUsedSummary
+            };
+        }
+
         private void RaiseCommandStates()
         {
             (RefreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (SearchCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (CreateLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (AddPartCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (RemoveEntryCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (MoveEntryCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (AddToCurrentProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -509,6 +909,110 @@ namespace IdeaCadConnector.Desktop
             (UseLatestReleasedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (ViewWhereUsedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (OpenInArasCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
+
+        private void ClearTransientStates()
+        {
+            _permissionMessage = string.Empty;
+            _errorMessage = string.Empty;
+            NotifyPanelStateChanged();
+        }
+
+        private void NotifyPanelStateChanged()
+        {
+            OnPropertyChanged(nameof(CanContributeToSelectedLibrary));
+            OnPropertyChanged(nameof(IsPermissionState));
+            OnPropertyChanged(nameof(IsErrorState));
+            OnPropertyChanged(nameof(ShowLibrariesOverlay));
+            OnPropertyChanged(nameof(ShowEntriesOverlay));
+            OnPropertyChanged(nameof(LibrariesOverlayMessage));
+            OnPropertyChanged(nameof(EntriesOverlayMessage));
+            OnPropertyChanged(nameof(AddToProjectHint));
+        }
+
+        private void OnLibraryDataChanged(object sender, EventArgs e)
+        {
+            _ = RefreshAsync();
+        }
+
+        private void TryFocusPendingEntry()
+        {
+            var pendingEntryId = _session.PendingLibraryFocusEntryId;
+            if (string.IsNullOrWhiteSpace(pendingEntryId))
+                return;
+
+            var matchedEntry = Entries.FirstOrDefault(item =>
+                string.Equals(item.EntryId, pendingEntryId, StringComparison.OrdinalIgnoreCase));
+            if (matchedEntry == null)
+                return;
+
+            SelectedEntry = matchedEntry;
+            _session.PendingLibraryFocusEntryId = null;
+            _session.PendingLibraryFocusLibraryId = null;
+        }
+
+        private void RefreshFilterOptions()
+        {
+            var normalizedType = NormalizeTypeFilter(_selectedTypeFilter);
+            var normalizedState = NormalizeStateFilter(_selectedStateFilter);
+            var normalizedRevision = NormalizeRevisionFilter(_selectedRevisionFilter);
+
+            TypeFilters.Clear();
+            TypeFilters.Add(L(TranslationKeys.LibraryFilterAllTypes));
+            TypeFilters.Add(L(TranslationKeys.LibraryFilterAssembly));
+            TypeFilters.Add(L(TranslationKeys.LibraryFilterComponent));
+
+            StateFilters.Clear();
+            StateFilters.Add(L(TranslationKeys.LibraryFilterAllStates));
+            StateFilters.Add(L(TranslationKeys.LibraryFilterReleased));
+            StateFilters.Add(L(TranslationKeys.LibraryFilterInReview));
+            StateFilters.Add(L(TranslationKeys.LibraryFilterPreliminary));
+            StateFilters.Add(L(TranslationKeys.LibraryFilterDeprecated));
+
+            RevisionFilters.Clear();
+            RevisionFilters.Add(L(TranslationKeys.LibraryFilterAllRevisions));
+            RevisionFilters.Add(L(TranslationKeys.LibraryFilterLatestReleased));
+            RevisionFilters.Add(L(TranslationKeys.LibraryFilterPinned));
+            RevisionFilters.Add(L(TranslationKeys.LibraryFilterLatestCurrent));
+
+            _selectedTypeFilter = string.IsNullOrWhiteSpace(normalizedType)
+                ? TypeFilters[0]
+                : TypeFilters.FirstOrDefault(item => NormalizeTypeFilter(item) == normalizedType) ?? TypeFilters[0];
+            _selectedStateFilter = string.IsNullOrWhiteSpace(normalizedState)
+                ? StateFilters[0]
+                : StateFilters.FirstOrDefault(item => NormalizeStateFilter(item) == normalizedState) ?? StateFilters[0];
+            _selectedRevisionFilter = string.IsNullOrWhiteSpace(normalizedRevision)
+                ? RevisionFilters[0]
+                : RevisionFilters.FirstOrDefault(item => NormalizeRevisionFilter(item) == normalizedRevision) ?? RevisionFilters[0];
+        }
+
+        private void OnLocalizationChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (!string.Equals(e.PropertyName, "Item[]", StringComparison.Ordinal))
+                return;
+
+            RefreshFilterOptions();
+            if (SelectedEntry == null)
+                SelectedEntryDetails = CreateEmptyDetails();
+            NotifyPanelStateChanged();
+            OnPropertyChanged(nameof(SelectedTypeFilter));
+            OnPropertyChanged(nameof(SelectedStateFilter));
+            OnPropertyChanged(nameof(SelectedRevisionFilter));
+            OnPropertyChanged(nameof(ResultSummary));
+            OnPropertyChanged(nameof(PagingSummary));
+            OnPropertyChanged(nameof(ConnectionTitle));
+            OnPropertyChanged(nameof(ConnectionDatabase));
+            RaiseCommandStates();
+        }
+
+        private static string L(string key)
+        {
+            return TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, key);
+        }
+
+        private static string Lf(string key, params object[] args)
+        {
+            return string.Format(L(key), args);
         }
 
         private bool SetField<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
@@ -539,18 +1043,22 @@ namespace IdeaCadConnector.Desktop
                 throw new ArgumentNullException(nameof(workspace));
 
             PartNumber = partNumber;
-            ResolvedPartSummary = (partName ?? "Reusable Part") + " • Revision " + (revision ?? "-");
-            ReuseBadge = "Existing Aras Part";
+            ResolvedPartSummary = string.Format(
+                TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogResolvedPartSummary),
+                partName ?? "Reusable Part",
+                TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogRevisionWord),
+                revision ?? "-");
+            ReuseBadge = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogReuseBadgeExistingPart);
             RepositoryCode = workspace.SelectedRepository ?? workspace.RepositoryCodeForDisplay;
-            BranchName = workspace.SelectedBranch ?? "main";
+            BranchName = workspace.SelectedBranch ?? TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogBranchFallbackMain);
             BaseCommitSummary = workspace.LatestCommitSummary;
             ParentCandidates = new ObservableCollection<LibraryParentCandidate>(workspace.GetLibraryParentCandidates());
             SelectedParent = ParentCandidates.FirstOrDefault();
             WorkspaceWarning = workspace.HasUncommittedChanges
-                ? "Uncommitted changes detected. The reusable Part will be added to the current working tree and should be committed locally."
-                : "The reusable Part will be staged in the working tree and included in the next local commit.";
+                ? TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogUncommittedWarning)
+                : TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogStagingWarning);
 
-            PreviewCommand = new RelayCommand(_ => WorkspaceWarning = "Preview ready: the Part will be added as a local Library reference and reused on Push.");
+            PreviewCommand = new RelayCommand(_ => WorkspaceWarning = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogPreviewReady));
             AddCommand = new RelayCommand(_ => ConfirmAdd(), _ => SelectedParent != null && ParsedQuantity > 0);
         }
 
@@ -630,7 +1138,7 @@ namespace IdeaCadConnector.Desktop
         {
             if (SelectedParent == null || ParsedQuantity <= 0)
             {
-                WorkspaceWarning = "Select a target parent and enter a quantity greater than 0.";
+                WorkspaceWarning = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogValidationMessage);
                 return;
             }
 
@@ -874,7 +1382,7 @@ namespace IdeaCadConnector.Desktop
         {
             return new ArasOperationException(
                 ArasErrorCode.AuthInvalid,
-                "Part Library is not available until you sign in to Aras.");
+                TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryUnavailableSignInMessage));
         }
     }
 }

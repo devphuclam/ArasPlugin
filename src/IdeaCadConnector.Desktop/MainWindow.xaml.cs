@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using IdeaCadConnector.Desktop.Services;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -14,7 +15,16 @@ namespace IdeaCadConnector.Desktop
             InitializeComponent();
             _viewModel = new MainViewModel();
             DataContext = _viewModel;
+            AppSessionContext.Current.LibraryWorkspaceRequested += OnLibraryWorkspaceRequested;
             Loaded += OnLoaded;
+        }
+
+        private void OnLibraryWorkspaceRequested(object sender, System.EventArgs e)
+        {
+            ExistingWorkspace.Visibility = Visibility.Collapsed;
+            PdmWorkspace.Visibility = Visibility.Collapsed;
+            LibraryWorkspace.Visibility = Visibility.Visible;
+            SetActiveNavigation(LibraryNavigationButton);
         }
 
         private void OnPasswordChanged(object sender, RoutedEventArgs e)

@@ -80,6 +80,7 @@ namespace IdeaCadConnector.Desktop
         private int _liveCadGeneration;
         private bool _liveHasNativeFile;
         private string _livePartId;
+        private Dictionary<string, string> _postPushPartIds;
         private bool _isCheckedOutByMe;
         private bool _isCheckedOutByOther;
         private bool _isAvailable;
@@ -147,6 +148,7 @@ namespace IdeaCadConnector.Desktop
             CommitCommand = new RelayCommand(_ => _ = ExecuteCommitAsync(), _ => CanCommit);
             ToggleCadSectionCommand = new RelayCommand(_ => ToggleCadSection());
             ToggleDocumentsSectionCommand = new RelayCommand(_ => ToggleDocumentsSection());
+            SaveSelectedNodeToLibraryCommand = new RelayCommand(_ => SaveSelectedNodeToLibraryAsync(), _ => CanSaveSelectedNodeToLibrary);
 
 
             AnalyzeFolder();
@@ -285,7 +287,10 @@ namespace IdeaCadConnector.Desktop
                     OnPropertyChanged(nameof(HasSelectedNode));
                     OnPropertyChanged(nameof(CanOpenInIronCad));
                     OnPropertyChanged(nameof(HasOpenInIronCadAction));
+                    OnPropertyChanged(nameof(HasSaveToLibraryAction));
+                    OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
                     ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
+                    ((RelayCommand)SaveSelectedNodeToLibraryCommand).RaiseCanExecuteChanged();
                     RefreshSelectedDocuments();
                     _ = RefreshCadStateAsync();
                 }
@@ -313,7 +318,14 @@ namespace IdeaCadConnector.Desktop
         public bool IsAnalyzing
         {
             get => _isAnalyzing;
-            set => SetField(ref _isAnalyzing, value);
+            set
+            {
+                if (SetField(ref _isAnalyzing, value))
+                {
+                    OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
+                    (SaveSelectedNodeToLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                }
+            }
         }
 
         public bool IsPushing
@@ -324,6 +336,8 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _isPushing, value))
                 {
                     _pushCommand.RaiseCanExecuteChanged();
+                    OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
+                    (SaveSelectedNodeToLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -517,6 +531,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand StartNewRevisionCommand { get; }
         public ICommand ToggleCadSectionCommand { get; }
         public ICommand ToggleDocumentsSectionCommand { get; }
+        public ICommand SaveSelectedNodeToLibraryCommand { get; }
 
         public string CadLockStateText
         {
@@ -602,6 +617,14 @@ namespace IdeaCadConnector.Desktop
         public bool HasCheckInCadAction => IsCheckedOutByMe || CanCheckIn;
 
         public bool HasCancelCheckoutCadAction => IsCheckedOutByMe || CanCancelCheckout;
+
+        public bool HasSaveToLibraryAction => SelectedNode != null;
+
+        public bool CanSaveSelectedNodeToLibrary =>
+            !IsAnalyzing &&
+            !IsPushing &&
+            SelectedNode != null &&
+            MainViewModel.SharedPartLibraryClient != null;
 
         public bool IsCheckedOutByMe
         {
@@ -817,6 +840,8 @@ namespace IdeaCadConnector.Desktop
         {
             if (result.PartResults != null)
             {
+                var idLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
                 for (int i = 0; i < result.PartResults.Count && i < PreviewParts.Count; i++)
                 {
                     var res = result.PartResults[i];
@@ -825,7 +850,34 @@ namespace IdeaCadConnector.Desktop
                         row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
                     else
                         row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+
+                    // Capture ArasId for post-push Save-to-Library flow
+                    if (res.Success && !string.IsNullOrWhiteSpace(res.ArasId) && i < _pushPreview.Parts.Count)
+                    {
+                        var lc = _pushPreview.Parts[i].LogicalCode;
+                        if (!string.IsNullOrWhiteSpace(lc))
+                            idLookup[lc] = res.ArasId;
+                    }
                 }
+
+                _postPushPartIds = idLookup;
+
+                // Populate _livePartId from root part (no parent) so Save to Library works immediately after push
+                if (_pushPreview?.Parts != null && string.IsNullOrWhiteSpace(_livePartId))
+                {
+                    for (int i = 0; i < _pushPreview.Parts.Count && i < result.PartResults.Count; i++)
+                    {
+                        var part = _pushPreview.Parts[i];
+                        var res = result.PartResults[i];
+                        if (string.IsNullOrWhiteSpace(part.ParentLogicalCode) && res.Success && !string.IsNullOrWhiteSpace(res.ArasId))
+                        {
+                            _livePartId = res.ArasId;
+                            break;
+                        }
+                    }
+                }
+
+                RefreshCanOpenInIronCad();
             }
 
             if (result.CadResults != null)
@@ -1675,6 +1727,71 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
+        private async void SaveSelectedNodeToLibraryAsync()
+        {
+            if (!CanSaveSelectedNodeToLibrary)
+                return;
+
+            var selectedNode = SelectedNode;
+            if (selectedNode == null)
+                return;
+
+            var partLibraryClient = MainViewModel.SharedPartLibraryClient;
+            if (partLibraryClient == null)
+            {
+                StatusMessage = Loc(TranslationKeys.StatusNotConnected);
+                return;
+            }
+
+            var resolvedPartId = ResolveSelectedNodePartId();
+            if (string.IsNullOrWhiteSpace(resolvedPartId))
+            {
+                StatusMessage = Loc(TranslationKeys.LibraryStatusPushPartToArasFirst);
+                return;
+            }
+
+            var result = await SaveToLibraryWorkflow.ExecuteAsync(
+                new PartLibrarySaveSeed
+                {
+                    PartId = resolvedPartId,
+                    PartNumber = selectedNode.PartCode,
+                    PartName = selectedNode.Name,
+                    SourceProject = SelectedRepository ?? RepositoryCodeForDisplay,
+                    SourceCommit = LatestCommitSummary
+                },
+                partLibraryClient).ConfigureAwait(true);
+
+            if (!result.Submitted)
+                return;
+
+            if (result.AddResult?.Success == true)
+            {
+                AppSessionContext.Current.PendingLibraryFocusLibraryId = result.LibraryId;
+                AppSessionContext.Current.PendingLibraryFocusEntryId = result.AddResult.EntryId;
+                AppSessionContext.Current.NotifyLibraryDataChanged();
+
+                if (result.AddResult.AlreadyExists)
+                {
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.LibraryStatusPartAlreadyInLibrary),
+                        result.AddResult.EntryId ?? "-");
+                    AppSessionContext.Current.RequestLibraryWorkspace();
+                }
+                else
+                {
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.LibraryStatusPartSavedToLibrary),
+                        result.AddResult.EntryId ?? "-");
+                }
+
+                return;
+            }
+
+            StatusMessage = string.Format(
+                Loc(TranslationKeys.LibraryStatusPartSaveFailed),
+                result.AddResult?.ErrorMessage ?? result.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
+        }
+
         private async void OpenInIronCadAsync()
         {
             if (!CanOpenInIronCad)
@@ -1898,6 +2015,7 @@ namespace IdeaCadConnector.Desktop
             _liveCadGeneration = 0;
             _liveHasNativeFile = false;
             _livePartId = null;
+            _postPushPartIds = null;
             _isCheckedOutByOther = false;
             SetCadOperationContext(null);
 
@@ -1971,6 +2089,8 @@ namespace IdeaCadConnector.Desktop
             ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CanStartNewRevision));
             ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
+            ((RelayCommand)SaveSelectedNodeToLibraryCommand).RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CadRevisionReadinessText));
             OnPropertyChanged(nameof(HasCadRevisionReadinessInfo));
         }
@@ -1996,6 +2116,28 @@ namespace IdeaCadConnector.Desktop
             return SelectedNode != null
                 && PdmStructure.Count > 0
                 && string.Equals(SelectedNode.PartCode, PdmStructure[0].PartCode, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string ResolveSelectedNodePartId()
+        {
+            if (SelectedNode == null)
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(SelectedNode.ArasPartId))
+                return SelectedNode.ArasPartId;
+
+            if (IsSelectedRootAssemblyNode() && !string.IsNullOrWhiteSpace(_livePartId))
+                return _livePartId;
+
+            // Check IDs captured from the last push result (keyed by LogicalCode = PartCode for most nodes)
+            if (_postPushPartIds != null &&
+                _postPushPartIds.TryGetValue(SelectedNode.PartCode, out var pushedId) &&
+                !string.IsNullOrWhiteSpace(pushedId))
+            {
+                return pushedId;
+            }
+
+            return null;
         }
 
         private bool IsReleasedCad()
@@ -3364,6 +3506,9 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(BranchPushAllowed));
             OnPropertyChanged(nameof(HasUncommittedChanges));
             OnPropertyChanged(nameof(SelectedNode));
+            OnPropertyChanged(nameof(HasSaveToLibraryAction));
+            OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
+            (SaveSelectedNodeToLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
         private void OnPropertyChanged([CallerMemberName] string propertyName = null)

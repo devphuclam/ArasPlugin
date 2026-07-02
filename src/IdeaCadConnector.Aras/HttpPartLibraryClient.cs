@@ -160,6 +160,15 @@ namespace IdeaCadConnector.Aras
                 partConfigId = partItem["config_id"]?.Value<string>();
             }
 
+            var serverMethodResult = await TryAddPartViaServerMethodAsync(
+                request,
+                partConfigId,
+                cancellationToken).ConfigureAwait(false);
+            if (serverMethodResult != null)
+            {
+                return serverMethodResult;
+            }
+
             var duplicateId = await FindDuplicateEntryIdAsync(
                 request.LibraryId,
                 partConfigId,
@@ -267,12 +276,17 @@ namespace IdeaCadConnector.Aras
             {
                 resolvedPart = await GetPartAsync(pinnedPartId, cancellationToken).ConfigureAwait(false);
             }
+            else if (requestedPolicy == LibraryRevisionPolicy.LatestReleased)
+            {
+                resolvedPart = await ResolveLatestReleasedPartAsync(configId, relatedPartId, cancellationToken).ConfigureAwait(false);
+            }
             else
             {
                 resolvedPart = await ResolveCurrentPartAsync(configId, relatedPartId, cancellationToken).ConfigureAwait(false);
             }
 
             var cadInfo = await GetPrimaryCadInfoAsync(resolvedPart["id"]?.Value<string>(), cancellationToken).ConfigureAwait(false);
+            var latestReleased = await GetLatestReleasedPartAsync(configId, relatedPartId, cancellationToken).ConfigureAwait(false);
             return new ResolveLibraryPartResult
             {
                 EntryId = entryId,
@@ -281,22 +295,19 @@ namespace IdeaCadConnector.Aras
                 ResolvedRevision = resolvedPart["major_rev"]?.Value<string>(),
                 LifecycleState = resolvedPart["state"]?.Value<string>(),
                 CadStatus = cadInfo.Status,
-                HasNewerReleasedRevision = false
+                HasNewerReleasedRevision = latestReleased != null &&
+                                          !string.Equals(latestReleased["id"]?.Value<string>(), resolvedPart["id"]?.Value<string>(), StringComparison.OrdinalIgnoreCase)
             };
         }
 
         public Task PublishEntryAsync(string entryId, CancellationToken cancellationToken)
         {
-            throw new ArasOperationException(
-                ArasErrorCode.ValidationFailed,
-                "Publish requires live Aras workflow configuration for Part Library and is not wired automatically yet.");
+            return PromoteEntryAsync(entryId, PartLibrarySchemaNames.EntryLifecyclePublishedState, cancellationToken);
         }
 
         public Task DeprecateEntryAsync(string entryId, CancellationToken cancellationToken)
         {
-            throw new ArasOperationException(
-                ArasErrorCode.ValidationFailed,
-                "Deprecate requires live Aras governance/workflow configuration for Part Library and is not wired automatically yet.");
+            return PromoteEntryAsync(entryId, PartLibrarySchemaNames.EntryLifecycleDeprecatedState, cancellationToken);
         }
 
         public async Task<IReadOnlyList<PartWhereUsedItem>> GetWhereUsedAsync(string partId, CancellationToken cancellationToken)
@@ -425,8 +436,16 @@ namespace IdeaCadConnector.Aras
                 var result = await _aml.ApplyAmlAsync(aml, "get", "ItemType", null, ct).ConfigureAwait(false);
                 return EnumerateItems(result).Any();
             }
+            catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
+            {
+                _logger.LogDebug(ex, "Failed to verify ItemType {ItemTypeName}.", itemTypeName);
+                return false;
+            }
             catch (Exception ex)
             {
+                if (IsAuthOrPermissionFailure(ex))
+                    throw;
+
                 _logger.LogWarning(ex, "Failed to verify ItemType {ItemTypeName}.", itemTypeName);
                 return false;
             }
@@ -489,6 +508,7 @@ namespace IdeaCadConnector.Aras
                 ? await GetLibraryAsync(libraryId, ct).ConfigureAwait(false)
                 : null;
             var cad = await GetPrimaryCadInfoAsync(partId, ct).ConfigureAwait(false);
+            var latestReleased = await GetLatestReleasedPartAsync(part["config_id"]?.Value<string>(), partId, ct).ConfigureAwait(false);
 
             return new PartLibraryEntrySummary
             {
@@ -506,7 +526,8 @@ namespace IdeaCadConnector.Aras
                 EntryStatus = ParseEntryStatus(relationship["entry_status"]?.Value<string>()),
                 CadStatus = cad.Status,
                 UsageCount = ParseInt(relationship["usage_count"]?.Value<string>(), 0),
-                HasNewerReleasedRevision = false,
+                HasNewerReleasedRevision = latestReleased != null &&
+                                          !string.Equals(latestReleased["id"]?.Value<string>(), part["id"]?.Value<string>(), StringComparison.OrdinalIgnoreCase),
                 IsDeprecated = string.Equals(
                     relationship["entry_status"]?.Value<string>(),
                     PartLibrarySchemaNames.EntryStatusDeprecated,
@@ -585,16 +606,9 @@ namespace IdeaCadConnector.Aras
         {
             if (!string.IsNullOrWhiteSpace(configId))
             {
-                var releasedAml =
-                    "<Item type=\"Part\" action=\"get\" select=\"id,config_id,item_number,name,classification,major_rev,state,generation\">" +
-                    "<config_id>" + Escape(configId) + "</config_id>" +
-                    "<state>" + PartLibrarySchemaNames.PartReleasedState + "</state>" +
-                    "</Item>";
-
-                var released = await _aml.ApplyAmlAsync(releasedAml, "get", "Part", null, ct).ConfigureAwait(false);
-                var releasedItem = EnumerateItems(released).FirstOrDefault();
-                if (releasedItem != null)
-                    return releasedItem;
+                var latestReleased = await GetLatestReleasedPartAsync(configId, fallbackPartId, ct).ConfigureAwait(false);
+                if (latestReleased != null)
+                    return latestReleased;
 
                 var currentAml =
                     "<Item type=\"Part\" action=\"get\" select=\"id,config_id,item_number,name,classification,major_rev,state,generation\">" +
@@ -609,6 +623,42 @@ namespace IdeaCadConnector.Aras
             }
 
             return await GetPartAsync(fallbackPartId, ct).ConfigureAwait(false);
+        }
+
+        private async Task<JObject> ResolveLatestReleasedPartAsync(string configId, string fallbackPartId, CancellationToken ct)
+        {
+            if (!string.IsNullOrWhiteSpace(configId))
+            {
+                var latestReleased = await GetLatestReleasedPartAsync(configId, fallbackPartId, ct).ConfigureAwait(false);
+                if (latestReleased != null)
+                    return latestReleased;
+            }
+
+            return await GetPartAsync(fallbackPartId, ct).ConfigureAwait(false);
+        }
+
+        private async Task<JObject> GetLatestReleasedPartAsync(string configId, string fallbackPartId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(configId))
+                return string.IsNullOrWhiteSpace(fallbackPartId) ? null : await GetPartAsync(fallbackPartId, ct).ConfigureAwait(false);
+
+            var releasedAml =
+                "<Item type=\"Part\" action=\"get\" select=\"id,config_id,item_number,name,classification,major_rev,state,generation\">" +
+                "<config_id>" + Escape(configId) + "</config_id>" +
+                "<state>" + PartLibrarySchemaNames.PartReleasedState + "</state>" +
+                "</Item>";
+
+            var released = await _aml.ApplyAmlAsync(releasedAml, "get", "Part", null, ct).ConfigureAwait(false);
+            var releasedItems = EnumerateItems(released).ToList();
+            if (releasedItems.Count == 0)
+            {
+                if (string.IsNullOrWhiteSpace(fallbackPartId))
+                    return null;
+
+                return await GetPartAsync(fallbackPartId, ct).ConfigureAwait(false);
+            }
+
+            return SelectLatestPartVersion(releasedItems);
         }
 
         private async Task<string> FindDuplicateEntryIdAsync(
@@ -626,6 +676,75 @@ namespace IdeaCadConnector.Aras
                  string.Equals(entry.PartId, pinnedPartId, StringComparison.OrdinalIgnoreCase)));
 
             return match?.EntryId;
+        }
+
+        private async Task<AddPartToLibraryResult> TryAddPartViaServerMethodAsync(
+            AddPartToLibraryRequest request,
+            string partConfigId,
+            CancellationToken ct)
+        {
+            var parameters = new Dictionary<string, string>
+            {
+                ["library_id"] = request.LibraryId,
+                ["part_id"] = request.PartId,
+                ["part_config_id"] = partConfigId,
+                ["revision_policy"] = request.RevisionPolicy.ToString(),
+                ["category"] = request.Category ?? string.Empty,
+                ["tags"] = request.Tags ?? string.Empty,
+                ["note"] = request.Note ?? string.Empty,
+                ["source_project"] = request.SourceProject ?? string.Empty,
+                ["source_commit"] = request.SourceCommit ?? string.Empty
+            };
+
+            if (request.RevisionPolicy == LibraryRevisionPolicy.Pinned)
+            {
+                parameters["pinned_part_id"] = request.PartId;
+            }
+
+            try
+            {
+                var result = await _aml.ApplyMethodAsync(PartLibrarySchemaNames.AddPartToLibraryMethodName, parameters, ct).ConfigureAwait(false);
+                var entryId = result["entry_id"]?.Value<string>() ?? result["id"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(entryId))
+                {
+                    return null;
+                }
+
+                return new AddPartToLibraryResult
+                {
+                    Success = true,
+                    EntryId = entryId,
+                    AlreadyExists = ParseBoolean(result["already_exists"]?.Value<string>())
+                };
+            }
+            catch (ArasOperationException ex) when (CanFallbackToDirectAdd(ex))
+            {
+                _logger.LogInformation(ex, "Server method {MethodName} is not available. Falling back to direct AML add.", PartLibrarySchemaNames.AddPartToLibraryMethodName);
+                return null;
+            }
+        }
+
+        private async Task PromoteEntryAsync(string entryId, string targetState, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(entryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Library entry ID is required.");
+            if (string.IsNullOrWhiteSpace(targetState))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Target state is required.");
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(ct).ConfigureAwait(false);
+
+            var aml =
+                "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"promote\" id=\"" + Escape(entryId) + "\">" +
+                "<state>" + Escape(targetState) + "</state>" +
+                "</Item>";
+
+            await _aml.ApplyAmlAsync(
+                aml,
+                "promote",
+                PartLibrarySchemaNames.EntryRelationshipType,
+                entryId,
+                ct).ConfigureAwait(false);
         }
 
         private async Task<PrimaryCadInfo> GetPrimaryCadInfoAsync(string partId, CancellationToken ct)
@@ -662,8 +781,20 @@ namespace IdeaCadConnector.Aras
                     Status = string.IsNullOrWhiteSpace(cad["native_file"]?.Value<string>()) ? "No CAD" : "Available"
                 };
             }
+            catch (ArasOperationException ex) when (IsAuthOrPermissionFailure(ex))
+            {
+                throw;
+            }
+            catch (ArasOperationException ex)
+            {
+                _logger.LogDebug(ex, "Primary CAD info lookup failed for Part {PartId}.", partId);
+                return new PrimaryCadInfo { Status = "No CAD" };
+            }
             catch (Exception ex)
             {
+                if (IsAuthOrPermissionFailure(ex))
+                    throw;
+
                 _logger.LogDebug(ex, "Primary CAD info lookup failed for Part {PartId}.", partId);
                 return new PrimaryCadInfo { Status = "No CAD" };
             }
@@ -733,6 +864,56 @@ namespace IdeaCadConnector.Aras
         {
             return !string.IsNullOrWhiteSpace(value) &&
                    value.IndexOf(keyword ?? string.Empty, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsAuthOrPermissionFailure(Exception ex)
+        {
+            if (ex == null)
+                return false;
+
+            if (ex is ArasOperationException arasEx)
+            {
+                if (arasEx.ErrorCode == ArasErrorCode.AuthInvalid ||
+                    arasEx.ErrorCode == ArasErrorCode.AuthExpired ||
+                    arasEx.ErrorCode == ArasErrorCode.PermissionDenied)
+                {
+                    return true;
+                }
+            }
+
+            var message = ex.Message ?? string.Empty;
+            return message.IndexOf("permission", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("forbidden", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("unauthor", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("not authorized", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("authentication", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("login", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool CanFallbackToDirectAdd(Exception ex)
+        {
+            if (ex == null)
+                return false;
+
+            if (IsAuthOrPermissionFailure(ex))
+                return false;
+
+            var message = ex.Message ?? string.Empty;
+            return message.IndexOf("Method", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                   (message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("unavailable", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static JObject SelectLatestPartVersion(IReadOnlyList<JObject> parts)
+        {
+            if (parts == null || parts.Count == 0)
+                return null;
+
+            return parts
+                .OrderByDescending(part => ParseInt(part["generation"]?.Value<string>(), 0))
+                .ThenByDescending(part => part["major_rev"]?.Value<string>() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
         }
 
         private static string Escape(string value)

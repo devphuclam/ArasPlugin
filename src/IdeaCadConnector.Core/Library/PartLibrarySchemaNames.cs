@@ -5,6 +5,7 @@ namespace IdeaCadConnector.Core.Library
         public const string LibraryItemType = "idea_PartLibrary";
         public const string EntryRelationshipType = "idea_PartLibraryEntry";
         public const string UsageItemType = "idea_PartLibraryUsage";
+        public const string AddPartToLibraryMethodName = "idea_AddPartToLibrary";
 
         public const string LibraryStatusActive = "Active";
         public const string LibraryStatusArchived = "Archived";
@@ -13,6 +14,11 @@ namespace IdeaCadConnector.Core.Library
         public const string EntryStatusPendingReview = "PendingReview";
         public const string EntryStatusPublished = "Published";
         public const string EntryStatusDeprecated = "Deprecated";
+
+        public const string EntryLifecycleDraftState = EntryStatusDraft;
+        public const string EntryLifecyclePendingReviewState = EntryStatusPendingReview;
+        public const string EntryLifecyclePublishedState = EntryStatusPublished;
+        public const string EntryLifecycleDeprecatedState = EntryStatusDeprecated;
 
         public const string PartReleasedState = "Released";
     }
