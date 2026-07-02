@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:IdeaCadConnector.Desktop"
-        Title="IDEA PDM - IronCAD / Aras Innovator"
+        xmlns:core="clr-namespace:IdeaCadConnector.Core.Localization;assembly=IdeaCadConnector.Core"
+        Title="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[Title]}"
         Width="1560"
         Height="980"
         MinWidth="1180"
@@ -479,7 +480,37 @@
                 <TextBlock Grid.Column="1"
                            VerticalAlignment="Center"
                            Foreground="#FF1D2B53"
-                           Text="Theme" />
+                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarTheme]}" />
+                <TextBlock Grid.Column="2"
+                           FontFamily="Segoe MDL2 Assets"
+                           VerticalAlignment="Center"
+                           Foreground="#FF1D2B53"
+                           Text="&#xE70D;" />
+              </Grid>
+            </Border>
+
+            <Border Style="{StaticResource AppCardStyle}"
+                    Padding="14,10"
+                    Margin="0,0,0,12"
+                    CornerRadius="14">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="24" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="20" />
+                </Grid.ColumnDefinitions>
+                <TextBlock FontFamily="Segoe MDL2 Assets"
+                           VerticalAlignment="Center"
+                           Foreground="#FF3E6FD9"
+                           Text="&#xE717;" />
+                <ComboBox Grid.Column="1"
+                          Margin="8,0,0,0"
+                          VerticalAlignment="Center"
+                          FontSize="13"
+                          ItemsSource="{Binding LanguageOptions}"
+                          DisplayMemberPath="DisplayName"
+                          SelectedValuePath="CultureName"
+                          SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}" />
                 <TextBlock Grid.Column="2"
                            FontFamily="Segoe MDL2 Assets"
                            VerticalAlignment="Center"

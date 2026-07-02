@@ -1,13 +1,31 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Windows;
+using IdeaCadConnector.Core.Localization;
+using IdeaCadConnector.Desktop.Services;
 
 namespace IdeaCadConnector.Desktop
 {
     public partial class App : Application
     {
+
         protected override void OnStartup(StartupEventArgs e)
         {
+            var savedLanguage = SettingsService.LoadLanguage();
+            if (!string.IsNullOrWhiteSpace(savedLanguage))
+            {
+                try
+                {
+                    var culture = new CultureInfo(savedLanguage);
+                    CultureInfo.CurrentUICulture = culture;
+                    CultureInfo.DefaultThreadCurrentUICulture = culture;
+                }
+                catch
+                {
+                }
+            }
+
             base.OnStartup(e);
 
             try
@@ -26,9 +44,14 @@ namespace IdeaCadConnector.Desktop
                 var logPath = Path.Combine(logDirectory, "startup-error.log");
                 File.WriteAllText(logPath, ex.ToString());
 
+                var title = TranslationResources.GetString(
+                    CultureInfo.CurrentUICulture.Name, TranslationKeys.StartupErrorTitle);
+                var message = TranslationResources.GetString(
+                    CultureInfo.CurrentUICulture.Name, TranslationKeys.StartupErrorMessage);
+
                 MessageBox.Show(
-                    "IDEA PDM could not start.\n\n" + ex.Message + "\n\nDetails: " + logPath,
-                    "IDEA PDM",
+                    message + "\n\n" + ex.Message + "\n\nDetails: " + logPath,
+                    title,
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
 

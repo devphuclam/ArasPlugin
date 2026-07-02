@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Localization;
 
 namespace IdeaCadConnector.Ui.ViewModels
 {
@@ -284,63 +286,70 @@ namespace IdeaCadConnector.Ui.ViewModels
 
         private static string BuildSearchStatusMessage(int resultCount, string keyword)
         {
-            var builder = new StringBuilder();
-            builder.Append("Part search returned ");
-            builder.Append(resultCount);
-            builder.Append(" result(s)");
-
+            var culture = CultureInfo.CurrentUICulture.Name;
             if (!string.IsNullOrWhiteSpace(keyword))
             {
-                builder.Append(" for keyword \"");
-                builder.Append(keyword.Trim());
-                builder.Append("\"");
+                return string.Format(
+                    TranslationResources.GetString(culture, TranslationKeys.LoginStatusPartSearch),
+                    resultCount,
+                    keyword.Trim());
             }
 
-            builder.Append('.');
-            return builder.ToString();
+            return string.Format(
+                TranslationResources.GetString(culture, TranslationKeys.StatusFoundResults),
+                resultCount, 1, 1);
         }
 
         private static string BuildSelectedResultDetails(PartSearchResult result)
         {
+            var culture = CultureInfo.CurrentUICulture.Name;
+            var L = TranslationResources.GetString;
+
             if (result == null || result.Part == null)
             {
-                return "No Part selected.";
+                return L(culture, TranslationKeys.LoginSelectedPartNone);
             }
 
             var builder = new StringBuilder();
             builder.AppendLine("Part");
-            builder.AppendLine("  Id: " + Safe(result.Part.Id));
-            builder.AppendLine("  Number: " + Safe(result.Part.PartNumber));
-            builder.AppendLine("  Name: " + Safe(result.Part.Name));
-            builder.AppendLine("  Revision: " + Safe(result.Part.Revision));
-            builder.AppendLine("  State: " + Safe(result.Part.State));
-            builder.AppendLine("  Type: " + Safe(result.Part.PartType));
-            builder.AppendLine("  Description: " + Safe(result.Part.Description));
+            builder.AppendLine("  Id: " + Safe(culture, result.Part.Id));
+            builder.AppendLine("  Number: " + Safe(culture, result.Part.PartNumber));
+            builder.AppendLine("  Name: " + Safe(culture, result.Part.Name));
+            builder.AppendLine("  Revision: " + Safe(culture, result.Part.Revision));
+            builder.AppendLine("  State: " + Safe(culture, result.Part.State));
+            builder.AppendLine("  Type: " + Safe(culture, result.Part.PartType));
+            builder.AppendLine("  Description: " + Safe(culture, result.Part.Description));
 
             builder.AppendLine();
             builder.AppendLine("IronCAD Part CAD");
             if (result.IronCadPartCad == null)
             {
-                builder.Append("  None linked in current query result.");
+                builder.Append("  " + L(culture, TranslationKeys.LoginCadNoneLinked));
                 return builder.ToString();
             }
 
-            builder.AppendLine("  Id: " + Safe(result.IronCadPartCad.Id));
-            builder.AppendLine("  Number: " + Safe(result.IronCadPartCad.CadNumber));
-            builder.AppendLine("  Classification: " + Safe(result.IronCadPartCad.Classification));
-            builder.AppendLine("  Revision: " + Safe(result.IronCadPartCad.Revision));
-            builder.AppendLine("  State: " + Safe(result.IronCadPartCad.State));
+            builder.AppendLine("  Id: " + Safe(culture, result.IronCadPartCad.Id));
+            builder.AppendLine("  Number: " + Safe(culture, result.IronCadPartCad.CadNumber));
+            builder.AppendLine("  Classification: " + Safe(culture, result.IronCadPartCad.Classification));
+            builder.AppendLine("  Revision: " + Safe(culture, result.IronCadPartCad.Revision));
+            builder.AppendLine("  State: " + Safe(culture, result.IronCadPartCad.State));
             builder.AppendLine("  Generation: " + result.IronCadPartCad.Generation);
-            builder.AppendLine("  Native file id: " + Safe(result.IronCadPartCad.NativeFileId));
-            builder.AppendLine("  Has native file: " + (result.IronCadPartCad.HasNativeFile ? "Yes" : "No"));
-            builder.AppendLine("  Locked: " + (result.IronCadPartCad.IsLocked ? "Yes" : "No"));
-            builder.Append("  Locked by: " + Safe(result.IronCadPartCad.LockedBy));
+            builder.AppendLine("  Native file id: " + Safe(culture, result.IronCadPartCad.NativeFileId));
+            builder.AppendLine("  Has native file: " + (result.IronCadPartCad.HasNativeFile
+                ? L(culture, TranslationKeys.LoginYesLabel)
+                : L(culture, TranslationKeys.LoginNoLabel)));
+            builder.AppendLine("  Locked: " + (result.IronCadPartCad.IsLocked
+                ? L(culture, TranslationKeys.LoginYesLabel)
+                : L(culture, TranslationKeys.LoginNoLabel)));
+            builder.Append("  Locked by: " + Safe(culture, result.IronCadPartCad.LockedBy));
             return builder.ToString();
         }
 
-        private static string Safe(string value)
+        private static string Safe(string culture, string value)
         {
-            return string.IsNullOrWhiteSpace(value) ? "<empty>" : value;
+            return string.IsNullOrWhiteSpace(value)
+                ? TranslationResources.GetString(culture, TranslationKeys.LoginEmptyLabel)
+                : value;
         }
     }
 }

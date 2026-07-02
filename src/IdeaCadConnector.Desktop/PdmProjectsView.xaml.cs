@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using IdeaCadConnector.Core.Localization;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -18,6 +19,15 @@ namespace IdeaCadConnector.Desktop
             DataContext = new PdmProjectsViewModel();
             _originalLeftPanelWidth = LeftPanelColumn.Width;
             _originalMiddlePanelWidth = MiddlePanelColumn.Width;
+            LocalizationSource.Instance.PropertyChanged += OnLocalizationChanged;
+        }
+
+        private void OnLocalizationChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "Item[]" && DataContext is PdmProjectsViewModel vm)
+            {
+                vm.RefreshLocalization();
+            }
         }
 
         private void OnStructureSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -73,14 +83,14 @@ namespace IdeaCadConnector.Desktop
                 MiddlePanelColumn.Width = new GridLength(0);
                 LeftSpacer2Column.Width = new GridLength(0);
                 LeftPanelToggleButton.Content = "\u25B6";
-                LeftPanelToggleButton.ToolTip = "Show structure panels";
+                LeftPanelToggleButton.ToolTip = LocalizationSource.Instance[TranslationKeys.TooltipShowStructurePanels];
             }
             else
             {
                 ApplyPdmPanelState();
                 ApplyCadPanelState();
                 LeftPanelToggleButton.Content = "\u25C0";
-                LeftPanelToggleButton.ToolTip = "Hide structure panels";
+                LeftPanelToggleButton.ToolTip = LocalizationSource.Instance[TranslationKeys.TooltipHideStructurePanels];
             }
         }
 

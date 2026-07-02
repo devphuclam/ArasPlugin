@@ -14,6 +14,7 @@ using System.Windows.Input;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Workspace;
 using Newtonsoft.Json;
 using WinForms = System.Windows.Forms;
@@ -110,12 +111,12 @@ namespace IdeaCadConnector.Desktop
 
             FolderPath = GetDefaultSampleFolder();
             LoadBranchesForFolder();
-            AnalysisSummary = "Select a project folder to preview the product structure.";
-            StatusMessage = "PDM repository preview is ready.";
+            AnalysisSummary = Loc(TranslationKeys.PdmSelectFolderHint);
+            StatusMessage = Loc(TranslationKeys.PdmProjectsTitle);
             RefreshConnectionStatus();
 
             CloneCommand = new RelayCommand(_ => ExecuteCloneAsync());
-            PullCommand = new RelayCommand(_ => StatusMessage = "Pull is not connected to Aras yet.");
+            PullCommand = new RelayCommand(_ => StatusMessage = Loc(TranslationKeys.PullNotConnected));
             _pushCommand = new RelayCommand(_ => PushWorkspace(), _ => !IsPushing && CanPush);
             PushCommand = _pushCommand;
             NewBranchCommand = new RelayCommand(_ => ExecuteNewBranchAsync());
@@ -654,12 +655,12 @@ namespace IdeaCadConnector.Desktop
             {
                 if (_cadOperationContext?.ActiveTask == null)
                 {
-                    return CadLifecyclePolicy.GetWorkflowIdleStatusText(_liveCadState);
+                    return LifecycleDisplayText.GetWorkflowIdleText(_liveCadState);
                 }
 
                 var paths = _cadOperationContext.ActiveTask.AvailablePaths;
                 var openPaths = paths?.Count(p => !p.IsComplete) ?? 0;
-                return $"Task: {_cadOperationContext.ActiveTask.ActivityName} ({openPaths} action(s) available)";
+                return string.Format(Loc(TranslationKeys.TaskActionsAvailable), _cadOperationContext.ActiveTask.ActivityName, openPaths);
             }
         }
 
@@ -701,19 +702,19 @@ namespace IdeaCadConnector.Desktop
 
             if (!CanPush)
             {
-                StatusMessage = "Push is blocked until the folder passes naming validation and you are connected to Aras.";
+                StatusMessage = Loc(TranslationKeys.StatusPushBlocked);
                 return;
             }
 
             var client = MainViewModel.SharedPdmClient;
             if (client == null)
             {
-                StatusMessage = "Not connected to Aras. Sign in first.";
+                StatusMessage = Loc(TranslationKeys.StatusNotConnected);
                 return;
             }
 
             IsPushing = true;
-            StatusMessage = "Pushing to Aras...";
+            StatusMessage = Loc(TranslationKeys.StatusPushing);
 
             try
             {
@@ -742,12 +743,12 @@ namespace IdeaCadConnector.Desktop
                 }
                 else
                 {
-                    StatusMessage = "Push failed: " + (result.ErrorMessage ?? "Unknown error");
+                    StatusMessage = string.Format(Loc(TranslationKeys.StatusPushFailedBare), result.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
                 }
             }
             catch (Exception ex)
             {
-                StatusMessage = "Push failed: " + ex.Message;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusPushFailedBare), ex.Message);
             }
             finally
             {
@@ -856,25 +857,25 @@ namespace IdeaCadConnector.Desktop
             var client = MainViewModel.SharedPdmClient;
             if (client == null)
             {
-                StatusMessage = "Not connected to Aras. Sign in first.";
+                StatusMessage = Loc(TranslationKeys.StatusNotConnected);
                 return;
             }
 
             var repositoryCode = (SelectedRepository ?? _latestAnalysis?.ProjectCode)?.Trim();
             if (string.IsNullOrWhiteSpace(repositoryCode))
             {
-                StatusMessage = "Enter a repository code before cloning from Aras.";
+                StatusMessage = Loc(TranslationKeys.StatusEnterRepoCode);
                 return;
             }
 
             var targetFolder = FolderPath?.Trim();
             if (string.IsNullOrWhiteSpace(targetFolder))
             {
-                StatusMessage = "Choose a target folder before cloning from Aras.";
+                StatusMessage = Loc(TranslationKeys.StatusChooseFolder);
                 return;
             }
 
-            StatusMessage = "Cloning latest live project from Aras...";
+            StatusMessage = Loc(TranslationKeys.StatusCloning);
 
             try
             {
@@ -888,7 +889,7 @@ namespace IdeaCadConnector.Desktop
 
                 if (!result.Success)
                 {
-                    StatusMessage = "Clone failed: " + (result.ErrorMessage ?? "Unknown error");
+                    StatusMessage = string.Format(Loc(TranslationKeys.StatusCloneFailedBare), result.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
                     return;
                 }
 
@@ -904,7 +905,7 @@ namespace IdeaCadConnector.Desktop
 
                 AnalyzeFolder();
 
-                var message = string.Format(
+                var cloneSummary = string.Format(
                     "Clone complete. Downloaded {0} CAD file(s) and created {1} document placeholder(s) in {2}.",
                     result.DownloadedCadFileCount,
                     result.PlaceholderDocumentCount,
@@ -912,14 +913,14 @@ namespace IdeaCadConnector.Desktop
 
                 if (result.Warnings?.Count > 0)
                 {
-                    message += " Warning: " + string.Join("; ", result.Warnings);
+                    cloneSummary += " Warning: " + string.Join("; ", result.Warnings);
                 }
 
-                StatusMessage = message;
+                StatusMessage = cloneSummary;
             }
             catch (Exception ex)
             {
-                StatusMessage = "Clone failed: " + ex.Message;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusCloneFailedBare), ex.Message);
             }
         }
 
@@ -1470,7 +1471,7 @@ namespace IdeaCadConnector.Desktop
             }
             catch (Exception ex)
             {
-                StatusMessage = "Failed to open document: " + ex.Message;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusOpenDocFailedBare), ex.Message);
             }
         }
 
@@ -1482,7 +1483,7 @@ namespace IdeaCadConnector.Desktop
             var cadClient = MainViewModel.SharedArasCadClient;
             if (cadClient == null)
             {
-                StatusMessage = "Not connected to Aras. Sign in first.";
+                StatusMessage = Loc(TranslationKeys.StatusNotConnected);
                 return;
             }
 
@@ -1503,7 +1504,7 @@ namespace IdeaCadConnector.Desktop
 
                 if (string.IsNullOrWhiteSpace(_liveCadId))
                 {
-                    StatusMessage = "No CAD item found on Aras for this node. Push the project first.";
+                    StatusMessage = Loc(TranslationKeys.StatusNoCadOnAras);
                     return;
                 }
 
@@ -1532,7 +1533,7 @@ namespace IdeaCadConnector.Desktop
                 {
                     var adapter = new IronCadExternalAdapter();
                     await adapter.OpenDocumentAsync(manifest.LocalFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
-                    StatusMessage = CadLifecyclePolicy.GetReadOnlySessionStaleMessage(Path.GetFileName(manifest.LocalFilePath));
+                    StatusMessage = LifecycleDisplayText.GetReadOnlySessionStaleMessage(Path.GetFileName(manifest.LocalFilePath));
                     return;
                 }
 
@@ -1544,7 +1545,7 @@ namespace IdeaCadConnector.Desktop
                     {
                         var adapter = new IronCadExternalAdapter();
                         await adapter.OpenDocumentAsync(roResult.LocalFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
-                        StatusMessage = $"Opened {cadFileName} in read-only mode.";
+                        StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnly), cadFileName);
                     }
                     else
                     {
@@ -1553,11 +1554,11 @@ namespace IdeaCadConnector.Desktop
                         {
                             var adapter = new IronCadExternalAdapter();
                             await adapter.OpenDocumentAsync(fallbackPath, CadOpenMode.ReadOnly, CancellationToken.None);
-                            StatusMessage = $"Opened {cadFileName} in read-only mode (local).";
+                            StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnlyLocal), cadFileName);
                         }
                         else
                         {
-                            StatusMessage = roResult.ErrorMessage ?? "Cannot open this CAD.";
+                            StatusMessage = roResult.ErrorMessage ?? Loc(TranslationKeys.StatusCadCannotOpen);
                         }
                     }
                     return;
@@ -1572,11 +1573,11 @@ namespace IdeaCadConnector.Desktop
                     {
                         var adapter = new IronCadExternalAdapter();
                         await adapter.OpenDocumentAsync(roResult.LocalFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
-                        StatusMessage = $"Opened {cadFileName} in read-only mode (lifecycle: {_liveCadState}).";
+                        StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnlyLifecycle), cadFileName, _liveCadState);
                     }
                     else
                     {
-                        StatusMessage = CadLifecyclePolicy.GetCheckoutBlockedMessage(_liveCadState);
+                        StatusMessage = LifecycleDisplayText.GetCheckoutBlockedMessage(_liveCadState);
                     }
                     return;
                 }
@@ -1594,16 +1595,16 @@ namespace IdeaCadConnector.Desktop
                         {
                             var adapter = new IronCadExternalAdapter();
                             await adapter.OpenDocumentAsync(cadPath, CadOpenMode.ReadOnly, CancellationToken.None);
-                            StatusMessage = $"Opened {cadFileName} in read-only mode (locked by another user).";
+                            StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnlyLocked), cadFileName);
                         }
                         else
                         {
-                            StatusMessage = "CAD is locked by another user and no local copy is available.";
+                            StatusMessage = Loc(TranslationKeys.StatusNoLocalCopyLocked);
                         }
                     }
                     else
                     {
-                        StatusMessage = "Checkout failed: " + checkoutInfo.ErrorMessage;
+                        StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckoutFailedDetail), checkoutInfo.ErrorMessage);
                     }
                     return;
                 }
@@ -1626,12 +1627,12 @@ namespace IdeaCadConnector.Desktop
 
                 var editAdapter = new IronCadExternalAdapter();
                 await editAdapter.OpenDocumentAsync(checkoutInfo.LocalFilePath, CadOpenMode.Edit, CancellationToken.None);
-                StatusMessage = $"Checked out and opened {Path.GetFileName(checkoutInfo.LocalFilePath)}.";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckedOutPdm), Path.GetFileName(checkoutInfo.LocalFilePath));
                 _ = RefreshCadStateAsync();
             }
             catch (Exception ex)
             {
-                StatusMessage = "Failed to open in IronCAD: " + ex.Message;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusOpenIronCadFailed), ex.Message);
             }
             finally
             {
@@ -1786,8 +1787,8 @@ namespace IdeaCadConnector.Desktop
 
             CadRevisionReadinessText = GuidanceRevisionService.BuildReadinessText(
                 _revisionPreconditions,
-                "Ready: CAD is released and no blockers found.",
-                "Revision guidance becomes available after the linked CAD reaches Released.");
+                Loc(TranslationKeys.ReadyForRevision),
+                Loc(TranslationKeys.RevisionRequiresReleased));
         }
 
         private bool IsSelectedRootAssemblyNode()
@@ -1803,34 +1804,37 @@ namespace IdeaCadConnector.Desktop
                 && CadLifecyclePolicy.IsState(_liveCadState, CadLifecyclePolicy.Released);
         }
 
+        private static string Loc(string key) => LocalizationSource.Instance[key];
+        private static string Ttl => Loc(TranslationKeys.StartupErrorTitle);
+
         private static string BuildCadLockStateLabel(string state)
         {
             if (string.IsNullOrWhiteSpace(state))
-                return "Unknown";
+                return Loc(TranslationKeys.StateUnknown);
 
             if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Released))
-                return "Released (read-only)";
+                return Loc(TranslationKeys.CadLockStateReleasedReadOnly);
 
             if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.InReview))
-                return "In Review";
+                return Loc(TranslationKeys.CadLockStateInReview);
 
             if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.InChange))
-                return "In Change";
+                return Loc(TranslationKeys.CadLockStateInChange);
 
             if (CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Superseded)
                 || CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Obsolete))
-                return "Inactive";
+                return Loc(TranslationKeys.CadLockStateSuperseded);
 
-            return "Read-only";
+            return Loc(TranslationKeys.StateReadOnly);
         }
 
         private void UpdateCadUiState()
         {
             if (IsSelectedRootAssemblyNode())
             {
-                CadLockStateText = "Root assembly";
+                CadLockStateText = Loc(TranslationKeys.CadLockStateRootAssembly);
                 LockedByText = "-";
-                CadFileStateText = "Managed by assembly mapping/push flow";
+                CadFileStateText = Loc(TranslationKeys.CadFileStateManagedAssembly);
                 CadRevisionText = SelectedNode?.Revision ?? "-";
                 CadGenerationText = "-";
                 CadLifecycleText = "-";
@@ -1861,13 +1865,13 @@ namespace IdeaCadConnector.Desktop
 
             if (string.IsNullOrWhiteSpace(_liveCadId))
             {
-                CadLockStateText = "Not pushed";
+                CadLockStateText = Loc(TranslationKeys.CadLockStateNotPushed);
                 LockedByText = "-";
-                CadFileStateText = "No CAD on Aras";
+                CadFileStateText = Loc(TranslationKeys.CadLockStateArasUnavailable);
                 CadRevisionText = SelectedNode?.Revision ?? "-";
                 CadGenerationText = "-";
                 CadLifecycleText = "-";
-                CadEditPolicyText = "Push this node to Aras before revision-aware editing is available.";
+                CadEditPolicyText = Loc(TranslationKeys.CadEditPolicyPushFirst);
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = false;
                 IsAvailable = false;
@@ -1880,9 +1884,9 @@ namespace IdeaCadConnector.Desktop
                 !string.IsNullOrWhiteSpace(_liveCadState) &&
                 !stateEditable)
             {
-                CadLockStateText = CadLifecyclePolicy.GetStaleSessionLabel();
+                CadLockStateText = LifecycleDisplayText.GetStaleSessionLabel();
                 LockedByText = manifest.LockedBy ?? "-";
-                CadFileStateText = CadLifecyclePolicy.GetStaleSessionMessage(_liveCadState);
+                CadFileStateText = LifecycleDisplayText.GetStaleSessionMessage(_liveCadState);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = false;
@@ -1895,9 +1899,9 @@ namespace IdeaCadConnector.Desktop
             if (validManifest && !string.IsNullOrWhiteSpace(manifest.LockToken) &&
                 !string.Equals(manifest.LockedBy, currentUser, StringComparison.OrdinalIgnoreCase))
             {
-                CadLockStateText = CadLifecyclePolicy.GetStaleSessionLabel();
+                CadLockStateText = LifecycleDisplayText.GetStaleSessionLabel();
                 LockedByText = manifest.LockedBy ?? "-";
-                CadFileStateText = CadLifecyclePolicy.GetDifferentUserSessionMessage(manifest.LockedBy);
+                CadFileStateText = LifecycleDisplayText.GetDifferentUserSessionMessage(manifest.LockedBy);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = false;
@@ -1909,9 +1913,9 @@ namespace IdeaCadConnector.Desktop
 
             if (myLockInManifest && myLocalFileExists && stateEditable)
             {
-                CadLockStateText = "Checked out by me";
+                CadLockStateText = Loc(TranslationKeys.CadLockStateCheckedOutByMe);
                 LockedByText = manifest.LockedBy;
-                CadFileStateText = "Local working copy";
+                CadFileStateText = Loc(TranslationKeys.CadFileStateLocalWorkingCopy);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = true;
                 IsCheckedOutByOther = false;
@@ -1923,9 +1927,9 @@ namespace IdeaCadConnector.Desktop
 
             if (myLockInManifest && myLocalFileExists && !stateEditable)
             {
-                CadLockStateText = "Checked out by me (stale)";
+                CadLockStateText = Loc(TranslationKeys.CadLockStateStaleSession);
                 LockedByText = manifest.LockedBy;
-                CadFileStateText = CadLifecyclePolicy.GetStaleSessionMessage(_liveCadState);
+                CadFileStateText = LifecycleDisplayText.GetStaleSessionMessage(_liveCadState);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = true;
                 IsCheckedOutByOther = false;
@@ -1937,9 +1941,9 @@ namespace IdeaCadConnector.Desktop
 
             if (myLockInManifest && !myLocalFileExists && stateEditable)
             {
-                CadLockStateText = "Checked out by me (file missing)";
+                CadLockStateText = Loc(TranslationKeys.CadLockStateMissingLocalFile);
                 LockedByText = manifest.LockedBy;
-                CadFileStateText = "Local file not found. Cancel checkout to release the lock, or save the file from IronCAD.";
+                CadFileStateText = Loc(TranslationKeys.CadFileStateLocalFileNotFound);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = true;
                 IsCheckedOutByOther = false;
@@ -1951,9 +1955,9 @@ namespace IdeaCadConnector.Desktop
 
             if (myLockInManifest && !myLocalFileExists && !stateEditable)
             {
-                CadLockStateText = CadLifecyclePolicy.GetCheckedOutByMeFileMissingStaleLabel();
+                CadLockStateText = LifecycleDisplayText.GetCheckedOutByMeFileMissingStaleLabel();
                 LockedByText = manifest.LockedBy;
-                CadFileStateText = "Local file not found. " + CadLifecyclePolicy.GetStaleSessionMessage(_liveCadState);
+                CadFileStateText = string.Concat(Loc(TranslationKeys.CadFileStateLocalFileNotFound), " ", LifecycleDisplayText.GetStaleSessionMessage(_liveCadState));
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = true;
                 IsCheckedOutByOther = false;
@@ -1965,9 +1969,9 @@ namespace IdeaCadConnector.Desktop
 
             if (IsCheckedOutByOther)
             {
-                CadLockStateText = "Checked out by other";
+                CadLockStateText = Loc(TranslationKeys.CadLockStateCheckedOutByOther);
                 LockedByText = _lockedByText ?? "-";
-                CadFileStateText = "Locked by another user";
+                CadFileStateText = Loc(TranslationKeys.CadFileStateLockedByOther);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = true;
@@ -1982,7 +1986,7 @@ namespace IdeaCadConnector.Desktop
             {
                 CadLockStateText = BuildCadLockStateLabel(_liveCadState);
                 LockedByText = "-";
-                CadFileStateText = CadLifecyclePolicy.GetCheckoutBlockedMessage(_liveCadState);
+                CadFileStateText = LifecycleDisplayText.GetCheckoutBlockedMessage(_liveCadState);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = false;
@@ -1994,9 +1998,9 @@ namespace IdeaCadConnector.Desktop
 
             if (!_liveHasNativeFile)
             {
-                CadLockStateText = "Missing native file";
+                CadLockStateText = Loc(TranslationKeys.CadLockStateMissingNative);
                 LockedByText = "-";
-                CadFileStateText = "No native file on Aras yet";
+                CadFileStateText = Loc(TranslationKeys.CadFileStateNoNativeOnAras);
                 ApplyCadRevisionState();
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = false;
@@ -2006,9 +2010,9 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            CadLockStateText = "Available";
+            CadLockStateText = Loc(TranslationKeys.AvailableShort);
             LockedByText = "-";
-            CadFileStateText = "Ready for checkout";
+            CadFileStateText = Loc(TranslationKeys.CadFileStateReadyForCheckout);
             ApplyCadRevisionState();
             IsCheckedOutByMe = false;
             IsCheckedOutByOther = false;
@@ -2053,10 +2057,7 @@ namespace IdeaCadConnector.Desktop
 
         private static string BuildCadEditPolicyText(string state)
         {
-            if (string.IsNullOrWhiteSpace(state))
-                return "Refresh Aras state before deciding whether this CAD can be edited or revised.";
-
-            return CadLifecyclePolicy.GetUnlockedCadActionGuidance(state, hasNativeFile: true);
+            return LifecycleDisplayText.GetActionGuidance(state);
         }
 
         private void SetCadOperationContext(CadOperationContext context)
@@ -2092,22 +2093,22 @@ namespace IdeaCadConnector.Desktop
             var cadClient = MainViewModel.SharedArasCadClient;
             if (cadClient == null || string.IsNullOrWhiteSpace(_liveCadId))
             {
-                StatusMessage = "No live CAD is available for this action.";
+                StatusMessage = Loc(TranslationKeys.StatusNoLiveCad);
                 return;
             }
 
             var confirmMessage = kind switch
             {
-                CadBusinessActionKind.StartDetailedDesign => "Move this CAD from 'Khoi tao' to 'Thiet ke chi tiet'?",
-                CadBusinessActionKind.SubmitForReview => "Submit this CAD for review?",
-                CadBusinessActionKind.Approve => "Approve this CAD?",
-                CadBusinessActionKind.RequestRework => "Request rework on this CAD?",
-                _ => $"Execute {kind}?"
+                CadBusinessActionKind.StartDetailedDesign => Loc(TranslationKeys.ConfirmStartDetailedDesign),
+                CadBusinessActionKind.SubmitForReview => Loc(TranslationKeys.ConfirmSubmitForReview),
+                CadBusinessActionKind.Approve => Loc(TranslationKeys.ConfirmApprove),
+                CadBusinessActionKind.RequestRework => Loc(TranslationKeys.ConfirmRequestRework),
+                _ => string.Format(Loc(TranslationKeys.ConfirmExecuteAction), kind)
             };
 
             var confirmResult = System.Windows.MessageBox.Show(
                 confirmMessage,
-                "Workflow Action",
+                Loc(TranslationKeys.WorkflowActionTitle),
                 System.Windows.MessageBoxButton.YesNo,
                 System.Windows.MessageBoxImage.Question);
             if (confirmResult != System.Windows.MessageBoxResult.Yes)
@@ -2118,7 +2119,7 @@ namespace IdeaCadConnector.Desktop
             try
             {
                 IsOpeningInIronCad = true;
-                StatusMessage = $"Executing {kind}...";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusExecutingAction), kind);
 
                 var freshContext = await cadClient.GetCadOperationContextAsync(_liveCadId, CancellationToken.None);
                 if (freshContext == null)
@@ -2142,14 +2143,14 @@ namespace IdeaCadConnector.Desktop
                 var updatedContext = await cadClient.ExecuteCadBusinessActionAsync(request, CancellationToken.None);
                 SetCadOperationContext(updatedContext);
                 await RefreshCadStateAsync();
-                StatusMessage = $"{kind} completed successfully.";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionCompleted), kind);
             }
             catch (Exception ex)
             {
-                StatusMessage = $"{kind} failed: {ex.Message}";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionFailed), kind) + " " + ex.Message;
                 System.Windows.MessageBox.Show(
-                    $"{kind} failed: {ex.Message}",
-                    "Workflow Action",
+                    string.Format(Loc(TranslationKeys.MsgWorkflowActionFailed), kind, ex.Message),
+                    Loc(TranslationKeys.WorkflowActionTitle),
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Error);
                 await RefreshCadStateAsync();
@@ -2169,14 +2170,14 @@ namespace IdeaCadConnector.Desktop
             var cadClient = MainViewModel.SharedArasCadClient;
             if (cadClient == null)
             {
-                StatusMessage = "Not connected to Aras.";
+                StatusMessage = Loc(TranslationKeys.StatusNotConnected);
                 return;
             }
 
             var manifest = _workspaceService.LoadManifest(FolderPath);
             if (manifest == null || string.IsNullOrWhiteSpace(manifest.LockToken) || string.IsNullOrWhiteSpace(manifest.CadId))
             {
-                StatusMessage = "No active checkout session.";
+                StatusMessage = Loc(TranslationKeys.ErrorNoCheckoutSession);
                 return;
             }
 
@@ -2191,7 +2192,7 @@ namespace IdeaCadConnector.Desktop
                 var filePath = manifest.LocalFilePath;
                 if (string.IsNullOrWhiteSpace(filePath) || !System.IO.File.Exists(filePath))
                 {
-                    StatusMessage = "Local file not found. Save the file in IronCAD first.";
+                    StatusMessage = Loc(TranslationKeys.ErrorLocalFileNotFound);
                     return;
                 }
 
@@ -2202,16 +2203,16 @@ namespace IdeaCadConnector.Desktop
                 {
                     _workspaceService.ClearManifest(FolderPath);
                     await RefreshCadStateAsync();
-                    StatusMessage = "Check-in completed.";
+                    StatusMessage = Loc(TranslationKeys.StatusCheckinCompletedPdm);
                 }
                 else
                 {
-                    StatusMessage = "Check-in failed: " + (result.ErrorMessage ?? "Unknown error");
+                    StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckinFailedDetail), result.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
                 }
             }
             catch (Exception ex)
             {
-                StatusMessage = "Check-in failed: " + ex.Message;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckinFailedDetail), ex.Message);
             }
             finally
             {
@@ -2224,14 +2225,14 @@ namespace IdeaCadConnector.Desktop
             var cadClient = MainViewModel.SharedArasCadClient;
             if (cadClient == null)
             {
-                StatusMessage = "Not connected to Aras.";
+                StatusMessage = Loc(TranslationKeys.StatusNotConnected);
                 return;
             }
 
             var manifest = _workspaceService.LoadManifest(FolderPath);
             if (manifest == null || string.IsNullOrWhiteSpace(manifest.CadId))
             {
-                StatusMessage = "No active checkout to cancel.";
+                StatusMessage = Loc(TranslationKeys.StatusNoCheckoutToCancel);
                 return;
             }
 
@@ -2248,18 +2249,18 @@ namespace IdeaCadConnector.Desktop
                 {
                     _workspaceService.ClearManifest(FolderPath);
                     await RefreshCadStateAsync();
-                    StatusMessage = "Checkout cancelled.";
+                    StatusMessage = Loc(TranslationKeys.StatusCheckoutCancelled);
                 }
                 else
                 {
                     _workspaceService.ClearManifest(FolderPath);
                     await RefreshCadStateAsync();
-                    StatusMessage = "Checkout cancelled (lock already released on server).";
+                    StatusMessage = Loc(TranslationKeys.StatusCheckoutCancelledServer);
                 }
             }
             catch (Exception ex)
             {
-                StatusMessage = "Cancel checkout failed: " + ex.Message;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusCancelFailedDetail), ex.Message);
             }
             finally
             {
@@ -2427,8 +2428,8 @@ namespace IdeaCadConnector.Desktop
         {
             if (!Directory.Exists(FolderPath))
             {
-                AnalysisSummary = "Select an existing project folder before analyzing the naming policy.";
-                StatusMessage = "Folder path is missing or invalid.";
+                AnalysisSummary = Loc(TranslationKeys.PdmNoFolderHint);
+                StatusMessage = Loc(TranslationKeys.StatusFolderInvalid);
                 return;
             }
 
@@ -2575,7 +2576,7 @@ namespace IdeaCadConnector.Desktop
                 warnings.Add(new PreviewWarning
                 {
                     Source = "WorkspaceSession",
-                    Message = CadLifecyclePolicy.GetPushSessionStaleMessage(_liveCadState),
+                    Message = LifecycleDisplayText.GetPushSessionStaleMessage(_liveCadState),
                     BlocksPush = true
                 });
             }
@@ -2597,7 +2598,7 @@ namespace IdeaCadConnector.Desktop
                 warnings.Add(new PreviewWarning
                 {
                     Source = "RevisionDrift",
-                    Message = CadLifecyclePolicy.GetRevisionDriftMessage(manifest.LastKnownRevision, _liveCadRevision),
+                    Message = LifecycleDisplayText.GetRevisionDriftMessage(manifest.LastKnownRevision, _liveCadRevision),
                     BlocksPush = false
                 });
             }
@@ -2608,7 +2609,7 @@ namespace IdeaCadConnector.Desktop
                 warnings.Add(new PreviewWarning
                 {
                     Source = "GenerationDrift",
-                    Message = CadLifecyclePolicy.GetGenerationDriftMessage(manifest.LastKnownGeneration, _liveCadGeneration),
+                    Message = LifecycleDisplayText.GetGenerationDriftMessage(manifest.LastKnownGeneration, _liveCadGeneration),
                     BlocksPush = false
                 });
             }
@@ -2735,7 +2736,7 @@ namespace IdeaCadConnector.Desktop
                         },
                         new System.Windows.Controls.Button
                         {
-                            Content = "Create Branch",
+                            Content = Loc(TranslationKeys.ButtonCreateBranch),
                             Height = 36,
                             Margin = new System.Windows.Thickness(0, 12, 0, 0),
                             HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
@@ -2753,12 +2754,12 @@ namespace IdeaCadConnector.Desktop
                 var name = textBox.Text?.Trim();
                 if (string.IsNullOrWhiteSpace(name))
                 {
-                    MessageBox.Show("Branch name cannot be empty.", "New Branch", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc(TranslationKeys.BranchNameCannotBeEmpty), Loc(TranslationKeys.NewBranchTitle), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 if (Branches.Any(b => string.Equals(b, name, StringComparison.OrdinalIgnoreCase)))
                 {
-                    MessageBox.Show("A branch with that name already exists.", "New Branch", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc(TranslationKeys.BranchNameExists), Loc(TranslationKeys.NewBranchTitle), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 var registry = _workspaceService.LoadBranchRegistry(FolderPath);
@@ -2827,7 +2828,7 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(CanCommit));
             (CommitCommand as RelayCommand)?.RaiseCanExecuteChanged();
 
-            StatusMessage = "Commit saved locally on branch " + commit.Branch + ".";
+            StatusMessage = string.Format(Loc(TranslationKeys.StatusCommitSavedOn), commit.Branch);
             return Task.CompletedTask;
         }
 
@@ -2936,7 +2937,7 @@ namespace IdeaCadConnector.Desktop
             }
             catch (Exception ex)
             {
-                StatusMessage = "Could not compare preview with Aras. Showing local preview only. " + ex.Message;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusComparePreviewFailed), ex.Message);
             }
         }
 
@@ -3118,6 +3119,30 @@ namespace IdeaCadConnector.Desktop
             return true;
         }
 
+        public void RefreshLocalization()
+        {
+            OnPropertyChanged(nameof(AnalysisSummary));
+            OnPropertyChanged(nameof(StatusMessage));
+            OnPropertyChanged(nameof(WorkflowStatusText));
+            OnPropertyChanged(nameof(CadLockStateText));
+            OnPropertyChanged(nameof(LockedByText));
+            OnPropertyChanged(nameof(CadFileStateText));
+            OnPropertyChanged(nameof(CadRevisionText));
+            OnPropertyChanged(nameof(CadGenerationText));
+            OnPropertyChanged(nameof(CadLifecycleText));
+            OnPropertyChanged(nameof(CadEditPolicyText));
+            OnPropertyChanged(nameof(CadDriftText));
+            OnPropertyChanged(nameof(BranchStatusText));
+            OnPropertyChanged(nameof(LatestCommitSummary));
+            OnPropertyChanged(nameof(ConnectionDisplayName));
+            OnPropertyChanged(nameof(CanPush));
+            OnPropertyChanged(nameof(CanCommit));
+            OnPropertyChanged(nameof(IsMainBranch));
+            OnPropertyChanged(nameof(BranchPushAllowed));
+            OnPropertyChanged(nameof(HasUncommittedChanges));
+            OnPropertyChanged(nameof(SelectedNode));
+        }
+
         private void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -3274,4 +3299,3 @@ namespace IdeaCadConnector.Desktop
         public string PackageFolder { get; set; }
     }
 }
-

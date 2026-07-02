@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,6 +14,8 @@ using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Localization;
+using IdeaCadConnector.Desktop.Services;
 using IdeaCadConnector.Ui.ViewModels;
 using IdeaCadConnector.Workspace;
 using Microsoft.Extensions.Logging;
@@ -63,6 +66,8 @@ namespace IdeaCadConnector.Desktop
             _cadAdapter = cadAdapter ?? new IronCadExternalAdapter(options?.IronCadExecutablePath);
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
             _revisionService = new GuidanceRevisionService();
+
+            _selectedLanguage = SettingsService.LoadLanguage() ?? "en-US";
 
             LoginCommand = new RelayCommand(_ => ExecuteLoginAsync(), _ => !IsBusy);
             LogoutCommand = new RelayCommand(_ => ExecuteLogoutAsync(), _ => !IsBusy && IsConnected);
@@ -142,6 +147,70 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
+        public IReadOnlyList<LanguageOption> LanguageOptions { get; } = new List<LanguageOption>
+        {
+            new LanguageOption { DisplayName = "English", CultureName = "en-US" },
+            new LanguageOption { DisplayName = "Tiếng Việt", CultureName = "vi-VN" },
+            new LanguageOption { DisplayName = "日本語", CultureName = "ja-JP" },
+        };
+
+        private string _selectedLanguage;
+
+        public string SelectedLanguage
+        {
+            get => _selectedLanguage;
+            set
+            {
+                if (_selectedLanguage == value) return;
+                _selectedLanguage = value;
+                OnPropertyChanged();
+                ApplyLanguage(value);
+            }
+        }
+
+        private void ApplyLanguage(string cultureName)
+        {
+            try
+            {
+                var culture = new CultureInfo(cultureName);
+                CultureInfo.CurrentUICulture = culture;
+                CultureInfo.DefaultThreadCurrentUICulture = culture;
+                SettingsService.SaveLanguage(cultureName);
+                LocalizationSource.Instance.RaiseAllChanged();
+                OnPropertyChanged(nameof(ConnectedUserText));
+                OnPropertyChanged(nameof(WorkflowActivityName));
+                OnPropertyChanged(nameof(WorkflowAssignee));
+                OnPropertyChanged(nameof(WorkflowStatusText));
+                OnPropertyChanged(nameof(CurrentCadLockStateText));
+                OnPropertyChanged(nameof(CurrentCadFileStateText));
+                OnPropertyChanged(nameof(CurrentCadStatusText));
+                OnPropertyChanged(nameof(ActionHint));
+                OnPropertyChanged(nameof(PageInfoText));
+                OnPropertyChanged(nameof(CurrentCadSummary));
+                OnPropertyChanged(nameof(SelectedPartSummary));
+                OnPropertyChanged(nameof(HasSearchRevisionEntryPoint));
+                OnPropertyChanged(nameof(SearchRevisionHint));
+                OnPropertyChanged(nameof(HasSearchRevisionHint));
+                OnPropertyChanged(nameof(CanStartNewRevision));
+                OnPropertyChanged(nameof(SelectedSearchResult));
+                OnPropertyChanged(nameof(AvailableActionButtons));
+                OnPropertyChanged(nameof(HasWorkflowTask));
+                OnPropertyChanged(nameof(HasStartDetailedDesignAction));
+                OnPropertyChanged(nameof(HasSubmitForReviewAction));
+                OnPropertyChanged(nameof(HasApproveAction));
+                OnPropertyChanged(nameof(HasRequestReworkAction));
+                OnPropertyChanged(nameof(HasAnyWorkflowAction));
+                OnPropertyChanged(nameof(HasOpenReadOnlyAction));
+                OnPropertyChanged(nameof(HasCheckoutAction));
+                OnPropertyChanged(nameof(HasCheckInAction));
+                OnPropertyChanged(nameof(HasCancelCheckoutAction));
+                OnPropertyChanged(nameof(StatusMessage));
+            }
+            catch
+            {
+            }
+        }
+
         public bool IsBusy
         {
             get => _isBusy;
@@ -171,7 +240,7 @@ namespace IdeaCadConnector.Desktop
         }
 
         public string ConnectedUserText =>
-            IsConnected ? $"Connected as {_loginResult.UserName}" : "Not connected";
+            IsConnected ? string.Format(Loc(TranslationKeys.ConnectedAs), _loginResult.UserName) : Loc(TranslationKeys.NotConnectedShort);
 
         public CadOperationContext CurrentOperationContext
         {
@@ -198,7 +267,7 @@ namespace IdeaCadConnector.Desktop
             _cadOperationContext?.ActiveTask != null;
 
         public string WorkflowActivityName =>
-            _cadOperationContext?.ActiveTask?.ActivityName ?? "No active task";
+            _cadOperationContext?.ActiveTask?.ActivityName ?? Loc(TranslationKeys.NoActiveTask);
 
         public string WorkflowAssignee =>
             _cadOperationContext?.ActiveTask?.AssigneeName ?? "-";
@@ -208,12 +277,12 @@ namespace IdeaCadConnector.Desktop
             get
             {
                 if (_cadOperationContext?.ActiveTask == null)
-                    return CadLifecyclePolicy.GetWorkflowIdleStatusText(_currentCad?.State);
+                    return LifecycleDisplayText.GetWorkflowIdleText(_currentCad?.State);
                 var paths = _cadOperationContext.ActiveTask.AvailablePaths;
                 var incomplete = paths?.Any(p => !p.IsComplete) == true
                     ? paths.Where(p => !p.IsComplete).Count()
                     : 0;
-                return $"Task: {_cadOperationContext.ActiveTask.ActivityName} ({incomplete} action(s) available)";
+                return string.Format(Loc(TranslationKeys.TaskActionsAvailable), _cadOperationContext.ActiveTask.ActivityName, incomplete);
             }
         }
 
@@ -271,7 +340,7 @@ namespace IdeaCadConnector.Desktop
             get
             {
                 if (_totalCount <= 0) return "";
-                return $"Page {_currentPage} / {TotalPages}";
+                return string.Format(Loc(TranslationKeys.PageXOfY), _currentPage, TotalPages);
             }
         }
 
@@ -336,9 +405,9 @@ namespace IdeaCadConnector.Desktop
             get
             {
                 if (!HasCurrentCad)
-                    return "No CAD";
+                    return Loc(TranslationKeys.NoCadShort);
 
-                return _currentCad != null && _currentCad.IsLocked ? "Locked" : "Available";
+                return _currentCad != null && _currentCad.IsLocked ? Loc(TranslationKeys.LockedShort) : Loc(TranslationKeys.AvailableShort);
             }
         }
 
@@ -347,9 +416,9 @@ namespace IdeaCadConnector.Desktop
             get
             {
                 if (!HasCurrentCad)
-                    return "No file";
+                    return Loc(TranslationKeys.NoFileShort);
 
-                return _currentCad != null && _currentCad.HasNativeFile ? "Native file attached" : "Native file missing";
+                return _currentCad != null && _currentCad.HasNativeFile ? Loc(TranslationKeys.NativeFileAttached) : Loc(TranslationKeys.NativeFileMissing);
             }
         }
 
@@ -358,22 +427,22 @@ namespace IdeaCadConnector.Desktop
             get
             {
                 if (!HasCurrentCad)
-                    return "No linked CAD selected yet.";
+                    return Loc(TranslationKeys.NoCadSelectedYet);
 
                 if (!string.IsNullOrWhiteSpace(_lockToken))
                 {
                     if (!CadLifecyclePolicy.CanCheckout(_currentCad.State))
-                        return CadLifecyclePolicy.GetStaleSessionMessage(_currentCad.State);
-                    return "Checked out by you in this session.";
+                        return LifecycleDisplayText.GetStaleSessionMessage(_currentCad.State);
+                    return Loc(TranslationKeys.CheckedOutByYou);
                 }
 
                 if (_currentCad.IsLocked)
-                    return "This CAD is locked by another user.";
+                    return Loc(TranslationKeys.CadLockedByOther);
 
                 if (!_currentCad.HasNativeFile)
-                    return "This CAD exists, but it does not have a native file yet.";
+                    return Loc(TranslationKeys.CadNoNativeFile);
 
-                return CadLifecyclePolicy.GetStateSummary(_currentCad.State);
+                return LifecycleDisplayText.GetStateSummary(_currentCad.State);
             }
         }
 
@@ -382,27 +451,25 @@ namespace IdeaCadConnector.Desktop
             get
             {
                 if (SelectedSearchResult?.Part == null)
-                    return "Select a part from the results table.";
+                    return Loc(TranslationKeys.ActionHintSelectPart);
 
                 if (IsSelectedSearchAssemblyCandidate())
                     return CadNodeHelper.GetAssemblySearchCadHint();
 
                 if (!HasCurrentCad)
-                    return "No linked CAD is selected yet. Use Select / Create CAD first.";
+                    return Loc(TranslationKeys.ActionHintNoCad);
 
                 if (!string.IsNullOrWhiteSpace(_lockToken))
                 {
                     if (!CadLifecyclePolicy.CanCheckout(_currentCad.State))
-                        return "CAD state changed since checkout. Use Cancel Checkout to release the lock, then check out the latest revision.";
-                    return "CAD is checked out in this session. You can check in or cancel checkout.";
+                        return Loc(TranslationKeys.ActionHintStateChanged);
+                    return Loc(TranslationKeys.ActionHintCheckedOut);
                 }
 
                 if (_currentCad != null && _currentCad.IsLocked)
-                    return "Another user currently holds the lock. Open read-only if you only need to inspect.";
+                    return Loc(TranslationKeys.ActionHintOtherLocked);
 
-                return CadLifecyclePolicy.GetUnlockedCadActionGuidance(
-                    _currentCad?.State,
-                    _currentCad?.HasNativeFile == true);
+                return LifecycleDisplayText.GetActionGuidance(_currentCad?.State);
             }
         }
 
@@ -476,7 +543,7 @@ namespace IdeaCadConnector.Desktop
             try
             {
                 IsBusy = true;
-                StatusMessage = "Signing in...";
+                StatusMessage = Loc(TranslationKeys.StatusSigningIn);
 
                 _loginViewModel.IsConnected = false;
                 var request = _loginViewModel.CreateRequest();
@@ -497,7 +564,7 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));
                 SharedUserName = _loginResult.UserName;
-                StatusMessage = $"Connected as {_loginResult.UserName}. Search for a part to continue.";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusConnected), _loginResult.UserName);
 
                 (SharedPdmClient as IDisposable)?.Dispose();
                 var pdmClient = new HttpPdmRepositoryClient(new ArasClientOptions
@@ -510,8 +577,8 @@ namespace IdeaCadConnector.Desktop
             }
             catch (Exception ex)
             {
-                StatusMessage = "Login failed.";
-                MessageBox.Show("Login failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = Loc(TranslationKeys.StatusLoginFailed);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgLoginFailed), ex.Message), Ttl, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -550,7 +617,7 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(SelectedSearchResult));
                 OnPropertyChanged(nameof(SelectedCadId));
                 OnPropertyChanged(nameof(HasCurrentCad));
-                StatusMessage = "Signed out. Sign in to start.";
+                StatusMessage = Loc(TranslationKeys.StatusSignedOut);
             }
             finally
             {
@@ -566,7 +633,7 @@ namespace IdeaCadConnector.Desktop
             try
             {
                 IsBusy = true;
-                StatusMessage = "Searching parts...";
+                StatusMessage = Loc(TranslationKeys.StatusSearching);
 
                 if (page == 1)
                 {
@@ -591,19 +658,19 @@ namespace IdeaCadConnector.Desktop
 
                 if (_totalCount > 0)
                 {
-                    StatusMessage = $"Found {_totalCount} part(s). Page {_currentPage}/{TotalPages}.";
+                    StatusMessage = string.Format(Loc(TranslationKeys.StatusFoundResults), _totalCount, _currentPage, TotalPages);
                 }
                 else
                 {
-                    StatusMessage = "No parts found.";
+                    StatusMessage = Loc(TranslationKeys.StatusNoResults);
                 }
 
                 RefreshCanExecute();
             }
             catch (Exception ex)
             {
-                StatusMessage = "Search failed.";
-                MessageBox.Show("Search failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = Loc(TranslationKeys.StatusSearchFailed);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgSearchFailed), ex.Message), Ttl, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -616,20 +683,20 @@ namespace IdeaCadConnector.Desktop
             if (!EnsureLoggedIn() || IsBusy) return;
             if (SelectedSearchResult?.Part == null)
             {
-                MessageBox.Show("Select a part first.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc(TranslationKeys.MsgSelectPartFirst), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             if (IsSelectedSearchAssemblyCandidate())
             {
-                MessageBox.Show(CadNodeHelper.GetAssemblySearchCadHint(), "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(CadNodeHelper.GetAssemblySearchCadHint(), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {
                 IsBusy = true;
-                StatusMessage = "Selecting or creating CAD...";
+                StatusMessage = Loc(TranslationKeys.StatusSelectingCad);
 
                 var result = await _arasClient.CreateCadAsync(new CreateCadRequest
                 {
@@ -639,12 +706,12 @@ namespace IdeaCadConnector.Desktop
                 }, CancellationToken.None);
 
                 ApplyCadSelection(result.Cad, clearSessionLock: true);
-                StatusMessage = $"Selected CAD {result.Cad.CadNumber}.";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusSelectedCad), result.Cad.CadNumber);
             }
             catch (Exception ex)
             {
-                StatusMessage = "Select / Create CAD failed.";
-                MessageBox.Show("CAD creation failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = Loc(TranslationKeys.StatusCadSelectionFailed);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgCadCreationFailed), ex.Message), Ttl, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -657,14 +724,14 @@ namespace IdeaCadConnector.Desktop
             if (!EnsureLoggedIn() || IsBusy) return;
             if (string.IsNullOrWhiteSpace(SelectedCadId))
             {
-                MessageBox.Show("Select or create a CAD first.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc(TranslationKeys.MsgSelectCadFirst), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {
                 IsBusy = true;
-                StatusMessage = "Checking out CAD...";
+                StatusMessage = Loc(TranslationKeys.StatusCheckingOut);
 
                 var targetDir = GetWorkspaceDirectory();
                 var result = await GetCheckoutService().CheckoutAndDownloadAsync(
@@ -681,12 +748,12 @@ namespace IdeaCadConnector.Desktop
                 _lastDownloadedFilePath = result.LocalFilePath;
                 ApplyCadSelection(result.Cad, clearSessionLock: false);
                 await _cadAdapter.OpenDocumentAsync(_lastDownloadedFilePath, CadOpenMode.Edit, CancellationToken.None);
-                StatusMessage = $"Checked out and opened {Path.GetFileName(_lastDownloadedFilePath)}.";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckedOut), Path.GetFileName(_lastDownloadedFilePath));
             }
             catch (Exception ex)
             {
-                StatusMessage = "Checkout failed.";
-                MessageBox.Show("Checkout failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = Loc(TranslationKeys.StatusCheckoutFailed);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgCheckoutFailed), ex.Message), Ttl, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -700,14 +767,14 @@ namespace IdeaCadConnector.Desktop
             if (!EnsureLoggedIn() || IsBusy) return;
             if (string.IsNullOrWhiteSpace(SelectedCadId))
             {
-                MessageBox.Show("Select or create a CAD first.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc(TranslationKeys.MsgSelectCadFirst), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {
                 IsBusy = true;
-                StatusMessage = "Opening CAD read-only...";
+                StatusMessage = Loc(TranslationKeys.StatusOpeningReadOnly);
 
                 var targetDir = GetWorkspaceDirectory();
                 var result = await GetCheckoutService().OpenReadOnlyAsync(
@@ -717,8 +784,8 @@ namespace IdeaCadConnector.Desktop
 
                 if (!result.Success || string.IsNullOrWhiteSpace(result.LocalFilePath))
                 {
-                    MessageBox.Show(result.ErrorMessage ?? "The selected CAD does not have a native file yet.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    StatusMessage = result.ErrorMessage ?? "CAD has no native file.";
+                    MessageBox.Show(result.ErrorMessage ?? Loc(TranslationKeys.MsgCadNoNativeFile), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    StatusMessage = result.ErrorMessage ?? Loc(TranslationKeys.ErrorNoCadSelected);
                     return;
                 }
 
@@ -726,12 +793,12 @@ namespace IdeaCadConnector.Desktop
                 _lastDownloadedFilePath = result.LocalFilePath;
                 await _cadAdapter.OpenDocumentAsync(_lastDownloadedFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
 
-                StatusMessage = $"Opened {Path.GetFileName(_lastDownloadedFilePath)} in read-only mode.";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusOpenedReadOnly), Path.GetFileName(_lastDownloadedFilePath));
             }
             catch (Exception ex)
             {
-                StatusMessage = "Open read-only failed.";
-                MessageBox.Show("Open read-only failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = Loc(TranslationKeys.StatusOpenReadOnlyFailed);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgOpenReadOnlyFailed), ex.Message), Ttl, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -744,19 +811,19 @@ namespace IdeaCadConnector.Desktop
             if (!EnsureLoggedIn() || IsBusy) return;
             if (string.IsNullOrWhiteSpace(SelectedCadId) || string.IsNullOrWhiteSpace(_lockToken))
             {
-                MessageBox.Show("Checkout the CAD first.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc(TranslationKeys.MsgCheckoutCadFirst), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {
                 IsBusy = true;
-                StatusMessage = "Checking in CAD...";
+                StatusMessage = Loc(TranslationKeys.StatusCheckingIn);
 
                 var filePath = ResolveCheckInFilePath();
                 if (!File.Exists(filePath))
                 {
-                    MessageBox.Show("No local file to check in. Save the file in IronCAD first.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(Loc(TranslationKeys.MsgNoLocalFileCheckin), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -773,12 +840,12 @@ namespace IdeaCadConnector.Desktop
                 _lockToken = null;
                 ApplyCadSelection(result.Cad, clearSessionLock: false);
 
-                StatusMessage = $"Check-in completed for {result.Cad.CadNumber}.";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckedIn), result.Cad.CadNumber);
             }
             catch (Exception ex)
             {
-                StatusMessage = "Check-in failed.";
-                MessageBox.Show("Check-in failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = Loc(TranslationKeys.StatusCheckinFailed);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgCheckinFailed), ex.Message), Ttl, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -792,14 +859,14 @@ namespace IdeaCadConnector.Desktop
             if (!EnsureLoggedIn() || IsBusy) return;
             if (string.IsNullOrWhiteSpace(SelectedCadId))
             {
-                MessageBox.Show("No CAD selected.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc(TranslationKeys.MsgNoCadSelected), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             try
             {
                 IsBusy = true;
-                StatusMessage = "Cancelling checkout...";
+                StatusMessage = Loc(TranslationKeys.StatusCancellingCheckout);
 
                 var success = await GetCheckoutService().CancelCheckoutAsync(SelectedCadId, CancellationToken.None);
                 if (!success)
@@ -822,12 +889,12 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 _ = RefreshRevisionPreconditionsAsync();
-                StatusMessage = "Checkout cancelled.";
+                StatusMessage = Loc(TranslationKeys.StatusCheckoutCancelled);
             }
             catch (Exception ex)
             {
-                StatusMessage = "Cancel checkout failed.";
-                MessageBox.Show("Cancel checkout failed: " + ex.Message, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusMessage = Loc(TranslationKeys.StatusCancelFailed);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgCancelCheckoutFailed), ex.Message), Ttl, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -870,14 +937,14 @@ namespace IdeaCadConnector.Desktop
                 _ => $"Execute {kind}?"
             };
 
-            var result = MessageBox.Show(confirmMsg, "Workflow Action", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var result = MessageBox.Show(confirmMsg, Loc(TranslationKeys.WorkflowActionTitle), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (result != MessageBoxResult.Yes) return;
 
             string selectedCadId = null;
             try
             {
                 IsBusy = true;
-                StatusMessage = $"Executing {kind}...";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusExecutingAction), kind);
 
                 if ((kind == CadBusinessActionKind.StartDetailedDesign
                     || kind == CadBusinessActionKind.SubmitForReview)
@@ -885,7 +952,7 @@ namespace IdeaCadConnector.Desktop
                 {
                     if (IsSelectedSearchAssemblyCandidate())
                     {
-                        MessageBox.Show(CadNodeHelper.GetAssemblySearchCadHint(), "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(CadNodeHelper.GetAssemblySearchCadHint(), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
 
@@ -955,13 +1022,13 @@ namespace IdeaCadConnector.Desktop
                     && string.Equals(updatedContext.CadId, selectedCadId, StringComparison.OrdinalIgnoreCase))
                 {
                     CurrentOperationContext = updatedContext;
-                    StatusMessage = $"{kind} completed successfully.";
+                    StatusMessage = string.Format(Loc(TranslationKeys.StatusActionCompleted), kind);
                 }
             }
             catch (Exception ex)
             {
-                StatusMessage = $"{kind} failed.";
-                MessageBox.Show($"{kind} failed: {ex.Message}", "Workflow Action",
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionFailed), kind);
+                MessageBox.Show(string.Format(Loc(TranslationKeys.MsgWorkflowActionFailed), kind, ex.Message), Loc(TranslationKeys.WorkflowActionTitle),
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 // Re-load context to reflect server state
                 if (IsCurrentCadSelection(selectedCadId))
@@ -982,7 +1049,7 @@ namespace IdeaCadConnector.Desktop
             if (!EnsureLoggedIn() || IsBusy) return;
             if (string.IsNullOrWhiteSpace(SelectedCadId)) return;
 
-            StatusMessage = "Refreshing workflow context...";
+            StatusMessage = Loc(TranslationKeys.StatusRefreshingWorkflow);
             try
             {
                 IsBusy = true;
@@ -999,14 +1066,14 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 if (CurrentOperationContext?.ActiveTask != null)
-                    StatusMessage = $"Workflow refreshed: {context.ActiveTask.ActivityName}.";
+                    StatusMessage = string.Format(Loc(TranslationKeys.StatusWorkflowRefreshed), context.ActiveTask.ActivityName);
                 else
-                    StatusMessage = "Workflow refreshed: no active task.";
+                    StatusMessage = Loc(TranslationKeys.StatusWorkflowNoActive);
             }
             catch (Exception ex)
             {
                 CurrentOperationContext = null;
-                StatusMessage = "Workflow refresh failed: " + ex.Message;
+                StatusMessage = Loc(TranslationKeys.StatusWorkflowRefreshFailed) + " " + ex.Message;
             }
             finally
             {
@@ -1033,14 +1100,14 @@ namespace IdeaCadConnector.Desktop
             }
             catch (Exception ex)
             {
-                StatusMessage = $"Could not open part details: {ex.Message}";
+                StatusMessage = Loc(TranslationKeys.StatusSearchFailed) + " " + ex.Message;
             }
         }
 
         private async void ExecuteToggleFavoriteAsync()
         {
             if (SelectedSearchResult?.Part == null) return;
-            StatusMessage = "Favorites feature coming soon.";
+            StatusMessage = Loc(TranslationKeys.FavoritesComingSoon);
         }
 
         private string ResolveCheckInFilePath()
@@ -1091,8 +1158,8 @@ namespace IdeaCadConnector.Desktop
 
             SearchRevisionHint = GuidanceRevisionService.BuildReadinessText(
                 _revisionPreconditions,
-                "Ready: CAD is released and no blockers found. Click Start New Revision to request a real revision from Aras.",
-                "Start New Revision becomes available after the linked CAD reaches Released.");
+                Loc(TranslationKeys.ReadyForRevision),
+                Loc(TranslationKeys.RevisionRequiresReleased));
 
             OnPropertyChanged(nameof(CanStartNewRevision));
             ((RelayCommand)StartNewRevisionCommand).RaiseCanExecuteChanged();
@@ -1236,13 +1303,13 @@ namespace IdeaCadConnector.Desktop
         {
             if (_arasClient == null || _loginResult == null)
             {
-                MessageBox.Show("Please sign in first.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc(TranslationKeys.ErrorSignInFirst), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(_loginResult.SessionToken))
             {
-                MessageBox.Show("Session expired. Please sign in again.", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(Loc(TranslationKeys.ErrorSessionExpired), Ttl, MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
@@ -1252,33 +1319,33 @@ namespace IdeaCadConnector.Desktop
         private static string BuildPartSummary(PartSummary part)
         {
             if (part == null)
-                return "Select a part from the search results to see details here.";
+                return Loc(TranslationKeys.SummarySelectPartFirst);
 
             var builder = new StringBuilder();
-            builder.AppendLine("Part");
-            builder.AppendLine("  Number: " + Safe(part.PartNumber));
-            builder.AppendLine("  Name: " + Safe(part.Name));
-            builder.AppendLine("  Revision: " + Safe(part.Revision));
-            builder.AppendLine("  State: " + Safe(part.State));
-            builder.AppendLine("  Type: " + Safe(part.PartType));
-            builder.Append("  Description: " + Safe(part.Description));
+            builder.AppendLine(Loc(TranslationKeys.SummaryPartHeader));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryPartNumber), Safe(part.PartNumber)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryPartName), Safe(part.Name)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryPartRevision), Safe(part.Revision)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryPartState), Safe(part.State)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryPartType), Safe(part.PartType)));
+            builder.Append(string.Format(Loc(TranslationKeys.SummaryPartDescription), Safe(part.Description)));
             return builder.ToString();
         }
 
         private static string BuildCadSummary(CadSummary cad)
         {
             if (cad == null)
-                return "No CAD selected yet.";
+                return Loc(TranslationKeys.SummarySelectPartFirst);
 
             var builder = new StringBuilder();
-            builder.AppendLine("Linked CAD");
-            builder.AppendLine("  Number: " + Safe(cad.CadNumber));
-            builder.AppendLine("  Revision: " + Safe(cad.Revision));
-            builder.AppendLine("  State: " + Safe(cad.State));
-            builder.AppendLine("  Classification: " + Safe(cad.Classification));
-            builder.AppendLine("  Native file: " + (cad.HasNativeFile ? "Available" : "Missing"));
-            builder.AppendLine("  Locked: " + (cad.IsLocked ? "Yes" : "No"));
-            builder.Append("  Locked by: " + Safe(cad.LockedBy));
+            builder.AppendLine(Loc(TranslationKeys.SummaryCadHeader));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryCadNumber), Safe(cad.CadNumber)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryCadRevision), Safe(cad.Revision)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryCadState), Safe(cad.State)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryCadClassification), Safe(cad.Classification)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryCadNativeFile), cad.HasNativeFile ? Loc(TranslationKeys.SummaryAvailable) : Loc(TranslationKeys.SummaryMissing)));
+            builder.AppendLine(string.Format(Loc(TranslationKeys.SummaryCadLocked), cad.IsLocked ? Loc(TranslationKeys.SummaryYes) : Loc(TranslationKeys.SummaryNo)));
+            builder.Append(string.Format(Loc(TranslationKeys.SummaryCadLockedBy), Safe(cad.LockedBy)));
             return builder.ToString();
         }
 
@@ -1286,6 +1353,13 @@ namespace IdeaCadConnector.Desktop
         {
             return string.IsNullOrWhiteSpace(value) ? "-" : value.Trim();
         }
+
+        private static string Loc(string key)
+        {
+            return LocalizationSource.Instance[key];
+        }
+
+        private static string Ttl => Loc(TranslationKeys.StartupErrorTitle);
 
         // The search screen only has flat Part rows plus classification.
         // It does not know the business-tree/root position, so we block
@@ -1311,7 +1385,7 @@ namespace IdeaCadConnector.Desktop
             var result = await _revisionService.ReviseAsync(request, CancellationToken.None);
             if (result.Success)
             {
-                StatusMessage = $"New revision created: {result.NewRevision ?? "-"}";
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusNewRevisionCreated), result.NewRevision ?? "-");
                 ResetSelectionState();
                 ExecuteSearchAsync(_currentPage);
             }

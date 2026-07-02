@@ -10,6 +10,7 @@ using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Errors;
+using IdeaCadConnector.Core.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace IdeaCadConnector.Aras
@@ -832,7 +833,7 @@ namespace IdeaCadConnector.Aras
             {
                 throw new ArasOperationException(
                     ArasErrorCode.WorkflowActionNotAvailable,
-                    CadLifecyclePolicy.GetStartDetailedDesignBlockedMessage(context.CadState));
+                    LifecycleDisplayText.GetBusinessActionBlockedMessage(CadBusinessActionKind.StartDetailedDesign, context.CadState));
             }
 
             var result = await RunIomAsync(() =>
@@ -855,7 +856,7 @@ namespace IdeaCadConnector.Aras
             {
                 throw new ArasOperationException(
                     ArasErrorCode.WorkflowActionNotAvailable,
-                    CadLifecyclePolicy.GetSubmitForReviewBlockedMessage(context.CadState));
+                    LifecycleDisplayText.GetBusinessActionBlockedMessage(CadBusinessActionKind.SubmitForReview, context.CadState));
             }
 
             var result = await RunIomAsync(() =>
@@ -878,7 +879,7 @@ namespace IdeaCadConnector.Aras
             {
                 throw new ArasOperationException(
                     ArasErrorCode.WorkflowActionNotAvailable,
-                    CadLifecyclePolicy.GetApproveReviewBlockedMessage(context.CadState));
+                    LifecycleDisplayText.GetBusinessActionBlockedMessage(CadBusinessActionKind.Approve, context.CadState));
             }
 
             var result = await RunIomAsync(() =>
@@ -901,7 +902,7 @@ namespace IdeaCadConnector.Aras
             {
                 throw new ArasOperationException(
                     ArasErrorCode.WorkflowActionNotAvailable,
-                    CadLifecyclePolicy.GetRequestReworkBlockedMessage(context.CadState));
+                    LifecycleDisplayText.GetBusinessActionBlockedMessage(CadBusinessActionKind.RequestRework, context.CadState));
             }
 
             var result = await RunIomAsync(() =>
@@ -955,7 +956,7 @@ namespace IdeaCadConnector.Aras
             if (cad.IsLocked)
                 return "CAD is locked by another user.";
 
-            return CadLifecyclePolicy.GetCheckoutBlockedMessage(cad.State);
+            return LifecycleDisplayText.GetCheckoutBlockedMessage(cad.State);
         }
 
         private void EnsureAuthenticated()
@@ -978,7 +979,7 @@ namespace IdeaCadConnector.Aras
             {
                 throw new ArasOperationException(
                     ArasErrorCode.CadReleasedReadOnly,
-                    CadLifecyclePolicy.GetCheckoutBlockedMessage(cad.State),
+                    LifecycleDisplayText.GetCheckoutBlockedMessage(cad.State),
                     details: new Dictionary<string, string>
                     {
                         { "cad_id", cad.Id },
