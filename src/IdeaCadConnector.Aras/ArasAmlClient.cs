@@ -9,7 +9,7 @@ using Newtonsoft.Json.Linq;
 
 namespace IdeaCadConnector.Aras
 {
-    internal sealed class ArasAmlClient
+    internal sealed class ArasAmlClient : IArasAmlClient
     {
         private readonly ArasHttpClient _http;
         private readonly string _database;
@@ -354,28 +354,48 @@ namespace IdeaCadConnector.Aras
             return xml.Substring(start, end - start);
         }
 
-        private static ArasOperationException MapArasError(string errorText, string methodName)
+        internal static ArasOperationException MapArasError(string errorText, string methodName)
         {
-            var upper = (errorText ?? string.Empty).ToUpperInvariant();
-            ArasErrorCode code;
-
-            if (upper.StartsWith("PART_NOT_FOUND"))
-                code = ArasErrorCode.PartNotFound;
-            else if (upper.StartsWith("CAD_NOT_FOUND"))
-                code = ArasErrorCode.CadNotFound;
-            else if (upper.StartsWith("CAD_CREATE_FAILED") || upper.StartsWith("CAD_ALREADY_EXISTS"))
-                code = ArasErrorCode.CadAlreadyExists;
-            else if (upper.StartsWith("CAD_LOCKED"))
-                code = ArasErrorCode.CadLocked;
-            else if (upper.StartsWith("VALIDATION_FAILED"))
-                code = ArasErrorCode.ValidationFailed;
-            else
-                code = ArasErrorCode.UnexpectedServerError;
-
+            var code = ClassifyErrorText(errorText);
             return new ArasOperationException(code, "Method '" + methodName + "' failed: " + errorText);
         }
 
-        private static ArasErrorCode ClassifyNotFoundError(string itemType)
+        internal static ArasErrorCode ClassifyErrorText(string errorText)
+        {
+            var upper = (errorText ?? string.Empty).ToUpperInvariant();
+
+            if (upper.IndexOf("ACCESS DENIED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("PERMISSION", StringComparison.Ordinal) >= 0)
+                return ArasErrorCode.PermissionDenied;
+
+            if (upper.IndexOf("COULD NOT LOG IN", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("AUTHENTICATION FAILED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("INVALID CREDENTIALS", StringComparison.Ordinal) >= 0)
+                return ArasErrorCode.AuthInvalid;
+
+            if (upper.IndexOf("SERVER WAS UNABLE", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("INTERNAL SERVER ERROR", StringComparison.Ordinal) >= 0)
+                return ArasErrorCode.ServerUnavailable;
+
+            if (upper.StartsWith("PART_NOT_FOUND"))
+                return ArasErrorCode.PartNotFound;
+
+            if (upper.StartsWith("CAD_NOT_FOUND"))
+                return ArasErrorCode.CadNotFound;
+
+            if (upper.StartsWith("CAD_CREATE_FAILED") || upper.StartsWith("CAD_ALREADY_EXISTS"))
+                return ArasErrorCode.CadAlreadyExists;
+
+            if (upper.StartsWith("CAD_LOCKED"))
+                return ArasErrorCode.CadLocked;
+
+            if (upper.StartsWith("VALIDATION_FAILED"))
+                return ArasErrorCode.ValidationFailed;
+
+            return ArasErrorCode.UnexpectedServerError;
+        }
+
+        internal static ArasErrorCode ClassifyNotFoundError(string itemType)
         {
             if (string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase))
                 return ArasErrorCode.PartNotFound;

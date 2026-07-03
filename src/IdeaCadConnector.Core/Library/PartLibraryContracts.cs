@@ -161,6 +161,17 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string CommitId { get; set; }
         public string ActionType { get; set; }
     }
+
+    public enum UsageCreateResult
+    {
+        Created,
+        AlreadyExists,
+        ValidationFailed,
+        AuthFailed,
+        PermissionDenied,
+        ServerError,
+        UnknownError
+    }
 }
 
 namespace IdeaCadConnector.Core.Contracts

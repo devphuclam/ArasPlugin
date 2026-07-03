@@ -175,6 +175,62 @@ namespace IdeaCadConnector.Tests
             Assert.Null(HttpPdmRepositoryClient.ClassifyArasError(ex));
         }
 
+        // ── Result consistency invariants ──────────────────────────────
+
+        [Fact]
+        public void BomActionResult_SuccessActions_AreCreatedQuantityUpdatedUnchanged()
+        {
+            Assert.True(BomActionResultIsSuccess(BomActionResult.Created));
+            Assert.True(BomActionResultIsSuccess(BomActionResult.QuantityUpdated));
+            Assert.True(BomActionResultIsSuccess(BomActionResult.Unchanged));
+            Assert.False(BomActionResultIsSuccess(BomActionResult.InvalidParentChild));
+            Assert.False(BomActionResultIsSuccess(BomActionResult.InvalidQuantity));
+            Assert.False(BomActionResultIsSuccess(BomActionResult.Failed));
+        }
+
+        private static bool BomActionResultIsSuccess(BomActionResult action)
+        {
+            return action == BomActionResult.Created ||
+                   action == BomActionResult.QuantityUpdated ||
+                   action == BomActionResult.Unchanged;
+        }
+
+        [Fact]
+        public void ClassifyArasError_KnownCodesReturnNonNull()
+        {
+            var knownCodes = new[]
+            {
+                ArasErrorCode.AuthInvalid,
+                ArasErrorCode.AuthExpired,
+                ArasErrorCode.PermissionDenied,
+                ArasErrorCode.PartNotFound,
+                ArasErrorCode.ServerUnavailable
+            };
+            foreach (var code in knownCodes)
+            {
+                var ex = new ArasOperationException(code, "test");
+                Assert.NotNull(HttpPdmRepositoryClient.ClassifyArasError(ex));
+            }
+        }
+
+        [Fact]
+        public void ClassifyArasError_UnknownCodesReturnNull()
+        {
+            var unknownCodes = new[]
+            {
+                ArasErrorCode.CadLocked,
+                ArasErrorCode.CadAlreadyExists,
+                ArasErrorCode.ValidationFailed,
+                ArasErrorCode.UnexpectedServerError,
+                ArasErrorCode.Unknown
+            };
+            foreach (var code in unknownCodes)
+            {
+                var ex = new ArasOperationException(code, "test");
+                Assert.Null(HttpPdmRepositoryClient.ClassifyArasError(ex));
+            }
+        }
+
         // ── BomActionResult enum ────────────────────────────────────────
 
         [Fact]
@@ -185,6 +241,7 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(2, (int)BomActionResult.Unchanged);
             Assert.Equal(3, (int)BomActionResult.InvalidParentChild);
             Assert.Equal(4, (int)BomActionResult.InvalidQuantity);
+            Assert.Equal(5, (int)BomActionResult.Failed);
         }
 
         // ── PdmBomPushResult model ──────────────────────────────────────
@@ -235,62 +292,100 @@ namespace IdeaCadConnector.Tests
             Assert.True(result.BomResults[0].Success);
         }
 
-        // ── ArasAmlClient.ClassifyNotFoundError (via reflection/static) ──
-        // We test the classification logic directly through a helper that
-        // mirrors the same logic, since ClassifyNotFoundError is private.
-
-        private static ArasErrorCode ClassifyNotFoundError(string itemType)
-        {
-            if (string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase))
-                return ArasErrorCode.PartNotFound;
-            if (string.Equals(itemType, "CAD", StringComparison.OrdinalIgnoreCase))
-                return ArasErrorCode.CadNotFound;
-            return ArasErrorCode.ValidationFailed;
-        }
+        // ── ArasAmlClient.ClassifyNotFoundError ─────────────────────────
+        // Tests directly against the production classification logic.
 
         [Fact]
         public void ClassifyNotFoundError_Part_ReturnsPartNotFound()
         {
-            Assert.Equal(ArasErrorCode.PartNotFound, ClassifyNotFoundError("Part"));
+            Assert.Equal(ArasErrorCode.PartNotFound, ArasAmlClient.ClassifyNotFoundError("Part"));
         }
 
         [Fact]
         public void ClassifyNotFoundError_Cad_ReturnsCadNotFound()
         {
-            Assert.Equal(ArasErrorCode.CadNotFound, ClassifyNotFoundError("CAD"));
+            Assert.Equal(ArasErrorCode.CadNotFound, ArasAmlClient.ClassifyNotFoundError("CAD"));
         }
 
         [Fact]
         public void ClassifyNotFoundError_CadLowerCase_ReturnsCadNotFound()
         {
-            Assert.Equal(ArasErrorCode.CadNotFound, ClassifyNotFoundError("cad"));
+            Assert.Equal(ArasErrorCode.CadNotFound, ArasAmlClient.ClassifyNotFoundError("cad"));
         }
 
         [Fact]
-        public void ClassifyNotFoundError_Document_DoesNotReturnCadNotFound()
+        public void ClassifyNotFoundError_Document_ReturnsValidationFailed()
         {
-            var code = ClassifyNotFoundError("Document");
-            Assert.NotEqual(ArasErrorCode.CadNotFound, code);
+            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("Document"));
         }
 
         [Fact]
-        public void ClassifyNotFoundError_PartBom_DoesNotReturnCadNotFound()
+        public void ClassifyNotFoundError_PartBom_ReturnsValidationFailed()
         {
-            var code = ClassifyNotFoundError("Part BOM");
-            Assert.NotEqual(ArasErrorCode.CadNotFound, code);
+            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("Part BOM"));
         }
 
         [Fact]
-        public void ClassifyNotFoundError_Project_DoesNotReturnCadNotFound()
+        public void ClassifyNotFoundError_Project_ReturnsValidationFailed()
         {
-            var code = ClassifyNotFoundError("Project");
-            Assert.NotEqual(ArasErrorCode.CadNotFound, code);
+            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("Project"));
         }
 
         [Fact]
         public void ClassifyNotFoundError_UnknownType_ReturnsValidationFailed()
         {
-            Assert.Equal(ArasErrorCode.ValidationFailed, ClassifyNotFoundError("UnknownType"));
+            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("UnknownType"));
+        }
+
+        // ── ArasAmlClient.ClassifyErrorText ──────────────────────────────
+        // Tests against the production error text classifier.
+
+        [Fact]
+        public void ClassifyErrorText_AccessDenied_ReturnsPermissionDenied()
+        {
+            Assert.Equal(ArasErrorCode.PermissionDenied, ArasAmlClient.ClassifyErrorText("Access denied"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_PermissionDenied_ReturnsPermissionDenied()
+        {
+            Assert.Equal(ArasErrorCode.PermissionDenied, ArasAmlClient.ClassifyErrorText("Permission denied for user"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_CouldNotLogIn_ReturnsAuthInvalid()
+        {
+            Assert.Equal(ArasErrorCode.AuthInvalid, ArasAmlClient.ClassifyErrorText("Could not log in"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_InvalidCredentials_ReturnsAuthInvalid()
+        {
+            Assert.Equal(ArasErrorCode.AuthInvalid, ArasAmlClient.ClassifyErrorText("Invalid credentials"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_InternalServerError_ReturnsServerUnavailable()
+        {
+            Assert.Equal(ArasErrorCode.ServerUnavailable, ArasAmlClient.ClassifyErrorText("Internal server error"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_PartNotFound_ReturnsPartNotFound()
+        {
+            Assert.Equal(ArasErrorCode.PartNotFound, ArasAmlClient.ClassifyErrorText("PART_NOT_FOUND: missing part"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_CadNotFound_ReturnsCadNotFound()
+        {
+            Assert.Equal(ArasErrorCode.CadNotFound, ArasAmlClient.ClassifyErrorText("CAD_NOT_FOUND"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_UnknownError_ReturnsUnexpected()
+        {
+            Assert.Equal(ArasErrorCode.UnexpectedServerError, ArasAmlClient.ClassifyErrorText("Some random error"));
         }
 
         // ── WorkspaceLibraryReferenceStore ──────────────────────────────
@@ -472,6 +567,20 @@ namespace IdeaCadConnector.Tests
             Assert.Null(request.UsedBy);
         }
 
+        // ── UsageCreateResult enum ──────────────────────────────────────
+
+        [Fact]
+        public void UsageCreateResult_EnumValuesAreCorrect()
+        {
+            Assert.Equal(0, (int)UsageCreateResult.Created);
+            Assert.Equal(1, (int)UsageCreateResult.AlreadyExists);
+            Assert.Equal(2, (int)UsageCreateResult.ValidationFailed);
+            Assert.Equal(3, (int)UsageCreateResult.AuthFailed);
+            Assert.Equal(4, (int)UsageCreateResult.PermissionDenied);
+            Assert.Equal(5, (int)UsageCreateResult.ServerError);
+            Assert.Equal(6, (int)UsageCreateResult.UnknownError);
+        }
+
         // ── Error message strings (Task 9 review) ───────────────────────
 
         [Theory]
@@ -491,6 +600,43 @@ namespace IdeaCadConnector.Tests
                 if (shouldLeak)
                     Assert.DoesNotContain(fragment, msg, StringComparison.OrdinalIgnoreCase);
             }
+        }
+
+        // ── Behavioral: RecordUsageAsync via FakeArasAmlClient ──────────
+
+        [Fact]
+        public void MapArasError_AccessDenied_CreatesPermissionDeniedException()
+        {
+            var ex = ArasAmlClient.MapArasError("Access denied", "SomeMethod");
+            Assert.Equal(ArasErrorCode.PermissionDenied, ex.ErrorCode);
+        }
+
+        [Fact]
+        public void MapArasError_AuthFailure_CreatesAuthInvalidException()
+        {
+            var ex = ArasAmlClient.MapArasError("Could not log in", "LoginMethod");
+            Assert.Equal(ArasErrorCode.AuthInvalid, ex.ErrorCode);
+        }
+
+        [Fact]
+        public void MapArasError_ServerError_CreatesServerUnavailableException()
+        {
+            var ex = ArasAmlClient.MapArasError("Internal server error", "SomeMethod");
+            Assert.Equal(ArasErrorCode.ServerUnavailable, ex.ErrorCode);
+        }
+
+        [Fact]
+        public void MapArasError_PartNotFound_Passthrough()
+        {
+            var ex = ArasAmlClient.MapArasError("PART_NOT_FOUND", "SomeMethod");
+            Assert.Equal(ArasErrorCode.PartNotFound, ex.ErrorCode);
+        }
+
+        [Fact]
+        public void MapArasError_UnknownError_ReturnsUnexpected()
+        {
+            var ex = ArasAmlClient.MapArasError("Something weird happened", "SomeMethod");
+            Assert.Equal(ArasErrorCode.UnexpectedServerError, ex.ErrorCode);
         }
 
         private sealed class TempFolder : IDisposable

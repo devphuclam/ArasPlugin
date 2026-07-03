@@ -389,7 +389,7 @@ namespace IdeaCadConnector.Aras
                                 ChildPartId = childId,
                                 Quantity = part.Quantity,
                                 Success = false,
-                                ActionTaken = BomActionResult.InvalidParentChild,
+                                ActionTaken = BomActionResult.Failed,
                                 ErrorMessage = msg
                             });
                         }
@@ -653,12 +653,14 @@ namespace IdeaCadConnector.Aras
                     var state = item["state"]?.ToString();
                     if (!string.IsNullOrWhiteSpace(state) && IsPartObsolete(state))
                     {
+                        var msg = PartLifecyclePolicy.GetPartNotReusableMessage(state, part.PartNumber ?? part.LogicalCode)
+                                   ?? "Part reuse failed: the referenced Part cannot be reused.";
                         return new PdmItemResult
                         {
                             SourceKey = part.LogicalCode,
                             ItemNumber = part.PartNumber,
                             Success = false,
-                            ErrorMessage = "Part reuse failed: the referenced Part is in Obsolete ('Loai bo') state and cannot be used in new assemblies."
+                            ErrorMessage = msg
                         };
                     }
 

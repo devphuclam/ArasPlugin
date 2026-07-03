@@ -2,6 +2,7 @@
   <PropertyGroup>
     <RootNamespace>IdeaCadConnector.Aras</RootNamespace>
   </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\IdeaCadConnector.Core\IdeaCadConnector.Core.csproj" />
     <Reference Include="System.Net.Http" />

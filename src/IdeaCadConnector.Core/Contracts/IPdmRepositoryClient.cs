@@ -50,7 +50,8 @@ namespace IdeaCadConnector.Core.Contracts
         QuantityUpdated,
         Unchanged,
         InvalidParentChild,
-        InvalidQuantity
+        InvalidQuantity,
+        Failed
     }
 
     public sealed class PdmPushRequest

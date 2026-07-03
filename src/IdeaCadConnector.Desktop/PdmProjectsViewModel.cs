@@ -1230,6 +1230,7 @@ namespace IdeaCadConnector.Desktop
                 BuildDocuments(_latestAnalysis, _latestBusinessStructure, sources.PackageFolder ?? FolderPath, sources.CadFolder ?? FolderPath);
                 BuildProjectFiles(sources);
                 BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
+                RestoreLibraryCorruptionStatusMessage();
                 BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
                 _ = RefreshPreviewFromServerAsync();
 
@@ -1466,6 +1467,19 @@ namespace IdeaCadConnector.Desktop
                     !string.IsNullOrWhiteSpace(reference.ParentLogicalCode) &&
                     !string.IsNullOrWhiteSpace(reference.PartId))
                 .ToList();
+        }
+
+        private void RestoreLibraryCorruptionStatusMessage()
+        {
+            if (_latestAnalysis == null || _latestAnalysis.Issues == null)
+                return;
+
+            var corruptionIssue = _latestAnalysis.Issues.FirstOrDefault(i =>
+                i.Message != null && i.Message.StartsWith("Library references file is corrupted", StringComparison.OrdinalIgnoreCase));
+            if (corruptionIssue != null)
+            {
+                StatusMessage = "Library references file is corrupted. Open '" + corruptionIssue.FileName + "' and fix the JSON format, or delete the file to start fresh.";
+            }
         }
 
         private void MergeLibraryReferencesIntoStructure(PdmStructureNode root)

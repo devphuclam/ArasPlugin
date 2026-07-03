@@ -366,31 +366,36 @@ namespace IdeaCadConnector.Aras
                 return;
             }
 
-            var usageCreated = false;
+            var result = UsageCreateResult.UnknownError;
             var usedByValue = (request.UsedBy ?? "unknown").Trim();
 
             if (usedByValue.Length > 0)
             {
-                usageCreated = await TryCreateUsageItemAsync(request, usedByValue, cancellationToken).ConfigureAwait(false);
+                result = await TryCreateUsageItemAsync(request, usedByValue, cancellationToken).ConfigureAwait(false);
             }
 
-            if (!usageCreated && usedByValue.Length > 0)
+            if (ShouldRetryUsageCreate(result) && usedByValue.Length > 0)
             {
-                usageCreated = await TryCreateUsageItemWithoutUsedByAsync(request, cancellationToken).ConfigureAwait(false);
+                result = await TryCreateUsageItemWithoutUsedByAsync(request, cancellationToken).ConfigureAwait(false);
             }
 
-            if (!usageCreated)
+            if (ShouldRetryUsageCreate(result))
             {
-                usageCreated = await TryCreateUsageItemAsync(request, null, cancellationToken).ConfigureAwait(false);
+                result = await TryCreateUsageItemAsync(request, null, cancellationToken).ConfigureAwait(false);
             }
 
-            if (usageCreated)
+            if (result == UsageCreateResult.Created)
             {
                 await TryUpdateEntryLastUsedOnAsync(request.LibraryEntryId, cancellationToken).ConfigureAwait(false);
             }
         }
 
-        private async Task<bool> TryCreateUsageItemAsync(LibraryUsageRequest request, string usedBy, CancellationToken ct)
+        private static bool ShouldRetryUsageCreate(UsageCreateResult result)
+        {
+            return result == UsageCreateResult.ValidationFailed;
+        }
+
+        private async Task<UsageCreateResult> TryCreateUsageItemAsync(LibraryUsageRequest request, string usedBy, CancellationToken ct)
         {
             var aml =
                 "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
@@ -414,7 +419,7 @@ namespace IdeaCadConnector.Aras
                     PartLibrarySchemaNames.UsageItemType,
                     null,
                     ct).ConfigureAwait(false);
-                return true;
+                return UsageCreateResult.Created;
             }
             catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed && usedBy != null)
             {
@@ -422,16 +427,21 @@ namespace IdeaCadConnector.Aras
                     "Part Library usage record: 'used_by' property may not be deployed on '{ItemType}'. " +
                     "Configure 'used_by' as a string property on the ItemType.",
                     PartLibrarySchemaNames.UsageItemType);
-                return false;
+                return UsageCreateResult.ValidationFailed;
+            }
+            catch (Exception ex) when (IsAuthOrPermissionFailure(ex))
+            {
+                _logger.LogWarning(ex, "Part Library usage record auth/permission failure for entry {EntryId}.", request.LibraryEntryId);
+                return UsageCreateResult.AuthFailed;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId}.", request.LibraryEntryId);
-                return false;
+                return UsageCreateResult.ServerError;
             }
         }
 
-        private async Task<bool> TryCreateUsageItemWithoutUsedByAsync(LibraryUsageRequest request, CancellationToken ct)
+        private async Task<UsageCreateResult> TryCreateUsageItemWithoutUsedByAsync(LibraryUsageRequest request, CancellationToken ct)
         {
             var aml =
                 "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
@@ -456,12 +466,17 @@ namespace IdeaCadConnector.Aras
                     "Part Library usage record succeeded without 'used_by' for entry {EntryId}. " +
                     "Configure 'used_by' as a string property on the ItemType.",
                     PartLibrarySchemaNames.UsageItemType);
-                return true;
+                return UsageCreateResult.Created;
+            }
+            catch (Exception ex) when (IsAuthOrPermissionFailure(ex))
+            {
+                _logger.LogWarning(ex, "Part Library usage record auth/permission failure for entry {EntryId}.", request.LibraryEntryId);
+                return UsageCreateResult.AuthFailed;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId} (retry without used_by).", request.LibraryEntryId);
-                return false;
+                return UsageCreateResult.ServerError;
             }
         }
 
