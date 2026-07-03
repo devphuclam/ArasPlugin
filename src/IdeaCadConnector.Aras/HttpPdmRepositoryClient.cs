@@ -22,13 +22,23 @@ namespace IdeaCadConnector.Aras
         private readonly ArasClientOptions _options;
         private readonly ILogger<HttpPdmRepositoryClient> _logger;
         private ArasHttpClient _http;
-        private ArasAmlClient _aml;
+        private IArasAmlClient _aml;
         private VaultClient _vault;
         private bool _disposed;
 
         public HttpPdmRepositoryClient(ArasClientOptions options, ILogger<HttpPdmRepositoryClient> logger = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPdmRepositoryClient>.Instance;
+        }
+
+        internal HttpPdmRepositoryClient(
+            ArasClientOptions options,
+            IArasAmlClient amlClient,
+            ILogger<HttpPdmRepositoryClient> logger = null)
+        {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _aml = amlClient ?? throw new ArgumentNullException(nameof(amlClient));
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPdmRepositoryClient>.Instance;
         }
 
@@ -378,9 +388,30 @@ namespace IdeaCadConnector.Aras
                         }
                         catch (ArasOperationException ex)
                         {
-                            var msg = ClassifyArasError(ex) ?? "BOM relationship failed: " + ex.Message;
+                            var msg = ClassifyArasError(ex) ?? "BOM relationship failed: " + SanitizeForUser(ex.Message);
                             _logger.LogWarning(ex, "BOM upsert failed for Part {PartNumber} (parent={ParentId} child={ChildId}): {Msg}", part.PartNumber, parentId, childId, msg);
-                            bomFailures.Add($"- {part.PartNumber ?? part.LogicalCode}: {msg}");
+                            bomFailures.Add($"{part.PartNumber ?? part.LogicalCode}: {msg}");
+                            bomResults.Add(new PdmBomPushResult
+                            {
+                                ParentLogicalCode = part.ParentLogicalCode,
+                                ChildLogicalCode = part.LogicalCode,
+                                ParentPartId = parentId,
+                                ChildPartId = childId,
+                                Quantity = part.Quantity,
+                                Success = false,
+                                ActionTaken = BomActionResult.Failed,
+                                ErrorMessage = msg
+                            });
+                        }
+                        catch (Exception ex) when (
+                            ex is System.Net.Http.HttpRequestException ||
+                            ex is System.Threading.Tasks.TaskCanceledException ||
+                            ex is System.TimeoutException ||
+                            ex is System.IO.IOException)
+                        {
+                            var msg = "BOM relationship failed due to a network or timeout error.";
+                            _logger.LogWarning(ex, "BOM network failure for Part {PartNumber} (parent={ParentId} child={ChildId})", part.PartNumber, parentId, childId);
+                            bomFailures.Add($"{part.PartNumber ?? part.LogicalCode}: {msg}");
                             bomResults.Add(new PdmBomPushResult
                             {
                                 ParentLogicalCode = part.ParentLogicalCode,
@@ -557,6 +588,22 @@ namespace IdeaCadConnector.Aras
                 default:
                     return null;
             }
+        }
+
+        private static string SanitizeForUser(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return string.Empty;
+
+            var lower = message.ToLowerInvariant();
+            if (lower.Contains("authorization") || lower.Contains("bearer") ||
+                lower.Contains("soap-env") || lower.Contains("soap:") ||
+                lower.Contains("password") || lower.Contains("token"))
+            {
+                return "An unexpected server error occurred.";
+            }
+
+            return message;
         }
 
         private async Task<PdmItemResult> CreateOrGetPartAsync(PdmPartRequest part, CancellationToken ct)
@@ -1705,7 +1752,7 @@ namespace IdeaCadConnector.Aras
 
         private void EnsureAuthenticated()
         {
-            if (_http == null || _aml == null)
+            if (_aml == null)
                 throw new ArasOperationException(
                     ArasErrorCode.AuthInvalid,
                     "HttpPdmRepositoryClient is not authenticated. Call SetSession() after login.");

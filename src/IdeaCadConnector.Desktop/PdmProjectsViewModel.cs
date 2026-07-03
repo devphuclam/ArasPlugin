@@ -89,6 +89,9 @@ namespace IdeaCadConnector.Desktop
         private bool _canCancelCheckout;
         private CadOperationContext _cadOperationContext;
         private IReadOnlyList<WorkspaceLibraryReference> _workspaceLibraryReferences = Array.Empty<WorkspaceLibraryReference>();
+        private bool _hasLibraryReferenceLoadError;
+
+        public bool HasLibraryReferenceLoadError => _hasLibraryReferenceLoadError;
 
         public PdmProjectsViewModel()
             : this(new GuidanceRevisionService())
@@ -1178,9 +1181,11 @@ namespace IdeaCadConnector.Desktop
                 try
                 {
                     _workspaceLibraryReferences = LoadWorkspaceLibraryReferences();
+                    _hasLibraryReferenceLoadError = false;
                 }
                 catch (InvalidOperationException ex)
                 {
+                    _hasLibraryReferenceLoadError = true;
                     var path = _libraryReferenceStore?.GetFilePath(FolderPath) ?? ".idea-pdm/library-references.json";
                     _workspaceLibraryReferences = Array.Empty<WorkspaceLibraryReference>();
                     _latestAnalysis.Issues.Add(new PdmNamingIssue
@@ -1478,6 +1483,7 @@ namespace IdeaCadConnector.Desktop
                 i.Message != null && i.Message.StartsWith("Library references file is corrupted", StringComparison.OrdinalIgnoreCase));
             if (corruptionIssue != null)
             {
+                _hasLibraryReferenceLoadError = true;
                 StatusMessage = "Library references file is corrupted. Open '" + corruptionIssue.FileName + "' and fix the JSON format, or delete the file to start fresh.";
             }
         }
@@ -3686,6 +3692,9 @@ namespace IdeaCadConnector.Desktop
         private async Task RefreshPreviewFromServerAsync()
         {
             if (_pushPreview == null)
+                return;
+
+            if (_hasLibraryReferenceLoadError)
                 return;
 
             var client = MainViewModel.SharedPdmClient;

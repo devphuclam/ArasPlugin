@@ -17,7 +17,7 @@ namespace IdeaCadConnector.Aras
         private readonly ArasClientOptions _options;
         private readonly ILogger<HttpPartLibraryClient> _logger;
         private ArasHttpClient _http;
-        private ArasAmlClient _aml;
+        private IArasAmlClient _aml;
         private string _database;
         private bool? _schemaAvailable;
         private bool _disposed;
@@ -25,6 +25,16 @@ namespace IdeaCadConnector.Aras
         public HttpPartLibraryClient(ArasClientOptions options, ILogger<HttpPartLibraryClient> logger = null)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPartLibraryClient>.Instance;
+        }
+
+        internal HttpPartLibraryClient(
+            ArasClientOptions options,
+            IArasAmlClient amlClient,
+            ILogger<HttpPartLibraryClient> logger = null)
+        {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _aml = amlClient ?? throw new ArgumentNullException(nameof(amlClient));
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPartLibraryClient>.Instance;
         }
 
@@ -366,33 +376,27 @@ namespace IdeaCadConnector.Aras
                 return;
             }
 
-            var result = UsageCreateResult.UnknownError;
+            var result = UsageCreateResult.ValidationFailed;
             var usedByValue = (request.UsedBy ?? "unknown").Trim();
 
             if (usedByValue.Length > 0)
             {
                 result = await TryCreateUsageItemAsync(request, usedByValue, cancellationToken).ConfigureAwait(false);
             }
-
-            if (ShouldRetryUsageCreate(result) && usedByValue.Length > 0)
-            {
-                result = await TryCreateUsageItemWithoutUsedByAsync(request, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (ShouldRetryUsageCreate(result))
+            else
             {
                 result = await TryCreateUsageItemAsync(request, null, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (result == UsageCreateResult.UsedByUnsupported && usedByValue.Length > 0)
+            {
+                result = await TryCreateUsageItemWithoutUsedByAsync(request, cancellationToken).ConfigureAwait(false);
             }
 
             if (result == UsageCreateResult.Created)
             {
                 await TryUpdateEntryLastUsedOnAsync(request.LibraryEntryId, cancellationToken).ConfigureAwait(false);
             }
-        }
-
-        private static bool ShouldRetryUsageCreate(UsageCreateResult result)
-        {
-            return result == UsageCreateResult.ValidationFailed;
         }
 
         private async Task<UsageCreateResult> TryCreateUsageItemAsync(LibraryUsageRequest request, string usedBy, CancellationToken ct)
@@ -421,18 +425,23 @@ namespace IdeaCadConnector.Aras
                     ct).ConfigureAwait(false);
                 return UsageCreateResult.Created;
             }
-            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed && usedBy != null)
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed && usedBy != null && IsUsedByUnsupportedError(ex))
             {
                 _logger.LogWarning(
-                    "Part Library usage record: 'used_by' property may not be deployed on '{ItemType}'. " +
+                    "Part Library usage record: 'used_by' property not recognized on '{ItemType}'. " +
                     "Configure 'used_by' as a string property on the ItemType.",
                     PartLibrarySchemaNames.UsageItemType);
-                return UsageCreateResult.ValidationFailed;
+                return UsageCreateResult.UsedByUnsupported;
             }
             catch (Exception ex) when (IsAuthOrPermissionFailure(ex))
             {
                 _logger.LogWarning(ex, "Part Library usage record auth/permission failure for entry {EntryId}.", request.LibraryEntryId);
                 return UsageCreateResult.AuthFailed;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Part Library usage record cancelled for entry {EntryId}.", request.LibraryEntryId);
+                return UsageCreateResult.ServerError;
             }
             catch (Exception ex)
             {
@@ -473,11 +482,29 @@ namespace IdeaCadConnector.Aras
                 _logger.LogWarning(ex, "Part Library usage record auth/permission failure for entry {EntryId}.", request.LibraryEntryId);
                 return UsageCreateResult.AuthFailed;
             }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Part Library usage record cancelled for entry {EntryId}.", request.LibraryEntryId);
+                return UsageCreateResult.ServerError;
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId} (retry without used_by).", request.LibraryEntryId);
                 return UsageCreateResult.ServerError;
             }
+        }
+
+        private static bool IsUsedByUnsupportedError(ArasOperationException ex)
+        {
+            var msg = ex.Message ?? string.Empty;
+            var lower = msg.ToLowerInvariant();
+            return lower.Contains("used_by") &&
+                (lower.Contains("property") ||
+                 lower.Contains("unknown") ||
+                 lower.Contains("invalid") ||
+                 lower.Contains("not defined") ||
+                 lower.Contains("does not exist") ||
+                 lower.Contains("not recognized"));
         }
 
         private async Task TryUpdateEntryLastUsedOnAsync(string entryId, CancellationToken ct)

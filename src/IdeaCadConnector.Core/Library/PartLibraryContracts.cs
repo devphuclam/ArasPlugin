@@ -165,12 +165,11 @@ namespace IdeaCadConnector.Core.Dto.Library
     public enum UsageCreateResult
     {
         Created,
-        AlreadyExists,
-        ValidationFailed,
+        UsedByUnsupported,
         AuthFailed,
         PermissionDenied,
         ServerError,
-        UnknownError
+        ValidationFailed
     }
 }
 

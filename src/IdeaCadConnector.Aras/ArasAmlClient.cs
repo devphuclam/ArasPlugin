@@ -91,36 +91,11 @@ namespace IdeaCadConnector.Aras
             if (string.IsNullOrWhiteSpace(soapXml))
                 return new JObject();
 
-            if (soapXml.IndexOf("<faultstring>", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        if (soapXml.IndexOf("<faultstring>", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 soapXml.IndexOf("<faultcode>", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 var fault = ExtractXmlElement(soapXml, "faultstring") ?? "Unknown SOAP fault";
-
-                if (fault.IndexOf("locked by", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    fault.IndexOf("is locked", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    throw new ArasOperationException(
-                        ArasErrorCode.CadLocked,
-                        fault,
-                        details: new Dictionary<string, string> { ["cadId"] = itemId, ["action"] = action });
-                }
-
-                if (fault.IndexOf("No items of type", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    var code = ClassifyNotFoundError(itemType);
-                    var errMsg = code == ArasErrorCode.PartNotFound
-                        ? "Part not found: " + itemId
-                        : "Item not found: " + itemId;
-                    throw new ArasOperationException(
-                        code,
-                        errMsg,
-                        details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
-                }
-
-                throw new ArasOperationException(
-                    ArasErrorCode.UnexpectedServerError,
-                    "AML action '" + action + "' on " + itemType + " failed: " + fault,
-                    details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
+                throw ClassifySoapFault(fault, action, itemType, itemId);
             }
 
             var resultContent = ExtractXmlElement(soapXml, "Result");
@@ -242,7 +217,7 @@ namespace IdeaCadConnector.Aras
                 soapXml.IndexOf("<faultcode>", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 var fault = ExtractXmlElement(soapXml, "faultstring") ?? "Unknown SOAP fault";
-                throw MapArasError(fault, methodName);
+                throw ClassifySoapFault(fault, methodName, "Method", null);
             }
 
             var resultContent = ExtractXmlElement(soapXml, "Result");
@@ -268,32 +243,7 @@ namespace IdeaCadConnector.Aras
                 soapXml.IndexOf("<faultcode>", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 var fault = ExtractXmlElement(soapXml, "faultstring") ?? "Unknown SOAP fault";
-
-                if (fault.IndexOf("locked by", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    fault.IndexOf("is locked", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    throw new ArasOperationException(
-                        ArasErrorCode.CadLocked,
-                        fault,
-                        details: new Dictionary<string, string> { ["cadId"] = itemId, ["action"] = action });
-                }
-
-                if (fault.IndexOf("No items of type", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    var code = ClassifyNotFoundError(itemType);
-                    var errMsg2 = code == ArasErrorCode.PartNotFound
-                        ? "Part not found: " + itemId
-                        : "Item not found: " + itemId;
-                    throw new ArasOperationException(
-                        code,
-                        errMsg2,
-                        details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
-                }
-
-                throw new ArasOperationException(
-                    ArasErrorCode.UnexpectedServerError,
-                    "AML action '" + action + "' on " + itemType + " failed: " + fault,
-                    details: new Dictionary<string, string> { ["cadId"] = itemId, ["action"] = action });
+                throw ClassifySoapFault(fault, action, itemType, itemId);
             }
 
             var resultContent = ExtractXmlElement(soapXml, "Result");
@@ -354,6 +304,39 @@ namespace IdeaCadConnector.Aras
             return xml.Substring(start, end - start);
         }
 
+        internal static ArasOperationException ClassifySoapFault(string faultText, string action, string itemType, string itemId)
+        {
+            if (faultText.IndexOf("locked by", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                faultText.IndexOf("is locked", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return new ArasOperationException(
+                    ArasErrorCode.CadLocked,
+                    faultText,
+                    details: new Dictionary<string, string> { ["cadId"] = itemId, ["action"] = action });
+            }
+
+            if (faultText.IndexOf("No items of type", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                var code = ClassifyNotFoundError(itemType);
+                var errMsg = code == ArasErrorCode.PartNotFound
+                    ? "Part not found: " + itemId
+                    : "Item not found: " + itemId;
+                return new ArasOperationException(
+                    code,
+                    errMsg,
+                    details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
+            }
+
+            var errorCode = ClassifyErrorText(faultText);
+            var message = action != null
+                ? "AML action '" + action + "' on " + (itemType ?? "Method") + " failed: " + faultText
+                : "Method failed: " + faultText;
+            return new ArasOperationException(
+                errorCode,
+                message,
+                details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
+        }
+
         internal static ArasOperationException MapArasError(string errorText, string methodName)
         {
             var code = ClassifyErrorText(errorText);
@@ -365,16 +348,35 @@ namespace IdeaCadConnector.Aras
             var upper = (errorText ?? string.Empty).ToUpperInvariant();
 
             if (upper.IndexOf("ACCESS DENIED", StringComparison.Ordinal) >= 0 ||
-                upper.IndexOf("PERMISSION", StringComparison.Ordinal) >= 0)
+                upper.IndexOf("PERMISSION", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("NOT AUTHORIZED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("UNAUTHORIZED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("INSUFFICIENT PERMISSION", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("NO PERMISSION", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("NOT ALLOWED TO PERFORM", StringComparison.Ordinal) >= 0)
                 return ArasErrorCode.PermissionDenied;
+
+            if (upper.IndexOf("SESSION EXPIRED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("TOKEN EXPIRED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("AUTHENTICATION EXPIRED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("EXPIRED SESSION", StringComparison.Ordinal) >= 0)
+                return ArasErrorCode.AuthExpired;
 
             if (upper.IndexOf("COULD NOT LOG IN", StringComparison.Ordinal) >= 0 ||
                 upper.IndexOf("AUTHENTICATION FAILED", StringComparison.Ordinal) >= 0 ||
-                upper.IndexOf("INVALID CREDENTIALS", StringComparison.Ordinal) >= 0)
+                upper.IndexOf("INVALID CREDENTIALS", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("NOT AUTHENTICATED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("INVALID TOKEN", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("INVALID SESSION", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("LOGIN REQUIRED", StringComparison.Ordinal) >= 0)
                 return ArasErrorCode.AuthInvalid;
 
             if (upper.IndexOf("SERVER WAS UNABLE", StringComparison.Ordinal) >= 0 ||
-                upper.IndexOf("INTERNAL SERVER ERROR", StringComparison.Ordinal) >= 0)
+                upper.IndexOf("INTERNAL SERVER ERROR", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("SERVER UNAVAILABLE", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("SERVICE UNAVAILABLE", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("CONNECTION REFUSED", StringComparison.Ordinal) >= 0 ||
+                upper.IndexOf("GATEWAY TIMEOUT", StringComparison.Ordinal) >= 0)
                 return ArasErrorCode.ServerUnavailable;
 
             if (upper.StartsWith("PART_NOT_FOUND"))

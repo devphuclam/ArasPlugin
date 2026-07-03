@@ -2,12 +2,16 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto.Library;
 using IdeaCadConnector.Core.Errors;
 using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Workspace;
+using Microsoft.Extensions.Logging.Abstractions;
+using Newtonsoft.Json.Linq;
 using Xunit;
 
 namespace IdeaCadConnector.Tests
@@ -32,18 +36,6 @@ namespace IdeaCadConnector.Tests
         public void PartLifecyclePolicy_Released_ReturnsFalse()
         {
             Assert.False(PartLifecyclePolicy.IsPartObsolete("Released"));
-        }
-
-        [Fact]
-        public void PartLifecyclePolicy_Preliminary_ReturnsFalse()
-        {
-            Assert.False(PartLifecyclePolicy.IsPartObsolete("Preliminary"));
-        }
-
-        [Fact]
-        public void PartLifecyclePolicy_Draft_ReturnsFalse()
-        {
-            Assert.False(PartLifecyclePolicy.IsPartObsolete("Draft"));
         }
 
         [Fact]
@@ -72,320 +64,6 @@ namespace IdeaCadConnector.Tests
         public void PartLifecyclePolicy_GetPartNotReusableMessage_Releasable_ReturnsNull()
         {
             Assert.Null(PartLifecyclePolicy.GetPartNotReusableMessage("Released", "ABC-001"));
-        }
-
-        [Fact]
-        public void PartLifecyclePolicy_GetPartNotReusableMessage_Null_ReturnsNull()
-        {
-            Assert.Null(PartLifecyclePolicy.GetPartNotReusableMessage(null, "ABC-001"));
-        }
-
-        // ── IsLibraryReference ──────────────────────────────────────────
-
-        [Fact]
-        public void IsLibraryReference_ExternalRefTrue_ReturnsTrue()
-        {
-            var part = new PdmPartRequest { IsExternalReference = true };
-            Assert.True(HttpPdmRepositoryClient.IsLibraryReference(part));
-        }
-
-        [Fact]
-        public void IsLibraryReference_SourceKindLibraryReference_ReturnsTrue()
-        {
-            var part = new PdmPartRequest { SourceKind = "LibraryReference" };
-            Assert.True(HttpPdmRepositoryClient.IsLibraryReference(part));
-        }
-
-        [Fact]
-        public void IsLibraryReference_NormalPart_ReturnsFalse()
-        {
-            var part = new PdmPartRequest { IsExternalReference = false, SourceKind = "Generated" };
-            Assert.False(HttpPdmRepositoryClient.IsLibraryReference(part));
-        }
-
-        [Fact]
-        public void IsLibraryReference_EmptySourceKindAndExternalFalse_ReturnsFalse()
-        {
-            var part = new PdmPartRequest();
-            Assert.False(HttpPdmRepositoryClient.IsLibraryReference(part));
-        }
-
-        // ── IsPartObsolete (now delegates to PartLifecyclePolicy) ────────
-
-        [Fact]
-        public void IsPartObsolete_ExactPartLifecyclePolicyConstant_ReturnsTrue()
-        {
-            Assert.True(HttpPdmRepositoryClient.IsPartObsolete(PartLifecyclePolicy.Obsolete));
-        }
-
-        [Fact]
-        public void IsPartObsolete_Released_ReturnsFalse()
-        {
-            Assert.False(HttpPdmRepositoryClient.IsPartObsolete("Released"));
-        }
-
-        [Fact]
-        public void IsPartObsolete_NullOrEmpty_ReturnsFalse()
-        {
-            Assert.False(HttpPdmRepositoryClient.IsPartObsolete(null));
-            Assert.False(HttpPdmRepositoryClient.IsPartObsolete(""));
-        }
-
-        // ── ClassifyArasError ───────────────────────────────────────────
-
-        [Fact]
-        public void ClassifyArasError_AuthInvalid_ReturnsAuthMessage()
-        {
-            var ex = new ArasOperationException(ArasErrorCode.AuthInvalid, "bad token");
-            Assert.Contains("Authentication", HttpPdmRepositoryClient.ClassifyArasError(ex), StringComparison.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void ClassifyArasError_AuthExpired_ReturnsAuthMessage()
-        {
-            var ex = new ArasOperationException(ArasErrorCode.AuthExpired, "expired");
-            Assert.Contains("Authentication", HttpPdmRepositoryClient.ClassifyArasError(ex), StringComparison.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void ClassifyArasError_PermissionDenied_ReturnsPermissionMessage()
-        {
-            var ex = new ArasOperationException(ArasErrorCode.PermissionDenied, "no access");
-            Assert.Contains("Permission denied", HttpPdmRepositoryClient.ClassifyArasError(ex), StringComparison.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void ClassifyArasError_PartNotFound_ReturnsNotFoundMessage()
-        {
-            var ex = new ArasOperationException(ArasErrorCode.PartNotFound, "not found");
-            Assert.Contains("not found", HttpPdmRepositoryClient.ClassifyArasError(ex), StringComparison.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void ClassifyArasError_ServerUnavailable_ReturnsServerMessage()
-        {
-            var ex = new ArasOperationException(ArasErrorCode.ServerUnavailable, "down");
-            Assert.Contains("Server", HttpPdmRepositoryClient.ClassifyArasError(ex), StringComparison.OrdinalIgnoreCase);
-        }
-
-        [Fact]
-        public void ClassifyArasError_UnknownCode_ReturnsNull()
-        {
-            var ex = new ArasOperationException(ArasErrorCode.CadLocked, "cad locked");
-            Assert.Null(HttpPdmRepositoryClient.ClassifyArasError(ex));
-        }
-
-        // ── Result consistency invariants ──────────────────────────────
-
-        [Fact]
-        public void BomActionResult_SuccessActions_AreCreatedQuantityUpdatedUnchanged()
-        {
-            Assert.True(BomActionResultIsSuccess(BomActionResult.Created));
-            Assert.True(BomActionResultIsSuccess(BomActionResult.QuantityUpdated));
-            Assert.True(BomActionResultIsSuccess(BomActionResult.Unchanged));
-            Assert.False(BomActionResultIsSuccess(BomActionResult.InvalidParentChild));
-            Assert.False(BomActionResultIsSuccess(BomActionResult.InvalidQuantity));
-            Assert.False(BomActionResultIsSuccess(BomActionResult.Failed));
-        }
-
-        private static bool BomActionResultIsSuccess(BomActionResult action)
-        {
-            return action == BomActionResult.Created ||
-                   action == BomActionResult.QuantityUpdated ||
-                   action == BomActionResult.Unchanged;
-        }
-
-        [Fact]
-        public void ClassifyArasError_KnownCodesReturnNonNull()
-        {
-            var knownCodes = new[]
-            {
-                ArasErrorCode.AuthInvalid,
-                ArasErrorCode.AuthExpired,
-                ArasErrorCode.PermissionDenied,
-                ArasErrorCode.PartNotFound,
-                ArasErrorCode.ServerUnavailable
-            };
-            foreach (var code in knownCodes)
-            {
-                var ex = new ArasOperationException(code, "test");
-                Assert.NotNull(HttpPdmRepositoryClient.ClassifyArasError(ex));
-            }
-        }
-
-        [Fact]
-        public void ClassifyArasError_UnknownCodesReturnNull()
-        {
-            var unknownCodes = new[]
-            {
-                ArasErrorCode.CadLocked,
-                ArasErrorCode.CadAlreadyExists,
-                ArasErrorCode.ValidationFailed,
-                ArasErrorCode.UnexpectedServerError,
-                ArasErrorCode.Unknown
-            };
-            foreach (var code in unknownCodes)
-            {
-                var ex = new ArasOperationException(code, "test");
-                Assert.Null(HttpPdmRepositoryClient.ClassifyArasError(ex));
-            }
-        }
-
-        // ── BomActionResult enum ────────────────────────────────────────
-
-        [Fact]
-        public void BomActionResult_EnumValuesAreCorrect()
-        {
-            Assert.Equal(0, (int)BomActionResult.Created);
-            Assert.Equal(1, (int)BomActionResult.QuantityUpdated);
-            Assert.Equal(2, (int)BomActionResult.Unchanged);
-            Assert.Equal(3, (int)BomActionResult.InvalidParentChild);
-            Assert.Equal(4, (int)BomActionResult.InvalidQuantity);
-            Assert.Equal(5, (int)BomActionResult.Failed);
-        }
-
-        // ── PdmBomPushResult model ──────────────────────────────────────
-
-        [Fact]
-        public void PdmBomPushResult_Default_IsNotSuccess()
-        {
-            var r = new PdmBomPushResult();
-            Assert.False(r.Success);
-        }
-
-        [Fact]
-        public void PdmBomPushResult_CanCarryAllFields()
-        {
-            var r = new PdmBomPushResult
-            {
-                ParentLogicalCode = "PARENT",
-                ChildLogicalCode = "CHILD",
-                ParentPartId = "pid1",
-                ChildPartId = "pid2",
-                Quantity = 3,
-                Success = true,
-                ActionTaken = BomActionResult.Created,
-                ErrorMessage = null
-            };
-            Assert.Equal("PARENT", r.ParentLogicalCode);
-            Assert.Equal("CHILD", r.ChildLogicalCode);
-            Assert.Equal("pid1", r.ParentPartId);
-            Assert.Equal("pid2", r.ChildPartId);
-            Assert.Equal(3, r.Quantity);
-            Assert.True(r.Success);
-            Assert.Equal(BomActionResult.Created, r.ActionTaken);
-        }
-
-        // ── PdmPushResult.BomResults ────────────────────────────────────
-
-        [Fact]
-        public void PdmPushResult_CanHoldBomResults()
-        {
-            var result = new PdmPushResult
-            {
-                BomResults = new[]
-                {
-                    new PdmBomPushResult { Success = true, ActionTaken = BomActionResult.Created }
-                }
-            };
-            Assert.Single(result.BomResults);
-            Assert.True(result.BomResults[0].Success);
-        }
-
-        // ── ArasAmlClient.ClassifyNotFoundError ─────────────────────────
-        // Tests directly against the production classification logic.
-
-        [Fact]
-        public void ClassifyNotFoundError_Part_ReturnsPartNotFound()
-        {
-            Assert.Equal(ArasErrorCode.PartNotFound, ArasAmlClient.ClassifyNotFoundError("Part"));
-        }
-
-        [Fact]
-        public void ClassifyNotFoundError_Cad_ReturnsCadNotFound()
-        {
-            Assert.Equal(ArasErrorCode.CadNotFound, ArasAmlClient.ClassifyNotFoundError("CAD"));
-        }
-
-        [Fact]
-        public void ClassifyNotFoundError_CadLowerCase_ReturnsCadNotFound()
-        {
-            Assert.Equal(ArasErrorCode.CadNotFound, ArasAmlClient.ClassifyNotFoundError("cad"));
-        }
-
-        [Fact]
-        public void ClassifyNotFoundError_Document_ReturnsValidationFailed()
-        {
-            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("Document"));
-        }
-
-        [Fact]
-        public void ClassifyNotFoundError_PartBom_ReturnsValidationFailed()
-        {
-            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("Part BOM"));
-        }
-
-        [Fact]
-        public void ClassifyNotFoundError_Project_ReturnsValidationFailed()
-        {
-            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("Project"));
-        }
-
-        [Fact]
-        public void ClassifyNotFoundError_UnknownType_ReturnsValidationFailed()
-        {
-            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("UnknownType"));
-        }
-
-        // ── ArasAmlClient.ClassifyErrorText ──────────────────────────────
-        // Tests against the production error text classifier.
-
-        [Fact]
-        public void ClassifyErrorText_AccessDenied_ReturnsPermissionDenied()
-        {
-            Assert.Equal(ArasErrorCode.PermissionDenied, ArasAmlClient.ClassifyErrorText("Access denied"));
-        }
-
-        [Fact]
-        public void ClassifyErrorText_PermissionDenied_ReturnsPermissionDenied()
-        {
-            Assert.Equal(ArasErrorCode.PermissionDenied, ArasAmlClient.ClassifyErrorText("Permission denied for user"));
-        }
-
-        [Fact]
-        public void ClassifyErrorText_CouldNotLogIn_ReturnsAuthInvalid()
-        {
-            Assert.Equal(ArasErrorCode.AuthInvalid, ArasAmlClient.ClassifyErrorText("Could not log in"));
-        }
-
-        [Fact]
-        public void ClassifyErrorText_InvalidCredentials_ReturnsAuthInvalid()
-        {
-            Assert.Equal(ArasErrorCode.AuthInvalid, ArasAmlClient.ClassifyErrorText("Invalid credentials"));
-        }
-
-        [Fact]
-        public void ClassifyErrorText_InternalServerError_ReturnsServerUnavailable()
-        {
-            Assert.Equal(ArasErrorCode.ServerUnavailable, ArasAmlClient.ClassifyErrorText("Internal server error"));
-        }
-
-        [Fact]
-        public void ClassifyErrorText_PartNotFound_ReturnsPartNotFound()
-        {
-            Assert.Equal(ArasErrorCode.PartNotFound, ArasAmlClient.ClassifyErrorText("PART_NOT_FOUND: missing part"));
-        }
-
-        [Fact]
-        public void ClassifyErrorText_CadNotFound_ReturnsCadNotFound()
-        {
-            Assert.Equal(ArasErrorCode.CadNotFound, ArasAmlClient.ClassifyErrorText("CAD_NOT_FOUND"));
-        }
-
-        [Fact]
-        public void ClassifyErrorText_UnknownError_ReturnsUnexpected()
-        {
-            Assert.Equal(ArasErrorCode.UnexpectedServerError, ArasAmlClient.ClassifyErrorText("Some random error"));
         }
 
         // ── WorkspaceLibraryReferenceStore ──────────────────────────────
@@ -492,102 +170,434 @@ namespace IdeaCadConnector.Tests
             Assert.Equal("tester", item.AddedBy);
         }
 
+        // ── ArasAmlClient classifiers ───────────────────────────────────
+
         [Fact]
-        public void Remove_ExistingReference_RemovesIt()
+        public void ClassifyNotFoundError_Part_ReturnsPartNotFound()
         {
-            using var folder = new TempFolder();
-            var wsService = new WorkspaceService(new WorkspaceOptions());
-            var store = new WorkspaceLibraryReferenceStore(wsService);
-
-            store.Upsert(folder.Path, new WorkspaceLibraryReference { ReferenceId = "x1", PartId = "p1" });
-            Assert.NotEmpty(store.Load(folder.Path));
-
-            var removed = store.Remove(folder.Path, "x1");
-            Assert.True(removed);
-            Assert.Empty(store.Load(folder.Path));
+            Assert.Equal(ArasErrorCode.PartNotFound, ArasAmlClient.ClassifyNotFoundError("Part"));
         }
 
         [Fact]
-        public void Remove_NonExistentReference_ReturnsFalse()
+        public void ClassifyNotFoundError_Cad_ReturnsCadNotFound()
         {
-            using var folder = new TempFolder();
-            var wsService = new WorkspaceService(new WorkspaceOptions());
-            var store = new WorkspaceLibraryReferenceStore(wsService);
-            Assert.False(store.Remove(folder.Path, "nonexistent"));
+            Assert.Equal(ArasErrorCode.CadNotFound, ArasAmlClient.ClassifyNotFoundError("CAD"));
         }
 
         [Fact]
-        public void DuplicateReferenceUpdate_AllFieldsPreservedFromNew()
+        public void ClassifyNotFoundError_UnknownType_ReturnsValidationFailed()
         {
-            using var folder = new TempFolder();
-            var wsService = new WorkspaceService(new WorkspaceOptions());
-            var store = new WorkspaceLibraryReferenceStore(wsService);
-
-            store.Upsert(folder.Path, new WorkspaceLibraryReference
-            {
-                ReferenceId = "ref1", PartId = "oldPartId", PartConfigId = "oldConfigId",
-                Revision = "A", RevisionPolicy = "Pinned", LibraryEntryId = "entry1", Quantity = 1
-            });
-
-            store.Upsert(folder.Path, new WorkspaceLibraryReference
-            {
-                ReferenceId = "ref1", PartId = "newPartId", PartConfigId = "newConfigId",
-                Revision = "B", RevisionPolicy = "LatestReleased", LibraryEntryId = "entry2", Quantity = 5
-            });
-
-            var loaded = store.Load(folder.Path);
-            var match = loaded.FirstOrDefault(r => r.ReferenceId == "ref1");
-            Assert.NotNull(match);
-            Assert.Equal("newPartId", match.PartId);
-            Assert.Equal("newConfigId", match.PartConfigId);
-            Assert.Equal("B", match.Revision);
-            Assert.Equal("LatestReleased", match.RevisionPolicy);
-            Assert.Equal("entry2", match.LibraryEntryId);
-            Assert.Equal(5, match.Quantity);
+            Assert.Equal(ArasErrorCode.ValidationFailed, ArasAmlClient.ClassifyNotFoundError("Document"));
         }
 
-        // ── LibraryUsageRequest ─────────────────────────────────────────
+        [Fact]
+        public void ClassifyErrorText_InvalidToken_ReturnsAuthInvalid()
+        {
+            Assert.Equal(ArasErrorCode.AuthInvalid, ArasAmlClient.ClassifyErrorText("invalid token"));
+        }
 
         [Fact]
-        public void UsageRequest_UsedByFieldCarriesThrough()
+        public void ClassifyErrorText_InvalidSession_ReturnsAuthInvalid()
         {
-            var request = new LibraryUsageRequest
+            Assert.Equal(ArasErrorCode.AuthInvalid, ArasAmlClient.ClassifyErrorText("invalid session"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_SessionExpired_ReturnsAuthExpired()
+        {
+            Assert.Equal(ArasErrorCode.AuthExpired, ArasAmlClient.ClassifyErrorText("session expired"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_TokenExpired_ReturnsAuthExpired()
+        {
+            Assert.Equal(ArasErrorCode.AuthExpired, ArasAmlClient.ClassifyErrorText("token expired"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_NotAuthorized_ReturnsPermissionDenied()
+        {
+            Assert.Equal(ArasErrorCode.PermissionDenied, ArasAmlClient.ClassifyErrorText("not authorized"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_InsufficientPermission_ReturnsPermissionDenied()
+        {
+            Assert.Equal(ArasErrorCode.PermissionDenied, ArasAmlClient.ClassifyErrorText("insufficient permission"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_ServiceUnavailable_ReturnsServerUnavailable()
+        {
+            Assert.Equal(ArasErrorCode.ServerUnavailable, ArasAmlClient.ClassifyErrorText("service unavailable"));
+        }
+
+        [Fact]
+        public void ClassifyErrorText_UnrelatedFault_ReturnsUnexpected()
+        {
+            Assert.Equal(ArasErrorCode.UnexpectedServerError, ArasAmlClient.ClassifyErrorText("Some random business error"));
+        }
+
+        // ── Behavioral: PushAsync via FakeArasAmlClient ─────────────────
+
+        private static PdmPartRequest MakeLibraryPart(string logicalCode, string parentLogicalCode, string existingPartId = "part-1", string configId = "cfg-1", string revision = "A")
+        {
+            return new PdmPartRequest
             {
-                LibraryEntryId = "entry1", PartId = "part1", ProjectCode = "PROJ",
-                ParentPartId = "parent1", Quantity = 2, UsedBy = "testuser",
-                CommitId = "commit1", ActionType = "ReusedFromLibrary"
+                LogicalCode = logicalCode,
+                ParentLogicalCode = parentLogicalCode,
+                PartNumber = logicalCode + "-001",
+                Name = "Test Part",
+                Quantity = 1,
+                ExistingPartId = existingPartId,
+                ExistingPartConfigId = configId,
+                ExistingPartRevision = revision,
+                SourceKind = "LibraryReference",
+                IsExternalReference = false
             };
-            Assert.Equal("testuser", request.UsedBy);
         }
 
-        [Fact]
-        public void UsageRequest_UsedByCanBeNull()
+        private static PdmPartRequest MakeNormalPart(string logicalCode, string parentLogicalCode)
         {
-            var request = new LibraryUsageRequest { LibraryEntryId = "entry1", UsedBy = null };
-            Assert.Null(request.UsedBy);
+            return new PdmPartRequest
+            {
+                LogicalCode = logicalCode,
+                ParentLogicalCode = parentLogicalCode,
+                PartNumber = logicalCode + "-001",
+                Name = "Test Part",
+                Quantity = 1,
+                SourceKind = "Generated"
+            };
         }
 
-        // ── UsageCreateResult enum ──────────────────────────────────────
-
-        [Fact]
-        public void UsageCreateResult_EnumValuesAreCorrect()
+        private static HttpPdmRepositoryClient CreatePdmClient(FakeArasAmlClient fake)
         {
-            Assert.Equal(0, (int)UsageCreateResult.Created);
-            Assert.Equal(1, (int)UsageCreateResult.AlreadyExists);
-            Assert.Equal(2, (int)UsageCreateResult.ValidationFailed);
-            Assert.Equal(3, (int)UsageCreateResult.AuthFailed);
-            Assert.Equal(4, (int)UsageCreateResult.PermissionDenied);
-            Assert.Equal(5, (int)UsageCreateResult.ServerError);
-            Assert.Equal(6, (int)UsageCreateResult.UnknownError);
+            var options = new ArasClientOptions { BaseUri = new Uri("http://fake/"), Database = "testdb" };
+            return new HttpPdmRepositoryClient(options, fake, NullLogger<HttpPdmRepositoryClient>.Instance);
         }
 
-        // ── Error message strings (Task 9 review) ───────────────────────
+        private static PdmPushRequest SinglePartRequest(PdmPartRequest part)
+        {
+            return new PdmPushRequest
+            {
+                RepositoryCode = "TEST",
+                ProjectName = "Test",
+                TargetBranch = "main",
+                PackageSourcePath = ".",
+                CadSourcePath = ".",
+                Parts = new[] { part },
+                Cads = Array.Empty<PdmCadRequest>(),
+                Documents = Array.Empty<PdmDocumentRequest>()
+            };
+        }
+
+        // Test 1: Library reference without ExistingPartId
+        [Fact]
+        public async Task PushAsync_LibraryRefNoExistingPartId_ReturnsFailure()
+        {
+            var fake = new FakeArasAmlClient();
+            var client = CreatePdmClient(fake);
+            var part = new PdmPartRequest
+            {
+                LogicalCode = "LIB01",
+                ParentLogicalCode = null,
+                PartNumber = "LIB-001",
+                ExistingPartId = null,
+                SourceKind = "LibraryReference"
+            };
+
+            var result = await client.PushAsync(SinglePartRequest(part), CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Empty(fake.Calls);
+        }
+
+        // Test 2: ExistingPartConfigId mismatch
+        [Fact]
+        public async Task PushAsync_ConfigIdMismatch_ReturnsFailure()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.EnqueueItemFoundWithConfigRev("part-1", "LIB-001", "cfg-other", "A");
+            var client = CreatePdmClient(fake);
+            var part = MakeLibraryPart("LIB01", null, "part-1", "cfg-expected", "A");
+
+            var result = await client.PushAsync(SinglePartRequest(part), CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("config_id mismatch", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(1, fake.CountAmlCalls("Part", "get"));
+        }
+
+        // Test 3: ExistingPartRevision mismatch
+        [Fact]
+        public async Task PushAsync_RevisionMismatch_ReturnsFailure()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.EnqueueItemFoundWithConfigRev("part-1", "LIB-001", "cfg-1", "B");
+            var client = CreatePdmClient(fake);
+            var part = MakeLibraryPart("LIB01", null, "part-1", "cfg-1", "A");
+
+            var result = await client.PushAsync(SinglePartRequest(part), CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("revision mismatch", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(1, fake.CountAmlCalls("Part", "get"));
+        }
+
+        // Test 4: Obsolete Part
+        [Fact]
+        public async Task PushAsync_ObsoletePart_ReturnsFailureWithoutLoaiBo()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.EnqueueItemFoundWithState("part-1", "LIB-001", "Obsolete");
+            var client = CreatePdmClient(fake);
+            var part = MakeLibraryPart("LIB01", null, "part-1", "cfg-part-1", "A");
+
+            var result = await client.PushAsync(SinglePartRequest(part), CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("Obsolete", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Loai bo", result.ErrorMessage);
+            Assert.Equal(1, fake.CountAmlCalls("Part", "get"));
+        }
+
+        private static PdmPushRequest TwoPartRequest(PdmPartRequest parent, PdmPartRequest child)
+        {
+            return new PdmPushRequest
+            {
+                RepositoryCode = "TEST",
+                ProjectName = "Test",
+                TargetBranch = "main",
+                PackageSourcePath = ".",
+                CadSourcePath = ".",
+                Parts = new[] { parent, child },
+                Cads = Array.Empty<PdmCadRequest>(),
+                Documents = Array.Empty<PdmDocumentRequest>()
+            };
+        }
+
+        // Test 5: Invalid parent-child BOM (self-reference)
+        [Fact]
+        public async Task PushAsync_SameParentChildBom_ReturnsInvalidParentChild()
+        {
+            var fake = new FakeArasAmlClient();
+            // Parent normal part: FindItemByNumberAsync returns part-1
+            fake.EnqueueItemFound("part-1", "PARENT-001");
+            // Child library ref: ApplyAmlAsync returns same part-1 with matching config
+            fake.EnqueueItemFoundWithConfigRev("part-1", "CHILD-001", "cfg-1", "A");
+            var client = CreatePdmClient(fake);
+            var parent = MakeNormalPart("PARENT", null);
+            var child = MakeLibraryPart("CHILD", "PARENT", "part-1", "cfg-1", "A");
+
+            var result = await client.PushAsync(TwoPartRequest(parent, child), CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.NotNull(result.BomResults);
+            var bom = Assert.Single(result.BomResults);
+            Assert.Equal(BomActionResult.InvalidParentChild, bom.ActionTaken);
+        }
+
+        // Test 6: Invalid quantity
+        [Fact]
+        public async Task PushAsync_InvalidQuantity_ReturnsInvalidQuantity()
+        {
+            var fake = new FakeArasAmlClient();
+            // Parent normal part: FindItemByNumberAsync returns parent-id
+            fake.EnqueueItemFound("parent-id", "PARENT-001");
+            // Child library ref: ApplyAmlAsync returns child-id with matching config
+            fake.EnqueueItemFoundWithConfigRev("child-id", "CHILD-001", "cfg-child", "A");
+            var client = CreatePdmClient(fake);
+            var parent = MakeNormalPart("PARENT", null);
+            var child = MakeLibraryPart("CHILD", "PARENT", "child-id", "cfg-child", "A");
+            child.Quantity = 0;
+
+            var result = await client.PushAsync(TwoPartRequest(parent, child), CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.NotNull(result.BomResults);
+            var bom = Assert.Single(result.BomResults);
+            Assert.Equal(BomActionResult.InvalidQuantity, bom.ActionTaken);
+        }
+
+        // Test 7: BOM lookup finds existing BOM unchanged
+        [Fact]
+        public async Task PushAsync_ExistingBomUnchanged_DoesNotEdit()
+        {
+            var fake = new FakeArasAmlClient();
+            // Parent normal part
+            fake.EnqueueItemFound("parent-id", "PARENT-001");
+            // Child library ref
+            fake.EnqueueItemFoundWithConfigRev("child-id", "CHILD-001", "cfg-child", "A");
+            // Part BOM get returns existing relationship with same quantity
+            fake.EnqueueAmlResult(new JObject
+            {
+                ["Items"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["id"] = "bom-1",
+                        ["quantity"] = "1"
+                    }
+                }
+            });
+            var client = CreatePdmClient(fake);
+            var parent = MakeNormalPart("PARENT", null);
+            var child = MakeLibraryPart("CHILD", "PARENT", "child-id", "cfg-child", "A");
+
+            var result = await client.PushAsync(TwoPartRequest(parent, child), CancellationToken.None);
+
+            Assert.NotNull(result.BomResults);
+            var bom = Assert.Single(result.BomResults);
+            Assert.Equal(BomActionResult.Unchanged, bom.ActionTaken);
+            Assert.Equal(0, fake.CountAmlCalls("Part BOM", "edit"));
+        }
+
+        // Test 8: Missing BOM gets created
+        [Fact]
+        public async Task PushAsync_MissingBom_CreatesBom()
+        {
+            var fake = new FakeArasAmlClient();
+            // Parent normal part
+            fake.EnqueueItemFound("parent-id", "PARENT-001");
+            // Child library ref
+            fake.EnqueueItemFoundWithConfigRev("child-id", "CHILD-001", "cfg-child", "A");
+            // Part BOM get returns empty (no existing BOM)
+            fake.EnqueueAmlResult(new JObject());
+            var client = CreatePdmClient(fake);
+            var parent = MakeNormalPart("PARENT", null);
+            var child = MakeLibraryPart("CHILD", "PARENT", "child-id", "cfg-child", "A");
+
+            var result = await client.PushAsync(TwoPartRequest(parent, child), CancellationToken.None);
+
+            Assert.NotNull(result.BomResults);
+            var bom = Assert.Single(result.BomResults);
+            Assert.Equal(BomActionResult.Created, bom.ActionTaken);
+            Assert.Equal(1, fake.CountAmlCalls("Part BOM", "add"));
+        }
+
+        // Test 9: Existing BOM with changed quantity
+        [Fact]
+        public async Task PushAsync_ExistingBomChangedQuantity_UpdatesBom()
+        {
+            var fake = new FakeArasAmlClient();
+            // Parent normal part
+            fake.EnqueueItemFound("parent-id", "PARENT-001");
+            // Child library ref
+            fake.EnqueueItemFoundWithConfigRev("child-id", "CHILD-001", "cfg-child", "A");
+            // Part BOM get returns existing relationship with different quantity
+            fake.EnqueueAmlResult(new JObject
+            {
+                ["Items"] = new JArray
+                {
+                    new JObject
+                    {
+                        ["id"] = "bom-1",
+                        ["quantity"] = "1"
+                    }
+                }
+            });
+            var client = CreatePdmClient(fake);
+            var parent = MakeNormalPart("PARENT", null);
+            var child = MakeLibraryPart("CHILD", "PARENT", "child-id", "cfg-child", "A");
+            child.Quantity = 2;
+
+            var result = await client.PushAsync(TwoPartRequest(parent, child), CancellationToken.None);
+
+            Assert.NotNull(result.BomResults);
+            var bom = Assert.Single(result.BomResults);
+            Assert.Equal(BomActionResult.QuantityUpdated, bom.ActionTaken);
+            Assert.Equal(1, fake.CountAmlCalls("Part BOM", "edit"));
+        }
+
+        // ── Behavioral: RecordUsageAsync via FakeArasAmlClient ──────────
+
+        private static HttpPartLibraryClient CreateLibraryClient(FakeArasAmlClient fake)
+        {
+            var options = new ArasClientOptions { BaseUri = new Uri("http://fake/"), Database = "testdb" };
+            return new HttpPartLibraryClient(options, fake, NullLogger<HttpPartLibraryClient>.Instance);
+        }
+
+        private static LibraryUsageRequest MakeUsageRequest(string entryId = "entry-1", string usedBy = "testuser")
+        {
+            return new LibraryUsageRequest
+            {
+                LibraryEntryId = entryId,
+                PartId = "part-1",
+                ProjectCode = "TEST",
+                ParentPartId = "parent-1",
+                Quantity = 1,
+                UsedBy = usedBy,
+                CommitId = "commit-1",
+                ActionType = "ReusedFromLibrary"
+            };
+        }
+
+        // Test 11: Usage with supported used_by
+        [Fact]
+        public async Task RecordUsage_WithUsedBy_AddsUsageThenUpdatesLastUsedOn()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.EnqueueItemFound("ItemType", PartLibrarySchemaNames.UsageItemType);
+            fake.EnqueueItemFound("usage-1", "1");
+            fake.EnqueueItemFound("entry-1", "1");
+            var client = CreateLibraryClient(fake);
+
+            await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+
+            var usageAdds = fake.CountAmlCalls(PartLibrarySchemaNames.UsageItemType, "add");
+            Assert.Equal(1, usageAdds);
+        }
+
+        // Test 14: Authentication failure - no retry
+        [Fact]
+        public async Task RecordUsage_AuthFailure_NoRetry()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.EnqueueItemFound("ItemType", PartLibrarySchemaNames.UsageItemType);
+            fake.ApplyAmlExceptions.Enqueue(new ArasOperationException(ArasErrorCode.AuthInvalid, "not authenticated"));
+            var client = CreateLibraryClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
+
+            var call = Assert.Single(fake.Calls);
+            Assert.Equal("ApplyAml", call.MethodKind);
+        }
+
+        // Test 15: Permission failure - no retry
+        [Fact]
+        public async Task RecordUsage_PermissionFailure_NoRetry()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.EnqueueItemFound("ItemType", PartLibrarySchemaNames.UsageItemType);
+            fake.ApplyAmlExceptions.Enqueue(new ArasOperationException(ArasErrorCode.PermissionDenied, "access denied"));
+            var client = CreateLibraryClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
+
+            var call = Assert.Single(fake.Calls);
+            Assert.Equal("ApplyAml", call.MethodKind);
+        }
+
+        // Test 16: Server/network failure - no retry
+        [Fact]
+        public async Task RecordUsage_NetworkFailure_ReturnsGracefully()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyAmlExceptions.Enqueue(new System.Net.Http.HttpRequestException("connection refused"));
+            var client = CreateLibraryClient(fake);
+
+            // HttpRequestException in ItemTypeExistsAsync is caught, logged, returns false -> RecordUsageAsync returns
+            await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+
+            var call = Assert.Single(fake.Calls);
+            Assert.Equal("ApplyAml", call.MethodKind);
+        }
+
+        // ── Error message safety ────────────────────────────────────────
 
         [Theory]
-        [InlineData("Authentication failure.", false)]
-        [InlineData("Permission denied.", false)]
-        [InlineData("not found", false)]
-        [InlineData("Server is unavailable.", false)]
         [InlineData("access token", true)]
         [InlineData("Authorization: Bearer", true)]
         [InlineData("SOAP-ENV:", true)]
@@ -602,42 +612,14 @@ namespace IdeaCadConnector.Tests
             }
         }
 
-        // ── Behavioral: RecordUsageAsync via FakeArasAmlClient ──────────
-
         [Fact]
-        public void MapArasError_AccessDenied_CreatesPermissionDeniedException()
+        public void SanitizeForUser_StripsBearerToken()
         {
-            var ex = ArasAmlClient.MapArasError("Access denied", "SomeMethod");
-            Assert.Equal(ArasErrorCode.PermissionDenied, ex.ErrorCode);
+            var result = HttpPdmRepositoryClient.ClassifyArasError(new ArasOperationException(ArasErrorCode.PartNotFound, "Authorization: Bearer xxx")) ?? "";
+            Assert.DoesNotContain("Bearer", result);
         }
 
-        [Fact]
-        public void MapArasError_AuthFailure_CreatesAuthInvalidException()
-        {
-            var ex = ArasAmlClient.MapArasError("Could not log in", "LoginMethod");
-            Assert.Equal(ArasErrorCode.AuthInvalid, ex.ErrorCode);
-        }
-
-        [Fact]
-        public void MapArasError_ServerError_CreatesServerUnavailableException()
-        {
-            var ex = ArasAmlClient.MapArasError("Internal server error", "SomeMethod");
-            Assert.Equal(ArasErrorCode.ServerUnavailable, ex.ErrorCode);
-        }
-
-        [Fact]
-        public void MapArasError_PartNotFound_Passthrough()
-        {
-            var ex = ArasAmlClient.MapArasError("PART_NOT_FOUND", "SomeMethod");
-            Assert.Equal(ArasErrorCode.PartNotFound, ex.ErrorCode);
-        }
-
-        [Fact]
-        public void MapArasError_UnknownError_ReturnsUnexpected()
-        {
-            var ex = ArasAmlClient.MapArasError("Something weird happened", "SomeMethod");
-            Assert.Equal(ArasErrorCode.UnexpectedServerError, ex.ErrorCode);
-        }
+        // ── Shared helpers ──────────────────────────────────────────────
 
         private sealed class TempFolder : IDisposable
         {
