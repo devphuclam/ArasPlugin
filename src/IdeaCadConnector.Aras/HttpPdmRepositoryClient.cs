@@ -347,6 +347,23 @@ namespace IdeaCadConnector.Aras
 
                 foreach (var cad in request.Cads ?? Array.Empty<PdmCadRequest>())
                 {
+                    var linkedPartRequest = request.Parts?.FirstOrDefault(p =>
+                        string.Equals(p.LogicalCode, cad.LinkedPartLogicalCode, StringComparison.OrdinalIgnoreCase));
+
+                    if (linkedPartRequest != null &&
+                        (linkedPartRequest.IsExternalReference ||
+                         string.Equals(linkedPartRequest.SourceKind, "LibraryReference", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        cadResults.Add(new PdmItemResult
+                        {
+                            SourceKey = cad.SourceFileName,
+                            ItemNumber = cad.CadNumber,
+                            Success = true,
+                            ActionTaken = "SkippedLibraryReference"
+                        });
+                        continue;
+                    }
+
                     var linkedPartId = !string.IsNullOrWhiteSpace(cad.LinkedPartLogicalCode) &&
                         partIdByCode.TryGetValue(cad.LinkedPartLogicalCode, out var pid) ? pid : null;
 
@@ -441,7 +458,36 @@ namespace IdeaCadConnector.Aras
             {
                 if (!string.IsNullOrWhiteSpace(part.ExistingPartId))
                 {
-                    var existingPartId = (await GetPartByIdAsync(part.ExistingPartId, ct).ConfigureAwait(false))?.Id;
+                    var existingAml = $"<Item type=\"Part\" action=\"get\" id=\"{EscapeAml(part.ExistingPartId)}\" select=\"id,item_number,name,state,current_state,is_released,is_current,config_id,major_rev\"/>";
+                    JObject existingResponse;
+                    try
+                    {
+                        existingResponse = await _aml.ApplyAmlAsync(existingAml, "get", "Part", part.ExistingPartId, ct).ConfigureAwait(false);
+                    }
+                    catch (ArasOperationException)
+                    {
+                        return new PdmItemResult
+                        {
+                            SourceKey = part.LogicalCode,
+                            ItemNumber = part.PartNumber,
+                            Success = false,
+                            ErrorMessage = "Library Part reuse failed: the referenced Aras Part ID was not found on the server."
+                        };
+                    }
+
+                    var item = existingResponse?["Items"]?[0];
+                    if (item == null)
+                    {
+                        return new PdmItemResult
+                        {
+                            SourceKey = part.LogicalCode,
+                            ItemNumber = part.PartNumber,
+                            Success = false,
+                            ErrorMessage = "Library Part reuse failed: the referenced Aras Part ID was not found."
+                        };
+                    }
+
+                    var existingPartId = item["id"]?.ToString();
                     if (string.IsNullOrWhiteSpace(existingPartId))
                     {
                         return new PdmItemResult
@@ -449,7 +495,19 @@ namespace IdeaCadConnector.Aras
                             SourceKey = part.LogicalCode,
                             ItemNumber = part.PartNumber,
                             Success = false,
-                            ErrorMessage = "Library Part reuse failed because the referenced Aras Part ID was not found."
+                            ErrorMessage = "Library Part reuse failed: the referenced Aras Part ID was not found."
+                        };
+                    }
+
+                    var currentState = item["current_state"]?.ToString() ?? item["state"]?.ToString();
+                    if (string.Equals(currentState, "Loai bo", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new PdmItemResult
+                        {
+                            SourceKey = part.LogicalCode,
+                            ItemNumber = part.PartNumber,
+                            Success = false,
+                            ErrorMessage = "Library Part reuse failed: the referenced Part is in 'Loai bo' (Obsolete) state and cannot be used in new assemblies."
                         };
                     }
 
@@ -756,8 +814,9 @@ namespace IdeaCadConnector.Aras
                     RelationshipId = items[0]?["id"]?.ToString()
                 };
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "FindPartBomInfoAsync failed for parentId={ParentId} childId={ChildId}", parentId, childId);
                 return new PdmBomExistenceInfo();
             }
         }
@@ -875,8 +934,9 @@ namespace IdeaCadConnector.Aras
 
                 return null;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "FindRelationshipAsync failed for relType={RelType} sourceId={SourceId} relatedId={RelatedId}", relType, sourceId, relatedId);
                 return null;
             }
         }
@@ -916,8 +976,9 @@ namespace IdeaCadConnector.Aras
 
                 return null;
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "FindItemByNumberAsync failed for itemType={ItemType} itemNumber={ItemNumber}", itemType, itemNumber);
                 return null;
             }
         }

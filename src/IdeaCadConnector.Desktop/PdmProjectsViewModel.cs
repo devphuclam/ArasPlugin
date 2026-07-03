@@ -858,21 +858,30 @@ namespace IdeaCadConnector.Desktop
             {
                 var idLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-                for (int i = 0; i < result.PartResults.Count && i < PreviewParts.Count; i++)
+                // Build SourceKey → result lookup for LogicalCode-based matching
+                var resultBySourceKey = new Dictionary<string, PdmItemResult>(StringComparer.OrdinalIgnoreCase);
+                foreach (var r in result.PartResults)
                 {
-                    var res = result.PartResults[i];
-                    var row = PreviewParts[i];
-                    if (res.Success)
-                        row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
-                    else
-                        row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                    if (!string.IsNullOrWhiteSpace(r.SourceKey) && !resultBySourceKey.ContainsKey(r.SourceKey))
+                        resultBySourceKey[r.SourceKey] = r;
+                }
 
-                    // Capture ArasId for post-push Save-to-Library flow
-                    if (res.Success && !string.IsNullOrWhiteSpace(res.ArasId) && i < _pushPreview.Parts.Count)
+                foreach (var row in PreviewParts)
+                {
+                    var logicalCode = row.LogicalCode;
+                    var res = (!string.IsNullOrWhiteSpace(logicalCode) && resultBySourceKey.TryGetValue(logicalCode, out var matched))
+                        ? matched
+                        : null;
+
+                    if (res != null)
                     {
-                        var lc = _pushPreview.Parts[i].LogicalCode;
-                        if (!string.IsNullOrWhiteSpace(lc))
-                            idLookup[lc] = res.ArasId;
+                        if (res.Success)
+                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                        else
+                            row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+
+                        if (res.Success && !string.IsNullOrWhiteSpace(res.ArasId) && !string.IsNullOrWhiteSpace(logicalCode))
+                            idLookup[logicalCode] = res.ArasId;
                     }
                 }
 
@@ -881,14 +890,18 @@ namespace IdeaCadConnector.Desktop
                 // Populate _livePartId from root part (no parent) so Save to Library works immediately after push
                 if (_pushPreview?.Parts != null && string.IsNullOrWhiteSpace(_livePartId))
                 {
-                    for (int i = 0; i < _pushPreview.Parts.Count && i < result.PartResults.Count; i++)
+                    foreach (var part in _pushPreview.Parts)
                     {
-                        var part = _pushPreview.Parts[i];
-                        var res = result.PartResults[i];
-                        if (string.IsNullOrWhiteSpace(part.ParentLogicalCode) && res.Success && !string.IsNullOrWhiteSpace(res.ArasId))
+                        if (string.IsNullOrWhiteSpace(part.ParentLogicalCode))
                         {
-                            _livePartId = res.ArasId;
-                            break;
+                            var res = !string.IsNullOrWhiteSpace(part.LogicalCode) && resultBySourceKey.TryGetValue(part.LogicalCode, out var matched)
+                                ? matched
+                                : null;
+                            if (res != null && res.Success && !string.IsNullOrWhiteSpace(res.ArasId))
+                            {
+                                _livePartId = res.ArasId;
+                                break;
+                            }
                         }
                     }
                 }
@@ -898,36 +911,58 @@ namespace IdeaCadConnector.Desktop
 
             if (result.CadResults != null)
             {
-                for (int i = 0; i < result.CadResults.Count && i < PreviewCads.Count; i++)
+                var cadResultByKey = new Dictionary<string, PdmItemResult>(StringComparer.OrdinalIgnoreCase);
+                foreach (var r in result.CadResults)
                 {
-                    var res = result.CadResults[i];
-                    var row = PreviewCads[i];
-                    if (res.Success)
+                    if (!string.IsNullOrWhiteSpace(r.SourceKey) && !cadResultByKey.ContainsKey(r.SourceKey))
+                        cadResultByKey[r.SourceKey] = r;
+                }
+
+                foreach (var row in PreviewCads)
+                {
+                    var sourceFileName = row.SourceFileName;
+                    var res = (!string.IsNullOrWhiteSpace(sourceFileName) && cadResultByKey.TryGetValue(sourceFileName, out var matched))
+                        ? matched
+                        : null;
+
+                    if (res != null)
                     {
-                        row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
-                    }
-                    else if (!string.IsNullOrWhiteSpace(res.ArasId))
-                    {
-                        var metaAction = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
-                        row.Action = metaAction + " (file failed): " + (res.ErrorMessage ?? "Unknown");
-                    }
-                    else
-                    {
-                        row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                        if (res.Success)
+                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                        else if (!string.IsNullOrWhiteSpace(res.ArasId))
+                        {
+                            var metaAction = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                            row.Action = metaAction + " (file failed): " + (res.ErrorMessage ?? "Unknown");
+                        }
+                        else
+                            row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
                     }
                 }
             }
 
             if (result.DocumentResults != null)
             {
-                for (int i = 0; i < result.DocumentResults.Count && i < PreviewDocuments.Count; i++)
+                var docResultByKey = new Dictionary<string, PdmItemResult>(StringComparer.OrdinalIgnoreCase);
+                foreach (var r in result.DocumentResults)
                 {
-                    var res = result.DocumentResults[i];
-                    var row = PreviewDocuments[i];
-                    if (res.Success)
-                        row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
-                    else
-                        row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                    if (!string.IsNullOrWhiteSpace(r.SourceKey) && !docResultByKey.ContainsKey(r.SourceKey))
+                        docResultByKey[r.SourceKey] = r;
+                }
+
+                foreach (var row in PreviewDocuments)
+                {
+                    var sourceFileName = row.SourceFileName;
+                    var res = (!string.IsNullOrWhiteSpace(sourceFileName) && docResultByKey.TryGetValue(sourceFileName, out var matched))
+                        ? matched
+                        : null;
+
+                    if (res != null)
+                    {
+                        if (res.Success)
+                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                        else
+                            row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                    }
                 }
             }
         }
@@ -949,25 +984,38 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            var resultBySourceKey = new Dictionary<string, PdmItemResult>(StringComparer.OrdinalIgnoreCase);
+            foreach (var r in result.PartResults)
+            {
+                if (!string.IsNullOrWhiteSpace(r.SourceKey) && !resultBySourceKey.ContainsKey(r.SourceKey))
+                    resultBySourceKey[r.SourceKey] = r;
+            }
+
             var projectCode = _latestAnalysis?.ProjectCode ?? RepositoryCodeForDisplay;
             var commitId = result.CommitId ?? string.Empty;
-            var limit = Math.Min(_pushPreview.Parts.Count, result.PartResults.Count);
 
-            for (var i = 0; i < limit; i++)
+            foreach (var previewPart in _pushPreview.Parts)
             {
-                var previewPart = _pushPreview.Parts[i];
-                var pushPart = result.PartResults[i];
-
                 if (!previewPart.IsExternalReference ||
                     !string.Equals(previewPart.SourceKind, LibrarySourceKind.LibraryReference.ToString(), StringComparison.OrdinalIgnoreCase) ||
-                    !pushPart.Success ||
-                    string.IsNullOrWhiteSpace(pushPart.ArasId) ||
                     string.IsNullOrWhiteSpace(previewPart.LibraryEntryId))
                 {
                     continue;
                 }
 
                 if (string.IsNullOrWhiteSpace(previewPart.ParentLogicalCode))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(previewPart.LogicalCode))
+                {
+                    continue;
+                }
+
+                if (!resultBySourceKey.TryGetValue(previewPart.LogicalCode, out var pushPart) ||
+                    !pushPart.Success ||
+                    string.IsNullOrWhiteSpace(pushPart.ArasId))
                 {
                     continue;
                 }
@@ -2319,8 +2367,9 @@ namespace IdeaCadConnector.Desktop
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine("RefreshCadStateAsync: GetCadOperationContextAsync failed for cadId=" + cadId + ": " + ex.Message);
             }
 
             var manifest = _workspaceService.LoadManifest(FolderPath);
@@ -3105,34 +3154,33 @@ namespace IdeaCadConnector.Desktop
             _pushPreview = builder.Build(analyzeResult, SelectedBranch, CommitMessage);
 
             var staleWarnings = BuildStalePushWarnings();
-            if (staleWarnings.Count > 0)
+            var cycleWarnings = ValidateStructureCycles();
+            var allWarnings = new List<PreviewWarning>(_pushPreview.Warnings);
+            allWarnings.AddRange(staleWarnings);
+            allWarnings.AddRange(cycleWarnings);
+            var blockingCount = allWarnings.Count(w => w.BlocksPush);
+            var canPush = _pushPreview.Readiness.CanPush && blockingCount == 0;
+            _pushPreview = new PushPreview
             {
-                var allWarnings = new List<PreviewWarning>(_pushPreview.Warnings);
-                allWarnings.AddRange(staleWarnings);
-                var blockingCount = allWarnings.Count(w => w.BlocksPush);
-                var canPush = _pushPreview.Readiness.CanPush && blockingCount == 0;
-                _pushPreview = new PushPreview
+                RepositoryCode = _pushPreview.RepositoryCode,
+                ProjectName = _pushPreview.ProjectName,
+                TargetBranch = _pushPreview.TargetBranch,
+                CommitMessage = _pushPreview.CommitMessage,
+                Parts = _pushPreview.Parts,
+                Cads = _pushPreview.Cads,
+                Documents = _pushPreview.Documents,
+                IgnoredFiles = _pushPreview.IgnoredFiles,
+                Warnings = allWarnings,
+                Readiness = new PushReadiness
                 {
-                    RepositoryCode = _pushPreview.RepositoryCode,
-                    ProjectName = _pushPreview.ProjectName,
-                    TargetBranch = _pushPreview.TargetBranch,
-                    CommitMessage = _pushPreview.CommitMessage,
-                    Parts = _pushPreview.Parts,
-                    Cads = _pushPreview.Cads,
-                    Documents = _pushPreview.Documents,
-                    IgnoredFiles = _pushPreview.IgnoredFiles,
-                    Warnings = allWarnings,
-                    Readiness = new PushReadiness
-                    {
-                        CanPush = canPush,
-                        HasBlockingIssues = blockingCount > 0,
-                        BlockingIssueCount = blockingCount,
-                        Summary = blockingCount > 0
-                            ? "Workspace session has blocking issues. Resolve before push."
-                            : "Workspace session has warnings. Review before push."
-                    }
-                };
-            }
+                    CanPush = canPush,
+                    HasBlockingIssues = blockingCount > 0,
+                    BlockingIssueCount = blockingCount,
+                    Summary = blockingCount > 0
+                        ? "Workspace session has blocking issues. Resolve before push."
+                        : "Workspace session has warnings. Review before push."
+                }
+            };
 
             PreviewParts.Clear();
             PreviewCads.Clear();
@@ -3237,6 +3285,118 @@ namespace IdeaCadConnector.Desktop
                     Message = LifecycleDisplayText.GetGenerationDriftMessage(manifest.LastKnownGeneration, _liveCadGeneration),
                     BlocksPush = false
                 });
+            }
+
+            return warnings;
+        }
+
+        private IReadOnlyList<PreviewWarning> ValidateStructureCycles()
+        {
+            var warnings = new List<PreviewWarning>();
+            var parts = _pushPreview?.Parts;
+            if (parts == null || parts.Count == 0)
+                return warnings;
+
+            var parentByCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var codeToName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var part in parts)
+            {
+                if (!string.IsNullOrWhiteSpace(part.LogicalCode))
+                {
+                    codeToName[part.LogicalCode] = part.PartNumber ?? part.Name ?? part.LogicalCode;
+                    if (!string.IsNullOrWhiteSpace(part.ParentLogicalCode))
+                        parentByCode[part.LogicalCode] = part.ParentLogicalCode;
+                }
+            }
+
+            foreach (var part in parts)
+            {
+                var code = part.LogicalCode;
+                if (string.IsNullOrWhiteSpace(code))
+                    continue;
+
+                if (string.Equals(code, part.ParentLogicalCode, StringComparison.OrdinalIgnoreCase))
+                {
+                    warnings.Add(new PreviewWarning
+                    {
+                        Source = "CycleDetection",
+                        Message = $"Self-reference detected: Part '{codeToName[code]}' has itself as its own parent.",
+                        BlocksPush = true
+                    });
+                }
+            }
+
+            var duplicateKeyCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var duplicateKeyParts = new Dictionary<string, (string Parent, string Child)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in parts)
+            {
+                if (string.IsNullOrWhiteSpace(p.LogicalCode) || string.IsNullOrWhiteSpace(p.ParentLogicalCode))
+                    continue;
+                var dupKey = p.ParentLogicalCode + "||" + p.LogicalCode;
+                if (!duplicateKeyCount.ContainsKey(dupKey))
+                {
+                    duplicateKeyCount[dupKey] = 0;
+                    duplicateKeyParts[dupKey] = (p.ParentLogicalCode, p.LogicalCode);
+                }
+                duplicateKeyCount[dupKey]++;
+            }
+            foreach (var kvp in duplicateKeyCount)
+            {
+                if (kvp.Value <= 1) continue;
+                var pair = duplicateKeyParts[kvp.Key];
+                codeToName.TryGetValue(pair.Child, out var childName);
+                codeToName.TryGetValue(pair.Parent, out var parentName);
+                warnings.Add(new PreviewWarning
+                {
+                    Source = "CycleDetection",
+                    Message = $"Duplicate part '{childName ?? pair.Child}' appears {kvp.Value} times under parent '{parentName ?? pair.Parent}'.",
+                    BlocksPush = true
+                });
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var inStack = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var part in parts)
+            {
+                var code = part.LogicalCode;
+                if (string.IsNullOrWhiteSpace(code) || visited.Contains(code))
+                    continue;
+
+                var path = new List<string>();
+                var current = code;
+                while (!string.IsNullOrWhiteSpace(current) && parentByCode.ContainsKey(current))
+                {
+                    if (inStack.Contains(current))
+                    {
+                        var cycleStart = path.IndexOf(current);
+                        var cycleNames = cycleStart >= 0
+                            ? string.Join(" → ", path.Skip(cycleStart).Select(c => codeToName.TryGetValue(c, out var n) ? n : c))
+                            : (codeToName.TryGetValue(current, out var n) ? n : current);
+                        warnings.Add(new PreviewWarning
+                        {
+                            Source = "CycleDetection",
+                            Message = $"Circular BOM reference detected: {cycleNames} creates a cycle. Push is blocked until the cycle is removed.",
+                            BlocksPush = true
+                        });
+                        break;
+                    }
+
+                    if (visited.Contains(current))
+                        break;
+
+                    inStack.Add(current);
+                    path.Add(current);
+
+                    if (!parentByCode.TryGetValue(current, out var next))
+                        break;
+                    current = next;
+                }
+
+                foreach (var n in path)
+                {
+                    visited.Add(n);
+                    inStack.Remove(n);
+                }
             }
 
             return warnings;
