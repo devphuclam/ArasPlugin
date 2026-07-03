@@ -74,7 +74,7 @@ namespace IdeaCadConnector.Desktop
             AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => SelectedEntry != null && HasActivePdmWorkspace && !IsLoading && !SelectedEntry.IsDeprecated);
             OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
             DownloadCadCommand = new RelayCommand(_ => _ = RevealPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
-            PublishCommand = new RelayCommand(_ => new PublishLibraryEntryDialog { Owner = Application.Current?.MainWindow }.ShowDialog(), _ => SelectedEntry != null);
+            PublishCommand = new RelayCommand(_ => _ = PublishSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
             DeprecateCommand = new RelayCommand(_ => _ = DeprecateSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
             PinRevisionCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.Pinned), _ => SelectedEntry != null && !IsLoading);
             UseLatestReleasedCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.LatestReleased), _ => SelectedEntry != null && !IsLoading);
@@ -407,8 +407,14 @@ namespace IdeaCadConnector.Desktop
                 LockedBy = details.LockedBy,
                 UsageCount = details.UsageCount,
                 CadStatus = details.CadStatus,
+                HasNewerReleasedRevision = details.HasNewerReleasedRevision,
                 WhereUsedSummary = L(TranslationKeys.LibraryWhereUsedHint)
             };
+
+            if (details.HasNewerReleasedRevision)
+            {
+                StatusMessage = L(TranslationKeys.LibraryWarningNewerReleasedRevision);
+            }
         }
 
         private async Task ViewWhereUsedAsync()
@@ -582,8 +588,30 @@ namespace IdeaCadConnector.Desktop
             await RunBusyAsync(async () =>
             {
                 await _client.DeprecateEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
-                StatusMessage = L(TranslationKeys.LibraryStatusEntryDeprecated);
                 await RefreshAsync().ConfigureAwait(true);
+                StatusMessage = L(TranslationKeys.LibraryStatusEntryDeprecated);
+            });
+        }
+
+        private async Task PublishSelectedEntryAsync()
+        {
+            if (SelectedEntry == null)
+                return;
+
+            var confirm = MessageBox.Show(
+                L(TranslationKeys.LibraryConfirmPublishEntry),
+                L(TranslationKeys.LibraryDialogActionTitle),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            await RunBusyAsync(async () =>
+            {
+                await _client.PublishEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                await RefreshAsync().ConfigureAwait(true);
+                StatusMessage = L(TranslationKeys.LibraryStatusEntryPublished);
             });
         }
 
@@ -833,6 +861,7 @@ namespace IdeaCadConnector.Desktop
             {
                 PartNumber = L(TranslationKeys.LibrarySelectPart),
                 PrimaryCadFileName = L(TranslationKeys.LibraryNoLinkedCad),
+                HasNewerReleasedRevision = false,
                 WhereUsedSummary = L(TranslationKeys.LibraryWhereUsedHint)
             };
         }
@@ -859,6 +888,7 @@ namespace IdeaCadConnector.Desktop
                 LockedBy = details.LockedBy,
                 UsageCount = details.UsageCount,
                 CadStatus = details.CadStatus,
+                HasNewerReleasedRevision = details.HasNewerReleasedRevision,
                 WhereUsedSummary = whereUsedSummary
             };
         }
@@ -888,6 +918,7 @@ namespace IdeaCadConnector.Desktop
                 LockedBy = details.LockedBy,
                 UsageCount = details.UsageCount,
                 CadStatus = resolved?.CadStatus ?? details.CadStatus,
+                HasNewerReleasedRevision = details.HasNewerReleasedRevision,
                 WhereUsedSummary = details.WhereUsedSummary
             };
         }

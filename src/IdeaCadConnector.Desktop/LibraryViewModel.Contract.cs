@@ -89,6 +89,7 @@ namespace IdeaCadConnector.Desktop
         public string LockedBy { get; set; }
         public int UsageCount { get; set; }
         public string CadStatus { get; set; }
+        public bool HasNewerReleasedRevision { get; set; }
         public string WhereUsedSummary { get; set; }
     }
 }

@@ -109,6 +109,10 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryAddToProject = "LibraryAddToProject";
         public const string LibraryViewWhereUsed = "LibraryViewWhereUsed";
         public const string LibraryPinCurrentRevision = "LibraryPinCurrentRevision";
+        public const string LibraryUseLatestReleased = "LibraryUseLatestReleased";
+        public const string LibraryPublishEntry = "LibraryPublishEntry";
+        public const string LibraryDeprecateEntry = "LibraryDeprecateEntry";
+        public const string LibraryRemoveEntry = "LibraryRemoveEntry";
         public const string LibraryOpenInArasInnovator = "LibraryOpenInArasInnovator";
         public const string LibraryFooter = "LibraryFooter";
         public const string SaveToLibraryTitle = "SaveToLibraryTitle";
@@ -186,6 +190,7 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryStatusResultsUpdated = "LibraryStatusResultsUpdated";
         public const string LibraryStatusSelectPartFirst = "LibraryStatusSelectPartFirst";
         public const string LibraryStatusNoResolvedPartId = "LibraryStatusNoResolvedPartId";
+        public const string LibraryWarningNewerReleasedRevision = "LibraryWarningNewerReleasedRevision";
         public const string LibraryStatusWhereUsedEmpty = "LibraryStatusWhereUsedEmpty";
         public const string LibraryStatusWhereUsedLoaded = "LibraryStatusWhereUsedLoaded";
         public const string LibraryStatusOpenPdmWorkspaceFirst = "LibraryStatusOpenPdmWorkspaceFirst";
@@ -199,11 +204,13 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryConfirmRemoveEntry = "LibraryConfirmRemoveEntry";
         public const string LibraryConfirmMoveEntry = "LibraryConfirmMoveEntry";
         public const string LibraryConfirmDeprecateEntry = "LibraryConfirmDeprecateEntry";
+        public const string LibraryConfirmPublishEntry = "LibraryConfirmPublishEntry";
         public const string LibraryDialogActionTitle = "LibraryDialogActionTitle";
         public const string LibraryStatusEntryRemoved = "LibraryStatusEntryRemoved";
         public const string LibraryStatusSelectDifferentLibrary = "LibraryStatusSelectDifferentLibrary";
         public const string LibraryStatusEntryMoved = "LibraryStatusEntryMoved";
         public const string LibraryStatusEntryDeprecated = "LibraryStatusEntryDeprecated";
+        public const string LibraryStatusEntryPublished = "LibraryStatusEntryPublished";
         public const string LibraryStatusNoRevisionResolution = "LibraryStatusNoRevisionResolution";
         public const string LibraryStatusPinnedLoaded = "LibraryStatusPinnedLoaded";
         public const string LibraryStatusLatestReleasedLoaded = "LibraryStatusLatestReleasedLoaded";

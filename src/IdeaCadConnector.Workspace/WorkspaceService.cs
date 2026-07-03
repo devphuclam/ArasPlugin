@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using IdeaCadConnector.Core.Validation;
 using Newtonsoft.Json;
 
@@ -84,7 +85,7 @@ namespace IdeaCadConnector.Workspace
             if (dir == null) return;
             var path = Path.Combine(dir, "workspace.json");
             var json = JsonConvert.SerializeObject(manifest, Formatting.Indented);
-            File.WriteAllText(path, json);
+            WriteAllTextAtomic(path, json);
         }
 
         public void ClearManifest(string projectFolder)
@@ -134,7 +135,7 @@ namespace IdeaCadConnector.Workspace
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
             var json = JsonConvert.SerializeObject(history, Formatting.Indented);
-            File.WriteAllText(path, json);
+            WriteAllTextAtomic(path, json);
         }
 
         public string GetBranchRegistryFilePath(string projectFolder)
@@ -175,7 +176,7 @@ namespace IdeaCadConnector.Workspace
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
             var json = JsonConvert.SerializeObject(registry, Formatting.Indented);
-            File.WriteAllText(path, json);
+            WriteAllTextAtomic(path, json);
         }
 
         public void EnsureMainBranch(string projectFolder)
@@ -195,6 +196,38 @@ namespace IdeaCadConnector.Workspace
         {
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             return Path.Combine(localAppData, "Idea", "ArasCadWorkspace");
+        }
+
+        public void WriteAllTextAtomic(string path, string contents)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return;
+
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            var targetDirectory = string.IsNullOrWhiteSpace(directory) ? Path.GetTempPath() : directory;
+            var tempPath = Path.Combine(targetDirectory, Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
+
+            try
+            {
+                File.WriteAllText(tempPath, contents ?? string.Empty, new UTF8Encoding(false));
+
+                if (File.Exists(path))
+                {
+                    File.Replace(tempPath, path, null);
+                }
+                else
+                {
+                    File.Move(tempPath, path);
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
         }
     }
 }

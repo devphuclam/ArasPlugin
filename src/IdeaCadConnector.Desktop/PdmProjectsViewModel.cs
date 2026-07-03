@@ -14,6 +14,7 @@ using System.Windows.Input;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Dto.Library;
 using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Desktop.Services;
@@ -149,6 +150,7 @@ namespace IdeaCadConnector.Desktop
             ToggleCadSectionCommand = new RelayCommand(_ => ToggleCadSection());
             ToggleDocumentsSectionCommand = new RelayCommand(_ => ToggleDocumentsSection());
             SaveSelectedNodeToLibraryCommand = new RelayCommand(_ => SaveSelectedNodeToLibraryAsync(), _ => CanSaveSelectedNodeToLibrary);
+            RemoveSelectedLibraryReferenceCommand = new RelayCommand(_ => RemoveSelectedLibraryReferenceAsync(), _ => HasRemoveLibraryReferenceAction);
 
 
             AnalyzeFolder();
@@ -288,9 +290,11 @@ namespace IdeaCadConnector.Desktop
                     OnPropertyChanged(nameof(CanOpenInIronCad));
                     OnPropertyChanged(nameof(HasOpenInIronCadAction));
                     OnPropertyChanged(nameof(HasSaveToLibraryAction));
+                    OnPropertyChanged(nameof(HasRemoveLibraryReferenceAction));
                     OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
                     ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
                     ((RelayCommand)SaveSelectedNodeToLibraryCommand).RaiseCanExecuteChanged();
+                    ((RelayCommand)RemoveSelectedLibraryReferenceCommand).RaiseCanExecuteChanged();
                     RefreshSelectedDocuments();
                     _ = RefreshCadStateAsync();
                 }
@@ -324,6 +328,8 @@ namespace IdeaCadConnector.Desktop
                 {
                     OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
                     (SaveSelectedNodeToLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    OnPropertyChanged(nameof(HasRemoveLibraryReferenceAction));
+                    (RemoveSelectedLibraryReferenceCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -338,6 +344,8 @@ namespace IdeaCadConnector.Desktop
                     _pushCommand.RaiseCanExecuteChanged();
                     OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
                     (SaveSelectedNodeToLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                    OnPropertyChanged(nameof(HasRemoveLibraryReferenceAction));
+                    (RemoveSelectedLibraryReferenceCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 }
             }
         }
@@ -532,6 +540,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand ToggleCadSectionCommand { get; }
         public ICommand ToggleDocumentsSectionCommand { get; }
         public ICommand SaveSelectedNodeToLibraryCommand { get; }
+        public ICommand RemoveSelectedLibraryReferenceCommand { get; }
 
         public string CadLockStateText
         {
@@ -619,6 +628,12 @@ namespace IdeaCadConnector.Desktop
         public bool HasCancelCheckoutCadAction => IsCheckedOutByMe || CanCancelCheckout;
 
         public bool HasSaveToLibraryAction => SelectedNode != null;
+
+        public bool HasRemoveLibraryReferenceAction =>
+            SelectedNode != null &&
+            SelectedNode.IsLibraryReference &&
+            !IsAnalyzing &&
+            !IsPushing;
 
         public bool CanSaveSelectedNodeToLibrary =>
             !IsAnalyzing &&
@@ -765,16 +780,17 @@ namespace IdeaCadConnector.Desktop
                     if (result.Warnings?.Count > 0)
                     {
                         msg += " Warning: " + string.Join("; ", result.Warnings);
-                    }
-
-                    StatusMessage = msg;
-
-                    UpdatePreviewResults(result);
                 }
-                else
-                {
-                    StatusMessage = string.Format(Loc(TranslationKeys.StatusPushFailedBare), result.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
-                }
+
+                StatusMessage = msg;
+
+                UpdatePreviewResults(result);
+                await RecordLibraryUsageAfterPushAsync(result).ConfigureAwait(true);
+            }
+            else
+            {
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusPushFailedBare), result.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
+            }
             }
             catch (Exception ex)
             {
@@ -912,6 +928,74 @@ namespace IdeaCadConnector.Desktop
                         row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
                     else
                         row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                }
+            }
+        }
+
+        private async Task RecordLibraryUsageAfterPushAsync(PdmPushResult result)
+        {
+            if (result == null ||
+                !result.Success ||
+                result.StagingOnly ||
+                _pushPreview?.Parts == null ||
+                result.PartResults == null)
+            {
+                return;
+            }
+
+            var partLibraryClient = MainViewModel.SharedPartLibraryClient;
+            if (partLibraryClient == null)
+            {
+                return;
+            }
+
+            var projectCode = _latestAnalysis?.ProjectCode ?? RepositoryCodeForDisplay;
+            var commitId = result.CommitId ?? string.Empty;
+            var limit = Math.Min(_pushPreview.Parts.Count, result.PartResults.Count);
+
+            for (var i = 0; i < limit; i++)
+            {
+                var previewPart = _pushPreview.Parts[i];
+                var pushPart = result.PartResults[i];
+
+                if (!previewPart.IsExternalReference ||
+                    !string.Equals(previewPart.SourceKind, LibrarySourceKind.LibraryReference.ToString(), StringComparison.OrdinalIgnoreCase) ||
+                    !pushPart.Success ||
+                    string.IsNullOrWhiteSpace(pushPart.ArasId) ||
+                    string.IsNullOrWhiteSpace(previewPart.LibraryEntryId))
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(previewPart.ParentLogicalCode))
+                {
+                    continue;
+                }
+
+                if (_postPushPartIds == null ||
+                    !_postPushPartIds.TryGetValue(previewPart.ParentLogicalCode, out var parentPartId) ||
+                    string.IsNullOrWhiteSpace(parentPartId))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    await partLibraryClient.RecordUsageAsync(new LibraryUsageRequest
+                    {
+                        LibraryEntryId = previewPart.LibraryEntryId,
+                        PartId = pushPart.ArasId,
+                        ProjectCode = projectCode,
+                        ParentPartId = parentPartId,
+                        Quantity = Math.Max(1, previewPart.Quantity),
+                        UsedBy = MainViewModel.SharedUserName ?? "engineer",
+                        CommitId = commitId,
+                        ActionType = pushPart.ActionTaken ?? "ReusedFromLibrary"
+                    }, CancellationToken.None).ConfigureAwait(true);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine("Library usage record skipped: " + ex.Message);
                 }
             }
         }
@@ -1059,11 +1143,6 @@ namespace IdeaCadConnector.Desktop
             _pushPreview = null;
             SelectedNode = null;
 
-            TrackedFileCount = _latestAnalysis.TrackedFiles.Count;
-            IgnoredFileCount = _latestAnalysis.IgnoredFiles.Count;
-            BlockingIssueCount = _latestAnalysis.Issues.Count(issue => issue.BlocksPush);
-            TotalChangeCount = TrackedFileCount + IgnoredFileCount + BlockingIssueCount;
-
             if (!string.IsNullOrWhiteSpace(_latestAnalysis.ProjectCode))
             {
                 Repositories.Add(_latestAnalysis.ProjectCode);
@@ -1074,9 +1153,13 @@ namespace IdeaCadConnector.Desktop
                 SelectedRepository = null;
             }
 
+            BuildPdmStructure(_latestAnalysis, _latestBusinessStructure);
+            TrackedFileCount = _latestAnalysis.TrackedFiles.Count;
+            IgnoredFileCount = _latestAnalysis.IgnoredFiles.Count;
+            BlockingIssueCount = _latestAnalysis.Issues.Count(issue => issue.BlocksPush);
+            TotalChangeCount = TrackedFileCount + IgnoredFileCount + BlockingIssueCount;
             BuildNamingPreview(_latestAnalysis);
             BuildChanges(_latestAnalysis);
-            BuildPdmStructure(_latestAnalysis, _latestBusinessStructure);
             BuildCadStructure(_latestAnalysis, _latestBusinessStructure);
             BuildStructureMappings(_latestAnalysis, _latestBusinessStructure);
             BuildDocuments(_latestAnalysis, _latestBusinessStructure, sources.PackageFolder ?? FolderPath, sources.CadFolder ?? FolderPath);
@@ -1224,7 +1307,7 @@ namespace IdeaCadConnector.Desktop
                 }
             }
 
-            MergeLibraryReferencesIntoStructure(root);
+            MergeLibraryReferencesIntoStructure(root, analysis?.Issues);
 
             PdmStructure.Add(root);
             SelectedNode = root;
@@ -1332,6 +1415,30 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
+        private void MergeLibraryReferencesIntoStructure(PdmStructureNode root, IList<PdmNamingIssue> analysisIssues)
+        {
+            if (root == null || _workspaceLibraryReferences == null || _workspaceLibraryReferences.Count == 0)
+                return;
+
+            foreach (var reference in _workspaceLibraryReferences)
+            {
+                var parent = FindStructureNode(root, reference.ParentLogicalCode);
+                if (parent != null)
+                {
+                    parent.Children.Add(CreateLibraryStructureNode(reference));
+                    continue;
+                }
+
+                root.Children.Add(CreateLibraryStructureNode(reference, true));
+                analysisIssues?.Add(new PdmNamingIssue
+                {
+                    FileName = reference.PartNumber ?? reference.ReferenceId ?? reference.LocalLogicalCode ?? "Library reference",
+                    Message = "Library reference parent '" + reference.ParentLogicalCode + "' was not found in the current PDM structure.",
+                    BlocksPush = true
+                });
+            }
+        }
+
         private static PdmStructureNode FindStructureNode(PdmStructureNode node, string partCode)
         {
             if (node == null || string.IsNullOrWhiteSpace(partCode))
@@ -1368,7 +1475,36 @@ namespace IdeaCadConnector.Desktop
                 arasPartId: reference.PartId,
                 arasConfigId: reference.PartConfigId,
                 revisionPolicy: reference.RevisionPolicy,
-                isLibraryReference: true);
+                isLibraryReference: true,
+                referenceId: reference.ReferenceId);
+        }
+
+        private static PdmStructureNode CreateLibraryStructureNode(WorkspaceLibraryReference reference, bool isOrphan)
+        {
+            var node = CreateLibraryStructureNode(reference);
+            if (!isOrphan)
+                return node;
+
+            return new PdmStructureNode(
+                node.Name,
+                node.PartCode,
+                node.NodeType,
+                node.Quantity,
+                node.Revision,
+                "Library reference • Missing parent",
+                "#FFD54B4B",
+                children: node.Children,
+                perspective: node.Perspective,
+                primaryCad: node.PrimaryCad,
+                lockedBy: node.LockedBy,
+                sourceDocument: node.SourceDocument,
+                sourceKind: node.SourceKind,
+                libraryEntryId: node.LibraryEntryId,
+                arasPartId: node.ArasPartId,
+                arasConfigId: node.ArasConfigId,
+                revisionPolicy: node.RevisionPolicy,
+                isLibraryReference: node.IsLibraryReference,
+                referenceId: node.ReferenceId);
         }
 
         private AnalyzeResult AppendLibraryReferenceNodes(AnalyzeResult analyzeResult)
@@ -1448,6 +1584,11 @@ namespace IdeaCadConnector.Desktop
                 return new LibraryReferenceMutationResult(false, "Quantity must be greater than 0.");
             }
 
+            if (!ValidateLibraryReferencePlacement(reference, out var placementError))
+            {
+                return new LibraryReferenceMutationResult(false, placementError);
+            }
+
             var existing = _libraryReferenceStore.Load(FolderPath).ToList();
             var duplicate = existing.FirstOrDefault(item =>
                 string.Equals(item.ParentLogicalCode, reference.ParentLogicalCode, StringComparison.OrdinalIgnoreCase) &&
@@ -1467,6 +1608,81 @@ namespace IdeaCadConnector.Desktop
             _libraryReferenceStore.Upsert(FolderPath, reference);
             AnalyzeFolder();
             return new LibraryReferenceMutationResult(true, "Library reference added to the current workspace.");
+        }
+
+        private bool ValidateLibraryReferencePlacement(WorkspaceLibraryReference reference, out string errorMessage)
+        {
+            errorMessage = null;
+
+            if (reference == null)
+            {
+                errorMessage = "No Library reference was provided.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(reference.ParentLogicalCode))
+            {
+                errorMessage = "Choose a target parent in the Product Structure.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(reference.PartId))
+            {
+                return true;
+            }
+
+            var parentPath = FindStructurePath(PdmStructure, reference.ParentLogicalCode);
+            if (parentPath == null)
+            {
+                errorMessage = "Choose a target parent that still exists in the Product Structure.";
+                return false;
+            }
+
+            if (parentPath.Any(node =>
+                node != null &&
+                node.IsLibraryReference &&
+                !string.IsNullOrWhiteSpace(node.ArasPartId) &&
+                string.Equals(node.ArasPartId, reference.PartId, StringComparison.OrdinalIgnoreCase)))
+            {
+                errorMessage = "This Library Part would create a self/cycle reference under its own branch.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static List<PdmStructureNode> FindStructurePath(IEnumerable<PdmStructureNode> roots, string partCode)
+        {
+            if (roots == null || string.IsNullOrWhiteSpace(partCode))
+                return null;
+
+            foreach (var root in roots)
+            {
+                var path = new List<PdmStructureNode>();
+                if (TryFindStructurePath(root, partCode, path))
+                    return path;
+            }
+
+            return null;
+        }
+
+        private static bool TryFindStructurePath(PdmStructureNode node, string partCode, IList<PdmStructureNode> path)
+        {
+            if (node == null || path == null || string.IsNullOrWhiteSpace(partCode))
+                return false;
+
+            path.Add(node);
+            if (string.Equals(node.PartCode, partCode, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            foreach (var child in node.Children)
+            {
+                if (TryFindStructurePath(child, partCode, path))
+                    return true;
+            }
+
+            path.RemoveAt(path.Count - 1);
+            return false;
         }
 
         private static void CollectParentCandidates(PdmStructureNode node, ICollection<LibraryParentCandidate> candidates)
@@ -1743,7 +1959,7 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            var resolvedPartId = ResolveSelectedNodePartId();
+            var resolvedPartId = await ResolveSelectedNodePartIdAsync();
             if (string.IsNullOrWhiteSpace(resolvedPartId))
             {
                 StatusMessage = Loc(TranslationKeys.LibraryStatusPushPartToArasFirst);
@@ -1790,6 +2006,40 @@ namespace IdeaCadConnector.Desktop
             StatusMessage = string.Format(
                 Loc(TranslationKeys.LibraryStatusPartSaveFailed),
                 result.AddResult?.ErrorMessage ?? result.ErrorMessage ?? Loc(TranslationKeys.UnknownError));
+        }
+
+        private async void RemoveSelectedLibraryReferenceAsync()
+        {
+            if (!HasRemoveLibraryReferenceAction)
+                return;
+
+            var selectedNode = SelectedNode;
+            if (selectedNode == null || !selectedNode.IsLibraryReference)
+                return;
+
+            var confirm = MessageBox.Show(
+                "Remove this Library reference from the workspace?",
+                "Remove Library Reference",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            if (string.IsNullOrWhiteSpace(selectedNode.ReferenceId))
+            {
+                StatusMessage = "This Library reference does not have a workspace ID yet.";
+                return;
+            }
+
+            if (_libraryReferenceStore.Remove(FolderPath, selectedNode.ReferenceId))
+            {
+                AnalyzeFolder();
+                StatusMessage = "Library reference removed from the workspace.";
+                return;
+            }
+
+            StatusMessage = "Library reference could not be removed from the workspace.";
         }
 
         private async void OpenInIronCadAsync()
@@ -2015,7 +2265,10 @@ namespace IdeaCadConnector.Desktop
             _liveCadGeneration = 0;
             _liveHasNativeFile = false;
             _livePartId = null;
-            _postPushPartIds = null;
+
+            // Không xóa push result — node selection không được phá state của PDM.
+            // _postPushPartIds = null;
+
             _isCheckedOutByOther = false;
             SetCadOperationContext(null);
 
@@ -2118,23 +2371,51 @@ namespace IdeaCadConnector.Desktop
                 && string.Equals(SelectedNode.PartCode, PdmStructure[0].PartCode, StringComparison.OrdinalIgnoreCase);
         }
 
-        private string ResolveSelectedNodePartId()
+        private async Task<string> ResolveSelectedNodePartIdAsync()
         {
             if (SelectedNode == null)
                 return null;
 
+            // Library node đã biết sẵn Aras Part ID.
             if (!string.IsNullOrWhiteSpace(SelectedNode.ArasPartId))
                 return SelectedNode.ArasPartId;
 
-            if (IsSelectedRootAssemblyNode() && !string.IsNullOrWhiteSpace(_livePartId))
-                return _livePartId;
-
-            // Check IDs captured from the last push result (keyed by LogicalCode = PartCode for most nodes)
+            // ID vừa nhận được từ kết quả Push.
             if (_postPushPartIds != null &&
                 _postPushPartIds.TryGetValue(SelectedNode.PartCode, out var pushedId) &&
                 !string.IsNullOrWhiteSpace(pushedId))
             {
                 return pushedId;
+            }
+
+            // Tìm Part tương ứng trong Push Preview.
+            var previewPart = _pushPreview?.Parts?.FirstOrDefault(part =>
+                string.Equals(
+                    part.LogicalCode,
+                    SelectedNode.PartCode,
+                    StringComparison.OrdinalIgnoreCase));
+
+            // Part được reuse từ Library.
+            if (!string.IsNullOrWhiteSpace(previewPart?.ExistingPartId))
+                return previewPart.ExistingPartId;
+
+            // Root Part đã được resolve từ CAD/workspace.
+            if (IsSelectedRootAssemblyNode() &&
+                !string.IsNullOrWhiteSpace(_livePartId))
+            {
+                return _livePartId;
+            }
+
+            // Fallback: hỏi Aras bằng Part Number.
+            var pdmClient = MainViewModel.SharedPdmClient;
+            var partNumber = previewPart?.PartNumber ?? SelectedNode.PartCode;
+
+            if (pdmClient != null && !string.IsNullOrWhiteSpace(partNumber))
+            {
+                return await pdmClient.FindItemIdByNumberAsync(
+                    "Part",
+                    partNumber,
+                    CancellationToken.None);
             }
 
             return null;
@@ -3034,11 +3315,13 @@ namespace IdeaCadConnector.Desktop
             var libraryKeys = _workspaceLibraryReferences
                 .OrderBy(reference => reference.ReferenceId, StringComparer.OrdinalIgnoreCase)
                 .Select(reference =>
+                    (reference.ReferenceId ?? string.Empty) + ":" +
                     (reference.LibraryEntryId ?? string.Empty) + ":" +
                     (reference.PartId ?? string.Empty) + ":" +
                     (reference.ParentLogicalCode ?? string.Empty) + ":" +
                     reference.Quantity + ":" +
-                    (reference.RevisionPolicy ?? string.Empty));
+                    (reference.RevisionPolicy ?? string.Empty) + ":" +
+                    (reference.Revision ?? string.Empty));
             parts.Add("LIB:" + string.Join(",", libraryKeys));
 
             return string.Join("|", parts);
@@ -3509,6 +3792,8 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(HasSaveToLibraryAction));
             OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
             (SaveSelectedNodeToLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            OnPropertyChanged(nameof(HasRemoveLibraryReferenceAction));
+            (RemoveSelectedLibraryReferenceCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
         private void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -3537,7 +3822,8 @@ namespace IdeaCadConnector.Desktop
             string arasPartId = null,
             string arasConfigId = null,
             string revisionPolicy = null,
-            bool isLibraryReference = false)
+            bool isLibraryReference = false,
+            string referenceId = null)
         {
             Name = name;
             PartCode = partCode;
@@ -3557,6 +3843,7 @@ namespace IdeaCadConnector.Desktop
             ArasConfigId = arasConfigId;
             RevisionPolicy = revisionPolicy;
             IsLibraryReference = isLibraryReference;
+            ReferenceId = referenceId;
         }
 
         public string Name { get; }
@@ -3576,6 +3863,7 @@ namespace IdeaCadConnector.Desktop
         public string ArasConfigId { get; }
         public string RevisionPolicy { get; }
         public bool IsLibraryReference { get; }
+        public string ReferenceId { get; }
         public ObservableCollection<PdmStructureNode> Children { get; }
     }
 
