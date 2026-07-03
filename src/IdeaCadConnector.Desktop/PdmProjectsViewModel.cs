@@ -1645,12 +1645,15 @@ namespace IdeaCadConnector.Desktop
 
             if (duplicate != null)
             {
-                duplicate.Quantity = reference.Quantity;
+                duplicate.PartId = reference.PartId;
+                duplicate.PartConfigId = reference.PartConfigId;
                 duplicate.Revision = reference.Revision;
                 duplicate.RevisionPolicy = reference.RevisionPolicy;
+                duplicate.LibraryEntryId = reference.LibraryEntryId;
+                duplicate.Quantity = reference.Quantity;
                 _libraryReferenceStore.Save(FolderPath, existing);
                 AnalyzeFolder();
-                return new LibraryReferenceMutationResult(true, "Existing Library reference quantity updated in the workspace.");
+                return new LibraryReferenceMutationResult(true, "Existing Library reference updated in the workspace.");
             }
 
             _libraryReferenceStore.Upsert(FolderPath, reference);

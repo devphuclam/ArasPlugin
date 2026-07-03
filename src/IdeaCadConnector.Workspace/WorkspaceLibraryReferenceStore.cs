@@ -30,30 +30,36 @@ namespace IdeaCadConnector.Workspace
                 return Array.Empty<WorkspaceLibraryReference>();
 
             var path = GetFilePath(projectFolder);
-            if (path == null || !File.Exists(path))
+            if (path == null)
                 return Array.Empty<WorkspaceLibraryReference>();
 
+            if (!File.Exists(path))
+                return Array.Empty<WorkspaceLibraryReference>();
+
+            var json = File.ReadAllText(path);
+            JToken token;
             try
             {
-                var json = File.ReadAllText(path);
-                var token = JToken.Parse(json);
-
-                if (token.Type == JTokenType.Array)
-                {
-                    var legacyEntries = token.ToObject<List<WorkspaceLibraryReference>>();
-                    return legacyEntries ?? (IReadOnlyList<WorkspaceLibraryReference>)Array.Empty<WorkspaceLibraryReference>();
-                }
-
-                var document = token.ToObject<WorkspaceLibraryReferenceDocument>();
-                if (document?.References == null)
-                    return Array.Empty<WorkspaceLibraryReference>();
-
-                return document.References;
+                token = JToken.Parse(json);
             }
-            catch
+            catch (Exception ex)
             {
-                return Array.Empty<WorkspaceLibraryReference>();
+                var diag = $"Malformed library-references.json at '{path}': {ex.Message}. The file was preserved but could not be loaded.";
+                System.Diagnostics.Debug.WriteLine(diag);
+                throw new InvalidOperationException(diag);
             }
+
+            if (token.Type == JTokenType.Array)
+            {
+                var legacyEntries = token.ToObject<List<WorkspaceLibraryReference>>();
+                return legacyEntries ?? (IReadOnlyList<WorkspaceLibraryReference>)Array.Empty<WorkspaceLibraryReference>();
+            }
+
+            var document = token.ToObject<WorkspaceLibraryReferenceDocument>();
+            if (document?.References == null)
+                return Array.Empty<WorkspaceLibraryReference>();
+
+            return document.References;
         }
 
         public void Save(string projectFolder, IReadOnlyList<WorkspaceLibraryReference> references)

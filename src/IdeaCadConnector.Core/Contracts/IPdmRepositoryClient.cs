@@ -44,6 +44,15 @@ namespace IdeaCadConnector.Core.Contracts
         public string RelationshipId { get; set; }
     }
 
+    public enum BomActionResult
+    {
+        Created,
+        QuantityUpdated,
+        Unchanged,
+        InvalidParentChild,
+        InvalidQuantity
+    }
+
     public sealed class PdmPushRequest
     {
         public string RepositoryCode { get; set; }

@@ -335,13 +335,27 @@ namespace IdeaCadConnector.Aras
                         partIdByCode[part.LogicalCode] = id.ArasId;
                 }
 
+                var bomFailures = new List<string>();
                 foreach (var part in request.Parts ?? Array.Empty<PdmPartRequest>())
                 {
                     if (!string.IsNullOrWhiteSpace(part.ParentLogicalCode) &&
                         partIdByCode.TryGetValue(part.LogicalCode, out var childId) &&
                         partIdByCode.TryGetValue(part.ParentLogicalCode, out var parentId))
                     {
-                        await EnsurePartBomAsync(parentId, childId, part.Quantity, ct);
+                        try
+                        {
+                            var bomResult = await EnsurePartBomAsync(parentId, childId, part.Quantity, ct).ConfigureAwait(false);
+                            if (bomResult == BomActionResult.InvalidParentChild)
+                            {
+                                _logger.LogWarning("BOM skipped for Part {PartNumber}: parentId equals childId ({Id})", part.PartNumber, parentId);
+                            }
+                        }
+                        catch (ArasOperationException ex)
+                        {
+                            var msg = ClassifyArasError(ex) ?? "BOM relationship failed: " + ex.Message;
+                            _logger.LogWarning(ex, "BOM upsert failed for Part {PartNumber} (parent={ParentId} child={ChildId}): {Msg}", part.PartNumber, parentId, childId, msg);
+                            bomFailures.Add($"  - {part.PartNumber ?? part.LogicalCode}: {msg}");
+                        }
                     }
                 }
 
@@ -394,7 +408,7 @@ namespace IdeaCadConnector.Aras
                 var partsSucceeded = partResults.All(r => r.Success);
                 var docsSucceeded = docResults.All(r => r.Success);
                 var cadsMetadataSucceeded = cadResults.All(r => r.Success);
-                var allBusinessSuccess = partsSucceeded && docsSucceeded;
+                var allBusinessSuccess = partsSucceeded && docsSucceeded && bomFailures.Count == 0;
 
                 if (allBusinessSuccess)
                 {
@@ -403,6 +417,11 @@ namespace IdeaCadConnector.Aras
                     result.StagingOnly = false;
 
                     var warnings = new List<string>(result.Warnings ?? Array.Empty<string>());
+                    if (bomFailures.Count > 0)
+                    {
+                        warnings.Add("BOM relationship(s) failed:");
+                        warnings.AddRange(bomFailures);
+                    }
                     if (!cadsMetadataSucceeded)
                     {
                         var fileFailures = cadResults
@@ -452,62 +471,135 @@ namespace IdeaCadConnector.Aras
             return result;
         }
 
+        public static bool IsLibraryReference(PdmPartRequest part)
+        {
+            return part.IsExternalReference ||
+                string.Equals(part.SourceKind, "LibraryReference", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsPartObsolete(string state)
+        {
+            return CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Obsolete);
+        }
+
+        public static string ClassifyArasError(ArasOperationException ex)
+        {
+            switch (ex.ErrorCode)
+            {
+                case ArasErrorCode.AuthInvalid:
+                case ArasErrorCode.AuthExpired:
+                    return "Authentication failure. Please log in again.";
+                case ArasErrorCode.PermissionDenied:
+                    return "Permission denied. The current user does not have access to the requested Part.";
+                case ArasErrorCode.PartNotFound:
+                    return "Part not found on the server.";
+                case ArasErrorCode.ServerUnavailable:
+                    return "Server is unavailable. Check your connection to Aras.";
+                default:
+                    return null;
+            }
+        }
+
         private async Task<PdmItemResult> CreateOrGetPartAsync(PdmPartRequest part, CancellationToken ct)
         {
             try
             {
+                var isLibraryRef = IsLibraryReference(part);
+
+                if (isLibraryRef && string.IsNullOrWhiteSpace(part.ExistingPartId))
+                {
+                    return new PdmItemResult
+                    {
+                        SourceKey = part.LogicalCode,
+                        ItemNumber = part.PartNumber,
+                        Success = false,
+                        ErrorMessage = "Library reference requires an ExistingPartId. Use the Library dialog to select a Part before push."
+                    };
+                }
+
                 if (!string.IsNullOrWhiteSpace(part.ExistingPartId))
                 {
-                    var existingAml = $"<Item type=\"Part\" action=\"get\" id=\"{EscapeAml(part.ExistingPartId)}\" select=\"id,item_number,name,state,current_state,is_released,is_current,config_id,major_rev\"/>";
+                    var existingAml = $"<Item type=\"Part\" action=\"get\" id=\"{EscapeAml(part.ExistingPartId)}\" select=\"id,item_number,name,state,config_id,major_rev\"/>";
                     JObject existingResponse;
                     try
                     {
                         existingResponse = await _aml.ApplyAmlAsync(existingAml, "get", "Part", part.ExistingPartId, ct).ConfigureAwait(false);
                     }
-                    catch (ArasOperationException)
+                    catch (ArasOperationException ex)
                     {
+                        var categorized = ClassifyArasError(ex);
+                        if (categorized != null)
+                        {
+                            return new PdmItemResult
+                            {
+                                SourceKey = part.LogicalCode,
+                                ItemNumber = part.PartNumber,
+                                Success = false,
+                                ErrorMessage = "Part reuse failed: " + categorized
+                            };
+                        }
+
+                        _logger.LogWarning(ex, "CreateOrGetPartAsync unexpected Aras error for ExistingPartId={PartId}", part.ExistingPartId);
                         return new PdmItemResult
                         {
                             SourceKey = part.LogicalCode,
                             ItemNumber = part.PartNumber,
                             Success = false,
-                            ErrorMessage = "Library Part reuse failed: the referenced Aras Part ID was not found on the server."
+                            ErrorMessage = "Part reuse failed due to an unexpected server error. Try again."
                         };
                     }
 
                     var item = existingResponse?["Items"]?[0];
-                    if (item == null)
+                    var existingPartId = item?["id"]?.ToString();
+                    if (item == null || string.IsNullOrWhiteSpace(existingPartId))
                     {
+                        var msg = isLibraryRef
+                            ? "Library reference reuse failed: the referenced Aras Part ID was not found."
+                            : "Part reuse failed: the specified ExistingPartId was not found on the server.";
                         return new PdmItemResult
                         {
                             SourceKey = part.LogicalCode,
                             ItemNumber = part.PartNumber,
                             Success = false,
-                            ErrorMessage = "Library Part reuse failed: the referenced Aras Part ID was not found."
+                            ErrorMessage = msg
                         };
                     }
 
-                    var existingPartId = item["id"]?.ToString();
-                    if (string.IsNullOrWhiteSpace(existingPartId))
+                    var configId = item["config_id"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(part.ExistingPartConfigId) &&
+                        !string.Equals(configId, part.ExistingPartConfigId, StringComparison.OrdinalIgnoreCase))
                     {
                         return new PdmItemResult
                         {
                             SourceKey = part.LogicalCode,
                             ItemNumber = part.PartNumber,
                             Success = false,
-                            ErrorMessage = "Library Part reuse failed: the referenced Aras Part ID was not found."
+                            ErrorMessage = $"Part reuse failed: config_id mismatch. Expected '{part.ExistingPartConfigId}', found '{configId}'. The Library entry may refer to a different Part generation."
                         };
                     }
 
-                    var currentState = item["current_state"]?.ToString() ?? item["state"]?.ToString();
-                    if (string.Equals(currentState, "Loai bo", StringComparison.OrdinalIgnoreCase))
+                    var majorRev = item["major_rev"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(part.ExistingPartRevision) &&
+                        !string.Equals(majorRev, part.ExistingPartRevision, StringComparison.OrdinalIgnoreCase))
                     {
                         return new PdmItemResult
                         {
                             SourceKey = part.LogicalCode,
                             ItemNumber = part.PartNumber,
                             Success = false,
-                            ErrorMessage = "Library Part reuse failed: the referenced Part is in 'Loai bo' (Obsolete) state and cannot be used in new assemblies."
+                            ErrorMessage = $"Part reuse failed: revision mismatch. Expected '{part.ExistingPartRevision}', found '{majorRev ?? "(none)"}'. The Library entry may refer to a different Part revision."
+                        };
+                    }
+
+                    var state = item["state"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(state) && IsPartObsolete(state))
+                    {
+                        return new PdmItemResult
+                        {
+                            SourceKey = part.LogicalCode,
+                            ItemNumber = part.PartNumber,
+                            Success = false,
+                            ErrorMessage = "Part reuse failed: the referenced Part is in Obsolete ('Loai bo') state and cannot be used in new assemblies."
                         };
                     }
 
@@ -517,7 +609,7 @@ namespace IdeaCadConnector.Aras
                         ArasId = existingPartId,
                         ItemNumber = part.PartNumber,
                         Success = true,
-                        ActionTaken = "ReusedFromLibrary"
+                        ActionTaken = isLibraryRef ? "ReusedFromLibrary" : "Reused"
                     };
                 }
 
@@ -554,14 +646,26 @@ namespace IdeaCadConnector.Aras
                         : null
                 };
             }
-            catch (Exception ex)
+            catch (ArasOperationException ex)
             {
+                var categorized = ClassifyArasError(ex);
                 return new PdmItemResult
                 {
                     SourceKey = part.LogicalCode,
                     ItemNumber = part.PartNumber,
                     Success = false,
-                    ErrorMessage = $"Part add failed. number='{part.PartNumber}', classification='{part.Classification} (preview-only, not sent to Aras)', name='{part.Name ?? part.LogicalCode}'. Aras said: {ex.Message}"
+                    ErrorMessage = categorized ?? "Part operation failed: " + ex.Message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "CreateOrGetPartAsync unexpected error for PartNumber={PartNumber}", part.PartNumber);
+                return new PdmItemResult
+                {
+                    SourceKey = part.LogicalCode,
+                    ItemNumber = part.PartNumber,
+                    Success = false,
+                    ErrorMessage = "Part operation failed due to an unexpected error: " + ex.Message
                 };
             }
         }
@@ -760,8 +864,17 @@ namespace IdeaCadConnector.Aras
             }
         }
 
-        private async Task EnsurePartBomAsync(string parentId, string childId, int quantity, CancellationToken ct)
+        private async Task<BomActionResult> EnsurePartBomAsync(string parentId, string childId, int quantity, CancellationToken ct)
         {
+            if (string.IsNullOrWhiteSpace(parentId) || string.IsNullOrWhiteSpace(childId))
+                return BomActionResult.InvalidParentChild;
+
+            if (string.Equals(parentId, childId, StringComparison.OrdinalIgnoreCase))
+                return BomActionResult.InvalidParentChild;
+
+            if (quantity < 1)
+                return BomActionResult.InvalidQuantity;
+
             var existing = await FindPartBomInfoAsync(parentId, childId, ct).ConfigureAwait(false);
             if (!existing.Exists)
             {
@@ -773,7 +886,7 @@ namespace IdeaCadConnector.Aras
                     "</Item>";
 
                 await _aml.ApplyAmlAsync(aml, "add", "Part BOM", null, ct).ConfigureAwait(false);
-                return;
+                return BomActionResult.Created;
             }
 
             if (existing.ExistingQuantity.HasValue &&
@@ -781,7 +894,10 @@ namespace IdeaCadConnector.Aras
                 !string.IsNullOrWhiteSpace(existing.RelationshipId))
             {
                 await UpdatePartBomQuantityAsync(existing.RelationshipId, quantity, ct).ConfigureAwait(false);
+                return BomActionResult.QuantityUpdated;
             }
+
+            return BomActionResult.Unchanged;
         }
 
         private async Task<PdmBomExistenceInfo> FindPartBomInfoAsync(string parentId, string childId, CancellationToken ct)
@@ -791,34 +907,26 @@ namespace IdeaCadConnector.Aras
                 return new PdmBomExistenceInfo();
             }
 
-            try
-            {
-                var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"id,quantity\">" +
-                    $"<source_id>{EscapeAml(parentId)}</source_id>" +
-                    $"<related_id>{EscapeAml(childId)}</related_id>" +
-                    "</Item>";
+            var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"id,quantity\">" +
+                $"<source_id>{EscapeAml(parentId)}</source_id>" +
+                $"<related_id>{EscapeAml(childId)}</related_id>" +
+                "</Item>";
 
-                var response = await _aml.ApplyAmlAsync(aml, "get", "Part BOM", null, ct).ConfigureAwait(false);
-                var items = response?["Items"];
-                if (items == null || !items.HasValues)
-                {
-                    return new PdmBomExistenceInfo();
-                }
-
-                var quantityToken = items[0]?["quantity"]?.ToString();
-                int parsedQuantity;
-                return new PdmBomExistenceInfo
-                {
-                    Exists = true,
-                    ExistingQuantity = int.TryParse(quantityToken, out parsedQuantity) ? parsedQuantity : (int?)null,
-                    RelationshipId = items[0]?["id"]?.ToString()
-                };
-            }
-            catch (Exception ex)
+            var response = await _aml.ApplyAmlAsync(aml, "get", "Part BOM", null, ct).ConfigureAwait(false);
+            var items = response?["Items"];
+            if (items == null || !items.HasValues)
             {
-                _logger.LogWarning(ex, "FindPartBomInfoAsync failed for parentId={ParentId} childId={ChildId}", parentId, childId);
                 return new PdmBomExistenceInfo();
             }
+
+            var quantityToken = items[0]?["quantity"]?.ToString();
+            int parsedQuantity;
+            return new PdmBomExistenceInfo
+            {
+                Exists = true,
+                ExistingQuantity = int.TryParse(quantityToken, out parsedQuantity) ? parsedQuantity : (int?)null,
+                RelationshipId = items[0]?["id"]?.ToString()
+            };
         }
 
         private async Task UpdatePartBomQuantityAsync(string relationshipId, int quantity, CancellationToken ct)
