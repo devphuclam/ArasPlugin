@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.IronCAD"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.Desktop", "src\IdeaCadConnector.Desktop\IdeaCadConnector.Desktop.csproj", "{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC1E}") = "IdeaCadConnector.Tests", "tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj", "{79405DFC-B9B1-44F4-A18F-88EC43DBE764}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,10 @@ Global
 		{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8FDD4A4C-9B7D-4E3A-9C1F-2E5B6A8D3E01}.Release|Any CPU.Build.0 = Release|Any CPU
+		{79405DFC-B9B1-44F4-A18F-88EC43DBE764}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{79405DFC-B9B1-44F4-A18F-88EC43DBE764}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{79405DFC-B9B1-44F4-A18F-88EC43DBE764}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{79405DFC-B9B1-44F4-A18F-88EC43DBE764}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

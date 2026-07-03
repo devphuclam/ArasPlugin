@@ -198,7 +198,6 @@ namespace IdeaCadConnector.Aras
                 "<note>" + Escape(request.Note) + "</note>" +
                 "<source_project>" + Escape(request.SourceProject) + "</source_project>" +
                 "<source_commit>" + Escape(request.SourceCommit) + "</source_commit>" +
-                "<usage_count>0</usage_count>" +
                 (request.RevisionPolicy == LibraryRevisionPolicy.Pinned
                     ? "<pinned_part_id>" + Escape(request.PartId) + "</pinned_part_id>"
                     : string.Empty) +
@@ -367,73 +366,111 @@ namespace IdeaCadConnector.Aras
                 return;
             }
 
+            var usageCreated = false;
             var usedByValue = (request.UsedBy ?? "unknown").Trim();
+
             if (usedByValue.Length > 0)
             {
-                var aml =
-                    "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
-                    "<library_entry_id>" + Escape(request.LibraryEntryId) + "</library_entry_id>" +
-                    "<part_id>" + Escape(request.PartId) + "</part_id>" +
-                    "<project_code>" + Escape(request.ProjectCode) + "</project_code>" +
-                    "<parent_part_id>" + Escape(request.ParentPartId) + "</parent_part_id>" +
-                    "<quantity>" + request.Quantity + "</quantity>" +
-                    "<used_by>" + Escape(usedByValue) + "</used_by>" +
-                    "<commit_id>" + Escape(request.CommitId) + "</commit_id>" +
-                    "<action_type>" + Escape(request.ActionType) + "</action_type>" +
-                    "</Item>";
-
-                try
-                {
-                    await _aml.ApplyAmlAsync(
-                        aml,
-                        "add",
-                        PartLibrarySchemaNames.UsageItemType,
-                        null,
-                        cancellationToken).ConfigureAwait(false);
-                }
-                catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed)
-                {
-                    var retryAml =
-                        "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
-                        "<library_entry_id>" + Escape(request.LibraryEntryId) + "</library_entry_id>" +
-                        "<part_id>" + Escape(request.PartId) + "</part_id>" +
-                        "<project_code>" + Escape(request.ProjectCode) + "</project_code>" +
-                        "<parent_part_id>" + Escape(request.ParentPartId) + "</parent_part_id>" +
-                        "<quantity>" + request.Quantity + "</quantity>" +
-                        "<commit_id>" + Escape(request.CommitId) + "</commit_id>" +
-                        "<action_type>" + Escape(request.ActionType) + "</action_type>" +
-                        "</Item>";
-
-                    _logger.LogWarning(
-                        "Part Library usage record: 'used_by' property may not be deployed on '{ItemType}'. " +
-                        "Retrying without 'used_by'. Configure 'used_by' as a string property on the ItemType.",
-                        PartLibrarySchemaNames.UsageItemType);
-
-                    try
-                    {
-                        await _aml.ApplyAmlAsync(
-                            retryAml,
-                            "add",
-                            PartLibrarySchemaNames.UsageItemType,
-                            null,
-                            cancellationToken).ConfigureAwait(false);
-                    }
-                    catch (Exception fallbackEx)
-                    {
-                        _logger.LogWarning(fallbackEx, "Part Library usage record failed for entry {EntryId} (retry without used_by).", request.LibraryEntryId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId}.", request.LibraryEntryId);
-                }
+                usageCreated = await TryCreateUsageItemAsync(request, usedByValue, cancellationToken).ConfigureAwait(false);
             }
+
+            if (!usageCreated && usedByValue.Length > 0)
+            {
+                usageCreated = await TryCreateUsageItemWithoutUsedByAsync(request, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (!usageCreated)
+            {
+                usageCreated = await TryCreateUsageItemAsync(request, null, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (usageCreated)
+            {
+                await TryUpdateEntryLastUsedOnAsync(request.LibraryEntryId, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<bool> TryCreateUsageItemAsync(LibraryUsageRequest request, string usedBy, CancellationToken ct)
+        {
+            var aml =
+                "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
+                "<library_entry_id>" + Escape(request.LibraryEntryId) + "</library_entry_id>" +
+                "<part_id>" + Escape(request.PartId) + "</part_id>" +
+                "<project_code>" + Escape(request.ProjectCode) + "</project_code>" +
+                "<parent_part_id>" + Escape(request.ParentPartId) + "</parent_part_id>" +
+                "<quantity>" + request.Quantity + "</quantity>" +
+                (usedBy != null
+                    ? "<used_by>" + Escape(usedBy) + "</used_by>"
+                    : string.Empty) +
+                "<commit_id>" + Escape(request.CommitId) + "</commit_id>" +
+                "<action_type>" + Escape(request.ActionType) + "</action_type>" +
+                "</Item>";
 
             try
             {
+                await _aml.ApplyAmlAsync(
+                    aml,
+                    "add",
+                    PartLibrarySchemaNames.UsageItemType,
+                    null,
+                    ct).ConfigureAwait(false);
+                return true;
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed && usedBy != null)
+            {
+                _logger.LogWarning(
+                    "Part Library usage record: 'used_by' property may not be deployed on '{ItemType}'. " +
+                    "Configure 'used_by' as a string property on the ItemType.",
+                    PartLibrarySchemaNames.UsageItemType);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId}.", request.LibraryEntryId);
+                return false;
+            }
+        }
+
+        private async Task<bool> TryCreateUsageItemWithoutUsedByAsync(LibraryUsageRequest request, CancellationToken ct)
+        {
+            var aml =
+                "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
+                "<library_entry_id>" + Escape(request.LibraryEntryId) + "</library_entry_id>" +
+                "<part_id>" + Escape(request.PartId) + "</part_id>" +
+                "<project_code>" + Escape(request.ProjectCode) + "</project_code>" +
+                "<parent_part_id>" + Escape(request.ParentPartId) + "</parent_part_id>" +
+                "<quantity>" + request.Quantity + "</quantity>" +
+                "<commit_id>" + Escape(request.CommitId) + "</commit_id>" +
+                "<action_type>" + Escape(request.ActionType) + "</action_type>" +
+                "</Item>";
+
+            try
+            {
+                await _aml.ApplyAmlAsync(
+                    aml,
+                    "add",
+                    PartLibrarySchemaNames.UsageItemType,
+                    null,
+                    ct).ConfigureAwait(false);
+                _logger.LogWarning(
+                    "Part Library usage record succeeded without 'used_by' for entry {EntryId}. " +
+                    "Configure 'used_by' as a string property on the ItemType.",
+                    PartLibrarySchemaNames.UsageItemType);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId} (retry without used_by).", request.LibraryEntryId);
+                return false;
+            }
+        }
+
+        private async Task TryUpdateEntryLastUsedOnAsync(string entryId, CancellationToken ct)
+        {
+            try
+            {
                 var entryUpdateAml =
-                    "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"edit\" id=\"" + Escape(request.LibraryEntryId) + "\">" +
-                    "<usage_count>0</usage_count>" +
+                    "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"edit\" id=\"" + Escape(entryId) + "\">" +
                     "<last_used_on>" + DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss") + "</last_used_on>" +
                     "</Item>";
 
@@ -441,19 +478,20 @@ namespace IdeaCadConnector.Aras
                     entryUpdateAml,
                     "edit",
                     PartLibrarySchemaNames.EntryRelationshipType,
-                    request.LibraryEntryId,
-                    cancellationToken).ConfigureAwait(false);
+                    entryId,
+                    ct).ConfigureAwait(false);
             }
             catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed)
             {
                 _logger.LogWarning(
-                    "Part Library entry usage_count/last_used_on update skipped: properties may not be deployed on '{ItemType}'. " +
-                    "Configure 'usage_count' (integer) and 'last_used_on' (date) on the ItemType.",
+                    "Part Library entry last_used_on update skipped: property may not be deployed on '{ItemType}'. " +
+                    "Configure 'last_used_on' (date) on the ItemType. " +
+                    "usage_count requires a server-side Method or Event to increment atomically.",
                     PartLibrarySchemaNames.EntryRelationshipType);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Part Library entry usage_count/last_used_on update failed for entry {EntryId}.", request.LibraryEntryId);
+                _logger.LogWarning(ex, "Part Library entry last_used_on update failed for entry {EntryId}.", entryId);
             }
         }
 

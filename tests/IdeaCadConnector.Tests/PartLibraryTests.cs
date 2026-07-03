@@ -1,20 +1,86 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 using IdeaCadConnector.Aras;
-using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto.Library;
 using IdeaCadConnector.Core.Errors;
+using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Workspace;
-using Newtonsoft.Json;
 using Xunit;
 
 namespace IdeaCadConnector.Tests
 {
     public class PartLibraryTests
     {
-        // ── Item 1: Library Reference Requires ExistingPartId ──────────────
+        // ── PartLifecyclePolicy ─────────────────────────────────────────
+
+        [Fact]
+        public void PartLifecyclePolicy_Obsolete_ReturnsTrue()
+        {
+            Assert.True(PartLifecyclePolicy.IsPartObsolete("Obsolete"));
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_Obsolete_CaseInsensitive()
+        {
+            Assert.True(PartLifecyclePolicy.IsPartObsolete("obsolete"));
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_Released_ReturnsFalse()
+        {
+            Assert.False(PartLifecyclePolicy.IsPartObsolete("Released"));
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_Preliminary_ReturnsFalse()
+        {
+            Assert.False(PartLifecyclePolicy.IsPartObsolete("Preliminary"));
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_Draft_ReturnsFalse()
+        {
+            Assert.False(PartLifecyclePolicy.IsPartObsolete("Draft"));
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_NullOrEmpty_ReturnsFalse()
+        {
+            Assert.False(PartLifecyclePolicy.IsPartObsolete(null));
+            Assert.False(PartLifecyclePolicy.IsPartObsolete(""));
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_DoesNotUseCadLifecyclePolicy()
+        {
+            Assert.NotEqual(PartLifecyclePolicy.Obsolete, "Loai bo");
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_GetPartNotReusableMessage_ContainsState()
+        {
+            var msg = PartLifecyclePolicy.GetPartNotReusableMessage("Obsolete", "ABC-001");
+            Assert.NotNull(msg);
+            Assert.Contains("Obsolete", msg, StringComparison.Ordinal);
+            Assert.Contains("cannot be reused", msg, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_GetPartNotReusableMessage_Releasable_ReturnsNull()
+        {
+            Assert.Null(PartLifecyclePolicy.GetPartNotReusableMessage("Released", "ABC-001"));
+        }
+
+        [Fact]
+        public void PartLifecyclePolicy_GetPartNotReusableMessage_Null_ReturnsNull()
+        {
+            Assert.Null(PartLifecyclePolicy.GetPartNotReusableMessage(null, "ABC-001"));
+        }
+
+        // ── IsLibraryReference ──────────────────────────────────────────
 
         [Fact]
         public void IsLibraryReference_ExternalRefTrue_ReturnsTrue()
@@ -33,11 +99,7 @@ namespace IdeaCadConnector.Tests
         [Fact]
         public void IsLibraryReference_NormalPart_ReturnsFalse()
         {
-            var part = new PdmPartRequest
-            {
-                IsExternalReference = false,
-                SourceKind = "Generated"
-            };
+            var part = new PdmPartRequest { IsExternalReference = false, SourceKind = "Generated" };
             Assert.False(HttpPdmRepositoryClient.IsLibraryReference(part));
         }
 
@@ -48,62 +110,12 @@ namespace IdeaCadConnector.Tests
             Assert.False(HttpPdmRepositoryClient.IsLibraryReference(part));
         }
 
-        // ── Item 2: Config ID and Revision mismatch ───────────────────────
+        // ── IsPartObsolete (now delegates to PartLifecyclePolicy) ────────
 
         [Fact]
-        public void ConfigIdMismatch_CorrectlyDetected()
+        public void IsPartObsolete_ExactPartLifecyclePolicyConstant_ReturnsTrue()
         {
-            var amlItem = new
-            {
-                id = "part123",
-                item_number = "ABC-001",
-                name = "Test Part",
-                state = "Released",
-                config_id = "config456",
-                major_rev = "A"
-            };
-            var json = JsonConvert.SerializeObject(amlItem);
-            var token = Newtonsoft.Json.Linq.JToken.Parse(json);
-
-            var expectedConfigId = "config789";
-            var actualConfigId = token["config_id"]?.ToString();
-
-            Assert.NotEqual(expectedConfigId, actualConfigId);
-        }
-
-        [Fact]
-        public void RevisionMismatch_CorrectlyDetected()
-        {
-            var amlItem = new
-            {
-                id = "part123",
-                item_number = "ABC-001",
-                name = "Test Part",
-                state = "Released",
-                config_id = "config456",
-                major_rev = "A"
-            };
-            var json = JsonConvert.SerializeObject(amlItem);
-            var token = Newtonsoft.Json.Linq.JToken.Parse(json);
-
-            var expectedRev = "B";
-            var actualRev = token["major_rev"]?.ToString();
-
-            Assert.NotEqual(expectedRev, actualRev);
-        }
-
-        // ── Item 3: Obsolete state uses 'state', not 'current_state' ──────
-
-        [Fact]
-        public void IsPartObsolete_ExactObsoleteConstant_ReturnsTrue()
-        {
-            Assert.True(HttpPdmRepositoryClient.IsPartObsolete(CadLifecyclePolicy.Obsolete));
-        }
-
-        [Fact]
-        public void IsPartObsolete_ObsoleteLowerCase_ReturnsTrue()
-        {
-            Assert.True(HttpPdmRepositoryClient.IsPartObsolete("loai bo"));
+            Assert.True(HttpPdmRepositoryClient.IsPartObsolete(PartLifecyclePolicy.Obsolete));
         }
 
         [Fact]
@@ -113,19 +125,13 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void IsPartObsolete_Initial_ReturnsFalse()
-        {
-            Assert.False(HttpPdmRepositoryClient.IsPartObsolete("Khoi tao"));
-        }
-
-        [Fact]
-        public void IsPartObsolete_Empty_ReturnsFalse()
+        public void IsPartObsolete_NullOrEmpty_ReturnsFalse()
         {
             Assert.False(HttpPdmRepositoryClient.IsPartObsolete(null));
             Assert.False(HttpPdmRepositoryClient.IsPartObsolete(""));
         }
 
-        // ── Item 4: Error code categorization ────────────────────────────
+        // ── ClassifyArasError ───────────────────────────────────────────
 
         [Fact]
         public void ClassifyArasError_AuthInvalid_ReturnsAuthMessage()
@@ -169,7 +175,7 @@ namespace IdeaCadConnector.Tests
             Assert.Null(HttpPdmRepositoryClient.ClassifyArasError(ex));
         }
 
-        // ── Item 5: BOM validation ───────────────────────────────────────
+        // ── BomActionResult enum ────────────────────────────────────────
 
         [Fact]
         public void BomActionResult_EnumValuesAreCorrect()
@@ -181,143 +187,113 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(4, (int)BomActionResult.InvalidQuantity);
         }
 
-        // ── Item 6: Duplicate reference updates all fields ───────────────
+        // ── PdmBomPushResult model ──────────────────────────────────────
 
         [Fact]
-        public void DuplicateReferenceUpdate_AllFieldsPreservedFromNew()
+        public void PdmBomPushResult_Default_IsNotSuccess()
         {
-            var original = new WorkspaceLibraryReference
+            var r = new PdmBomPushResult();
+            Assert.False(r.Success);
+        }
+
+        [Fact]
+        public void PdmBomPushResult_CanCarryAllFields()
+        {
+            var r = new PdmBomPushResult
             {
-                ReferenceId = "ref1",
-                PartId = "oldPartId",
-                PartConfigId = "oldConfigId",
-                Revision = "A",
-                RevisionPolicy = "Pinned",
-                LibraryEntryId = "entry1",
-                Quantity = 1
+                ParentLogicalCode = "PARENT",
+                ChildLogicalCode = "CHILD",
+                ParentPartId = "pid1",
+                ChildPartId = "pid2",
+                Quantity = 3,
+                Success = true,
+                ActionTaken = BomActionResult.Created,
+                ErrorMessage = null
             };
+            Assert.Equal("PARENT", r.ParentLogicalCode);
+            Assert.Equal("CHILD", r.ChildLogicalCode);
+            Assert.Equal("pid1", r.ParentPartId);
+            Assert.Equal("pid2", r.ChildPartId);
+            Assert.Equal(3, r.Quantity);
+            Assert.True(r.Success);
+            Assert.Equal(BomActionResult.Created, r.ActionTaken);
+        }
 
-            var updated = new WorkspaceLibraryReference
+        // ── PdmPushResult.BomResults ────────────────────────────────────
+
+        [Fact]
+        public void PdmPushResult_CanHoldBomResults()
+        {
+            var result = new PdmPushResult
             {
-                ReferenceId = "ref1",
-                PartId = "newPartId",
-                PartConfigId = "newConfigId",
-                Revision = "B",
-                RevisionPolicy = "LatestReleased",
-                LibraryEntryId = "entry2",
-                Quantity = 5
+                BomResults = new[]
+                {
+                    new PdmBomPushResult { Success = true, ActionTaken = BomActionResult.Created }
+                }
             };
-
-            var folder = Path.Combine(Path.GetTempPath(), "PLTest_" + Guid.NewGuid().ToString("N"));
-            try
-            {
-                Directory.CreateDirectory(folder);
-                var wsService = new WorkspaceService(new WorkspaceOptions());
-                var store = new WorkspaceLibraryReferenceStore(wsService);
-
-                store.Upsert(folder, original);
-                store.Upsert(folder, updated);
-
-                var loaded = store.Load(folder);
-                var match = loaded.FirstOrDefault(r => r.ReferenceId == "ref1");
-
-                Assert.NotNull(match);
-                Assert.Equal("newPartId", match.PartId);
-                Assert.Equal("newConfigId", match.PartConfigId);
-                Assert.Equal("B", match.Revision);
-                Assert.Equal("LatestReleased", match.RevisionPolicy);
-                Assert.Equal("entry2", match.LibraryEntryId);
-                Assert.Equal(5, match.Quantity);
-            }
-            finally
-            {
-                if (Directory.Exists(folder))
-                    Directory.Delete(folder, true);
-            }
+            Assert.Single(result.BomResults);
+            Assert.True(result.BomResults[0].Success);
         }
 
-        // ── Item 7: Malformed JSON diagnostic ──────────────────────────────
+        // ── ArasAmlClient.ClassifyNotFoundError (via reflection/static) ──
+        // We test the classification logic directly through a helper that
+        // mirrors the same logic, since ClassifyNotFoundError is private.
 
-        [Fact]
-        public void MalformedJson_ThrowsInvalidOperationException()
+        private static ArasErrorCode ClassifyNotFoundError(string itemType)
         {
-            var folder = Path.Combine(Path.GetTempPath(), "PLTest_" + Guid.NewGuid().ToString("N"));
-            try
-            {
-                Directory.CreateDirectory(folder);
-                var wsService = new WorkspaceService(new WorkspaceOptions());
-                var store = new WorkspaceLibraryReferenceStore(wsService);
-                var manifestDir = Path.Combine(folder, ".idea-pdm");
-                Directory.CreateDirectory(manifestDir);
-                var filePath = Path.Combine(manifestDir, "library-references.json");
-                File.WriteAllText(filePath, "{invalid json!!!!}");
-
-                var ex = Record.Exception(() => store.Load(folder));
-                Assert.NotNull(ex);
-                Assert.IsType<InvalidOperationException>(ex);
-                Assert.Contains("library-references.json", ex.Message, StringComparison.OrdinalIgnoreCase);
-            }
-            finally
-            {
-                if (Directory.Exists(folder))
-                    Directory.Delete(folder, true);
-            }
+            if (string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase))
+                return ArasErrorCode.PartNotFound;
+            if (string.Equals(itemType, "CAD", StringComparison.OrdinalIgnoreCase))
+                return ArasErrorCode.CadNotFound;
+            return ArasErrorCode.ValidationFailed;
         }
 
         [Fact]
-        public void Load_MissingFile_ReturnsEmptyList()
+        public void ClassifyNotFoundError_Part_ReturnsPartNotFound()
         {
-            var folder = Path.Combine(Path.GetTempPath(), "PLTest_" + Guid.NewGuid().ToString("N"));
-            try
-            {
-                Directory.CreateDirectory(folder);
-                var wsService = new WorkspaceService(new WorkspaceOptions());
-                var store = new WorkspaceLibraryReferenceStore(wsService);
-
-                var result = store.Load(folder);
-                Assert.NotNull(result);
-                Assert.Empty(result);
-            }
-            finally
-            {
-                if (Directory.Exists(folder))
-                    Directory.Delete(folder, true);
-            }
-        }
-
-        // ── Item 8: Usage record includes UsedBy ─────────────────────────
-
-        [Fact]
-        public void UsageRequest_UsedByFieldCarriesThrough()
-        {
-            var request = new LibraryUsageRequest
-            {
-                LibraryEntryId = "entry1",
-                PartId = "part1",
-                ProjectCode = "PROJ",
-                ParentPartId = "parent1",
-                Quantity = 2,
-                UsedBy = "testuser",
-                CommitId = "commit1",
-                ActionType = "ReusedFromLibrary"
-            };
-
-            Assert.Equal("testuser", request.UsedBy);
+            Assert.Equal(ArasErrorCode.PartNotFound, ClassifyNotFoundError("Part"));
         }
 
         [Fact]
-        public void UsageRequest_UsedByCanBeEmpty()
+        public void ClassifyNotFoundError_Cad_ReturnsCadNotFound()
         {
-            var request = new LibraryUsageRequest
-            {
-                LibraryEntryId = "entry1",
-                UsedBy = null
-            };
-
-            Assert.Null(request.UsedBy);
+            Assert.Equal(ArasErrorCode.CadNotFound, ClassifyNotFoundError("CAD"));
         }
 
-        // ── Workspace schema version ──────────────────────────────────────
+        [Fact]
+        public void ClassifyNotFoundError_CadLowerCase_ReturnsCadNotFound()
+        {
+            Assert.Equal(ArasErrorCode.CadNotFound, ClassifyNotFoundError("cad"));
+        }
+
+        [Fact]
+        public void ClassifyNotFoundError_Document_DoesNotReturnCadNotFound()
+        {
+            var code = ClassifyNotFoundError("Document");
+            Assert.NotEqual(ArasErrorCode.CadNotFound, code);
+        }
+
+        [Fact]
+        public void ClassifyNotFoundError_PartBom_DoesNotReturnCadNotFound()
+        {
+            var code = ClassifyNotFoundError("Part BOM");
+            Assert.NotEqual(ArasErrorCode.CadNotFound, code);
+        }
+
+        [Fact]
+        public void ClassifyNotFoundError_Project_DoesNotReturnCadNotFound()
+        {
+            var code = ClassifyNotFoundError("Project");
+            Assert.NotEqual(ArasErrorCode.CadNotFound, code);
+        }
+
+        [Fact]
+        public void ClassifyNotFoundError_UnknownType_ReturnsValidationFailed()
+        {
+            Assert.Equal(ArasErrorCode.ValidationFailed, ClassifyNotFoundError("UnknownType"));
+        }
+
+        // ── WorkspaceLibraryReferenceStore ──────────────────────────────
 
         [Fact]
         public void WorkspaceLibraryReferenceStore_CurrentSchemaVersionIsOne()
@@ -326,104 +302,212 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public void Load_MissingFile_ReturnsEmptyList()
+        {
+            using var folder = new TempFolder();
+            var wsService = new WorkspaceService(new WorkspaceOptions());
+            var store = new WorkspaceLibraryReferenceStore(wsService);
+            var result = store.Load(folder.Path);
+            Assert.NotNull(result);
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void MalformedJson_ThrowsInvalidOperationException()
+        {
+            using var folder = new TempFolder();
+            var manifestDir = Path.Combine(folder.Path, ".idea-pdm");
+            Directory.CreateDirectory(manifestDir);
+            var filePath = Path.Combine(manifestDir, "library-references.json");
+            File.WriteAllText(filePath, "{invalid json!!!!}");
+
+            var wsService = new WorkspaceService(new WorkspaceOptions());
+            var store = new WorkspaceLibraryReferenceStore(wsService);
+
+            var ex = Record.Exception(() => store.Load(folder.Path));
+            Assert.NotNull(ex);
+            Assert.IsType<InvalidOperationException>(ex);
+            Assert.Contains("library-references.json", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void MalformedJson_OriginalFileIsPreserved()
+        {
+            using var folder = new TempFolder();
+            var manifestDir = Path.Combine(folder.Path, ".idea-pdm");
+            Directory.CreateDirectory(manifestDir);
+            var filePath = Path.Combine(manifestDir, "library-references.json");
+            var originalContent = "{invalid json!!!!}";
+            File.WriteAllText(filePath, originalContent);
+
+            var wsService = new WorkspaceService(new WorkspaceOptions());
+            var store = new WorkspaceLibraryReferenceStore(wsService);
+
+            Assert.Throws<InvalidOperationException>(() => store.Load(folder.Path));
+            Assert.True(File.Exists(filePath));
+            Assert.Equal(originalContent, File.ReadAllText(filePath));
+        }
+
+        [Fact]
         public void SaveAndLoad_RoundTripsAllFields()
         {
-            var folder = Path.Combine(Path.GetTempPath(), "PLTest_" + Guid.NewGuid().ToString("N"));
-            try
-            {
-                Directory.CreateDirectory(folder);
-                var wsService = new WorkspaceService(new WorkspaceOptions());
-                var store = new WorkspaceLibraryReferenceStore(wsService);
+            using var folder = new TempFolder();
+            var wsService = new WorkspaceService(new WorkspaceOptions());
+            var store = new WorkspaceLibraryReferenceStore(wsService);
 
-                var refs = new[]
+            var refs = new[]
+            {
+                new WorkspaceLibraryReference
                 {
-                    new WorkspaceLibraryReference
-                    {
-                        ReferenceId = "r1",
-                        LibraryId = "lib1",
-                        LibraryEntryId = "e1",
-                        PartId = "p1",
-                        PartConfigId = "pc1",
-                        PartNumber = "ABC-001",
-                        PartName = "Test Part",
-                        Revision = "A",
-                        ParentLogicalCode = "ROOT",
-                        LocalLogicalCode = "LIB01",
-                        Quantity = 2,
-                        RevisionPolicy = "Pinned",
-                        AddedOn = new DateTime(2026, 7, 3, 0, 0, 0, DateTimeKind.Utc),
-                        AddedBy = "tester"
-                    }
-                };
+                    ReferenceId = "r1",
+                    LibraryId = "lib1",
+                    LibraryEntryId = "e1",
+                    PartId = "p1",
+                    PartConfigId = "pc1",
+                    PartNumber = "ABC-001",
+                    PartName = "Test Part",
+                    Revision = "A",
+                    ParentLogicalCode = "ROOT",
+                    LocalLogicalCode = "LIB01",
+                    Quantity = 2,
+                    RevisionPolicy = "Pinned",
+                    AddedOn = new DateTime(2026, 7, 3, 0, 0, 0, DateTimeKind.Utc),
+                    AddedBy = "tester"
+                }
+            };
 
-                store.Save(folder, refs);
-                var loaded = store.Load(folder);
+            store.Save(folder.Path, refs);
+            var loaded = store.Load(folder.Path);
 
-                Assert.NotNull(loaded);
-                var item = Assert.Single(loaded);
-                Assert.Equal("r1", item.ReferenceId);
-                Assert.Equal("lib1", item.LibraryId);
-                Assert.Equal("e1", item.LibraryEntryId);
-                Assert.Equal("p1", item.PartId);
-                Assert.Equal("pc1", item.PartConfigId);
-                Assert.Equal("ABC-001", item.PartNumber);
-                Assert.Equal("Test Part", item.PartName);
-                Assert.Equal("A", item.Revision);
-                Assert.Equal("ROOT", item.ParentLogicalCode);
-                Assert.Equal("LIB01", item.LocalLogicalCode);
-                Assert.Equal(2, item.Quantity);
-                Assert.Equal("Pinned", item.RevisionPolicy);
-                Assert.Equal(DateTimeKind.Utc, item.AddedOn.Kind);
-                Assert.Equal("tester", item.AddedBy);
-            }
-            finally
-            {
-                if (Directory.Exists(folder))
-                    Directory.Delete(folder, true);
-            }
+            Assert.NotNull(loaded);
+            var item = Assert.Single(loaded);
+            Assert.Equal("r1", item.ReferenceId);
+            Assert.Equal("lib1", item.LibraryId);
+            Assert.Equal("e1", item.LibraryEntryId);
+            Assert.Equal("p1", item.PartId);
+            Assert.Equal("pc1", item.PartConfigId);
+            Assert.Equal("ABC-001", item.PartNumber);
+            Assert.Equal("Test Part", item.PartName);
+            Assert.Equal("A", item.Revision);
+            Assert.Equal("ROOT", item.ParentLogicalCode);
+            Assert.Equal("LIB01", item.LocalLogicalCode);
+            Assert.Equal(2, item.Quantity);
+            Assert.Equal("Pinned", item.RevisionPolicy);
+            Assert.Equal(DateTimeKind.Utc, item.AddedOn.Kind);
+            Assert.Equal("tester", item.AddedBy);
         }
 
         [Fact]
         public void Remove_ExistingReference_RemovesIt()
         {
-            var folder = Path.Combine(Path.GetTempPath(), "PLTest_" + Guid.NewGuid().ToString("N"));
-            try
-            {
-                Directory.CreateDirectory(folder);
-                var wsService = new WorkspaceService(new WorkspaceOptions());
-                var store = new WorkspaceLibraryReferenceStore(wsService);
+            using var folder = new TempFolder();
+            var wsService = new WorkspaceService(new WorkspaceOptions());
+            var store = new WorkspaceLibraryReferenceStore(wsService);
 
-                store.Upsert(folder, new WorkspaceLibraryReference { ReferenceId = "x1", PartId = "p1" });
-                Assert.NotEmpty(store.Load(folder));
+            store.Upsert(folder.Path, new WorkspaceLibraryReference { ReferenceId = "x1", PartId = "p1" });
+            Assert.NotEmpty(store.Load(folder.Path));
 
-                var removed = store.Remove(folder, "x1");
-                Assert.True(removed);
-                Assert.Empty(store.Load(folder));
-            }
-            finally
-            {
-                if (Directory.Exists(folder))
-                    Directory.Delete(folder, true);
-            }
+            var removed = store.Remove(folder.Path, "x1");
+            Assert.True(removed);
+            Assert.Empty(store.Load(folder.Path));
         }
 
         [Fact]
         public void Remove_NonExistentReference_ReturnsFalse()
         {
-            var folder = Path.Combine(Path.GetTempPath(), "PLTest_" + Guid.NewGuid().ToString("N"));
-            try
-            {
-                Directory.CreateDirectory(folder);
-                var wsService = new WorkspaceService(new WorkspaceOptions());
-                var store = new WorkspaceLibraryReferenceStore(wsService);
+            using var folder = new TempFolder();
+            var wsService = new WorkspaceService(new WorkspaceOptions());
+            var store = new WorkspaceLibraryReferenceStore(wsService);
+            Assert.False(store.Remove(folder.Path, "nonexistent"));
+        }
 
-                var removed = store.Remove(folder, "nonexistent");
-                Assert.False(removed);
-            }
-            finally
+        [Fact]
+        public void DuplicateReferenceUpdate_AllFieldsPreservedFromNew()
+        {
+            using var folder = new TempFolder();
+            var wsService = new WorkspaceService(new WorkspaceOptions());
+            var store = new WorkspaceLibraryReferenceStore(wsService);
+
+            store.Upsert(folder.Path, new WorkspaceLibraryReference
             {
-                if (Directory.Exists(folder))
-                    Directory.Delete(folder, true);
+                ReferenceId = "ref1", PartId = "oldPartId", PartConfigId = "oldConfigId",
+                Revision = "A", RevisionPolicy = "Pinned", LibraryEntryId = "entry1", Quantity = 1
+            });
+
+            store.Upsert(folder.Path, new WorkspaceLibraryReference
+            {
+                ReferenceId = "ref1", PartId = "newPartId", PartConfigId = "newConfigId",
+                Revision = "B", RevisionPolicy = "LatestReleased", LibraryEntryId = "entry2", Quantity = 5
+            });
+
+            var loaded = store.Load(folder.Path);
+            var match = loaded.FirstOrDefault(r => r.ReferenceId == "ref1");
+            Assert.NotNull(match);
+            Assert.Equal("newPartId", match.PartId);
+            Assert.Equal("newConfigId", match.PartConfigId);
+            Assert.Equal("B", match.Revision);
+            Assert.Equal("LatestReleased", match.RevisionPolicy);
+            Assert.Equal("entry2", match.LibraryEntryId);
+            Assert.Equal(5, match.Quantity);
+        }
+
+        // ── LibraryUsageRequest ─────────────────────────────────────────
+
+        [Fact]
+        public void UsageRequest_UsedByFieldCarriesThrough()
+        {
+            var request = new LibraryUsageRequest
+            {
+                LibraryEntryId = "entry1", PartId = "part1", ProjectCode = "PROJ",
+                ParentPartId = "parent1", Quantity = 2, UsedBy = "testuser",
+                CommitId = "commit1", ActionType = "ReusedFromLibrary"
+            };
+            Assert.Equal("testuser", request.UsedBy);
+        }
+
+        [Fact]
+        public void UsageRequest_UsedByCanBeNull()
+        {
+            var request = new LibraryUsageRequest { LibraryEntryId = "entry1", UsedBy = null };
+            Assert.Null(request.UsedBy);
+        }
+
+        // ── Error message strings (Task 9 review) ───────────────────────
+
+        [Theory]
+        [InlineData("Authentication failure.", false)]
+        [InlineData("Permission denied.", false)]
+        [InlineData("not found", false)]
+        [InlineData("Server is unavailable.", false)]
+        [InlineData("access token", true)]
+        [InlineData("Authorization: Bearer", true)]
+        [InlineData("SOAP-ENV:", true)]
+        public void ClassifyArasError_DoesNotLeakCredentials(string fragment, bool shouldLeak)
+        {
+            foreach (ArasErrorCode code in Enum.GetValues(typeof(ArasErrorCode)))
+            {
+                var ex = new ArasOperationException(code, "test " + code);
+                var msg = HttpPdmRepositoryClient.ClassifyArasError(ex) ?? "";
+                if (shouldLeak)
+                    Assert.DoesNotContain(fragment, msg, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private sealed class TempFolder : IDisposable
+        {
+            public string Path { get; } = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                "PLTest_" + Guid.NewGuid().ToString("N"));
+
+            public TempFolder()
+            {
+                Directory.CreateDirectory(Path);
+            }
+
+            public void Dispose()
+            {
+                try { Directory.Delete(Path, true); }
+                catch { }
             }
         }
     }

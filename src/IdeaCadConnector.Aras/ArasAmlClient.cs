@@ -107,17 +107,20 @@ namespace IdeaCadConnector.Aras
 
                 if (fault.IndexOf("No items of type", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    var errMsg = "Item not found: " + itemId;
+                    var code = ClassifyNotFoundError(itemType);
+                    var errMsg = code == ArasErrorCode.PartNotFound
+                        ? "Part not found: " + itemId
+                        : "Item not found: " + itemId;
                     throw new ArasOperationException(
-                        ArasErrorCode.CadNotFound,
+                        code,
                         errMsg,
-                        details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action });
+                        details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
                 }
 
                 throw new ArasOperationException(
                     ArasErrorCode.UnexpectedServerError,
                     "AML action '" + action + "' on " + itemType + " failed: " + fault,
-                    details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action });
+                    details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
             }
 
             var resultContent = ExtractXmlElement(soapXml, "Result");
@@ -277,10 +280,14 @@ namespace IdeaCadConnector.Aras
 
                 if (fault.IndexOf("No items of type", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
+                    var code = ClassifyNotFoundError(itemType);
+                    var errMsg2 = code == ArasErrorCode.PartNotFound
+                        ? "Part not found: " + itemId
+                        : "Item not found: " + itemId;
                     throw new ArasOperationException(
-                        ArasErrorCode.CadNotFound,
-                        "CAD item not found: " + itemId,
-                        details: new Dictionary<string, string> { ["cadId"] = itemId, ["action"] = action });
+                        code,
+                        errMsg2,
+                        details: new Dictionary<string, string> { ["itemId"] = itemId, ["action"] = action, ["itemType"] = itemType });
                 }
 
                 throw new ArasOperationException(
@@ -366,6 +373,17 @@ namespace IdeaCadConnector.Aras
                 code = ArasErrorCode.UnexpectedServerError;
 
             return new ArasOperationException(code, "Method '" + methodName + "' failed: " + errorText);
+        }
+
+        private static ArasErrorCode ClassifyNotFoundError(string itemType)
+        {
+            if (string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase))
+                return ArasErrorCode.PartNotFound;
+
+            if (string.Equals(itemType, "CAD", StringComparison.OrdinalIgnoreCase))
+                return ArasErrorCode.CadNotFound;
+
+            return ArasErrorCode.ValidationFailed;
         }
 
         private static string EscapeXml(string value)

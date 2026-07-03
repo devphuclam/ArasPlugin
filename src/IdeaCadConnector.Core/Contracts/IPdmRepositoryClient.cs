@@ -103,6 +103,18 @@ namespace IdeaCadConnector.Core.Contracts
         public string LinkedPartLogicalCode { get; set; }
     }
 
+    public sealed class PdmBomPushResult
+    {
+        public string ParentLogicalCode { get; set; }
+        public string ChildLogicalCode { get; set; }
+        public string ParentPartId { get; set; }
+        public string ChildPartId { get; set; }
+        public int Quantity { get; set; }
+        public bool Success { get; set; }
+        public BomActionResult ActionTaken { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
     public sealed class PdmPushResult
     {
         public bool Success { get; set; }
@@ -112,6 +124,7 @@ namespace IdeaCadConnector.Core.Contracts
         public IReadOnlyList<PdmItemResult> PartResults { get; set; }
         public IReadOnlyList<PdmItemResult> CadResults { get; set; }
         public IReadOnlyList<PdmItemResult> DocumentResults { get; set; }
+        public IReadOnlyList<PdmBomPushResult> BomResults { get; set; }
         public string ErrorMessage { get; set; }
         public IReadOnlyList<string> Warnings { get; set; }
     }

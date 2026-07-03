@@ -1125,123 +1125,143 @@ namespace IdeaCadConnector.Desktop
         private void AnalyzeFolder()
         {
             IsAnalyzing = true;
-            LoadBranchesForFolder();
-            var policy = LoadPolicy();
-            NamingPolicyVersion = policy.PolicyVersion;
+            try
+            {
+                LoadBranchesForFolder();
+                var policy = LoadPolicy();
+                NamingPolicyVersion = policy.PolicyVersion;
 
-            var sources = ResolveAnalysisSources(FolderPath);
-            _latestSources = sources;
-            if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
-            {
-                _latestAnalysis = new Aras01FolderAnalyzer(policy).Analyze(sources.CadFolder);
-            }
-            else
-            {
-                _latestAnalysis = new PdmFolderAnalysis
+                var sources = ResolveAnalysisSources(FolderPath);
+                _latestSources = sources;
+                if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
                 {
-                    FolderPath = FolderPath
-                };
-            }
-
-            _latestBusinessStructure = new StudyCase0603StructureParser().Analyze(
-                sources.PackageFolder,
-                _latestAnalysis.ProjectCode);
-
-            if (string.IsNullOrWhiteSpace(_latestAnalysis.ProjectCode) &&
-                !string.IsNullOrWhiteSpace(_latestBusinessStructure?.ProjectCode))
-            {
-                _latestAnalysis.ProjectCode = _latestBusinessStructure.ProjectCode;
-            }
-
-            if (_latestAnalysis.PrimaryAssembly == null &&
-                !string.IsNullOrWhiteSpace(_latestBusinessStructure?.RootDrawingFileName))
-            {
-                var rootDrawing = new PdmParsedFile
+                    _latestAnalysis = new Aras01FolderAnalyzer(policy).Analyze(sources.CadFolder);
+                }
+                else
                 {
-                    FileName = _latestBusinessStructure.RootDrawingFileName,
-                    RelativePath = _latestBusinessStructure.RootDrawingFileName,
-                    FullPath = sources.PackageFolder == null
-                        ? _latestBusinessStructure.RootDrawingFileName
-                        : Path.Combine(sources.PackageFolder, _latestBusinessStructure.RootDrawingFileName),
-                    ProjectCode = _latestAnalysis.ProjectCode,
-                    NodeType = "Assembly",
-                    Status = "Package root drawing"
-                };
+                    _latestAnalysis = new PdmFolderAnalysis
+                    {
+                        FolderPath = FolderPath
+                    };
+                }
 
-                _latestAnalysis.PrimaryAssembly = rootDrawing;
-                _latestAnalysis.TrackedFiles.Add(rootDrawing);
-                _latestAnalysis.AssemblyFiles.Add(rootDrawing);
+                _latestBusinessStructure = new StudyCase0603StructureParser().Analyze(
+                    sources.PackageFolder,
+                    _latestAnalysis.ProjectCode);
+
+                if (string.IsNullOrWhiteSpace(_latestAnalysis.ProjectCode) &&
+                    !string.IsNullOrWhiteSpace(_latestBusinessStructure?.ProjectCode))
+                {
+                    _latestAnalysis.ProjectCode = _latestBusinessStructure.ProjectCode;
+                }
+
+                if (_latestAnalysis.PrimaryAssembly == null &&
+                    !string.IsNullOrWhiteSpace(_latestBusinessStructure?.RootDrawingFileName))
+                {
+                    var rootDrawing = new PdmParsedFile
+                    {
+                        FileName = _latestBusinessStructure.RootDrawingFileName,
+                        RelativePath = _latestBusinessStructure.RootDrawingFileName,
+                        FullPath = sources.PackageFolder == null
+                            ? _latestBusinessStructure.RootDrawingFileName
+                            : Path.Combine(sources.PackageFolder, _latestBusinessStructure.RootDrawingFileName),
+                        ProjectCode = _latestAnalysis.ProjectCode,
+                        NodeType = "Assembly",
+                        Status = "Package root drawing"
+                    };
+
+                    _latestAnalysis.PrimaryAssembly = rootDrawing;
+                    _latestAnalysis.TrackedFiles.Add(rootDrawing);
+                    _latestAnalysis.AssemblyFiles.Add(rootDrawing);
+                }
+
+                try
+                {
+                    _workspaceLibraryReferences = LoadWorkspaceLibraryReferences();
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var path = _libraryReferenceStore?.GetFilePath(FolderPath) ?? ".idea-pdm/library-references.json";
+                    _workspaceLibraryReferences = Array.Empty<WorkspaceLibraryReference>();
+                    _latestAnalysis.Issues.Add(new PdmNamingIssue
+                    {
+                        FileName = path,
+                        Message = "Library references file is corrupted: " + ex.Message,
+                        BlocksPush = true
+                    });
+                    StatusMessage = "Library references file is corrupted. Open '" + path + "' and fix the JSON format, or delete the file to start fresh.";
+                }
+
+                PdmStructure.Clear();
+                CadStructure.Clear();
+                StructureMappings.Clear();
+                Changes.Clear();
+                Documents.Clear();
+                NamingPreview.Clear();
+                Repositories.Clear();
+                ProjectFiles.Clear();
+                PreviewParts.Clear();
+                PreviewCads.Clear();
+                PreviewDocuments.Clear();
+                PreviewIgnoredFiles.Clear();
+                _documentsByPartCode.Clear();
+                _pushPreview = null;
+                SelectedNode = null;
+
+                if (!string.IsNullOrWhiteSpace(_latestAnalysis.ProjectCode))
+                {
+                    Repositories.Add(_latestAnalysis.ProjectCode);
+                    SelectedRepository = _latestAnalysis.ProjectCode;
+                }
+                else
+                {
+                    SelectedRepository = null;
+                }
+
+                BuildPdmStructure(_latestAnalysis, _latestBusinessStructure);
+                TrackedFileCount = _latestAnalysis.TrackedFiles.Count;
+                IgnoredFileCount = _latestAnalysis.IgnoredFiles.Count;
+                BlockingIssueCount = _latestAnalysis.Issues.Count(issue => issue.BlocksPush);
+                TotalChangeCount = TrackedFileCount + IgnoredFileCount + BlockingIssueCount;
+                BuildNamingPreview(_latestAnalysis);
+                BuildChanges(_latestAnalysis);
+                BuildCadStructure(_latestAnalysis, _latestBusinessStructure);
+                BuildStructureMappings(_latestAnalysis, _latestBusinessStructure);
+                BuildDocuments(_latestAnalysis, _latestBusinessStructure, sources.PackageFolder ?? FolderPath, sources.CadFolder ?? FolderPath);
+                BuildProjectFiles(sources);
+                BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
+                BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
+                _ = RefreshPreviewFromServerAsync();
+
+                OnPropertyChanged(nameof(HasPdmStructure));
+                OnPropertyChanged(nameof(HasCadStructure));
+                OnPropertyChanged(nameof(HasStructureMappings));
+                OnPropertyChanged(nameof(HasStructure));
+                OnPropertyChanged(nameof(HasProjectFiles));
+                OnPropertyChanged(nameof(HasChanges));
+                OnPropertyChanged(nameof(HasNamingPreview));
+                OnPropertyChanged(nameof(HasDocuments));
+                OnPropertyChanged(nameof(HasRelatedFiles));
+                LoadCommitHistoryForFolder();
+
+                OnPropertyChanged(nameof(HasPushPreview));
+                OnPropertyChanged(nameof(PushPreviewReadiness));
+                OnPropertyChanged(nameof(CanPush));
+                OnPropertyChanged(nameof(WorkingTreeSummary));
+                OnPropertyChanged(nameof(HasUncommittedChanges));
+                OnPropertyChanged(nameof(CanCommit));
+                OnPropertyChanged(nameof(LatestCommitSummary));
+
+                _pushCommand.RaiseCanExecuteChanged();
+                (CommitCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                _refreshCommand.RaiseCanExecuteChanged();
+                _analyzeFolderCommand.RaiseCanExecuteChanged();
+                _browseFolderCommand.RaiseCanExecuteChanged();
             }
-
-            _workspaceLibraryReferences = LoadWorkspaceLibraryReferences();
-
-            PdmStructure.Clear();
-            CadStructure.Clear();
-            StructureMappings.Clear();
-            Changes.Clear();
-            Documents.Clear();
-            NamingPreview.Clear();
-            Repositories.Clear();
-            ProjectFiles.Clear();
-            PreviewParts.Clear();
-            PreviewCads.Clear();
-            PreviewDocuments.Clear();
-            PreviewIgnoredFiles.Clear();
-            _documentsByPartCode.Clear();
-            _pushPreview = null;
-            SelectedNode = null;
-
-            if (!string.IsNullOrWhiteSpace(_latestAnalysis.ProjectCode))
+            finally
             {
-                Repositories.Add(_latestAnalysis.ProjectCode);
-                SelectedRepository = _latestAnalysis.ProjectCode;
+                IsAnalyzing = false;
             }
-            else
-            {
-                SelectedRepository = null;
-            }
-
-            BuildPdmStructure(_latestAnalysis, _latestBusinessStructure);
-            TrackedFileCount = _latestAnalysis.TrackedFiles.Count;
-            IgnoredFileCount = _latestAnalysis.IgnoredFiles.Count;
-            BlockingIssueCount = _latestAnalysis.Issues.Count(issue => issue.BlocksPush);
-            TotalChangeCount = TrackedFileCount + IgnoredFileCount + BlockingIssueCount;
-            BuildNamingPreview(_latestAnalysis);
-            BuildChanges(_latestAnalysis);
-            BuildCadStructure(_latestAnalysis, _latestBusinessStructure);
-            BuildStructureMappings(_latestAnalysis, _latestBusinessStructure);
-            BuildDocuments(_latestAnalysis, _latestBusinessStructure, sources.PackageFolder ?? FolderPath, sources.CadFolder ?? FolderPath);
-            BuildProjectFiles(sources);
-            BuildSummary(_latestAnalysis, _latestBusinessStructure, sources);
-            BuildPushPreview(_latestAnalysis, _latestBusinessStructure);
-            _ = RefreshPreviewFromServerAsync();
-
-            OnPropertyChanged(nameof(HasPdmStructure));
-            OnPropertyChanged(nameof(HasCadStructure));
-            OnPropertyChanged(nameof(HasStructureMappings));
-            OnPropertyChanged(nameof(HasStructure));
-            OnPropertyChanged(nameof(HasProjectFiles));
-            OnPropertyChanged(nameof(HasChanges));
-            OnPropertyChanged(nameof(HasNamingPreview));
-            OnPropertyChanged(nameof(HasDocuments));
-            OnPropertyChanged(nameof(HasRelatedFiles));
-            LoadCommitHistoryForFolder();
-
-            OnPropertyChanged(nameof(HasPushPreview));
-            OnPropertyChanged(nameof(PushPreviewReadiness));
-            OnPropertyChanged(nameof(CanPush));
-            OnPropertyChanged(nameof(WorkingTreeSummary));
-            OnPropertyChanged(nameof(HasUncommittedChanges));
-            OnPropertyChanged(nameof(CanCommit));
-            OnPropertyChanged(nameof(LatestCommitSummary));
-
-            _pushCommand.RaiseCanExecuteChanged();
-            (CommitCommand as RelayCommand)?.RaiseCanExecuteChanged();
-            _refreshCommand.RaiseCanExecuteChanged();
-            _analyzeFolderCommand.RaiseCanExecuteChanged();
-            _browseFolderCommand.RaiseCanExecuteChanged();
-
-            IsAnalyzing = false;
         }
 
         private void BuildNamingPreview(PdmFolderAnalysis analysis)

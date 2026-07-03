@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
+using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Errors;
 using Microsoft.Extensions.Logging;
@@ -336,6 +337,7 @@ namespace IdeaCadConnector.Aras
                 }
 
                 var bomFailures = new List<string>();
+                var bomResults = new List<PdmBomPushResult>();
                 foreach (var part in request.Parts ?? Array.Empty<PdmPartRequest>())
                 {
                     if (!string.IsNullOrWhiteSpace(part.ParentLogicalCode) &&
@@ -345,16 +347,51 @@ namespace IdeaCadConnector.Aras
                         try
                         {
                             var bomResult = await EnsurePartBomAsync(parentId, childId, part.Quantity, ct).ConfigureAwait(false);
+                            var bomSuccess = bomResult == BomActionResult.Created ||
+                                             bomResult == BomActionResult.QuantityUpdated ||
+                                             bomResult == BomActionResult.Unchanged;
+                            var bomPushResult = new PdmBomPushResult
+                            {
+                                ParentLogicalCode = part.ParentLogicalCode,
+                                ChildLogicalCode = part.LogicalCode,
+                                ParentPartId = parentId,
+                                ChildPartId = childId,
+                                Quantity = part.Quantity,
+                                Success = bomSuccess,
+                                ActionTaken = bomResult
+                            };
                             if (bomResult == BomActionResult.InvalidParentChild)
                             {
-                                _logger.LogWarning("BOM skipped for Part {PartNumber}: parentId equals childId ({Id})", part.PartNumber, parentId);
+                                var msg = $"Part {part.PartNumber ?? part.LogicalCode}: parent and child resolve to the same Aras Part ID ({parentId}).";
+                                _logger.LogWarning("BOM blocked: {Msg}", msg);
+                                bomPushResult.ErrorMessage = msg;
+                                bomFailures.Add(msg);
                             }
+                            else if (bomResult == BomActionResult.InvalidQuantity)
+                            {
+                                var msg = $"Part {part.PartNumber ?? part.LogicalCode}: quantity must be greater than zero (got {part.Quantity}).";
+                                _logger.LogWarning("BOM blocked: {Msg}", msg);
+                                bomPushResult.ErrorMessage = msg;
+                                bomFailures.Add(msg);
+                            }
+                            bomResults.Add(bomPushResult);
                         }
                         catch (ArasOperationException ex)
                         {
                             var msg = ClassifyArasError(ex) ?? "BOM relationship failed: " + ex.Message;
                             _logger.LogWarning(ex, "BOM upsert failed for Part {PartNumber} (parent={ParentId} child={ChildId}): {Msg}", part.PartNumber, parentId, childId, msg);
-                            bomFailures.Add($"  - {part.PartNumber ?? part.LogicalCode}: {msg}");
+                            bomFailures.Add($"- {part.PartNumber ?? part.LogicalCode}: {msg}");
+                            bomResults.Add(new PdmBomPushResult
+                            {
+                                ParentLogicalCode = part.ParentLogicalCode,
+                                ChildLogicalCode = part.LogicalCode,
+                                ParentPartId = parentId,
+                                ChildPartId = childId,
+                                Quantity = part.Quantity,
+                                Success = false,
+                                ActionTaken = BomActionResult.InvalidParentChild,
+                                ErrorMessage = msg
+                            });
                         }
                     }
                 }
@@ -408,7 +445,8 @@ namespace IdeaCadConnector.Aras
                 var partsSucceeded = partResults.All(r => r.Success);
                 var docsSucceeded = docResults.All(r => r.Success);
                 var cadsMetadataSucceeded = cadResults.All(r => r.Success);
-                var allBusinessSuccess = partsSucceeded && docsSucceeded && bomFailures.Count == 0;
+                var hasBomFailure = bomFailures.Count > 0;
+                var allBusinessSuccess = partsSucceeded && docsSucceeded && !hasBomFailure;
 
                 if (allBusinessSuccess)
                 {
@@ -417,11 +455,6 @@ namespace IdeaCadConnector.Aras
                     result.StagingOnly = false;
 
                     var warnings = new List<string>(result.Warnings ?? Array.Empty<string>());
-                    if (bomFailures.Count > 0)
-                    {
-                        warnings.Add("BOM relationship(s) failed:");
-                        warnings.AddRange(bomFailures);
-                    }
                     if (!cadsMetadataSucceeded)
                     {
                         var fileFailures = cadResults
@@ -450,11 +483,37 @@ namespace IdeaCadConnector.Aras
                     result.Success = false;
                     result.LiveDataUpdated = false;
                     result.StagingOnly = false;
-                    var failedParts = partResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
-                    var failedCads = cadResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
-                    var failedDocs = docResults.Where(r => !r.Success).Select(r => $"  - {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}");
-                    result.ErrorMessage = $"Business item(s) failed:{Environment.NewLine}Parts:{Environment.NewLine}{string.Join(Environment.NewLine, failedParts)}{Environment.NewLine}CADs:{Environment.NewLine}{string.Join(Environment.NewLine, failedCads)}{Environment.NewLine}Documents:{Environment.NewLine}{string.Join(Environment.NewLine, failedDocs)}";
+                    var errorLines = new List<string>();
+                    var failedParts = partResults.Where(r => !r.Success).Select(r => $"- {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}").ToList();
+                    if (failedParts.Count > 0)
+                    {
+                        errorLines.Add("Parts:");
+                        errorLines.AddRange(failedParts);
+                    }
+                    var failedCads = cadResults.Where(r => !r.Success).Select(r => $"- {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}").ToList();
+                    if (failedCads.Count > 0)
+                    {
+                        errorLines.Add("CADs:");
+                        errorLines.AddRange(failedCads);
+                    }
+                    var failedDocs = docResults.Where(r => !r.Success).Select(r => $"- {r.SourceKey ?? "(unknown)"}: {r.ErrorMessage ?? "Unknown error"}").ToList();
+                    if (failedDocs.Count > 0)
+                    {
+                        errorLines.Add("Documents:");
+                        errorLines.AddRange(failedDocs);
+                    }
+                    if (bomFailures.Count > 0)
+                    {
+                        errorLines.Add("BOM relationships:");
+                        errorLines.AddRange(bomFailures.Select(f => $"- {f}"));
+                    }
+                    result.ErrorMessage = "Business item push failed." +
+                        (errorLines.Count > 0
+                            ? Environment.NewLine + string.Join(Environment.NewLine, errorLines)
+                            : string.Empty);
                 }
+
+                result.BomResults = bomResults;
             }
             catch (Exception ex)
             {
@@ -479,7 +538,7 @@ namespace IdeaCadConnector.Aras
 
         public static bool IsPartObsolete(string state)
         {
-            return CadLifecyclePolicy.IsState(state, CadLifecyclePolicy.Obsolete);
+            return PartLifecyclePolicy.IsPartObsolete(state);
         }
 
         public static string ClassifyArasError(ArasOperationException ex)
