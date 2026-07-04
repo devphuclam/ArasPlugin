@@ -149,13 +149,14 @@ namespace IdeaCadConnector.Aras
             await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
 
             var entryItem = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
+            var usageSnapshot = await LoadUsageCountsAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                return await MapEntryDetailsAsync(entryItem, cancellationToken).ConfigureAwait(false);
+                return await MapEntryDetailsAsync(entryItem, usageSnapshot, cancellationToken).ConfigureAwait(false);
             }
             catch (ArasOperationException ex) when (IsEntryResolutionFailure(ex))
             {
-                var summary = await CreateDiagnosticSummaryAsync(entryItem, ex, cancellationToken).ConfigureAwait(false);
+                var summary = await CreateDiagnosticSummaryAsync(entryItem, ex, usageSnapshot, cancellationToken).ConfigureAwait(false);
                 return new PartLibraryEntryDetails
                 {
                     EntryId = summary.EntryId,
@@ -701,7 +702,6 @@ namespace IdeaCadConnector.Aras
                 null,
                 ct).ConfigureAwait(false);
 
-            // Load authoritative usage counts from Usage Items (grouped by library_entry_id)
             var usageCounts = await LoadUsageCountsAsync(ct).ConfigureAwait(false);
 
             var summaries = new List<PartLibraryEntrySummary>();
@@ -715,14 +715,14 @@ namespace IdeaCadConnector.Aras
                 }
                 catch (ArasOperationException ex) when (IsEntryResolutionFailure(ex))
                 {
-                    summaries.Add(await CreateDiagnosticSummaryAsync(rel, ex, ct).ConfigureAwait(false));
+                    summaries.Add(await CreateDiagnosticSummaryAsync(rel, ex, usageCounts, ct).ConfigureAwait(false));
                 }
             }
 
             return summaries;
         }
 
-        private async Task<IReadOnlyDictionary<string, int>> LoadUsageCountsAsync(CancellationToken ct)
+        private async Task<UsageCountSnapshot> LoadUsageCountsAsync(CancellationToken ct)
         {
             try
             {
@@ -750,36 +750,35 @@ namespace IdeaCadConnector.Aras
                         groups[entryId] = 1;
                 }
 
-                return groups;
+                return new UsageCountSnapshot
+                {
+                    IsAuthoritative = true,
+                    Counts = groups
+                };
             }
-            catch (ArasOperationException ex) when (IsAuthOrPermissionFailure(ex))
+            catch (OperationCanceledException)
             {
-                // Auth or permission failure must not silently use the cache
                 throw;
             }
             catch (ArasOperationException ex)
             {
-                // Missing or undeployed Usage ItemType: use cached usage_count and log warning
-                _logger.LogWarning(ex,
-                    "Usage ItemType '{ItemType}' query failed. Using cached usage_count as fallback.",
-                    PartLibrarySchemaNames.UsageItemType);
-                return new Dictionary<string, int>(0);
-            }
-            catch (Exception ex)
-            {
-                if (IsAuthOrPermissionFailure(ex))
+                if (!IsMissingUsageItemTypeError(ex))
                     throw;
 
                 _logger.LogWarning(ex,
-                    "Usage ItemType '{ItemType}' query failed with unexpected error. Using cached usage_count as fallback.",
+                    "Usage ItemType '{ItemType}' is not deployed. Using cached usage_count as compatibility fallback.",
                     PartLibrarySchemaNames.UsageItemType);
-                return new Dictionary<string, int>(0);
+                return new UsageCountSnapshot
+                {
+                    IsAuthoritative = false,
+                    Counts = new Dictionary<string, int>(0)
+                };
             }
         }
 
         private async Task<PartLibraryEntrySummary> MapEntrySummaryAsync(
             JObject relationship,
-            IReadOnlyDictionary<string, int> usageCounts,
+            UsageCountSnapshot usageSnapshot,
             CancellationToken ct)
         {
             var partId = relationship["related_id"]?.Value<string>();
@@ -818,13 +817,6 @@ namespace IdeaCadConnector.Aras
             var cad = await GetPrimaryCadInfoAsync(resolvedPart["id"]?.Value<string>(), ct).ConfigureAwait(false);
             var latestReleased = await GetLatestReleasedPartAsync(configId, resolvedPart["id"]?.Value<string>(), ct).ConfigureAwait(false);
 
-            // Use authoritative Usage Items count when available, fall back to cached usage_count
-            int authoritativeCount = 0;
-            if (usageCounts != null && !string.IsNullOrWhiteSpace(entryId) && usageCounts.TryGetValue(entryId, out var groupedCount))
-                authoritativeCount = groupedCount;
-            else
-                authoritativeCount = ParseInt(relationship["usage_count"]?.Value<string>(), 0);
-
             return new PartLibraryEntrySummary
             {
                 EntryId = entryId,
@@ -841,7 +833,7 @@ namespace IdeaCadConnector.Aras
                 RevisionPolicy = policy,
                 EntryStatus = effectiveStatus,
                 CadStatus = cad.Status,
-                UsageCount = authoritativeCount,
+                UsageCount = GetUsageCountForEntry(usageSnapshot, entryId, relationship["usage_count"]?.Value<string>()),
                 HasNewerReleasedRevision = latestReleased != null &&
                                           !string.Equals(latestReleased["id"]?.Value<string>(), resolvedPart["id"]?.Value<string>(), StringComparison.OrdinalIgnoreCase),
                 IsDeprecated = effectiveStatus == LibraryEntryStatus.Deprecated,
@@ -852,10 +844,12 @@ namespace IdeaCadConnector.Aras
             };
         }
 
-        private async Task<PartLibraryEntryDetails> MapEntryDetailsAsync(JObject relationship, CancellationToken ct)
+        private async Task<PartLibraryEntryDetails> MapEntryDetailsAsync(
+            JObject relationship,
+            UsageCountSnapshot usageSnapshot,
+            CancellationToken ct)
         {
-            var usageCounts = await LoadUsageCountsAsync(ct).ConfigureAwait(false);
-            var summary = await MapEntrySummaryAsync(relationship, usageCounts, ct).ConfigureAwait(false);
+            var summary = await MapEntrySummaryAsync(relationship, usageSnapshot, ct).ConfigureAwait(false);
             if (summary == null)
                 return null;
 
@@ -891,7 +885,11 @@ namespace IdeaCadConnector.Aras
             };
         }
 
-        private async Task<PartLibraryEntrySummary> CreateDiagnosticSummaryAsync(JObject relationship, Exception ex, CancellationToken ct)
+        private async Task<PartLibraryEntrySummary> CreateDiagnosticSummaryAsync(
+            JObject relationship,
+            Exception ex,
+            UsageCountSnapshot usageSnapshot,
+            CancellationToken ct)
         {
             var relatedPartId = relationship["related_id"]?.Value<string>();
             var libraryId = relationship["source_id"]?.Value<string>();
@@ -948,7 +946,7 @@ namespace IdeaCadConnector.Aras
                 RevisionPolicy = ParseRevisionPolicy(relationship["revision_policy"]?.Value<string>()),
                 EntryStatus = entryStatus,
                 CadStatus = "Unavailable",
-                UsageCount = ParseInt(relationship["usage_count"]?.Value<string>(), 0),
+                UsageCount = GetUsageCountForEntry(usageSnapshot, relationship["id"]?.Value<string>(), relationship["usage_count"]?.Value<string>()),
                 HasNewerReleasedRevision = false,
                 IsDeprecated = entryStatus == LibraryEntryStatus.Deprecated,
                 ResolutionFailed = true,
@@ -964,6 +962,29 @@ namespace IdeaCadConnector.Aras
                 return "Part was not found. It may have been deleted or moved.";
 
             return SanitizeForEntry(ex);
+        }
+
+        private static int GetUsageCountForEntry(
+            UsageCountSnapshot usageSnapshot,
+            string entryId,
+            string cachedUsageCount)
+        {
+            if (usageSnapshot != null && usageSnapshot.IsAuthoritative)
+            {
+                if (string.IsNullOrWhiteSpace(entryId))
+                    return 0;
+
+                int groupedCount;
+                if (usageSnapshot.Counts != null &&
+                    usageSnapshot.Counts.TryGetValue(entryId, out groupedCount))
+                {
+                    return groupedCount;
+                }
+
+                return 0;
+            }
+
+            return ParseInt(cachedUsageCount, 0);
         }
 
         private async Task<JObject> GetEntryRelationshipAsync(string entryId, CancellationToken ct)
@@ -1478,6 +1499,33 @@ namespace IdeaCadConnector.Aras
                    ex.ErrorCode == ArasErrorCode.CadNotFound;
         }
 
+        private static bool IsMissingUsageItemTypeError(Exception ex)
+        {
+            if (ex == null)
+                return false;
+
+            var message = ex.Message ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(message))
+                return false;
+
+            var lower = message.ToLowerInvariant();
+            var hasItemTypeName =
+                lower.Contains("idea_partlibraryusage") ||
+                lower.Contains("usage itemtype") ||
+                lower.Contains("usage item type");
+
+            if (!hasItemTypeName)
+                return false;
+
+            return lower.Contains("not deployed") ||
+                   lower.Contains("does not exist") ||
+                   lower.Contains("doesn't exist") ||
+                   lower.Contains("not defined") ||
+                   lower.Contains("undeployed") ||
+                   lower.Contains("not found") ||
+                   lower.Contains("missing");
+        }
+
         private static string SanitizeForEntry(Exception ex)
         {
             if (ex == null)
@@ -1573,6 +1621,13 @@ namespace IdeaCadConnector.Aras
             public string State { get; set; }
             public string LockedBy { get; set; }
             public string Status { get; set; }
+        }
+
+        private sealed class UsageCountSnapshot
+        {
+            public bool IsAuthoritative { get; set; }
+
+            public IReadOnlyDictionary<string, int> Counts { get; set; }
         }
     }
 }

@@ -128,24 +128,40 @@ if (!string.IsNullOrEmpty(parentPartId))
 // Query existing Usage by idempotency_key BEFORE attempting to add
 Item existingUsage = inn.newItem("idea_PartLibraryUsage", "get");
 existingUsage.setProperty("idempotency_key", idempotencyKey);
-existingUsage.setAttribute("select", "id,library_entry_id,usage_count,last_used_on");
+existingUsage.setAttribute("select", "id,library_entry_id,part_id,idempotency_key,created_on");
+existingUsage.setAttribute("maxRecords", "1");
 existingUsage = existingUsage.apply();
 
-if (!existingUsage.isError() && existingUsage.getItemCount() >= 1)
+if (existingUsage.isError())
+    return existingUsage;
+
+if (existingUsage.getItemCount() >= 1)
 {
     // Existing Usage found - return already_exists without creating a duplicate
-    string existingUsageId = existingUsage.getProperty("id", "");
+    Item existingUsageItem = existingUsage.getItemByIndex(0);
+    string existingUsageId = existingUsageItem.getProperty("id", "");
+    string existingEntryId = existingUsageItem.getProperty("library_entry_id", "");
+    string existingPartId = existingUsageItem.getProperty("part_id", "");
+    string existingKey = existingUsageItem.getProperty("idempotency_key", "");
+
+    if (!string.Equals(existingEntryId, libraryEntryId, System.StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(existingPartId, partId, System.StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(existingKey, idempotencyKey, System.StringComparison.Ordinal))
+    {
+        return inn.newError("Existing Usage record does not match the submitted idempotency key context.");
+    }
 
     // Calculate authoritative count for this entry
     Item countQuery = inn.newItem("idea_PartLibraryUsage", "get");
     countQuery.setProperty("library_entry_id", libraryEntryId);
     countQuery.setAttribute("select", "id");
     countQuery = countQuery.apply();
-    int authoritativeCount = 0;
-    if (!countQuery.isError())
-        authoritativeCount = countQuery.getItemCount();
+    if (countQuery.isError())
+        return countQuery;
 
-    string existingLastUsedOn = existingUsage.getProperty("last_used_on", "");
+    int authoritativeCount = countQuery.getItemCount();
+
+    string existingLastUsedOn = existingUsageItem.getProperty("created_on", "");
 
     Item result = inn.newResult("");
     result.setProperty("usage_id", existingUsageId);
@@ -188,9 +204,10 @@ if (usageCountQuery.isError())
 int usageCount = usageCountQuery.getItemCount();
 
 // Update Entry last_used_on and usage_count cache
+string currentDate = inn.getCurrentDate();
 Item updateEntry = inn.newItem("idea_PartLibraryEntry", "edit");
 updateEntry.setID(libraryEntryId);
-updateEntry.setProperty("last_used_on", inn.getCurrentDate());
+updateEntry.setProperty("last_used_on", currentDate);
 updateEntry.setProperty("usage_count", usageCount.ToString());
 updateEntry = updateEntry.apply();
 if (updateEntry.isError())
@@ -200,7 +217,7 @@ if (updateEntry.isError())
 Item result = inn.newResult("");
 result.setProperty("usage_id", usage.getID());
 result.setProperty("usage_count", usageCount.ToString());
-result.setProperty("last_used_on", inn.getCurrentDate());
+result.setProperty("last_used_on", currentDate);
 result.setProperty("already_exists", "0");
 result.setProperty("idempotency_key", idempotencyKey);
 return result;

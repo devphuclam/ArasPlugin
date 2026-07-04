@@ -58,7 +58,10 @@ namespace IdeaCadConnector.Tests
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
             fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestReleased", "cfg-1", "related-1"));
-            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlExceptionFactory = (amlBody, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.UsageItemType, StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ValidationFailed, "idea_PartLibraryUsage ItemType does not exist on server.")
+                    : null;
 
             var client = CreateClient(fake);
 
@@ -91,7 +94,10 @@ namespace IdeaCadConnector.Tests
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
             fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "related-1"));
-            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlExceptionFactory = (amlBody, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.UsageItemType, StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ValidationFailed, "idea_PartLibraryUsage ItemType does not exist on server.")
+                    : null;
 
             var client = CreateClient(fake);
 
@@ -668,7 +674,39 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public async Task SearchEntriesAsync_UsageItemTypeMissing_UsesCachedCount()
+        public async Task SearchEntriesAsync_UsageQueryWithNoRecords_ReturnsZeroEvenWithCachedCount()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["id"] = "entry-1",
+                ["source_id"] = "lib-1",
+                ["related_id"] = "related-1",
+                ["part_config_id"] = "cfg-1",
+                ["revision_policy"] = "Pinned",
+                ["pinned_part_id"] = "related-1",
+                ["entry_status"] = "Draft",
+                ["state"] = "Draft",
+                ["usage_count"] = "4"
+            }));
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
+
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None);
+
+            var entry = Assert.Single(result.Entries);
+            Assert.Equal(0, entry.UsageCount);
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_UsageQueryWithNoRecords_ReturnsZeroEvenWithCachedCount_AndCacheIgnored()
         {
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
@@ -693,6 +731,41 @@ namespace IdeaCadConnector.Tests
             fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
 
             // ApplyItem calls
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None);
+
+            var entry = Assert.Single(result.Entries);
+            Assert.Equal(0, entry.UsageCount);
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_UsageItemTypeMissing_UsesCachedCount()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["id"] = "entry-1",
+                ["source_id"] = "lib-1",
+                ["related_id"] = "related-1",
+                ["part_config_id"] = "cfg-1",
+                ["revision_policy"] = "Pinned",
+                ["pinned_part_id"] = "related-1",
+                ["entry_status"] = "Draft",
+                ["state"] = "Draft",
+                ["usage_count"] = "2"
+            }));
+            fake.ApplyAmlExceptionFactory = (amlBody, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.UsageItemType, StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ValidationFailed, "idea_PartLibraryUsage ItemType does not exist on server.")
+                    : null;
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
+
             fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
             fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
 
@@ -747,6 +820,50 @@ namespace IdeaCadConnector.Tests
         }
 
         // ── Diagnostic Entry tests ─────────────────────────────────────
+
+        [Fact]
+        public async Task SearchEntriesAsync_ValidationFailedQueryingUsage_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(Entry("entry-1", "Pinned", "cfg-1", "related-1")));
+            fake.ApplyAmlExceptionFactory = (amlBody, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.UsageItemType, StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ValidationFailed, "Usage query failed for a business rule.")
+                    : null;
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
+
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_UnexpectedUsageQueryException_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(Entry("entry-1", "Pinned", "cfg-1", "related-1")));
+            fake.ApplyAmlExceptionFactory = (amlBody, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.UsageItemType, StringComparison.OrdinalIgnoreCase)
+                    ? new IOException("socket reset")
+                    : null;
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
+
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<IOException>(() =>
+                client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None));
+        }
 
         [Fact]
         public async Task SearchEntriesAsync_MissingSourceLibrary_ProducesDiagnosticEntry()
@@ -1012,6 +1129,10 @@ namespace IdeaCadConnector.Tests
             var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
             var source = File.ReadAllText(sourcePath);
             Assert.Contains("existingUsage", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("maxRecords", source, StringComparison.Ordinal);
+            Assert.Contains("getItemByIndex", source, StringComparison.Ordinal);
+            Assert.Contains("created_on", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("select=\"id,library_entry_id,usage_count,last_used_on\"", source, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
