@@ -1521,9 +1521,7 @@ namespace IdeaCadConnector.Aras
                    lower.Contains("does not exist") ||
                    lower.Contains("doesn't exist") ||
                    lower.Contains("not defined") ||
-                   lower.Contains("undeployed") ||
-                   lower.Contains("not found") ||
-                   lower.Contains("missing");
+                   lower.Contains("undeployed");
         }
 
         private static string SanitizeForEntry(Exception ex)

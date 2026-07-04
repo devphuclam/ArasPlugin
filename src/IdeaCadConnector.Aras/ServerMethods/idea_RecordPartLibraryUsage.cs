@@ -132,7 +132,10 @@ existingUsage.setAttribute("select", "id,library_entry_id,part_id,idempotency_ke
 existingUsage.setAttribute("maxRecords", "1");
 existingUsage = existingUsage.apply();
 
-if (existingUsage.isError())
+string existingUsageErrorCode = "";
+try { existingUsageErrorCode = existingUsage.getErrorCode() + ""; } catch { existingUsageErrorCode = ""; }
+
+if (existingUsage.isError() && existingUsageErrorCode != "0")
     return existingUsage;
 
 if (existingUsage.getItemCount() >= 1)
@@ -154,10 +157,13 @@ if (existingUsage.getItemCount() >= 1)
     // Calculate authoritative count for this entry
     Item countQuery = inn.newItem("idea_PartLibraryUsage", "get");
     countQuery.setProperty("library_entry_id", libraryEntryId);
-    countQuery.setAttribute("select", "id");
-    countQuery = countQuery.apply();
-    if (countQuery.isError())
-        return countQuery;
+countQuery.setAttribute("select", "id");
+countQuery = countQuery.apply();
+string countQueryErrorCode = "";
+try { countQueryErrorCode = countQuery.getErrorCode() + ""; } catch { countQueryErrorCode = ""; }
+
+if (countQuery.isError() && countQueryErrorCode != "0")
+    return countQuery;
 
     int authoritativeCount = countQuery.getItemCount();
 
@@ -198,7 +204,10 @@ Item usageCountQuery = inn.newItem("idea_PartLibraryUsage", "get");
 usageCountQuery.setProperty("library_entry_id", libraryEntryId);
 usageCountQuery.setAttribute("select", "id");
 usageCountQuery = usageCountQuery.apply();
-if (usageCountQuery.isError())
+string usageCountQueryErrorCode = "";
+try { usageCountQueryErrorCode = usageCountQuery.getErrorCode() + ""; } catch { usageCountQueryErrorCode = ""; }
+
+if (usageCountQuery.isError() && usageCountQueryErrorCode != "0")
     return usageCountQuery;
 
 int usageCount = usageCountQuery.getItemCount();
