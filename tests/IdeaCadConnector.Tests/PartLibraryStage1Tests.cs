@@ -745,7 +745,6 @@ namespace IdeaCadConnector.Tests
         {
             var sourcePath = Path.Combine(
                 FindRepoRoot(),
-                "IdeaCadConnector",
                 "src",
                 "IdeaCadConnector.Aras",
                 "HttpPartLibraryClient.cs");
@@ -1148,6 +1147,9 @@ namespace IdeaCadConnector.Tests
             Assert.Contains("maxRecords", source, StringComparison.Ordinal);
             Assert.Contains("getItemByIndex", source, StringComparison.Ordinal);
             Assert.Contains("created_on", source, StringComparison.Ordinal);
+            Assert.Contains("getErrorCode()", source, StringComparison.Ordinal);
+            Assert.Contains("!= \"0\"", source, StringComparison.Ordinal);
+            Assert.Contains("already_exists", source, StringComparison.Ordinal);
             Assert.DoesNotContain("select=\"id,library_entry_id,usage_count,last_used_on\"", source, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -1200,6 +1202,22 @@ namespace IdeaCadConnector.Tests
             var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
             var source = File.ReadAllText(sourcePath);
             Assert.DoesNotContain("async", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("$\"", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void MethodSource_SyncEntryStatus_UsesLifecycleState()
+        {
+            var sourcePath = FindMethodSourceFile("idea_SyncPartLibraryEntryStatus.cs");
+            var source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("idea_PartLibraryEntry", source, StringComparison.Ordinal);
+            Assert.Contains("setAttribute(\"select\", \"id,state\")", source, StringComparison.Ordinal);
+            Assert.Contains("getProperty(\"state\"", source, StringComparison.Ordinal);
+            Assert.Contains("entry_status", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("namespace ", source, StringComparison.Ordinal);
+            Assert.DoesNotContain(" class ", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("async", source, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -1211,7 +1229,19 @@ namespace IdeaCadConnector.Tests
                 "part-library-stage1-deployment.md");
             Assert.True(File.Exists(docPath), "Deployment documentation not found.");
             var source = File.ReadAllText(docPath);
-            Assert.Contains("idempotency_key", source, StringComparison.Ordinal);
+            Assert.Contains("idea_PartLibrary", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("idea_PartLibraryEntry", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("idea_PartLibraryUsage", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("idempotency_key", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("idea_RecordPartLibraryUsage", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("idea_SyncPartLibraryEntryStatus", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("OnAfterPromote", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("LatestReleased", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("LatestCurrent", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("already_exists", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("unique constraint", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Aras Method Editor", source, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("live acceptance", source, StringComparison.OrdinalIgnoreCase);
         }
 
         // ── State filter mapping tests ─────────────────────────────────
@@ -1233,24 +1263,25 @@ namespace IdeaCadConnector.Tests
         private static string FindMethodSourceFile(string fileName)
         {
             var repoRoot = FindRepoRoot();
-            var fullPath = Path.Combine(repoRoot, "IdeaCadConnector", "src", "IdeaCadConnector.Aras", "ServerMethods", fileName);
-            Assert.True(File.Exists(fullPath), "Method source file not found: " + fullPath);
+            var fullPath = Path.Combine(repoRoot, "src", "IdeaCadConnector.Aras", "ServerMethods", fileName);
+            if (!File.Exists(fullPath))
+                throw new FileNotFoundException("Method source file not found.", fullPath);
             return fullPath;
         }
 
         private static string FindRepoRoot()
         {
             var dir = AppDomain.CurrentDomain.BaseDirectory;
-            while (dir != null)
+            while (!string.IsNullOrWhiteSpace(dir))
             {
-                if (Directory.Exists(Path.Combine(dir, "IdeaCadConnector")) &&
-                    Directory.Exists(Path.Combine(dir, "docs")))
+                if (File.Exists(Path.Combine(dir, "IdeaCadConnector.sln")) &&
+                    Directory.Exists(Path.Combine(dir, "src")) &&
+                    Directory.Exists(Path.Combine(dir, "tests")))
                     return dir;
                 dir = Path.GetDirectoryName(dir);
             }
 
-            Assert.True(false, "Could not locate repository root.");
-            return null;
+            throw new InvalidOperationException("Could not locate repository root.");
         }
 
         private static JObject Items(params JObject[] items)
