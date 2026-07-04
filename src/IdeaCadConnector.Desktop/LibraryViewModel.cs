@@ -72,7 +72,7 @@ namespace IdeaCadConnector.Desktop
             AddPartCommand = new RelayCommand(_ => ShowSaveToLibraryDialog(), _ => !IsLoading && !IsOffline && CanContributeToSelectedLibrary);
             RemoveEntryCommand = new RelayCommand(_ => _ = RemoveSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading);
             MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => SelectedEntry != null && SelectedLibrary != null && !IsLoading);
-            AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => SelectedEntry != null && HasActivePdmWorkspace && !IsLoading && !SelectedEntry.IsDeprecated);
+            AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => SelectedEntry != null && HasActivePdmWorkspace && !IsLoading && !SelectedEntry.IsDeprecated && SelectedEntry.CanAddToProject && !SelectedEntry.ResolutionFailed);
             OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
             DownloadCadCommand = new RelayCommand(_ => _ = RevealPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
             PublishCommand = new RelayCommand(_ => _ = PublishSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
@@ -410,6 +410,7 @@ namespace IdeaCadConnector.Desktop
                 PartType = details.PartType,
                 Revision = details.Revision,
                 LifecycleState = details.LifecycleState,
+                EntryLifecycleState = details.EntryLifecycleState,
                 RevisionPolicy = details.RevisionPolicy.ToString(),
                 PrimaryCadId = details.PrimaryCadId,
                 PrimaryCadFileName = details.PrimaryCadFileName,
@@ -418,10 +419,17 @@ namespace IdeaCadConnector.Desktop
                 UsageCount = details.UsageCount,
                 CadStatus = details.CadStatus,
                 HasNewerReleasedRevision = details.HasNewerReleasedRevision,
+                ResolutionFailed = details.ResolutionFailed,
+                ResolutionError = details.ResolutionError,
+                CanAddToProject = details.CanAddToProject,
                 WhereUsedSummary = L(TranslationKeys.LibraryWhereUsedHint)
             };
 
-            if (details.HasNewerReleasedRevision)
+            if (details.ResolutionFailed && !string.IsNullOrWhiteSpace(details.ResolutionError))
+            {
+                StatusMessage = details.ResolutionError;
+            }
+            else if (details.HasNewerReleasedRevision)
             {
                 StatusMessage = L(TranslationKeys.LibraryWarningNewerReleasedRevision);
             }
@@ -468,6 +476,12 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            if (SelectedEntry.ResolutionFailed || !SelectedEntry.CanAddToProject)
+            {
+                StatusMessage = SelectedEntry.ResolutionError ?? SelectedEntryDetails?.ResolutionError ?? L(TranslationKeys.LibraryStatusNoRevisionResolution);
+                return;
+            }
+
             // Resolve according to Entry revision policy first
             ResolveLibraryPartResult resolved = null;
             await RunBusyAsync(async () =>
@@ -486,6 +500,12 @@ namespace IdeaCadConnector.Desktop
             {
                 if (string.IsNullOrWhiteSpace(StatusMessage))
                     StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(resolved.ResolvedPartConfigId) || string.IsNullOrWhiteSpace(resolved.ResolvedRevision))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
                 return;
             }
 
@@ -691,6 +711,9 @@ namespace IdeaCadConnector.Desktop
                     RevisionPolicy = result.RevisionPolicy.ToString(),
                     PartNumber = SelectedEntryDetails?.PartNumber ?? SelectedEntry?.PartNumber,
                     PartName = SelectedEntryDetails?.PartName ?? SelectedEntry?.PartName,
+                    CanAddToProject = true,
+                    ResolutionFailed = false,
+                    ResolutionError = null,
                     WhereUsedSummary = SelectedEntryDetails?.WhereUsedSummary ?? L(TranslationKeys.LibraryWhereUsedHint)
                 };
 
@@ -890,11 +913,15 @@ namespace IdeaCadConnector.Desktop
                 PartType = entry.PartType,
                 Revision = entry.Revision,
                 LifecycleState = entry.LifecycleState,
+                EntryLifecycleState = entry.EntryLifecycleState,
                 RevisionPolicy = entry.RevisionPolicy.ToString(),
                 CadStatus = entry.CadStatus,
                 UsageCount = entry.UsageCount,
                 HasNewerReleasedRevision = entry.HasNewerReleasedRevision,
                 IsDeprecated = entry.IsDeprecated,
+                ResolutionFailed = entry.ResolutionFailed,
+                ResolutionError = entry.ResolutionError,
+                CanAddToProject = entry.CanAddToProject,
                 LibraryName = entry.LibraryName
             };
         }
@@ -928,6 +955,7 @@ namespace IdeaCadConnector.Desktop
                 PartNumber = L(TranslationKeys.LibrarySelectPart),
                 PrimaryCadFileName = L(TranslationKeys.LibraryNoLinkedCad),
                 HasNewerReleasedRevision = false,
+                CanAddToProject = false,
                 WhereUsedSummary = L(TranslationKeys.LibraryWhereUsedHint)
             };
         }
@@ -947,6 +975,7 @@ namespace IdeaCadConnector.Desktop
                 PartType = details.PartType,
                 Revision = details.Revision,
                 LifecycleState = details.LifecycleState,
+                EntryLifecycleState = details.EntryLifecycleState,
                 RevisionPolicy = details.RevisionPolicy,
                 PrimaryCadId = details.PrimaryCadId,
                 PrimaryCadFileName = details.PrimaryCadFileName,
@@ -955,6 +984,9 @@ namespace IdeaCadConnector.Desktop
                 UsageCount = details.UsageCount,
                 CadStatus = details.CadStatus,
                 HasNewerReleasedRevision = details.HasNewerReleasedRevision,
+                ResolutionFailed = details.ResolutionFailed,
+                ResolutionError = details.ResolutionError,
+                CanAddToProject = details.CanAddToProject,
                 WhereUsedSummary = whereUsedSummary
             };
         }

@@ -102,20 +102,32 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public async Task SearchEntriesAsync_LatestReleasedWithoutReleasedRevision_DoesNotSilentlyUseRelatedPart()
+        public async Task SearchEntriesAsync_InvalidEntryDoesNotHideValidEntries()
         {
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
-            fake.ApplyAmlResults.Enqueue(Items(Entry("entry-1", "LatestReleased", "cfg-1", "related-1")));
+            fake.ApplyAmlResults.Enqueue(Items(
+                Entry("entry-invalid", "LatestReleased", "cfg-1", "related-1"),
+                Entry("entry-valid", "Pinned", "cfg-2", "related-2", "related-2", "Draft", "Published")));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Preliminary"));
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-2", "cfg-2", "PART-002", "B", "Released"));
+            fake.ApplyAmlResults.Enqueue(new JObject());
             fake.ApplyAmlResults.Enqueue(Items());
 
             var client = CreateClient(fake);
 
-            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
-                client.SearchEntriesAsync(new PartLibrarySearchRequest(), CancellationToken.None));
+            var result = await client.SearchEntriesAsync(new PartLibrarySearchRequest(), CancellationToken.None);
 
-            Assert.Equal(ArasErrorCode.ValidationFailed, ex.ErrorCode);
-            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyItem" && call.ItemType == "Part" && call.ItemId == "related-1");
+            Assert.Equal(2, result.Entries.Count);
+            var invalid = Assert.Single(result.Entries.Where(entry => entry.EntryId == "entry-invalid"));
+            var valid = Assert.Single(result.Entries.Where(entry => entry.EntryId == "entry-valid"));
+            Assert.True(invalid.ResolutionFailed);
+            Assert.False(invalid.CanAddToProject);
+            Assert.False(string.IsNullOrWhiteSpace(invalid.ResolutionError));
+            Assert.Equal("entry-valid", valid.EntryId);
         }
 
         [Fact]
@@ -151,11 +163,8 @@ namespace IdeaCadConnector.Tests
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
             fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "pinned-1"));
-            fake.ApplyAmlResults.Enqueue(new JObject());
-            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestReleased", "cfg-1", "related-1"));
             fake.ApplyAmlResults.Enqueue(Items(Part("released-2", "cfg-1", "REL-002", "B", "Released", "2")));
             fake.ApplyAmlResults.Enqueue(new JObject());
-            fake.ApplyAmlResults.Enqueue(Items(Part("released-2", "cfg-1", "REL-002", "B", "Released", "2")));
 
             var client = CreateClient(fake);
 
@@ -175,11 +184,87 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public async Task GetEntryAsync_PrefersLifecycleStateOverEntryStatus()
+        public async Task UpdateRevisionPolicyAsync_LatestReleasedFailure_DoesNotEditEntry()
         {
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
-            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "related-1", "Draft", "Published"));
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "pinned-1"));
+            fake.ApplyAmlResults.Enqueue(Items());
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.UpdateRevisionPolicyAsync(
+                    new UpdateLibraryRevisionPolicyRequest
+                    {
+                        EntryId = "entry-1",
+                        RevisionPolicy = LibraryRevisionPolicy.LatestReleased
+                    },
+                    CancellationToken.None));
+
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.Action == "edit" && call.ItemType == PartLibrarySchemaNames.EntryRelationshipType);
+        }
+
+        [Fact]
+        public async Task UpdateRevisionPolicyAsync_PinnedObsoletePart_DoesNotEditEntry()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestReleased", "cfg-1", "related-1"));
+            fake.ApplyItemResults.Enqueue(Part("pinned-1", "cfg-1", "PIN-001", "B", "Obsolete"));
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.UpdateRevisionPolicyAsync(
+                    new UpdateLibraryRevisionPolicyRequest
+                    {
+                        EntryId = "entry-1",
+                        RevisionPolicy = LibraryRevisionPolicy.Pinned,
+                        PinnedPartId = "pinned-1"
+                    },
+                    CancellationToken.None));
+
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.Action == "edit" && call.ItemType == PartLibrarySchemaNames.EntryRelationshipType);
+        }
+
+        [Fact]
+        public async Task UpdateRevisionPolicyAsync_PinnedMissingMajorRev_DoesNotEditEntry()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestReleased", "cfg-1", "related-1"));
+            fake.ApplyItemResults.Enqueue(new JObject
+            {
+                ["id"] = "pinned-1",
+                ["config_id"] = "cfg-1",
+                ["item_number"] = "PIN-001",
+                ["name"] = "PIN-001-Name",
+                ["classification"] = "Component",
+                ["state"] = "Released"
+            });
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.UpdateRevisionPolicyAsync(
+                    new UpdateLibraryRevisionPolicyRequest
+                    {
+                        EntryId = "entry-1",
+                        RevisionPolicy = LibraryRevisionPolicy.Pinned,
+                        PinnedPartId = "pinned-1"
+                    },
+                    CancellationToken.None));
+
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.Action == "edit" && call.ItemType == PartLibrarySchemaNames.EntryRelationshipType);
+        }
+
+        [Fact]
+        public async Task GetEntryAsync_SeparatesEntryLifecycleFromPartLifecycle()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "related-1", "Draft", "Draft"));
             fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
             fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
             fake.ApplyAmlResults.Enqueue(new JObject());
@@ -189,8 +274,9 @@ namespace IdeaCadConnector.Tests
 
             var result = await client.GetEntryAsync("entry-1", CancellationToken.None);
 
-            Assert.Equal(LibraryEntryStatus.Published, result.EntryStatus);
-            Assert.Equal("Published", result.LifecycleState);
+            Assert.Equal(LibraryEntryStatus.Draft, result.EntryStatus);
+            Assert.Equal("Draft", result.EntryLifecycleState);
+            Assert.Equal("Released", result.LifecycleState);
         }
 
         [Fact]
@@ -227,6 +313,46 @@ namespace IdeaCadConnector.Tests
 
             Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
             Assert.Equal(1, fake.CallLog.Count(call => call.MethodKind == "ApplyAml" && call.ItemType == PartLibrarySchemaNames.UsageItemType && call.Action == "add"));
+        }
+
+        [Fact]
+        public async Task RecordUsageAsync_ServerUnavailable_DoesNotFallback()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyMethodExceptions.Enqueue(new ArasOperationException(ArasErrorCode.ServerUnavailable, "service unavailable"));
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() => client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
+
+            Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.ItemType == PartLibrarySchemaNames.UsageItemType && call.Action == "add");
+        }
+
+        [Fact]
+        public async Task RecordUsageAsync_GenericValidationFailed_DoesNotFallback()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyMethodExceptions.Enqueue(new ArasOperationException(ArasErrorCode.ValidationFailed, "quantity must be greater than zero"));
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() => client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
+
+            Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.ItemType == PartLibrarySchemaNames.UsageItemType && call.Action == "add");
+        }
+
+        [Fact]
+        public async Task PublishEntryAsync_VerifiesActualState()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "related-1", "Draft", "Draft"));
+
+            var client = CreateClient(fake);
+
+            var ex = await Assert.ThrowsAsync<ArasOperationException>(() => client.PublishEntryAsync("entry-1", CancellationToken.None));
+            Assert.Contains("Expected 'Published'", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]

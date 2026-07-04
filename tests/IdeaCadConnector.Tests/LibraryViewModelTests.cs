@@ -118,6 +118,73 @@ namespace IdeaCadConnector.Tests
             Assert.Null(session.PendingLibraryFocusEntryId);
         }
 
+        [Fact]
+        public async Task LibraryViewModel_InvalidEntry_DoesNotResolveForAddToProject()
+        {
+            var session = new FakeAppSessionContext
+            {
+                CurrentPdmProjectsViewModel = new PdmProjectsViewModel()
+            };
+            var client = new StubPartLibraryClient
+            {
+                LibrariesToReturn = new[]
+                {
+                    CreateLibrary("lib-1", "Engineering Part Library", true)
+                },
+                SearchResponseToReturn = new PartLibrarySearchResponse
+                {
+                    TotalCount = 1,
+                    PageNumber = 1,
+                    PageSize = 25,
+                    Entries = new[]
+                    {
+                        new PartLibraryEntrySummary
+                        {
+                            EntryId = "entry-1",
+                            LibraryId = "lib-1",
+                            LibraryName = "Engineering Part Library",
+                            PartId = "part-1",
+                            PartConfigId = "cfg-1",
+                            PartNumber = "P-001",
+                            PartName = "Broken Part",
+                            Revision = "A",
+                            RevisionPolicy = LibraryRevisionPolicy.LatestReleased,
+                            LifecycleState = "Released",
+                            EntryLifecycleState = "Draft",
+                            EntryStatus = LibraryEntryStatus.Draft,
+                            ResolutionFailed = true,
+                            ResolutionError = "No released revision is available.",
+                            CanAddToProject = false
+                        }
+                    }
+                },
+                EntryDetailsToReturn = new PartLibraryEntryDetails
+                {
+                    EntryId = "entry-1",
+                    PartId = "part-1",
+                    PartConfigId = "cfg-1",
+                    PartNumber = "P-001",
+                    PartName = "Broken Part",
+                    Revision = "A",
+                    LifecycleState = "Released",
+                    EntryLifecycleState = "Draft",
+                    EntryStatus = LibraryEntryStatus.Draft,
+                    ResolutionFailed = true,
+                    ResolutionError = "No released revision is available.",
+                    CanAddToProject = false
+                }
+            };
+
+            var viewModel = new LibraryViewModel(session, client);
+            session.NotifyLibraryDataChanged();
+            await WaitForAsync(() => viewModel.SelectedEntry != null);
+
+            viewModel.AddToCurrentProjectCommand.Execute(null);
+
+            Assert.Equal(0, client.ResolveUsingStoredPolicyCallCount);
+            Assert.Contains("No released revision", viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static async Task WaitForAsync(Func<bool> predicate, int timeoutMs = 2000)
         {
             var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
@@ -245,6 +312,7 @@ namespace IdeaCadConnector.Tests
             public IReadOnlyList<PartWhereUsedItem> WhereUsedToReturn { get; set; } = Array.Empty<PartWhereUsedItem>();
             public int GetLibrariesCallCount { get; private set; }
             public int SearchEntriesCallCount { get; private set; }
+            public int ResolveUsingStoredPolicyCallCount { get; private set; }
 
             public Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(CancellationToken cancellationToken)
             {
@@ -286,7 +354,10 @@ namespace IdeaCadConnector.Tests
                 => Task.CompletedTask;
 
             public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
-                => Task.FromResult(new ResolveLibraryPartResult());
+            {
+                ResolveUsingStoredPolicyCallCount++;
+                return Task.FromResult(new ResolveLibraryPartResult());
+            }
 
             public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
                 => Task.FromResult(new UpdateLibraryRevisionPolicyResult());

@@ -80,12 +80,16 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string PartType { get; set; }
         public string Revision { get; set; }
         public string LifecycleState { get; set; }
+        public string EntryLifecycleState { get; set; }
         public LibraryRevisionPolicy RevisionPolicy { get; set; }
         public LibraryEntryStatus EntryStatus { get; set; }
         public string CadStatus { get; set; }
         public int UsageCount { get; set; }
         public bool HasNewerReleasedRevision { get; set; }
         public bool IsDeprecated { get; set; }
+        public bool ResolutionFailed { get; set; }
+        public string ResolutionError { get; set; }
+        public bool CanAddToProject { get; set; }
         public string CreatedBy { get; set; }
         public DateTime? CreatedOn { get; set; }
         public DateTime? LastUsedOn { get; set; }
@@ -103,6 +107,7 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string PartType { get; set; }
         public string Revision { get; set; }
         public string LifecycleState { get; set; }
+        public string EntryLifecycleState { get; set; }
         public LibraryRevisionPolicy RevisionPolicy { get; set; }
         public LibraryEntryStatus EntryStatus { get; set; }
         public string CadStatus { get; set; }
@@ -115,6 +120,9 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string Category { get; set; }
         public string Tags { get; set; }
         public bool HasNewerReleasedRevision { get; set; }
+        public bool ResolutionFailed { get; set; }
+        public string ResolutionError { get; set; }
+        public bool CanAddToProject { get; set; }
     }
 
     public sealed class AddPartToLibraryRequest

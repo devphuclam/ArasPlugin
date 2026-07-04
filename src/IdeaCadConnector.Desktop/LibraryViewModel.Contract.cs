@@ -62,11 +62,15 @@ namespace IdeaCadConnector.Desktop
         public string PartType { get; set; }
         public string Revision { get; set; }
         public string LifecycleState { get; set; }
+        public string EntryLifecycleState { get; set; }
         public string RevisionPolicy { get; set; }
         public string CadStatus { get; set; }
         public int UsageCount { get; set; }
         public bool HasNewerReleasedRevision { get; set; }
         public bool IsDeprecated { get; set; }
+        public bool ResolutionFailed { get; set; }
+        public string ResolutionError { get; set; }
+        public bool CanAddToProject { get; set; }
         public string LibraryName { get; set; }
     }
 
@@ -82,6 +86,7 @@ namespace IdeaCadConnector.Desktop
         public string PartType { get; set; }
         public string Revision { get; set; }
         public string LifecycleState { get; set; }
+        public string EntryLifecycleState { get; set; }
         public string RevisionPolicy { get; set; }
         public string PrimaryCadId { get; set; }
         public string PrimaryCadFileName { get; set; }
@@ -90,6 +95,9 @@ namespace IdeaCadConnector.Desktop
         public int UsageCount { get; set; }
         public string CadStatus { get; set; }
         public bool HasNewerReleasedRevision { get; set; }
+        public bool ResolutionFailed { get; set; }
+        public string ResolutionError { get; set; }
+        public bool CanAddToProject { get; set; }
         public string WhereUsedSummary { get; set; }
     }
 }
