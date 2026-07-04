@@ -17,6 +17,7 @@ namespace IdeaCadConnector.Tests
         public string ItemType { get; set; }
         public string ItemId { get; set; }
         public string SelectFields { get; set; }
+        public IReadOnlyDictionary<string, string> MethodParameters { get; set; }
     }
 
     internal sealed class FakeArasAmlClient : IArasAmlClient
@@ -45,7 +46,8 @@ namespace IdeaCadConnector.Tests
                 MethodKind = "ApplyMethod",
                 MethodName = methodName,
                 Action = methodName,
-                ItemType = "Method"
+                ItemType = "Method",
+                MethodParameters = new Dictionary<string, string>(parameters ?? new Dictionary<string, string>())
             });
             if (ApplyMethodExceptions.Count > 0)
                 throw ApplyMethodExceptions.Dequeue();

@@ -350,8 +350,8 @@ namespace IdeaCadConnector.Tests
             public Task<IReadOnlyList<PartWhereUsedItem>> GetWhereUsedAsync(string partId, CancellationToken cancellationToken)
                 => Task.FromResult(WhereUsedToReturn);
 
-            public Task RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
-                => Task.CompletedTask;
+            public Task<RecordLibraryUsageResult> RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new RecordLibraryUsageResult { Success = true });
 
             public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
             {

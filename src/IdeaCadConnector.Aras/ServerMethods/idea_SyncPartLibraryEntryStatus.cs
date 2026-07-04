@@ -28,7 +28,7 @@ if (currentEntry.isError() || currentEntry.getItemCount() != 1)
     return inn.newError("Library Entry was not found.");
 
 string lifecycleState = currentEntry.getProperty("state", "");
-if (string.IsNullOrWhiteSpace(lifecycleState))
+if (string.IsNullOrEmpty(lifecycleState))
     return inn.newError("Lifecycle state could not be resolved.");
 
 Item updateEntry = inn.newItem("idea_PartLibraryEntry", "edit");

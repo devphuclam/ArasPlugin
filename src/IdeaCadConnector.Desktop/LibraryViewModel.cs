@@ -914,6 +914,7 @@ namespace IdeaCadConnector.Desktop
                 Revision = entry.Revision,
                 LifecycleState = entry.LifecycleState,
                 EntryLifecycleState = entry.EntryLifecycleState,
+                EntryStatus = entry.EntryStatus.ToString(),
                 RevisionPolicy = entry.RevisionPolicy.ToString(),
                 CadStatus = entry.CadStatus,
                 UsageCount = entry.UsageCount,
@@ -1411,7 +1412,8 @@ namespace IdeaCadConnector.Desktop
         public Task DeprecateEntryAsync(string entryId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<IReadOnlyList<PartWhereUsedItem>> GetWhereUsedAsync(string partId, CancellationToken cancellationToken)
             => Task.FromResult((IReadOnlyList<PartWhereUsedItem>)Array.Empty<PartWhereUsedItem>());
-        public Task RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<RecordLibraryUsageResult> RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new RecordLibraryUsageResult { Success = true });
         public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
         {
             return ResolvePartAsync(entryId, LibraryRevisionPolicy.LatestReleased, cancellationToken);
@@ -1515,8 +1517,8 @@ namespace IdeaCadConnector.Desktop
         public Task<IReadOnlyList<PartWhereUsedItem>> GetWhereUsedAsync(string partId, CancellationToken cancellationToken)
             => Task.FromException<IReadOnlyList<PartWhereUsedItem>>(CreateUnavailableException());
 
-        public Task RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
-            => Task.FromException(CreateUnavailableException());
+        public Task<RecordLibraryUsageResult> RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
+            => Task.FromException<RecordLibraryUsageResult>(CreateUnavailableException());
 
         public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
             => Task.FromException<ResolveLibraryPartResult>(CreateUnavailableException());

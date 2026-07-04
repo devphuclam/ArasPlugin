@@ -77,6 +77,13 @@
             <Setter Property="RowBackground" Value="White"/>
             <Setter Property="AlternatingRowBackground" Value="#FBFCFE"/>
         </Style>
+
+        <!-- Entry status colors -->
+        <SolidColorBrush x:Key="StatusDraftBrush" Color="#F59E0B"/>
+        <SolidColorBrush x:Key="StatusPendingReviewBrush" Color="#3B82F6"/>
+        <SolidColorBrush x:Key="StatusPublishedBrush" Color="#16A34A"/>
+        <SolidColorBrush x:Key="StatusDeprecatedBrush" Color="#6B7280"/>
+        <SolidColorBrush x:Key="StatusErrorBrush" Color="#DC2626"/>
     </UserControl.Resources>
 
     <Grid Background="#F6F8FC">
@@ -240,14 +247,56 @@
                     <Grid Grid.Row="1">
                         <DataGrid Style="{StaticResource LibraryDataGridStyle}"
                                   ItemsSource="{Binding Entries}" SelectedItem="{Binding SelectedEntry}">
+                            <DataGrid.Resources>
+                                <Style x:Key="StatusBadgeStyle" TargetType="TextBlock">
+                                    <Setter Property="FontSize" Value="11"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="Padding" Value="6,2"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding EntryStatus}" Value="Draft">
+                                            <Setter Property="Foreground" Value="{StaticResource StatusDraftBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding EntryStatus}" Value="PendingReview">
+                                            <Setter Property="Foreground" Value="{StaticResource StatusPendingReviewBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding EntryStatus}" Value="Published">
+                                            <Setter Property="Foreground" Value="{StaticResource StatusPublishedBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding EntryStatus}" Value="Deprecated">
+                                            <Setter Property="Foreground" Value="{StaticResource StatusDeprecatedBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGrid.Resources>
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnPart]}" Binding="{Binding PartNumber}" Width="1.6*"/>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnType]}" Binding="{Binding PartType}" Width="0.9*"/>
+                                <DataGridTemplateColumn Width="34">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <TextBlock Text="&#xE814;" FontFamily="Segoe Fluent Icons"
+                                                           FontSize="16" Foreground="{StaticResource StatusErrorBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Visibility="{Binding ResolutionFailed, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                           ToolTip="{Binding ResolutionError}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnPart]}" Binding="{Binding PartNumber}" Width="1.5*">
+                                    <DataGridTextColumn.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Setter Property="ToolTip" Value="{Binding ResolutionError}"/>
+                                        </Style>
+                                    </DataGridTextColumn.CellStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnType]}" Binding="{Binding PartType}" Width="0.8*"/>
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevision]}" Binding="{Binding Revision}" Width="55"/>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnLifecycle]}" Binding="{Binding LifecycleState}" Width="1*"/>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevisionPolicy]}" Binding="{Binding RevisionPolicy}" Width="1.15*"/>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnCadStatus]}" Binding="{Binding CadStatus}" Width="1*"/>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnUsage]}" Binding="{Binding UsageCount}" Width="70"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnLifecycle]}" Binding="{Binding LifecycleState}" Width="0.9*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnStatus]}" Binding="{Binding EntryStatus}" Width="0.9*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevisionPolicy]}" Binding="{Binding RevisionPolicy}" Width="1*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnCadStatus]}" Binding="{Binding CadStatus}" Width="0.9*"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnUsage]}" Binding="{Binding UsageCount}" Width="60"/>
                             </DataGrid.Columns>
                         </DataGrid>
                         <Border Background="#F7F9FD"

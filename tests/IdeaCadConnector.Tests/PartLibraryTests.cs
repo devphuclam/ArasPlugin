@@ -559,20 +559,30 @@ namespace IdeaCadConnector.Tests
             };
         }
 
-        // Test 11: Usage with supported used_by
+        // Test 11: Usage returns typed result with all fields
         [Fact]
-        public async Task RecordUsage_WithUsedBy_AddsUsageThenUpdatesLastUsedOn()
+        public async Task RecordUsage_ReturnsTypedResult()
         {
             var fake = new FakeArasAmlClient();
             fake.ApplyMethodResults.Enqueue(new JObject
             {
                 ["usage_id"] = "usage-1",
                 ["usage_count"] = "1",
-                ["last_used_on"] = "2026-07-04T10:00:00"
+                ["last_used_on"] = "2026-07-04T10:00:00",
+                ["already_exists"] = "0",
+                ["idempotency_key"] = "test-key"
             });
             var client = CreateLibraryClient(fake);
 
-            await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+            var result = await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.False(result.AlreadyExists);
+            Assert.False(result.TrackingUnavailable);
+            Assert.Equal("usage-1", result.UsageId);
+            Assert.Equal(1, result.UsageCount);
+            Assert.NotNull(result.LastUsedOn);
+            Assert.Equal("test-key", result.IdempotencyKey);
 
             var methodCall = Assert.Single(fake.Calls);
             Assert.Equal("ApplyMethod", methodCall.MethodKind);

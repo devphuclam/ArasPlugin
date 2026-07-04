@@ -115,8 +115,6 @@ namespace IdeaCadConnector.Aras
 
             if (!string.IsNullOrWhiteSpace(request.StateFilter))
                 query = query.Where(entry =>
-                    string.Equals(entry.EntryStatus.ToString(), request.StateFilter, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(entry.EntryLifecycleState, request.StateFilter, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(entry.LifecycleState, request.StateFilter, StringComparison.OrdinalIgnoreCase));
 
             if (!string.IsNullOrWhiteSpace(request.RevisionFilter))
@@ -482,60 +480,36 @@ namespace IdeaCadConnector.Aras
             return list;
         }
 
-        public async Task RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
+        public async Task<RecordLibraryUsageResult> RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.LibraryEntryId))
-                return;
+                return new RecordLibraryUsageResult { Success = false };
 
             EnsureAuthenticated();
 
-            // Prefer server method for atomic usage recording
-            if (await TryRecordUsageViaServerMethodAsync(request, cancellationToken).ConfigureAwait(false))
-            {
-                return;
-            }
+            return await TryRecordUsageViaServerMethodAsync(request, cancellationToken).ConfigureAwait(false);
+        }
 
-            // Compatibility fallback when server method is not deployed
-            var hasUsageSchema = await ItemTypeExistsAsync(PartLibrarySchemaNames.UsageItemType, cancellationToken).ConfigureAwait(false);
-            if (!hasUsageSchema)
+        private static string ComputeIdempotencyKey(LibraryUsageRequest request)
+        {
+            var raw = string.Join("|",
+                request.LibraryEntryId ?? "",
+                request.ProjectCode ?? "",
+                request.ParentPartId ?? "",
+                request.CommitId ?? "",
+                request.ActionType ?? "",
+                request.PartId ?? "");
+            using (var sha = System.Security.Cryptography.SHA256.Create())
             {
-                _logger.LogWarning(
-                    "Part Library usage record skipped: ItemType '{ItemType}' is not deployed on the Aras server. " +
-                    "Create it manually to enable usage tracking.",
-                    PartLibrarySchemaNames.UsageItemType);
-                return;
-            }
-
-            _logger.LogWarning(
-                "Part Library usage record: server method '{MethodName}' is not available. " +
-                "Using compatibility fallback (non-atomic, no usage_count update).",
-                PartLibrarySchemaNames.RecordPartLibraryUsageMethodName);
-
-            var result = UsageCreateResult.ValidationFailed;
-            var usedByValue = (request.UsedBy ?? "unknown").Trim();
-
-            if (usedByValue.Length > 0)
-            {
-                result = await TryCreateUsageItemAsync(request, usedByValue, cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                result = await TryCreateUsageItemAsync(request, null, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (result == UsageCreateResult.UsedByUnsupported && usedByValue.Length > 0)
-            {
-                result = await TryCreateUsageItemWithoutUsedByAsync(request, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (result == UsageCreateResult.Created)
-            {
-                await TryUpdateEntryLastUsedOnAsync(request.LibraryEntryId, cancellationToken).ConfigureAwait(false);
+                var bytes = System.Text.Encoding.UTF8.GetBytes(raw);
+                var hash = sha.ComputeHash(bytes);
+                return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
             }
         }
 
-        private async Task<bool> TryRecordUsageViaServerMethodAsync(LibraryUsageRequest request, CancellationToken ct)
+        private async Task<RecordLibraryUsageResult> TryRecordUsageViaServerMethodAsync(LibraryUsageRequest request, CancellationToken ct)
         {
+            var idempotencyKey = request.IdempotencyKey ?? ComputeIdempotencyKey(request);
             var parameters = new Dictionary<string, string>
             {
                 ["library_entry_id"] = request.LibraryEntryId,
@@ -545,7 +519,8 @@ namespace IdeaCadConnector.Aras
                 ["quantity"] = request.Quantity.ToString(),
                 ["used_by"] = request.UsedBy ?? string.Empty,
                 ["commit_id"] = request.CommitId ?? string.Empty,
-                ["action_type"] = request.ActionType ?? string.Empty
+                ["action_type"] = request.ActionType ?? string.Empty,
+                [PartLibrarySchemaNames.UsageIdempotencyKeyProperty] = idempotencyKey
             };
 
             try
@@ -557,22 +532,40 @@ namespace IdeaCadConnector.Aras
 
                 if (result != null)
                 {
+                    var usageCount = ParseInt(result["usage_count"]?.Value<string>(), 0);
                     _logger.LogInformation(
                         "Part Library usage recorded via server method for entry {EntryId}. " +
                         "Usage count: {UsageCount}.",
-                        request.LibraryEntryId,
-                        result["usage_count"]?.Value<string>());
-                    return true;
+                        request.LibraryEntryId, usageCount);
+
+                    return new RecordLibraryUsageResult
+                    {
+                        Success = true,
+                        AlreadyExists = ParseBoolean(result["already_exists"]?.Value<string>()),
+                        TrackingUnavailable = false,
+                        UsageId = result["usage_id"]?.Value<string>(),
+                        UsageCount = usageCount,
+                        LastUsedOn = ParseDate(result["last_used_on"]?.Value<string>()),
+                        IdempotencyKey = result["idempotency_key"]?.Value<string>() ?? idempotencyKey
+                    };
                 }
 
-                return false;
+                return new RecordLibraryUsageResult { Success = true, TrackingUnavailable = false };
             }
             catch (ArasOperationException ex) when (CanFallbackToDirectAdd(ex, PartLibrarySchemaNames.RecordPartLibraryUsageMethodName))
             {
-                _logger.LogInformation(
-                    "Server method '{MethodName}' is not available. Falling back to direct AML.",
+                _logger.LogWarning(
+                    "Part Library usage tracking unavailable: server method '{MethodName}' is not deployed. " +
+                    "Usage Items were not created.",
                     PartLibrarySchemaNames.RecordPartLibraryUsageMethodName);
-                return false;
+
+                return new RecordLibraryUsageResult
+                {
+                    Success = true,
+                    TrackingUnavailable = true,
+                    WarningMessage = "Usage tracking is not available. The server method '" +
+                                     PartLibrarySchemaNames.RecordPartLibraryUsageMethodName + "' is not deployed."
+                };
             }
             catch (ArasOperationException)
             {
@@ -587,144 +580,6 @@ namespace IdeaCadConnector.Aras
                 _logger.LogError(ex, "Unexpected error calling server method '{MethodName}' for entry {EntryId}.",
                     PartLibrarySchemaNames.RecordPartLibraryUsageMethodName, request.LibraryEntryId);
                 throw;
-            }
-        }
-
-        private async Task<UsageCreateResult> TryCreateUsageItemAsync(LibraryUsageRequest request, string usedBy, CancellationToken ct)
-        {
-            var aml =
-                "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
-                "<library_entry_id>" + Escape(request.LibraryEntryId) + "</library_entry_id>" +
-                "<part_id>" + Escape(request.PartId) + "</part_id>" +
-                "<project_code>" + Escape(request.ProjectCode) + "</project_code>" +
-                "<parent_part_id>" + Escape(request.ParentPartId) + "</parent_part_id>" +
-                "<quantity>" + request.Quantity + "</quantity>" +
-                (usedBy != null
-                    ? "<used_by>" + Escape(usedBy) + "</used_by>"
-                    : string.Empty) +
-                "<commit_id>" + Escape(request.CommitId) + "</commit_id>" +
-                "<action_type>" + Escape(request.ActionType) + "</action_type>" +
-                "</Item>";
-
-            try
-            {
-                await _aml.ApplyAmlAsync(
-                    aml,
-                    "add",
-                    PartLibrarySchemaNames.UsageItemType,
-                    null,
-                    ct).ConfigureAwait(false);
-                return UsageCreateResult.Created;
-            }
-            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed && usedBy != null && IsUsedByUnsupportedError(ex))
-            {
-                _logger.LogWarning(
-                    "Part Library usage record: 'used_by' property not recognized on '{ItemType}'. " +
-                    "Configure 'used_by' as a string property on the ItemType.",
-                    PartLibrarySchemaNames.UsageItemType);
-                return UsageCreateResult.UsedByUnsupported;
-            }
-            catch (Exception ex) when (IsAuthOrPermissionFailure(ex))
-            {
-                _logger.LogWarning(ex, "Part Library usage record auth/permission failure for entry {EntryId}.", request.LibraryEntryId);
-                return UsageCreateResult.AuthFailed;
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogWarning("Part Library usage record cancelled for entry {EntryId}.", request.LibraryEntryId);
-                return UsageCreateResult.ServerError;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId}.", request.LibraryEntryId);
-                return UsageCreateResult.ServerError;
-            }
-        }
-
-        private async Task<UsageCreateResult> TryCreateUsageItemWithoutUsedByAsync(LibraryUsageRequest request, CancellationToken ct)
-        {
-            var aml =
-                "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"add\">" +
-                "<library_entry_id>" + Escape(request.LibraryEntryId) + "</library_entry_id>" +
-                "<part_id>" + Escape(request.PartId) + "</part_id>" +
-                "<project_code>" + Escape(request.ProjectCode) + "</project_code>" +
-                "<parent_part_id>" + Escape(request.ParentPartId) + "</parent_part_id>" +
-                "<quantity>" + request.Quantity + "</quantity>" +
-                "<commit_id>" + Escape(request.CommitId) + "</commit_id>" +
-                "<action_type>" + Escape(request.ActionType) + "</action_type>" +
-                "</Item>";
-
-            try
-            {
-                await _aml.ApplyAmlAsync(
-                    aml,
-                    "add",
-                    PartLibrarySchemaNames.UsageItemType,
-                    null,
-                    ct).ConfigureAwait(false);
-                _logger.LogWarning(
-                    "Part Library usage record succeeded without 'used_by' for entry {EntryId}. " +
-                    "Configure 'used_by' as a string property on the ItemType.",
-                    PartLibrarySchemaNames.UsageItemType);
-                return UsageCreateResult.Created;
-            }
-            catch (Exception ex) when (IsAuthOrPermissionFailure(ex))
-            {
-                _logger.LogWarning(ex, "Part Library usage record auth/permission failure for entry {EntryId}.", request.LibraryEntryId);
-                return UsageCreateResult.AuthFailed;
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogWarning("Part Library usage record cancelled for entry {EntryId}.", request.LibraryEntryId);
-                return UsageCreateResult.ServerError;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Part Library usage record failed for entry {EntryId} (retry without used_by).", request.LibraryEntryId);
-                return UsageCreateResult.ServerError;
-            }
-        }
-
-        private static bool IsUsedByUnsupportedError(ArasOperationException ex)
-        {
-            var msg = ex.Message ?? string.Empty;
-            var lower = msg.ToLowerInvariant();
-            return lower.Contains("used_by") &&
-                (lower.Contains("property") ||
-                 lower.Contains("unknown") ||
-                 lower.Contains("invalid") ||
-                 lower.Contains("not defined") ||
-                 lower.Contains("does not exist") ||
-                 lower.Contains("not recognized"));
-        }
-
-        private async Task TryUpdateEntryLastUsedOnAsync(string entryId, CancellationToken ct)
-        {
-            try
-            {
-                var entryUpdateAml =
-                    "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"edit\" id=\"" + Escape(entryId) + "\">" +
-                    "<last_used_on>" + DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss") + "</last_used_on>" +
-                    "</Item>";
-
-                await _aml.ApplyAmlAsync(
-                    entryUpdateAml,
-                    "edit",
-                    PartLibrarySchemaNames.EntryRelationshipType,
-                    entryId,
-                    ct).ConfigureAwait(false);
-            }
-            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.ValidationFailed)
-            {
-                _logger.LogWarning(
-                    "Part Library entry last_used_on update skipped: property may not be deployed on '{ItemType}'. " +
-                    "Configure 'last_used_on' (date) on the ItemType. " +
-                    "usage_count requires a server-side Method or Event to increment atomically.",
-                    PartLibrarySchemaNames.EntryRelationshipType);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Part Library entry last_used_on update failed for entry {EntryId}.", entryId);
             }
         }
 
@@ -961,6 +816,7 @@ namespace IdeaCadConnector.Aras
             string partName = null;
             string partType = null;
             string partState = null;
+            var partNotFound = false;
             if (!string.IsNullOrWhiteSpace(relatedPartId))
             {
                 try
@@ -973,11 +829,13 @@ namespace IdeaCadConnector.Aras
                 }
                 catch (ArasOperationException partEx) when (IsEntryResolutionFailure(partEx))
                 {
+                    partNotFound = partEx.ErrorCode == ArasErrorCode.PartNotFound;
                 }
             }
 
             var entryLifecycleState = relationship["state"]?.Value<string>() ?? relationship["entry_status"]?.Value<string>();
             var entryStatus = GetEffectiveEntryStatus(relationship["state"]?.Value<string>(), relationship["entry_status"]?.Value<string>());
+            var resolutionError = BuildResolutionError(ex, partState, partNotFound);
 
             return new PartLibraryEntrySummary
             {
@@ -999,10 +857,21 @@ namespace IdeaCadConnector.Aras
                 HasNewerReleasedRevision = false,
                 IsDeprecated = entryStatus == LibraryEntryStatus.Deprecated,
                 ResolutionFailed = true,
-                ResolutionError = SanitizeForEntry(ex),
+                ResolutionError = resolutionError,
                 CanAddToProject = false,
                 LastUsedOn = ParseDate(relationship["last_used_on"]?.Value<string>())
             };
+        }
+
+        private static string BuildResolutionError(Exception ex, string partState, bool partNotFound)
+        {
+            if (ex is ArasOperationException arasEx && arasEx.ErrorCode == ArasErrorCode.PermissionDenied)
+                return "Part lifecycle state is not readable. You do not have permission to access this Part.";
+
+            if (partNotFound)
+                return "Part was not found. It may have been deleted or moved.";
+
+            return SanitizeForEntry(ex);
         }
 
         private async Task<JObject> GetEntryRelationshipAsync(string entryId, CancellationToken ct)
@@ -1477,7 +1346,16 @@ namespace IdeaCadConnector.Aras
 
             return ex.ErrorCode == ArasErrorCode.ValidationFailed ||
                    ex.ErrorCode == ArasErrorCode.PartNotFound ||
-                   ex.ErrorCode == ArasErrorCode.CadNotFound;
+                   ex.ErrorCode == ArasErrorCode.CadNotFound ||
+                   ex.ErrorCode == ArasErrorCode.PermissionDenied;
+        }
+
+        private static bool IsStateNotReadableError(ArasOperationException ex)
+        {
+            if (ex == null)
+                return false;
+
+            return ex.ErrorCode == ArasErrorCode.PermissionDenied;
         }
 
         private static string SanitizeForEntry(Exception ex)

@@ -22,5 +22,7 @@ namespace IdeaCadConnector.Core.Library
         public const string EntryLifecycleDeprecatedState = EntryStatusDeprecated;
 
         public const string PartReleasedState = "Released";
+
+        public const string UsageIdempotencyKeyProperty = "idempotency_key";
     }
 }

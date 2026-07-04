@@ -299,20 +299,72 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public async Task RecordUsageAsync_MissingServerMethod_FallsBackExactlyOnce()
+        public async Task RecordUsageAsync_MissingServerMethod_ReturnsTrackingUnavailable()
         {
             var fake = new FakeArasAmlClient();
             fake.ApplyMethodExceptions.Enqueue(new ArasOperationException(ArasErrorCode.ValidationFailed, "Method idea_RecordPartLibraryUsage not found"));
-            fake.ApplyAmlResults.Enqueue(Items(new JObject { ["id"] = "usage-type-id", ["name"] = PartLibrarySchemaNames.UsageItemType }));
-            fake.ApplyAmlResults.Enqueue(new JObject { ["id"] = "usage-1" });
-            fake.ApplyAmlResults.Enqueue(new JObject { ["id"] = "entry-1" });
-
             var client = CreateClient(fake);
 
-            await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+            var result = await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
 
+            Assert.True(result.Success);
+            Assert.True(result.TrackingUnavailable);
+            Assert.NotNull(result.WarningMessage);
             Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
-            Assert.Equal(1, fake.CallLog.Count(call => call.MethodKind == "ApplyAml" && call.ItemType == PartLibrarySchemaNames.UsageItemType && call.Action == "add"));
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.ItemType == PartLibrarySchemaNames.UsageItemType && call.Action == "add");
+        }
+
+        [Fact]
+        public async Task RecordUsageAsync_IncludesIdempotencyKey()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyMethodResults.Enqueue(new JObject
+            {
+                ["usage_id"] = "usage-1",
+                ["usage_count"] = "1",
+                ["last_used_on"] = "2026-07-04T10:00:00"
+            });
+            var client = CreateClient(fake);
+
+            var result = await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+
+            var methodCall = Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
+            Assert.NotNull(methodCall.MethodParameters);
+            Assert.Contains(PartLibrarySchemaNames.UsageIdempotencyKeyProperty, methodCall.MethodParameters.Keys);
+            Assert.False(string.IsNullOrWhiteSpace(methodCall.MethodParameters[PartLibrarySchemaNames.UsageIdempotencyKeyProperty]));
+        }
+
+        [Fact]
+        public async Task RecordUsageAsync_AlreadyExists_ReturnsCorrectResult()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyMethodResults.Enqueue(new JObject
+            {
+                ["usage_id"] = "usage-1",
+                ["usage_count"] = "3",
+                ["last_used_on"] = "2026-07-04T10:00:00",
+                ["already_exists"] = "1"
+            });
+            var client = CreateClient(fake);
+
+            var result = await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.True(result.AlreadyExists);
+            Assert.Equal(3, result.UsageCount);
+            Assert.Equal("usage-1", result.UsageId);
+        }
+
+        [Fact]
+        public async Task RecordUsageAsync_NullRequest_ReturnsFailure()
+        {
+            var fake = new FakeArasAmlClient();
+            var client = CreateClient(fake);
+
+            var result = await client.RecordUsageAsync(null, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Empty(fake.CallLog);
         }
 
         [Fact]

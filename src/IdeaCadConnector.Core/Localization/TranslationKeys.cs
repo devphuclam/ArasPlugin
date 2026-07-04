@@ -130,6 +130,7 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryColumnRevisionPolicy = "LibraryColumnRevisionPolicy";
         public const string LibraryColumnCadStatus = "LibraryColumnCadStatus";
         public const string LibraryColumnUsage = "LibraryColumnUsage";
+        public const string LibraryColumnStatus = "LibraryColumnStatus";
         public const string LibraryLabelType = "LibraryLabelType";
         public const string LibraryLabelRevision = "LibraryLabelRevision";
         public const string LibraryLabelState = "LibraryLabelState";

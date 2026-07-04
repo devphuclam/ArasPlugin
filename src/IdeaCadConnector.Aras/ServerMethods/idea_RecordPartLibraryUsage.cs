@@ -41,11 +41,11 @@ if (quantity <= 0)
 
 string NormalizeActionType(string value)
 {
-    if (string.IsNullOrWhiteSpace(value))
+    if (string.IsNullOrEmpty(value))
         return "ReusedFromLibrary";
 
     string trimmed = value.Trim();
-    string[] allowed = new[]
+    string[] allowed = new string[]
     {
         "ReusedFromLibrary",
         "AddedToProject",
@@ -82,7 +82,7 @@ if (string.Equals(entryState, "Deprecated", System.StringComparison.OrdinalIgnor
 }
 
 string entryConfigId = entry.getProperty("part_config_id", "");
-if (string.IsNullOrWhiteSpace(entryConfigId))
+if (string.IsNullOrEmpty(entryConfigId))
     return inn.newError("Library Entry does not have a readable part_config_id.");
 
 Item part = inn.newItem("Part", "get");
@@ -94,7 +94,7 @@ if (part.isError() || part.getItemCount() != 1)
     return inn.newError("Part was not found.");
 
 string partConfigId = part.getProperty("config_id", "");
-if (string.IsNullOrWhiteSpace(partConfigId))
+if (string.IsNullOrEmpty(partConfigId))
     return inn.newError("Part does not have a readable config_id.");
 
 if (!string.Equals(partConfigId, entryConfigId, System.StringComparison.OrdinalIgnoreCase))
@@ -102,7 +102,7 @@ if (!string.Equals(partConfigId, entryConfigId, System.StringComparison.OrdinalI
     return inn.newError("Part config_id does not match Library Entry part_config_id.");
 }
 
-if (!string.IsNullOrWhiteSpace(parentPartId))
+if (!string.IsNullOrEmpty(parentPartId))
 {
     Item parentPart = inn.newItem("Part", "get");
     parentPart.setID(parentPartId);

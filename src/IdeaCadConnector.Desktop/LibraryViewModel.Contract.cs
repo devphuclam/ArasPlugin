@@ -63,6 +63,7 @@ namespace IdeaCadConnector.Desktop
         public string Revision { get; set; }
         public string LifecycleState { get; set; }
         public string EntryLifecycleState { get; set; }
+        public string EntryStatus { get; set; }
         public string RevisionPolicy { get; set; }
         public string CadStatus { get; set; }
         public int UsageCount { get; set; }

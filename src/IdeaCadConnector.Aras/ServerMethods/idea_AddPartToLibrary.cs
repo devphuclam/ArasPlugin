@@ -54,13 +54,13 @@ string sourceCommit =
  * 1. Input validation
  * --------------------------------------------------------- */
 
-if (string.IsNullOrWhiteSpace(libraryId))
+if (string.IsNullOrEmpty(libraryId))
 {
     return inn.newError(
         "VALIDATION_FAILED: library_id is required.");
 }
 
-if (string.IsNullOrWhiteSpace(partId))
+if (string.IsNullOrEmpty(partId))
 {
     return inn.newError(
         "VALIDATION_FAILED: part_id is required.");
@@ -191,13 +191,13 @@ if (partResult.getItemCount() != 1)
 string actualConfigId =
     (partResult.getProperty("config_id", "") ?? "").Trim();
 
-if (string.IsNullOrWhiteSpace(actualConfigId))
+if (string.IsNullOrEmpty(actualConfigId))
 {
     return inn.newError(
         "VALIDATION_FAILED: Part config_id could not be resolved.");
 }
 
-if (!string.IsNullOrWhiteSpace(suppliedConfigId) &&
+if (!string.IsNullOrEmpty(suppliedConfigId) &&
     !string.Equals(
         suppliedConfigId,
         actualConfigId,
@@ -218,7 +218,7 @@ string partRevision =
  */
 if (isPinned)
 {
-    if (string.IsNullOrWhiteSpace(pinnedPartId))
+    if (string.IsNullOrEmpty(pinnedPartId))
     {
         pinnedPartId = partId;
     }
@@ -385,7 +385,7 @@ if (addResult.isError())
 string createdEntryId =
     addResult.getID();
 
-if (string.IsNullOrWhiteSpace(createdEntryId))
+if (string.IsNullOrEmpty(createdEntryId))
 {
     return inn.newError(
         "ADD_FAILED: Aras did not return the created Entry ID.");

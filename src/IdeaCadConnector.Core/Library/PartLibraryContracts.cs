@@ -168,6 +168,19 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string UsedBy { get; set; }
         public string CommitId { get; set; }
         public string ActionType { get; set; }
+        public string IdempotencyKey { get; set; }
+    }
+
+    public sealed class RecordLibraryUsageResult
+    {
+        public bool Success { get; set; }
+        public bool AlreadyExists { get; set; }
+        public bool TrackingUnavailable { get; set; }
+        public string UsageId { get; set; }
+        public int UsageCount { get; set; }
+        public DateTime? LastUsedOn { get; set; }
+        public string IdempotencyKey { get; set; }
+        public string WarningMessage { get; set; }
     }
 
     public enum UsageCreateResult
@@ -260,7 +273,7 @@ namespace IdeaCadConnector.Core.Contracts
             string partId,
             CancellationToken cancellationToken);
 
-        Task RecordUsageAsync(
+        Task<RecordLibraryUsageResult> RecordUsageAsync(
             LibraryUsageRequest request,
             CancellationToken cancellationToken);
     }
