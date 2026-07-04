@@ -91,10 +91,19 @@ namespace IdeaCadConnector.Aras
             if (string.IsNullOrWhiteSpace(soapXml))
                 return new JObject();
 
-        if (soapXml.IndexOf("<faultstring>", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            if (soapXml.IndexOf("<faultstring>", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 soapXml.IndexOf("<faultcode>", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 var fault = ExtractXmlElement(soapXml, "faultstring") ?? "Unknown SOAP fault";
+
+                if (IsEmptyCollectionFault(fault, action, itemId))
+                {
+                    return new JObject
+                    {
+                        ["Items"] = new JArray()
+                    };
+                }
+
                 throw ClassifySoapFault(fault, action, itemType, itemId);
             }
 
@@ -103,6 +112,21 @@ namespace IdeaCadConnector.Aras
                 return new JObject();
 
             return ParseResultAsItems(resultContent);
+        }
+
+        internal static bool IsEmptyCollectionFault(string fault, string action, string itemId)
+        {
+            if (!string.Equals(action, "get", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(itemId))
+                return false;
+
+            if (string.IsNullOrWhiteSpace(fault))
+                return false;
+
+            return fault.IndexOf("No items of type", StringComparison.OrdinalIgnoreCase) >= 0
+                || fault.IndexOf("No items found", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static JObject ParseResultAsItems(string resultContent)

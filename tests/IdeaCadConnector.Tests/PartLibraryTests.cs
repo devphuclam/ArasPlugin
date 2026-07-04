@@ -240,6 +240,33 @@ namespace IdeaCadConnector.Tests
 
         // ── Behavioral: PushAsync via FakeArasAmlClient ─────────────────
 
+        [Fact]
+        public void IsEmptyCollectionFault_CollectionGetWithNoItems_ReturnsTrue()
+        {
+            Assert.True(ArasAmlClient.IsEmptyCollectionFault(
+                "No items of type idea_PartLibraryEntry found",
+                "get",
+                null));
+        }
+
+        [Fact]
+        public void IsEmptyCollectionFault_ExactGetWithNoItems_ReturnsFalse()
+        {
+            Assert.False(ArasAmlClient.IsEmptyCollectionFault(
+                "No items of type Part found",
+                "get",
+                "ABC123"));
+        }
+
+        [Fact]
+        public void IsEmptyCollectionFault_AlternateNoItemsText_ReturnsTrue()
+        {
+            Assert.True(ArasAmlClient.IsEmptyCollectionFault(
+                "No items found",
+                "get",
+                null));
+        }
+
         private static PdmPartRequest MakeLibraryPart(string logicalCode, string parentLogicalCode, string existingPartId = "part-1", string configId = "cfg-1", string revision = "A")
         {
             return new PdmPartRequest

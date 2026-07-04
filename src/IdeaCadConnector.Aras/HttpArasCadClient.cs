@@ -982,8 +982,14 @@ namespace IdeaCadConnector.Aras
             {
                 relResult = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", partId, ct).ConfigureAwait(false);
             }
-            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            catch (ArasOperationException ex) when (
+                ex.ErrorCode == ArasErrorCode.CadNotFound ||
+                ex.ErrorCode == ArasErrorCode.ValidationFailed ||
+                ex.ErrorCode == ArasErrorCode.PartNotFound)
             {
+                // Search should remain resilient when a Part has no Part CAD
+                // relationship yet. Treat missing relations as "no linked CAD"
+                // instead of failing the whole search request.
                 return null;
             }
             foreach (var rel in EnumerateItems(relResult))
