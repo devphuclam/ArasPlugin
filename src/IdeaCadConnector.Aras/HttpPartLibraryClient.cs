@@ -532,6 +532,18 @@ namespace IdeaCadConnector.Aras
 
                 if (result != null)
                 {
+                    var usageId = result["usage_id"]?.Value<string>();
+                    if (string.IsNullOrWhiteSpace(usageId))
+                    {
+                        _logger.LogWarning(
+                            "Usage Method returned a response without a readable usage_id for entry {EntryId}.",
+                            request.LibraryEntryId);
+
+                        throw new ArasOperationException(
+                            ArasErrorCode.UnexpectedServerError,
+                            "Usage Method returned an invalid response.");
+                    }
+
                     var usageCount = ParseInt(result["usage_count"]?.Value<string>(), 0);
                     _logger.LogInformation(
                         "Part Library usage recorded via server method for entry {EntryId}. " +
@@ -543,14 +555,21 @@ namespace IdeaCadConnector.Aras
                         Success = true,
                         AlreadyExists = ParseBoolean(result["already_exists"]?.Value<string>()),
                         TrackingUnavailable = false,
-                        UsageId = result["usage_id"]?.Value<string>(),
+                        UsageId = usageId,
                         UsageCount = usageCount,
                         LastUsedOn = ParseDate(result["last_used_on"]?.Value<string>()),
                         IdempotencyKey = result["idempotency_key"]?.Value<string>() ?? idempotencyKey
                     };
                 }
 
-                return new RecordLibraryUsageResult { Success = true, TrackingUnavailable = false };
+                // Null response: do not report success
+                _logger.LogWarning(
+                    "Usage Method returned null for entry {EntryId}. Throwing unexpected error.",
+                    request.LibraryEntryId);
+
+                throw new ArasOperationException(
+                    ArasErrorCode.UnexpectedServerError,
+                    "Usage Method returned an invalid response.");
             }
             catch (ArasOperationException ex) when (CanFallbackToDirectAdd(ex, PartLibrarySchemaNames.RecordPartLibraryUsageMethodName))
             {
@@ -682,12 +701,15 @@ namespace IdeaCadConnector.Aras
                 null,
                 ct).ConfigureAwait(false);
 
+            // Load authoritative usage counts from Usage Items (grouped by library_entry_id)
+            var usageCounts = await LoadUsageCountsAsync(ct).ConfigureAwait(false);
+
             var summaries = new List<PartLibraryEntrySummary>();
             foreach (var rel in EnumerateItems(result))
             {
                 try
                 {
-                    var summary = await MapEntrySummaryAsync(rel, ct).ConfigureAwait(false);
+                    var summary = await MapEntrySummaryAsync(rel, usageCounts, ct).ConfigureAwait(false);
                     if (summary != null)
                         summaries.Add(summary);
                 }
@@ -700,7 +722,65 @@ namespace IdeaCadConnector.Aras
             return summaries;
         }
 
-        private async Task<PartLibraryEntrySummary> MapEntrySummaryAsync(JObject relationship, CancellationToken ct)
+        private async Task<IReadOnlyDictionary<string, int>> LoadUsageCountsAsync(CancellationToken ct)
+        {
+            try
+            {
+                var usageAml =
+                    "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"get\" " +
+                    "select=\"id,library_entry_id\" />";
+
+                var usageResult = await _aml.ApplyAmlAsync(
+                    usageAml,
+                    "get",
+                    PartLibrarySchemaNames.UsageItemType,
+                    null,
+                    ct).ConfigureAwait(false);
+
+                var groups = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var item in EnumerateItems(usageResult))
+                {
+                    var entryId = item["library_entry_id"]?.Value<string>();
+                    if (string.IsNullOrWhiteSpace(entryId))
+                        continue;
+
+                    if (groups.TryGetValue(entryId, out var count))
+                        groups[entryId] = count + 1;
+                    else
+                        groups[entryId] = 1;
+                }
+
+                return groups;
+            }
+            catch (ArasOperationException ex) when (IsAuthOrPermissionFailure(ex))
+            {
+                // Auth or permission failure must not silently use the cache
+                throw;
+            }
+            catch (ArasOperationException ex)
+            {
+                // Missing or undeployed Usage ItemType: use cached usage_count and log warning
+                _logger.LogWarning(ex,
+                    "Usage ItemType '{ItemType}' query failed. Using cached usage_count as fallback.",
+                    PartLibrarySchemaNames.UsageItemType);
+                return new Dictionary<string, int>(0);
+            }
+            catch (Exception ex)
+            {
+                if (IsAuthOrPermissionFailure(ex))
+                    throw;
+
+                _logger.LogWarning(ex,
+                    "Usage ItemType '{ItemType}' query failed with unexpected error. Using cached usage_count as fallback.",
+                    PartLibrarySchemaNames.UsageItemType);
+                return new Dictionary<string, int>(0);
+            }
+        }
+
+        private async Task<PartLibraryEntrySummary> MapEntrySummaryAsync(
+            JObject relationship,
+            IReadOnlyDictionary<string, int> usageCounts,
+            CancellationToken ct)
         {
             var partId = relationship["related_id"]?.Value<string>();
             if (string.IsNullOrWhiteSpace(partId))
@@ -715,9 +795,7 @@ namespace IdeaCadConnector.Aras
             var pinnedPartId = relationship["pinned_part_id"]?.Value<string>();
 
             var libraryId = relationship["source_id"]?.Value<string>();
-            var library = !string.IsNullOrWhiteSpace(libraryId)
-                ? await GetLibraryAsync(libraryId, ct).ConfigureAwait(false)
-                : null;
+            var library = await TryGetLibraryForEntryAsync(libraryId, ct).ConfigureAwait(false);
 
             JObject resolvedPart;
             if (policy == LibraryRevisionPolicy.Pinned)
@@ -735,15 +813,23 @@ namespace IdeaCadConnector.Aras
 
             var lifecycleState = relationship["state"]?.Value<string>();
             var effectiveStatus = GetEffectiveEntryStatus(lifecycleState, relationship["entry_status"]?.Value<string>());
+            var entryId = relationship["id"]?.Value<string>();
 
             var cad = await GetPrimaryCadInfoAsync(resolvedPart["id"]?.Value<string>(), ct).ConfigureAwait(false);
             var latestReleased = await GetLatestReleasedPartAsync(configId, resolvedPart["id"]?.Value<string>(), ct).ConfigureAwait(false);
 
+            // Use authoritative Usage Items count when available, fall back to cached usage_count
+            int authoritativeCount = 0;
+            if (usageCounts != null && !string.IsNullOrWhiteSpace(entryId) && usageCounts.TryGetValue(entryId, out var groupedCount))
+                authoritativeCount = groupedCount;
+            else
+                authoritativeCount = ParseInt(relationship["usage_count"]?.Value<string>(), 0);
+
             return new PartLibraryEntrySummary
             {
-                EntryId = relationship["id"]?.Value<string>(),
+                EntryId = entryId,
                 LibraryId = libraryId,
-                LibraryName = library?["name"]?.Value<string>(),
+                LibraryName = library?["name"]?.Value<string>() ?? GetUnavailableLibraryName(libraryId),
                 PartId = resolvedPart["id"]?.Value<string>(),
                 PartConfigId = resolvedPart["config_id"]?.Value<string>() ?? configId,
                 PartNumber = resolvedPart["item_number"]?.Value<string>(),
@@ -755,7 +841,7 @@ namespace IdeaCadConnector.Aras
                 RevisionPolicy = policy,
                 EntryStatus = effectiveStatus,
                 CadStatus = cad.Status,
-                UsageCount = ParseInt(relationship["usage_count"]?.Value<string>(), 0),
+                UsageCount = authoritativeCount,
                 HasNewerReleasedRevision = latestReleased != null &&
                                           !string.Equals(latestReleased["id"]?.Value<string>(), resolvedPart["id"]?.Value<string>(), StringComparison.OrdinalIgnoreCase),
                 IsDeprecated = effectiveStatus == LibraryEntryStatus.Deprecated,
@@ -768,7 +854,8 @@ namespace IdeaCadConnector.Aras
 
         private async Task<PartLibraryEntryDetails> MapEntryDetailsAsync(JObject relationship, CancellationToken ct)
         {
-            var summary = await MapEntrySummaryAsync(relationship, ct).ConfigureAwait(false);
+            var usageCounts = await LoadUsageCountsAsync(ct).ConfigureAwait(false);
+            var summary = await MapEntrySummaryAsync(relationship, usageCounts, ct).ConfigureAwait(false);
             if (summary == null)
                 return null;
 
@@ -808,9 +895,8 @@ namespace IdeaCadConnector.Aras
         {
             var relatedPartId = relationship["related_id"]?.Value<string>();
             var libraryId = relationship["source_id"]?.Value<string>();
-            var library = !string.IsNullOrWhiteSpace(libraryId)
-                ? await GetLibraryAsync(libraryId, ct).ConfigureAwait(false)
-                : null;
+            var library = await TryGetLibraryForEntryAsync(libraryId, ct).ConfigureAwait(false);
+            var libraryName = library?["name"]?.Value<string>() ?? GetUnavailableLibraryName(libraryId);
 
             string partNumber = null;
             string partName = null;
@@ -837,11 +923,20 @@ namespace IdeaCadConnector.Aras
             var entryStatus = GetEffectiveEntryStatus(relationship["state"]?.Value<string>(), relationship["entry_status"]?.Value<string>());
             var resolutionError = BuildResolutionError(ex, partState, partNotFound);
 
+            // Append Library resolution message when library was unavailable
+            if (libraryName == "(Unavailable Library)" && !string.IsNullOrWhiteSpace(libraryId))
+            {
+                var libMsg = "Library '" + libraryId + "' could not be resolved.";
+                resolutionError = string.IsNullOrWhiteSpace(resolutionError)
+                    ? libMsg
+                    : resolutionError + " " + libMsg;
+            }
+
             return new PartLibraryEntrySummary
             {
                 EntryId = relationship["id"]?.Value<string>(),
                 LibraryId = libraryId,
-                LibraryName = library?["name"]?.Value<string>(),
+                LibraryName = libraryName,
                 PartId = relatedPartId,
                 PartConfigId = relationship["part_config_id"]?.Value<string>(),
                 PartNumber = partNumber,
@@ -865,9 +960,6 @@ namespace IdeaCadConnector.Aras
 
         private static string BuildResolutionError(Exception ex, string partState, bool partNotFound)
         {
-            if (ex is ArasOperationException arasEx && arasEx.ErrorCode == ArasErrorCode.PermissionDenied)
-                return "Part lifecycle state is not readable. You do not have permission to access this Part.";
-
             if (partNotFound)
                 return "Part was not found. It may have been deleted or moved.";
 
@@ -894,6 +986,43 @@ namespace IdeaCadConnector.Aras
                 "get",
                 "id,name,description,library_type,status,default_revision_policy,is_public",
                 ct).ConfigureAwait(false);
+        }
+
+        private async Task<JObject> TryGetLibraryForEntryAsync(string libraryId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(libraryId))
+                return null;
+
+            try
+            {
+                return await GetLibraryAsync(libraryId, ct).ConfigureAwait(false);
+            }
+            catch (ArasOperationException ex) when (IsAuthOrPermissionFailure(ex) || ex.ErrorCode == ArasErrorCode.ServerUnavailable)
+            {
+                throw;
+            }
+            catch (ArasOperationException ex)
+            {
+                _logger.LogWarning(ex,
+                    "Library {LibraryId} could not be resolved while loading Part Library entries.",
+                    libraryId);
+                return null;
+            }
+            catch (Exception ex)
+            {
+                if (IsAuthOrPermissionFailure(ex))
+                    throw;
+
+                _logger.LogWarning(ex,
+                    "Library {LibraryId} could not be resolved while loading Part Library entries.",
+                    libraryId);
+                return null;
+            }
+        }
+
+        private static string GetUnavailableLibraryName(string libraryId)
+        {
+            return string.IsNullOrWhiteSpace(libraryId) ? null : "(Unavailable Library)";
         }
 
         private async Task<JObject> GetPartAsync(string partId, CancellationToken ct)
@@ -1346,16 +1475,7 @@ namespace IdeaCadConnector.Aras
 
             return ex.ErrorCode == ArasErrorCode.ValidationFailed ||
                    ex.ErrorCode == ArasErrorCode.PartNotFound ||
-                   ex.ErrorCode == ArasErrorCode.CadNotFound ||
-                   ex.ErrorCode == ArasErrorCode.PermissionDenied;
-        }
-
-        private static bool IsStateNotReadableError(ArasOperationException ex)
-        {
-            if (ex == null)
-                return false;
-
-            return ex.ErrorCode == ArasErrorCode.PermissionDenied;
+                   ex.ErrorCode == ArasErrorCode.CadNotFound;
         }
 
         private static string SanitizeForEntry(Exception ex)
@@ -1413,6 +1533,12 @@ namespace IdeaCadConnector.Aras
                 throw new ArasOperationException(ArasErrorCode.ValidationFailed, subject + " does not have a readable major_rev.");
 
             var state = part["state"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(state))
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    subject + " does not have a readable lifecycle state.");
+            }
+
             if (PartLifecyclePolicy.IsPartObsolete(state))
             {
                 throw new ArasOperationException(ArasErrorCode.ValidationFailed,

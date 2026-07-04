@@ -252,19 +252,24 @@
                                     <Setter Property="FontSize" Value="11"/>
                                     <Setter Property="FontWeight" Value="SemiBold"/>
                                     <Setter Property="Padding" Value="6,2"/>
-                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="VerticalAlignment" Value="Center"/>
+                                    <Setter Property="HorizontalAlignment" Value="Center"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding EntryStatus}" Value="Draft">
                                             <Setter Property="Foreground" Value="{StaticResource StatusDraftBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding EntryStatus}" Value="PendingReview">
                                             <Setter Property="Foreground" Value="{StaticResource StatusPendingReviewBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding EntryStatus}" Value="Published">
                                             <Setter Property="Foreground" Value="{StaticResource StatusPublishedBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding EntryStatus}" Value="Deprecated">
                                             <Setter Property="Foreground" Value="{StaticResource StatusDeprecatedBrush}"/>
+                                            <Setter Property="Background" Value="Transparent"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -293,7 +298,13 @@
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnType]}" Binding="{Binding PartType}" Width="0.8*"/>
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevision]}" Binding="{Binding Revision}" Width="55"/>
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnLifecycle]}" Binding="{Binding LifecycleState}" Width="0.9*"/>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnStatus]}" Binding="{Binding EntryStatus}" Width="0.9*"/>
+                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnStatus]}" Width="0.9*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding EntryStatus}" Style="{StaticResource StatusBadgeStyle}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevisionPolicy]}" Binding="{Binding RevisionPolicy}" Width="1*"/>
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnCadStatus]}" Binding="{Binding CadStatus}" Width="0.9*"/>
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnUsage]}" Binding="{Binding UsageCount}" Width="60"/>
@@ -350,6 +361,25 @@
                                            Foreground="#9A3412"
                                            FontWeight="SemiBold"/>
                             </Border>
+                            <Border Margin="0,12,0,0"
+                                    Padding="12"
+                                    CornerRadius="10"
+                                    Background="#FEF2F2"
+                                    BorderBrush="#FCA5A5"
+                                    BorderThickness="1"
+                                    Visibility="{Binding SelectedEntryDetails.ResolutionFailed, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWarningResolutionError]}"
+                                               TextWrapping="Wrap"
+                                               Foreground="#991B1B"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding SelectedEntryDetails.ResolutionError}"
+                                               Margin="0,4,0,0"
+                                               TextWrapping="Wrap"
+                                               Foreground="#991B1B"
+                                               FontSize="12"/>
+                                </StackPanel>
+                            </Border>
                             <TabControl Margin="0,14,0,0" BorderThickness="0">
                                 <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabOverview]}">
                                     <Grid Margin="0,12,0,0">
@@ -360,6 +390,7 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="30"/><RowDefinition Height="30"/><RowDefinition Height="30"/>
                                             <RowDefinition Height="30"/><RowDefinition Height="30"/><RowDefinition Height="30"/>
+                                            <RowDefinition Height="30"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Grid.Row="0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelType]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedEntryDetails.PartType}"/>
@@ -367,12 +398,14 @@
                                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedEntryDetails.Revision}"/>
                                         <TextBlock Grid.Row="2" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelState]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedEntryDetails.LifecycleState}"/>
-                                        <TextBlock Grid.Row="3" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelLibrary]}" Foreground="{StaticResource LibraryMutedBrush}"/>
-                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedEntryDetails.LibraryName}"/>
-                                        <TextBlock Grid.Row="4" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelPolicy]}" Foreground="{StaticResource LibraryMutedBrush}"/>
-                                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedEntryDetails.RevisionPolicy}"/>
-                                        <TextBlock Grid.Row="5" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelUsage]}" Foreground="{StaticResource LibraryMutedBrush}"/>
-                                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedEntryDetails.UsageCount}"/>
+                                        <TextBlock Grid.Row="3" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelEntryStatus]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedEntryDetails.EntryLifecycleState}"/>
+                                        <TextBlock Grid.Row="4" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelLibrary]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedEntryDetails.LibraryName}"/>
+                                        <TextBlock Grid.Row="5" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelPolicy]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedEntryDetails.RevisionPolicy}"/>
+                                        <TextBlock Grid.Row="6" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLabelUsage]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedEntryDetails.UsageCount}"/>
                                     </Grid>
                                 </TabItem>
                                 <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabCad]}"/>

@@ -183,16 +183,6 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string WarningMessage { get; set; }
     }
 
-    public enum UsageCreateResult
-    {
-        Created,
-        UsedByUnsupported,
-        AuthFailed,
-        PermissionDenied,
-        ServerError,
-        ValidationFailed
-    }
-
     public sealed class UpdateLibraryRevisionPolicyRequest
     {
         public string EntryId { get; set; }

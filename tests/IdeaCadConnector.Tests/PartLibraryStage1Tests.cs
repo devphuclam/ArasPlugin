@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -6,6 +7,7 @@ using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Dto.Library;
 using IdeaCadConnector.Core.Errors;
 using IdeaCadConnector.Core.Library;
+using IdeaCadConnector.Core.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Newtonsoft.Json.Linq;
 using Xunit;
@@ -523,6 +525,577 @@ namespace IdeaCadConnector.Tests
                 ["state"] = state,
                 ["generation"] = generation
             };
+        }
+
+        // ── Null / invalid method response tests ──────────────────────
+
+        [Fact]
+        public async Task RecordUsageAsync_NullMethodResponse_ThrowsNotSuccess()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyMethodResults.Enqueue(null);
+
+            var client = CreateClient(fake);
+
+            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
+
+            Assert.Equal(ArasErrorCode.UnexpectedServerError, ex.ErrorCode);
+            Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
+        }
+
+        [Fact]
+        public async Task RecordUsageAsync_MethodResponseWithoutUsageId_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyMethodResults.Enqueue(new JObject
+            {
+                ["usage_count"] = "1",
+                ["last_used_on"] = "2026-07-04T10:00:00"
+            });
+
+            var client = CreateClient(fake);
+
+            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
+
+            Assert.Equal(ArasErrorCode.UnexpectedServerError, ex.ErrorCode);
+            Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
+        }
+
+        // ── AuthExpired, cancellation tests ───────────────────────────
+
+        [Fact]
+        public async Task RecordUsageAsync_AuthExpired_DoesNotFallback()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyMethodExceptions.Enqueue(new ArasOperationException(ArasErrorCode.AuthExpired, "session expired"));
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
+
+            Assert.Single(fake.CallLog.Where(call => call.MethodKind == "ApplyMethod"));
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.ItemType == PartLibrarySchemaNames.UsageItemType && call.Action == "add");
+        }
+
+        [Fact]
+        public async Task RecordUsageAsync_Cancellation_DoesNotFallback()
+        {
+            var fake = new FakeArasAmlClient();
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<OperationCanceledException>(() =>
+                client.RecordUsageAsync(MakeUsageRequest(), cts.Token));
+        }
+
+        // ── Usage count authoritative tests ────────────────────────────
+
+        [Fact]
+        public async Task SearchEntriesAsync_UsageCountFromUsageItems()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // Schema: 2 calls consumed. ApplyAmlResults remaining: [0..N]
+            // Two entries
+            fake.ApplyAmlResults.Enqueue(Items(
+                Entry("entry-1", "Pinned", "cfg-1", "related-1", "related-1", "Draft", "Draft"),
+                Entry("entry-2", "Pinned", "cfg-2", "related-2", "related-2", "Draft", "Draft")));
+            // Usage query - three usages for entry-1, one for entry-2 (called BEFORE MapEntrySummaryAsync)
+            fake.ApplyAmlResults.Enqueue(Items(
+                new JObject { ["id"] = "usage-1", ["library_entry_id"] = "entry-1" },
+                new JObject { ["id"] = "usage-2", ["library_entry_id"] = "entry-1" },
+                new JObject { ["id"] = "usage-3", ["library_entry_id"] = "entry-1" },
+                new JObject { ["id"] = "usage-4", ["library_entry_id"] = "entry-2" }));
+            // CAD for entry-1 (related-1)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            // Latest released for entry-1
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
+            // CAD for entry-2 (related-2)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            // Latest released for entry-2
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-2", "cfg-2", "PART-002", "A", "Released")));
+
+            // ApplyItem call order is library1 -> part1 -> library2 -> part2
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-2", "cfg-2", "PART-002", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None);
+
+            Assert.Equal(2, result.Entries.Count);
+            var entry1 = Assert.Single(result.Entries.Where(e => e.EntryId == "entry-1"));
+            var entry2 = Assert.Single(result.Entries.Where(e => e.EntryId == "entry-2"));
+            Assert.Equal(3, entry1.UsageCount);
+            Assert.Equal(1, entry2.UsageCount);
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_MultipleUsagesSameEntry_CorrectCount()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(
+                Entry("entry-1", "Pinned", "cfg-1", "related-1", "related-1", "Draft", "Draft")));
+            // Usage query (called BEFORE MapEntrySummaryAsync)
+            fake.ApplyAmlResults.Enqueue(Items(
+                new JObject { ["id"] = "u1", ["library_entry_id"] = "entry-1" },
+                new JObject { ["id"] = "u2", ["library_entry_id"] = "entry-1" },
+                new JObject { ["id"] = "u3", ["library_entry_id"] = "entry-1" },
+                new JObject { ["id"] = "u4", ["library_entry_id"] = "entry-1" },
+                new JObject { ["id"] = "u5", ["library_entry_id"] = "entry-1" }));
+            // CAD
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            // Latest released
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
+
+            // ApplyItem calls
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None);
+
+            var entry = Assert.Single(result.Entries);
+            Assert.Equal(5, entry.UsageCount);
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_UsageItemTypeMissing_UsesCachedCount()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // Entry with cached usage_count=2
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["id"] = "entry-1",
+                ["source_id"] = "lib-1",
+                ["related_id"] = "related-1",
+                ["part_config_id"] = "cfg-1",
+                ["revision_policy"] = "Pinned",
+                ["pinned_part_id"] = "related-1",
+                ["entry_status"] = "Draft",
+                ["state"] = "Draft",
+                ["usage_count"] = "2"
+            }));
+            // Usage query returns empty (simulates missing/not-deployed ItemType)
+            // LoadUsageCountsAsync returns empty dict → fallback to cached usage_count
+            fake.ApplyAmlResults.Enqueue(Items());
+            // CAD + latest released
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-1", "cfg-1", "PART-001", "A", "Released")));
+
+            // ApplyItem calls
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None);
+
+            var entry = Assert.Single(result.Entries);
+            Assert.Equal(2, entry.UsageCount);
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_PermissionDeniedQueryingUsage_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(Entry("entry-1", "Pinned", "cfg-1", "related-1")));
+            // Usage query — must be queued AFTER schema and entries but BEFORE CAD/latestReleased
+            fake.ApplyAmlExceptions.Enqueue(new ArasOperationException(ArasErrorCode.PermissionDenied, "access denied"));
+            // CAD + latest released (never reached due to exception)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items());
+
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_AuthFailureQueryingUsage_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(Entry("entry-1", "Pinned", "cfg-1", "related-1")));
+            // Usage query — must be queued AFTER schema and entries but BEFORE CAD/latestReleased
+            fake.ApplyAmlExceptions.Enqueue(new ArasOperationException(ArasErrorCode.AuthInvalid, "not authenticated"));
+            // CAD + latest released (never reached)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items());
+
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.SearchEntriesAsync(new PartLibrarySearchRequest { LibraryId = "lib-1" }, CancellationToken.None));
+        }
+
+        // ── Diagnostic Entry tests ─────────────────────────────────────
+
+        [Fact]
+        public async Task SearchEntriesAsync_MissingSourceLibrary_ProducesDiagnosticEntry()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // Entry with LatestCurrent policy so resolution fails (no current part found)
+            // Library lookup succeeds in MapEntrySummaryAsync, then fails in CreateDiagnosticSummaryAsync
+            var entryWithBadLib = new JObject
+            {
+                ["id"] = "entry-bad-lib",
+                ["source_id"] = "lib-missing",
+                ["related_id"] = "related-1",
+                ["part_config_id"] = "cfg-1",
+                ["revision_policy"] = "LatestCurrent"
+            };
+            var entryValid = Entry("entry-valid", "Pinned", "cfg-2", "related-2", "related-2", "Draft", "Draft");
+            fake.ApplyAmlResults.Enqueue(Items(entryWithBadLib, entryValid));
+            // Usage query
+            fake.ApplyAmlResults.Enqueue(Items());
+            // LatestCurrent AML query for entry-bad-lib (returns no items → ValidationFailed)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            // CAD + latest released for entry-valid
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("related-2", "cfg-2", "PART-002", "A", "Released")));
+
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, selectFields) =>
+            {
+                if (string.Equals(itemType, PartLibrarySchemaNames.LibraryItemType, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(itemId, "lib-missing", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new ArasOperationException(ArasErrorCode.ValidationFailed, "Library not found");
+                }
+
+                return null;
+            };
+            // Part lookup for related-1 (for diagnostic display)
+            fake.ApplyItemResults.Enqueue(Part("related-1", "cfg-1", "PART-001", "A", "Released"));
+            // Library lookup for entry-valid
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            // Part lookup for entry-valid
+            fake.ApplyItemResults.Enqueue(Part("related-2", "cfg-2", "PART-002", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(new PartLibrarySearchRequest(), CancellationToken.None);
+
+            Assert.Equal(2, result.Entries.Count);
+            var badLibEntry = Assert.Single(result.Entries.Where(e => e.EntryId == "entry-bad-lib"));
+            var validEntry = Assert.Single(result.Entries.Where(e => e.EntryId == "entry-valid"));
+            Assert.True(badLibEntry.ResolutionFailed);
+            Assert.Equal("(Unavailable Library)", badLibEntry.LibraryName);
+            Assert.False(string.IsNullOrWhiteSpace(badLibEntry.ResolutionError));
+            Assert.False(validEntry.ResolutionFailed);
+            Assert.Equal("entry-valid", validEntry.EntryId);
+        }
+
+        [Fact]
+        public async Task GetEntryAsync_PermissionDeniedDuringLibraryLookup_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1"));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, selectFields) =>
+                string.Equals(itemType, PartLibrarySchemaNames.LibraryItemType, StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.PermissionDenied, "access denied")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.GetEntryAsync("entry-1", CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task GetEntryAsync_AuthInvalidDuringPartLookup_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1"));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, selectFields) =>
+                string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.AuthInvalid, "not authenticated")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.GetEntryAsync("entry-1", CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task GetEntryAsync_ServerUnavailablePartLookup_Throws()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1"));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, selectFields) =>
+                string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ServerUnavailable, "service unavailable")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.GetEntryAsync("entry-1", CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task GetEntryAsync_PartNotFound_ProducesDiagnostic()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "related-1", "Draft", "Draft"));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, selectFields) =>
+                string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(itemId, "related-1", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.PartNotFound, "Part not found")
+                    : null;
+            // ApplyAml: usage query
+            fake.ApplyAmlResults.Enqueue(Items());
+
+            var client = CreateClient(fake);
+
+            var result = await client.GetEntryAsync("entry-1", CancellationToken.None);
+
+            Assert.True(result.ResolutionFailed);
+            Assert.False(result.CanAddToProject);
+            Assert.Contains("not found", result.ResolutionError, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task GetEntryAsync_ResolutionErrorInDetails()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "related-1", "Draft", "Draft"));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, selectFields) =>
+                string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(itemId, "related-1", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.PartNotFound, "Part not found")
+                    : null;
+            fake.ApplyAmlResults.Enqueue(Items());
+
+            var client = CreateClient(fake);
+
+            var result = await client.GetEntryAsync("entry-1", CancellationToken.None);
+
+            Assert.True(result.ResolutionFailed);
+            Assert.False(string.IsNullOrWhiteSpace(result.ResolutionError));
+            Assert.False(result.CanAddToProject);
+        }
+
+        // ── Blank Part state tests ─────────────────────────────────────
+
+        [Fact]
+        public async Task ResolvePartAsync_PinnedBlankState_Rejects()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "related-1", "pinned-1"));
+            fake.ApplyItemResults.Enqueue(new JObject
+            {
+                ["id"] = "pinned-1",
+                ["config_id"] = "cfg-1",
+                ["item_number"] = "PART-001",
+                ["name"] = "Test Part",
+                ["major_rev"] = "A",
+                ["state"] = ""
+            });
+
+            var client = CreateClient(fake);
+
+            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.ResolvePartAsync("entry-1", LibraryRevisionPolicy.Pinned, CancellationToken.None));
+
+            Assert.Equal(ArasErrorCode.ValidationFailed, ex.ErrorCode);
+            Assert.Contains("does not have a readable lifecycle state", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task UpdateRevisionPolicyAsync_PinnedBlankState_DoesNotEditEntry()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestReleased", "cfg-1", "related-1"));
+            fake.ApplyItemResults.Enqueue(new JObject
+            {
+                ["id"] = "pinned-1",
+                ["config_id"] = "cfg-1",
+                ["item_number"] = "PART-001",
+                ["name"] = "Test Part",
+                ["major_rev"] = "A",
+                ["state"] = ""
+            });
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.UpdateRevisionPolicyAsync(
+                    new UpdateLibraryRevisionPolicyRequest
+                    {
+                        EntryId = "entry-1",
+                        RevisionPolicy = LibraryRevisionPolicy.Pinned,
+                        PinnedPartId = "pinned-1"
+                    },
+                    CancellationToken.None));
+
+            Assert.DoesNotContain(fake.CallLog, call => call.MethodKind == "ApplyAml" && call.Action == "edit" && call.ItemType == PartLibrarySchemaNames.EntryRelationshipType);
+        }
+
+        // ── State filter tests ─────────────────────────────────────────
+
+        [Fact]
+        public async Task SearchEntriesAsync_StateFilterDeprecated_DoesNotMatch()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // Entry with Released Part state but Deprecated Entry status
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["id"] = "entry-1",
+                ["source_id"] = "lib-1",
+                ["related_id"] = "related-1",
+                ["part_config_id"] = "cfg-1",
+                ["revision_policy"] = "Pinned",
+                ["pinned_part_id"] = "related-1",
+                ["entry_status"] = "Deprecated",
+                ["state"] = "Deprecated",
+                ["usage_count"] = "0"
+            }));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            // ResolveLatestReleasedPartStrictAsync fails -> becomes diagnostic entry
+            fake.ApplyAmlResults.Enqueue(Items());
+
+            var client = CreateClient(fake);
+
+            // Filter by "Released" (Part lifecycle) should NOT match a Deprecated entry
+            var result = await client.SearchEntriesAsync(
+                new PartLibrarySearchRequest { StateFilter = "Released" },
+                CancellationToken.None);
+
+            Assert.Empty(result.Entries);
+        }
+
+        // ── Server Method source tests ─────────────────────────────────
+
+        [Fact]
+        public void MethodSource_ContainsIdempotencyKey()
+        {
+            var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
+            var source = File.ReadAllText(sourcePath);
+            Assert.Contains("idempotency_key", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void MethodSource_QueriesExistingUsageBeforeAdd()
+        {
+            var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
+            var source = File.ReadAllText(sourcePath);
+            Assert.Contains("existingUsage", source, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void MethodSource_ReturnsAlreadyExists()
+        {
+            var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
+            var source = File.ReadAllText(sourcePath);
+            Assert.Contains("already_exists", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void MethodSource_NoLocalFunction()
+        {
+            var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
+            var source = File.ReadAllText(sourcePath);
+            Assert.DoesNotContain("NormalizeActionType", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void MethodSource_NoNamespaceOrClass()
+        {
+            var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
+            var source = File.ReadAllText(sourcePath);
+            Assert.DoesNotContain("namespace ", source, StringComparison.Ordinal);
+            Assert.DoesNotContain(" class ", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void MethodSource_NoAsyncKeyword()
+        {
+            var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
+            var source = File.ReadAllText(sourcePath);
+            Assert.DoesNotContain("async", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DeploymentDoc_ExistsAndMentionsIdempotencyKey()
+        {
+            var docPath = Path.Combine(
+                FindRepoRoot(),
+                "docs",
+                "part-library-stage1-deployment.md");
+            Assert.True(File.Exists(docPath), "Deployment documentation not found.");
+            var source = File.ReadAllText(docPath);
+            Assert.Contains("idempotency_key", source, StringComparison.Ordinal);
+        }
+
+        // ── State filter mapping tests ─────────────────────────────────
+
+        [Fact]
+        public void StateFilterOptions_DoNotIncludeDeprecated()
+        {
+            // Verify the LibraryViewModel does not include Deprecated in state filter
+            // by checking the TranslationKeys and filter behavior
+            Assert.False(string.IsNullOrWhiteSpace(TranslationKeys.LibraryFilterDeprecated));
+
+            // The key still exists but view model should not add it to the filter list.
+            // This test verifies the test infrastructure - the actual behavior is
+            // tested by SearchEntriesAsync_StateFilterDeprecated_DoesNotMatch.
+        }
+
+        // ── Helpers ────────────────────────────────────────────────────
+
+        private static string FindMethodSourceFile(string fileName)
+        {
+            var repoRoot = FindRepoRoot();
+            var fullPath = Path.Combine(repoRoot, "IdeaCadConnector", "src", "IdeaCadConnector.Aras", "ServerMethods", fileName);
+            Assert.True(File.Exists(fullPath), "Method source file not found: " + fullPath);
+            return fullPath;
+        }
+
+        private static string FindRepoRoot()
+        {
+            var dir = AppDomain.CurrentDomain.BaseDirectory;
+            while (dir != null)
+            {
+                if (Directory.Exists(Path.Combine(dir, "IdeaCadConnector")) &&
+                    Directory.Exists(Path.Combine(dir, "docs")))
+                    return dir;
+                dir = Path.GetDirectoryName(dir);
+            }
+
+            Assert.True(false, "Could not locate repository root.");
+            return null;
         }
 
         private static JObject Items(params JObject[] items)

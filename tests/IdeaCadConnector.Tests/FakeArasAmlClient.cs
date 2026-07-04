@@ -32,6 +32,10 @@ namespace IdeaCadConnector.Tests
         public Queue<System.Exception> ApplyItemExceptions { get; } = new Queue<System.Exception>();
         public Queue<System.Exception> ApplyAmlExceptions { get; } = new Queue<System.Exception>();
 
+        public System.Func<string, IReadOnlyDictionary<string, string>, System.Exception> ApplyMethodExceptionFactory { get; set; }
+        public System.Func<string, string, string, string, System.Exception> ApplyItemExceptionFactory { get; set; }
+        public System.Func<string, string, string, string, System.Exception> ApplyAmlExceptionFactory { get; set; }
+
         public List<AmlCallRecord> Calls { get; } = new List<AmlCallRecord>();
 
         public IReadOnlyList<AmlCallRecord> CallLog => Calls;
@@ -49,6 +53,9 @@ namespace IdeaCadConnector.Tests
                 ItemType = "Method",
                 MethodParameters = new Dictionary<string, string>(parameters ?? new Dictionary<string, string>())
             });
+            var methodException = ApplyMethodExceptionFactory?.Invoke(methodName, new Dictionary<string, string>(parameters ?? new Dictionary<string, string>()));
+            if (methodException != null)
+                throw methodException;
             if (ApplyMethodExceptions.Count > 0)
                 throw ApplyMethodExceptions.Dequeue();
             return Task.FromResult(ApplyMethodResults.Count > 0 ? ApplyMethodResults.Dequeue() : new JObject());
@@ -67,6 +74,9 @@ namespace IdeaCadConnector.Tests
                 Action = action,
                 SelectFields = selectFields
             });
+            var itemException = ApplyItemExceptionFactory?.Invoke(itemType, itemId, action, selectFields);
+            if (itemException != null)
+                throw itemException;
             if (ApplyItemExceptions.Count > 0)
                 throw ApplyItemExceptions.Dequeue();
             return Task.FromResult(ApplyItemResults.Count > 0 ? ApplyItemResults.Dequeue() : new JObject());
@@ -85,6 +95,9 @@ namespace IdeaCadConnector.Tests
                 ItemType = itemType,
                 ItemId = itemId
             });
+            var amlException = ApplyAmlExceptionFactory?.Invoke(amlBody, action, itemType, itemId);
+            if (amlException != null)
+                throw amlException;
             if (ApplyAmlExceptions.Count > 0)
                 throw ApplyAmlExceptions.Dequeue();
             return Task.FromResult(ApplyAmlResults.Count > 0 ? ApplyAmlResults.Dequeue() : new JObject());

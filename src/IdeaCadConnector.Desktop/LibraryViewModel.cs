@@ -882,8 +882,6 @@ namespace IdeaCadConnector.Desktop
                 return "In Review";
             if (value == L(TranslationKeys.LibraryFilterPreliminary))
                 return "Preliminary";
-            if (value == L(TranslationKeys.LibraryFilterDeprecated))
-                return "Deprecated";
             return value;
         }
 
@@ -1097,7 +1095,6 @@ namespace IdeaCadConnector.Desktop
             StateFilters.Add(L(TranslationKeys.LibraryFilterReleased));
             StateFilters.Add(L(TranslationKeys.LibraryFilterInReview));
             StateFilters.Add(L(TranslationKeys.LibraryFilterPreliminary));
-            StateFilters.Add(L(TranslationKeys.LibraryFilterDeprecated));
 
             RevisionFilters.Clear();
             RevisionFilters.Add(L(TranslationKeys.LibraryFilterAllRevisions));

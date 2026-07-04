@@ -137,6 +137,8 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryLabelLibrary = "LibraryLabelLibrary";
         public const string LibraryLabelPolicy = "LibraryLabelPolicy";
         public const string LibraryLabelUsage = "LibraryLabelUsage";
+        public const string LibraryLabelEntryStatus = "LibraryLabelEntryStatus";
+        public const string LibraryWarningResolutionError = "LibraryWarningResolutionError";
         public const string LibrarySelectPart = "LibrarySelectPart";
         public const string LibraryWhereUsedHint = "LibraryWhereUsedHint";
         public const string LibraryNoLinkedCad = "LibraryNoLinkedCad";
