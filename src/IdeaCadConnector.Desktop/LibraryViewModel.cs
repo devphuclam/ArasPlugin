@@ -462,12 +462,45 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            if (SelectedEntry.IsDeprecated)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusEntryDeprecated);
+                return;
+            }
+
+            // Resolve according to Entry revision policy first
+            ResolveLibraryPartResult resolved = null;
+            await RunBusyAsync(async () =>
+            {
+                try
+                {
+                    resolved = await ActiveClient.ResolveUsingStoredPolicyAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                }
+                catch (ArasOperationException ex)
+                {
+                    StatusMessage = ex.Message;
+                }
+            }).ConfigureAwait(true);
+
+            if (resolved == null || string.IsNullOrWhiteSpace(resolved.ResolvedPartId))
+            {
+                if (string.IsNullOrWhiteSpace(StatusMessage))
+                    StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
+                return;
+            }
+
+            var resolvedPartId = resolved.ResolvedPartId;
+            var resolvedConfigId = resolved.ResolvedPartConfigId;
+            var resolvedRevision = resolved.ResolvedRevision;
+            var resolvedPartNumber = SelectedEntryDetails?.PartNumber ?? SelectedEntry.PartNumber;
+            var resolvedPartName = SelectedEntryDetails?.PartName ?? SelectedEntry.PartName;
+
             var dialogViewModel = new AddLibraryPartToProjectDialogViewModel(
                 workspace,
-                SelectedEntryDetails.PartNumber ?? SelectedEntry.PartNumber,
-                SelectedEntryDetails.PartName ?? SelectedEntry.PartName,
-                SelectedEntryDetails.Revision ?? SelectedEntry.Revision,
-                SelectedEntryDetails.PartId ?? SelectedEntry.PartId);
+                resolvedPartNumber,
+                resolvedPartName,
+                resolvedRevision,
+                resolvedPartId);
 
             var dialog = new AddLibraryPartToProjectDialog
             {
@@ -489,11 +522,11 @@ namespace IdeaCadConnector.Desktop
                 ReferenceId = Guid.NewGuid().ToString("N"),
                 LibraryId = SelectedEntry.LibraryId,
                 LibraryEntryId = SelectedEntry.EntryId,
-                PartId = SelectedEntry.PartId,
-                PartConfigId = SelectedEntry.PartConfigId,
-                PartNumber = SelectedEntry.PartNumber,
-                PartName = SelectedEntry.PartName,
-                Revision = SelectedEntry.Revision,
+                PartId = resolvedPartId,
+                PartConfigId = resolvedConfigId,
+                PartNumber = resolvedPartNumber,
+                PartName = resolvedPartName,
+                Revision = resolvedRevision,
                 ParentLogicalCode = dialogViewModel.SelectedParent.LogicalCode,
                 LocalLogicalCode = "LIB-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpperInvariant(),
                 Quantity = dialogViewModel.ParsedQuantity,
@@ -632,17 +665,40 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                var resolved = await ActiveClient.ResolvePartAsync(SelectedEntry.EntryId, policy, CancellationToken.None).ConfigureAwait(true);
-                if (resolved == null)
+                var request = new UpdateLibraryRevisionPolicyRequest
                 {
-                    StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
+                    EntryId = SelectedEntry.EntryId,
+                    RevisionPolicy = policy,
+                    PinnedPartId = policy == LibraryRevisionPolicy.Pinned
+                        ? SelectedEntry.PartId
+                        : null
+                };
+
+                var result = await ActiveClient.UpdateRevisionPolicyAsync(request, CancellationToken.None).ConfigureAwait(true);
+
+                if (!result.Success)
+                {
+                    StatusMessage = result.ErrorMessage ?? L(TranslationKeys.LibraryStatusNoRevisionResolution);
                     return;
                 }
 
-                SelectedEntryDetails = CloneDetailsWithResolution(SelectedEntryDetails, resolved, policy);
+                SelectedEntryDetails = new PartLibraryEntryDetailsView
+                {
+                    EntryId = result.EntryId,
+                    PartId = result.ResolvedPartId,
+                    PartConfigId = result.ResolvedPartConfigId,
+                    Revision = result.ResolvedRevision,
+                    RevisionPolicy = result.RevisionPolicy.ToString(),
+                    PartNumber = SelectedEntryDetails?.PartNumber ?? SelectedEntry?.PartNumber,
+                    PartName = SelectedEntryDetails?.PartName ?? SelectedEntry?.PartName,
+                    WhereUsedSummary = SelectedEntryDetails?.WhereUsedSummary ?? L(TranslationKeys.LibraryWhereUsedHint)
+                };
+
                 StatusMessage = policy == LibraryRevisionPolicy.Pinned
                     ? L(TranslationKeys.LibraryStatusPinnedLoaded)
                     : L(TranslationKeys.LibraryStatusLatestReleasedLoaded);
+
+                await RefreshAsync().ConfigureAwait(true);
             });
         }
 
@@ -1324,6 +1380,19 @@ namespace IdeaCadConnector.Desktop
         public Task<IReadOnlyList<PartWhereUsedItem>> GetWhereUsedAsync(string partId, CancellationToken cancellationToken)
             => Task.FromResult((IReadOnlyList<PartWhereUsedItem>)Array.Empty<PartWhereUsedItem>());
         public Task RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
+        {
+            return ResolvePartAsync(entryId, LibraryRevisionPolicy.LatestReleased, cancellationToken);
+        }
+        public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new UpdateLibraryRevisionPolicyResult
+            {
+                Success = false,
+                EntryId = request?.EntryId,
+                ErrorMessage = "Preview client does not persist policy changes."
+            });
+        }
         public void Dispose() { }
 
         private static bool Contains(string value, string keyword)
@@ -1416,6 +1485,12 @@ namespace IdeaCadConnector.Desktop
 
         public Task RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
             => Task.FromException(CreateUnavailableException());
+
+        public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromException<ResolveLibraryPartResult>(CreateUnavailableException());
+
+        public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
+            => Task.FromException<UpdateLibraryRevisionPolicyResult>(CreateUnavailableException());
 
         public void Dispose() { }
 

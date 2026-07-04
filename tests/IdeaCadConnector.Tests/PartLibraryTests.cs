@@ -564,15 +564,19 @@ namespace IdeaCadConnector.Tests
         public async Task RecordUsage_WithUsedBy_AddsUsageThenUpdatesLastUsedOn()
         {
             var fake = new FakeArasAmlClient();
-            fake.EnqueueItemFound("ItemType", PartLibrarySchemaNames.UsageItemType);
-            fake.EnqueueItemFound("usage-1", "1");
-            fake.EnqueueItemFound("entry-1", "1");
+            fake.ApplyMethodResults.Enqueue(new JObject
+            {
+                ["usage_id"] = "usage-1",
+                ["usage_count"] = "1",
+                ["last_used_on"] = "2026-07-04T10:00:00"
+            });
             var client = CreateLibraryClient(fake);
 
             await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
 
-            var usageAdds = fake.CountAmlCalls(PartLibrarySchemaNames.UsageItemType, "add");
-            Assert.Equal(1, usageAdds);
+            var methodCall = Assert.Single(fake.Calls);
+            Assert.Equal("ApplyMethod", methodCall.MethodKind);
+            Assert.Equal(PartLibrarySchemaNames.RecordPartLibraryUsageMethodName, methodCall.MethodName);
         }
 
         // Test 14: Authentication failure - no retry
@@ -580,15 +584,14 @@ namespace IdeaCadConnector.Tests
         public async Task RecordUsage_AuthFailure_NoRetry()
         {
             var fake = new FakeArasAmlClient();
-            fake.EnqueueItemFound("ItemType", PartLibrarySchemaNames.UsageItemType);
-            fake.ApplyAmlExceptions.Enqueue(new ArasOperationException(ArasErrorCode.AuthInvalid, "not authenticated"));
+            fake.ApplyMethodExceptions.Enqueue(new ArasOperationException(ArasErrorCode.AuthInvalid, "not authenticated"));
             var client = CreateLibraryClient(fake);
 
             await Assert.ThrowsAsync<ArasOperationException>(() =>
                 client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
 
             var call = Assert.Single(fake.Calls);
-            Assert.Equal("ApplyAml", call.MethodKind);
+            Assert.Equal("ApplyMethod", call.MethodKind);
         }
 
         // Test 15: Permission failure - no retry
@@ -596,30 +599,29 @@ namespace IdeaCadConnector.Tests
         public async Task RecordUsage_PermissionFailure_NoRetry()
         {
             var fake = new FakeArasAmlClient();
-            fake.EnqueueItemFound("ItemType", PartLibrarySchemaNames.UsageItemType);
-            fake.ApplyAmlExceptions.Enqueue(new ArasOperationException(ArasErrorCode.PermissionDenied, "access denied"));
+            fake.ApplyMethodExceptions.Enqueue(new ArasOperationException(ArasErrorCode.PermissionDenied, "access denied"));
             var client = CreateLibraryClient(fake);
 
             await Assert.ThrowsAsync<ArasOperationException>(() =>
                 client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
 
             var call = Assert.Single(fake.Calls);
-            Assert.Equal("ApplyAml", call.MethodKind);
+            Assert.Equal("ApplyMethod", call.MethodKind);
         }
 
         // Test 16: Server/network failure - no retry
         [Fact]
-        public async Task RecordUsage_NetworkFailure_ReturnsGracefully()
+        public async Task RecordUsage_NetworkFailure_NoRetry()
         {
             var fake = new FakeArasAmlClient();
-            fake.ApplyAmlExceptions.Enqueue(new System.Net.Http.HttpRequestException("connection refused"));
+            fake.ApplyMethodExceptions.Enqueue(new ArasOperationException(ArasErrorCode.ServerUnavailable, "connection refused"));
             var client = CreateLibraryClient(fake);
 
-            // HttpRequestException in ItemTypeExistsAsync is caught, logged, returns false -> RecordUsageAsync returns
-            await client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None);
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.RecordUsageAsync(MakeUsageRequest(), CancellationToken.None));
 
             var call = Assert.Single(fake.Calls);
-            Assert.Equal("ApplyAml", call.MethodKind);
+            Assert.Equal("ApplyMethod", call.MethodKind);
         }
 
         // ── Error message safety ────────────────────────────────────────

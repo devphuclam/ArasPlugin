@@ -285,6 +285,12 @@ namespace IdeaCadConnector.Tests
             public Task RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
                 => Task.CompletedTask;
 
+            public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
+                => Task.FromResult(new ResolveLibraryPartResult());
+
+            public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new UpdateLibraryRevisionPolicyResult());
+
             public void Dispose()
             {
             }

@@ -171,6 +171,30 @@ namespace IdeaCadConnector.Core.Dto.Library
         ServerError,
         ValidationFailed
     }
+
+    public sealed class UpdateLibraryRevisionPolicyRequest
+    {
+        public string EntryId { get; set; }
+        public LibraryRevisionPolicy RevisionPolicy { get; set; }
+        public string PinnedPartId { get; set; }
+    }
+
+    public sealed class UpdateLibraryRevisionPolicyResult
+    {
+        public bool Success { get; set; }
+        public string EntryId { get; set; }
+        public LibraryRevisionPolicy RevisionPolicy { get; set; }
+        public string ResolvedPartId { get; set; }
+        public string ResolvedPartConfigId { get; set; }
+        public string ResolvedRevision { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
+    public enum WhereUsedSource
+    {
+        Bom,
+        LibraryUsage
+    }
 }
 
 namespace IdeaCadConnector.Core.Contracts
@@ -206,6 +230,14 @@ namespace IdeaCadConnector.Core.Contracts
         Task<ResolveLibraryPartResult> ResolvePartAsync(
             string entryId,
             LibraryRevisionPolicy policy,
+            CancellationToken cancellationToken);
+
+        Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(
+            string entryId,
+            CancellationToken cancellationToken);
+
+        Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(
+            UpdateLibraryRevisionPolicyRequest request,
             CancellationToken cancellationToken);
 
         Task PublishEntryAsync(

@@ -272,30 +272,45 @@ namespace IdeaCadConnector.Aras
             await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
 
             var entry = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
-            var requestedPolicy = policy;
-            if (!Enum.TryParse(entry["revision_policy"]?.Value<string>(), true, out requestedPolicy))
-                requestedPolicy = policy;
+            return await ResolveWithPolicyAsync(entry, policy, cancellationToken).ConfigureAwait(false);
+        }
 
+        public async Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(entryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Library entry ID is required.");
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+            var entry = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
+            var storedPolicy = ParseRevisionPolicy(entry["revision_policy"]?.Value<string>());
+            return await ResolveWithPolicyAsync(entry, storedPolicy, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task<ResolveLibraryPartResult> ResolveWithPolicyAsync(JObject entry, LibraryRevisionPolicy policy, CancellationToken ct)
+        {
+            var entryId = entry["id"]?.Value<string>();
             var pinnedPartId = entry["pinned_part_id"]?.Value<string>();
             var relatedPartId = entry["related_id"]?.Value<string>();
             var configId = entry["part_config_id"]?.Value<string>();
 
             JObject resolvedPart;
-            if (requestedPolicy == LibraryRevisionPolicy.Pinned && !string.IsNullOrWhiteSpace(pinnedPartId))
+            if (policy == LibraryRevisionPolicy.Pinned)
             {
-                resolvedPart = await GetPartAsync(pinnedPartId, cancellationToken).ConfigureAwait(false);
+                resolvedPart = await ResolvePinnedPartAsync(pinnedPartId, configId, ct).ConfigureAwait(false);
             }
-            else if (requestedPolicy == LibraryRevisionPolicy.LatestReleased)
+            else if (policy == LibraryRevisionPolicy.LatestReleased)
             {
-                resolvedPart = await ResolveLatestReleasedPartAsync(configId, relatedPartId, cancellationToken).ConfigureAwait(false);
+                resolvedPart = await ResolveLatestReleasedPartStrictAsync(configId, relatedPartId, ct).ConfigureAwait(false);
             }
             else
             {
-                resolvedPart = await ResolveCurrentPartAsync(configId, relatedPartId, cancellationToken).ConfigureAwait(false);
+                resolvedPart = await ResolveCurrentPartStrictAsync(configId, relatedPartId, ct).ConfigureAwait(false);
             }
 
-            var cadInfo = await GetPrimaryCadInfoAsync(resolvedPart["id"]?.Value<string>(), cancellationToken).ConfigureAwait(false);
-            var latestReleased = await GetLatestReleasedPartAsync(configId, relatedPartId, cancellationToken).ConfigureAwait(false);
+            var cadInfo = await GetPrimaryCadInfoAsync(resolvedPart["id"]?.Value<string>(), ct).ConfigureAwait(false);
+            var latestReleased = await GetLatestReleasedPartAsync(configId, relatedPartId, ct).ConfigureAwait(false);
             return new ResolveLibraryPartResult
             {
                 EntryId = entryId,
@@ -326,35 +341,107 @@ namespace IdeaCadConnector.Aras
 
             EnsureAuthenticated();
 
-            var aml =
+            var list = new List<PartWhereUsedItem>();
+
+            // 1. Part BOM parents
+            var bomAml =
                 "<Item type=\"Part BOM\" action=\"get\" select=\"quantity,source_id,related_id\">" +
                 "<related_id>" + Escape(partId) + "</related_id>" +
                 "</Item>";
 
-            var result = await _aml.ApplyAmlAsync(
-                aml,
-                "get",
-                "Part BOM",
-                null,
-                cancellationToken).ConfigureAwait(false);
-
-            var list = new List<PartWhereUsedItem>();
-            foreach (var rel in EnumerateItems(result))
+            try
             {
-                var parentId = rel["source_id"]?.Value<string>();
-                if (string.IsNullOrWhiteSpace(parentId))
-                    continue;
+                var bomResult = await _aml.ApplyAmlAsync(
+                    bomAml,
+                    "get",
+                    "Part BOM",
+                    null,
+                    cancellationToken).ConfigureAwait(false);
 
-                var parent = await GetPartAsync(parentId, cancellationToken).ConfigureAwait(false);
-                list.Add(new PartWhereUsedItem
+                foreach (var rel in EnumerateItems(bomResult))
                 {
-                    ParentPartId = parentId,
-                    ParentPartNumber = parent["item_number"]?.Value<string>(),
-                    ParentPartName = parent["name"]?.Value<string>(),
-                    ParentRevision = parent["major_rev"]?.Value<string>(),
-                    ParentState = parent["state"]?.Value<string>(),
-                    Quantity = ParseInt(rel["quantity"]?.Value<string>(), 1)
-                });
+                    var parentId = rel["source_id"]?.Value<string>();
+                    if (string.IsNullOrWhiteSpace(parentId))
+                        continue;
+
+                    var parent = await GetPartAsync(parentId, cancellationToken).ConfigureAwait(false);
+                    list.Add(new PartWhereUsedItem
+                    {
+                        ParentPartId = parentId,
+                        ParentPartNumber = parent["item_number"]?.Value<string>(),
+                        ParentPartName = parent["name"]?.Value<string>(),
+                        ParentRevision = parent["major_rev"]?.Value<string>(),
+                        ParentState = parent["state"]?.Value<string>(),
+                        Quantity = ParseInt(rel["quantity"]?.Value<string>(), 1),
+                        Source = WhereUsedSource.Bom
+                    });
+                }
+            }
+            catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
+            {
+                _logger.LogWarning(ex, "Failed to query Part BOM for part {PartId}.", partId);
+            }
+
+            // 2. Library usage records
+            try
+            {
+                var usageAml =
+                    "<Item type=\"" + PartLibrarySchemaNames.UsageItemType + "\" action=\"get\" " +
+                    "select=\"id,library_entry_id,part_id,project_code,parent_part_id,quantity,used_by,commit_id,action_type,created_on\">" +
+                    "<part_id>" + Escape(partId) + "</part_id>" +
+                    "</Item>";
+
+                var usageResult = await _aml.ApplyAmlAsync(
+                    usageAml,
+                    "get",
+                    PartLibrarySchemaNames.UsageItemType,
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+
+                foreach (var item in EnumerateItems(usageResult))
+                {
+                    var parentId = item["parent_part_id"]?.Value<string>();
+                    string parentNumber = null;
+                    string parentName = null;
+                    string parentRev = null;
+                    string parentState = null;
+
+                    if (!string.IsNullOrWhiteSpace(parentId))
+                    {
+                        try
+                        {
+                            var parentPart = await GetPartAsync(parentId, cancellationToken).ConfigureAwait(false);
+                            parentNumber = parentPart["item_number"]?.Value<string>();
+                            parentName = parentPart["name"]?.Value<string>();
+                            parentRev = parentPart["major_rev"]?.Value<string>();
+                            parentState = parentPart["state"]?.Value<string>();
+                        }
+                        catch (ArasOperationException)
+                        {
+                            _logger.LogDebug("Could not resolve parent part {ParentPartId} for usage record.", parentId);
+                        }
+                    }
+
+                    list.Add(new PartWhereUsedItem
+                    {
+                        ParentPartId = parentId,
+                        ParentPartNumber = parentNumber,
+                        ParentPartName = parentName,
+                        ParentRevision = parentRev,
+                        ParentState = parentState,
+                        Quantity = ParseInt(item["quantity"]?.Value<string>(), 1),
+                        Source = WhereUsedSource.LibraryUsage,
+                        ProjectCode = item["project_code"]?.Value<string>(),
+                        UsedBy = item["used_by"]?.Value<string>(),
+                        CommitId = item["commit_id"]?.Value<string>(),
+                        ActionType = item["action_type"]?.Value<string>(),
+                        CreatedOn = ParseDate(item["created_on"]?.Value<string>())
+                    });
+                }
+            }
+            catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
+            {
+                _logger.LogWarning(ex, "Failed to query Library usage records for part {PartId}.", partId);
             }
 
             return list;
@@ -366,6 +453,14 @@ namespace IdeaCadConnector.Aras
                 return;
 
             EnsureAuthenticated();
+
+            // Prefer server method for atomic usage recording
+            if (await TryRecordUsageViaServerMethodAsync(request, cancellationToken).ConfigureAwait(false))
+            {
+                return;
+            }
+
+            // Compatibility fallback when server method is not deployed
             var hasUsageSchema = await ItemTypeExistsAsync(PartLibrarySchemaNames.UsageItemType, cancellationToken).ConfigureAwait(false);
             if (!hasUsageSchema)
             {
@@ -375,6 +470,11 @@ namespace IdeaCadConnector.Aras
                     PartLibrarySchemaNames.UsageItemType);
                 return;
             }
+
+            _logger.LogWarning(
+                "Part Library usage record: server method '{MethodName}' is not available. " +
+                "Using compatibility fallback (non-atomic, no usage_count update).",
+                PartLibrarySchemaNames.RecordPartLibraryUsageMethodName);
 
             var result = UsageCreateResult.ValidationFailed;
             var usedByValue = (request.UsedBy ?? "unknown").Trim();
@@ -396,6 +496,62 @@ namespace IdeaCadConnector.Aras
             if (result == UsageCreateResult.Created)
             {
                 await TryUpdateEntryLastUsedOnAsync(request.LibraryEntryId, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private async Task<bool> TryRecordUsageViaServerMethodAsync(LibraryUsageRequest request, CancellationToken ct)
+        {
+            var parameters = new Dictionary<string, string>
+            {
+                ["library_entry_id"] = request.LibraryEntryId,
+                ["part_id"] = request.PartId ?? string.Empty,
+                ["project_code"] = request.ProjectCode ?? string.Empty,
+                ["parent_part_id"] = request.ParentPartId ?? string.Empty,
+                ["quantity"] = request.Quantity.ToString(),
+                ["used_by"] = request.UsedBy ?? string.Empty,
+                ["commit_id"] = request.CommitId ?? string.Empty,
+                ["action_type"] = request.ActionType ?? string.Empty
+            };
+
+            try
+            {
+                var result = await _aml.ApplyMethodAsync(
+                    PartLibrarySchemaNames.RecordPartLibraryUsageMethodName,
+                    parameters,
+                    ct).ConfigureAwait(false);
+
+                if (result != null)
+                {
+                    _logger.LogInformation(
+                        "Part Library usage recorded via server method for entry {EntryId}. " +
+                        "Usage count: {UsageCount}.",
+                        request.LibraryEntryId,
+                        result["usage_count"]?.Value<string>());
+                    return true;
+                }
+
+                return false;
+            }
+            catch (ArasOperationException ex) when (CanFallbackToDirectAdd(ex))
+            {
+                _logger.LogInformation(
+                    "Server method '{MethodName}' is not available. Falling back to direct AML.",
+                    PartLibrarySchemaNames.RecordPartLibraryUsageMethodName);
+                return false;
+            }
+            catch (ArasOperationException)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error calling server method '{MethodName}' for entry {EntryId}.",
+                    PartLibrarySchemaNames.RecordPartLibraryUsageMethodName, request.LibraryEntryId);
+                throw;
             }
         }
 
@@ -623,7 +779,7 @@ namespace IdeaCadConnector.Aras
         {
             var aml =
                 "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"get\" " +
-                "select=\"id,source_id,related_id,part_config_id,revision_policy,pinned_part_id,pinned_revision,entry_status,category,tags,note,source_project,source_commit,usage_count,last_used_on\">" +
+                "select=\"id,source_id,related_id,part_config_id,revision_policy,pinned_part_id,pinned_revision,entry_status,state,category,tags,note,source_project,source_commit,usage_count,last_used_on\">" +
                 (string.IsNullOrWhiteSpace(libraryId)
                     ? string.Empty
                     : "<source_id>" + Escape(libraryId) + "</source_id>") +
@@ -653,36 +809,54 @@ namespace IdeaCadConnector.Aras
             if (string.IsNullOrWhiteSpace(partId))
                 return null;
 
-            var part = await GetPartAsync(partId, ct).ConfigureAwait(false);
+            var policy = ParseRevisionPolicy(relationship["revision_policy"]?.Value<string>());
+            var configId = relationship["part_config_id"]?.Value<string>();
+            var pinnedPartId = relationship["pinned_part_id"]?.Value<string>();
+
             var libraryId = relationship["source_id"]?.Value<string>();
             var library = !string.IsNullOrWhiteSpace(libraryId)
                 ? await GetLibraryAsync(libraryId, ct).ConfigureAwait(false)
                 : null;
-            var cad = await GetPrimaryCadInfoAsync(partId, ct).ConfigureAwait(false);
-            var latestReleased = await GetLatestReleasedPartAsync(part["config_id"]?.Value<string>(), partId, ct).ConfigureAwait(false);
+
+            JObject resolvedPart;
+            if (policy == LibraryRevisionPolicy.Pinned)
+            {
+                resolvedPart = await ResolvePinnedPartAsync(pinnedPartId, configId, ct).ConfigureAwait(false);
+            }
+            else if (policy == LibraryRevisionPolicy.LatestReleased)
+            {
+                resolvedPart = await ResolveLatestReleasedPartStrictAsync(configId, partId, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                resolvedPart = await ResolveCurrentPartStrictAsync(configId, partId, ct).ConfigureAwait(false);
+            }
+
+            var lifecycleState = relationship["state"]?.Value<string>();
+            var effectiveStatus = GetEffectiveEntryStatus(lifecycleState, relationship["entry_status"]?.Value<string>());
+
+            var cad = await GetPrimaryCadInfoAsync(resolvedPart["id"]?.Value<string>(), ct).ConfigureAwait(false);
+            var latestReleased = await GetLatestReleasedPartAsync(configId, resolvedPart["id"]?.Value<string>(), ct).ConfigureAwait(false);
 
             return new PartLibraryEntrySummary
             {
                 EntryId = relationship["id"]?.Value<string>(),
                 LibraryId = libraryId,
                 LibraryName = library?["name"]?.Value<string>(),
-                PartId = part["id"]?.Value<string>(),
-                PartConfigId = part["config_id"]?.Value<string>() ?? relationship["part_config_id"]?.Value<string>(),
-                PartNumber = part["item_number"]?.Value<string>(),
-                PartName = part["name"]?.Value<string>(),
-                PartType = part["classification"]?.Value<string>(),
-                Revision = part["major_rev"]?.Value<string>(),
-                LifecycleState = part["state"]?.Value<string>(),
-                RevisionPolicy = ParseRevisionPolicy(relationship["revision_policy"]?.Value<string>()),
-                EntryStatus = ParseEntryStatus(relationship["entry_status"]?.Value<string>()),
+                PartId = resolvedPart["id"]?.Value<string>(),
+                PartConfigId = resolvedPart["config_id"]?.Value<string>() ?? configId,
+                PartNumber = resolvedPart["item_number"]?.Value<string>(),
+                PartName = resolvedPart["name"]?.Value<string>(),
+                PartType = resolvedPart["classification"]?.Value<string>(),
+                Revision = resolvedPart["major_rev"]?.Value<string>(),
+                LifecycleState = lifecycleState ?? resolvedPart["state"]?.Value<string>(),
+                RevisionPolicy = policy,
+                EntryStatus = effectiveStatus,
                 CadStatus = cad.Status,
                 UsageCount = ParseInt(relationship["usage_count"]?.Value<string>(), 0),
                 HasNewerReleasedRevision = latestReleased != null &&
-                                          !string.Equals(latestReleased["id"]?.Value<string>(), part["id"]?.Value<string>(), StringComparison.OrdinalIgnoreCase),
-                IsDeprecated = string.Equals(
-                    relationship["entry_status"]?.Value<string>(),
-                    PartLibrarySchemaNames.EntryStatusDeprecated,
-                    StringComparison.OrdinalIgnoreCase),
+                                          !string.Equals(latestReleased["id"]?.Value<string>(), resolvedPart["id"]?.Value<string>(), StringComparison.OrdinalIgnoreCase),
+                IsDeprecated = effectiveStatus == LibraryEntryStatus.Deprecated,
                 LastUsedOn = ParseDate(relationship["last_used_on"]?.Value<string>())
             };
         }
@@ -727,7 +901,7 @@ namespace IdeaCadConnector.Aras
                 PartLibrarySchemaNames.EntryRelationshipType,
                 entryId,
                 "get",
-                "id,source_id,related_id,part_config_id,revision_policy,pinned_part_id,pinned_revision,entry_status,category,tags,note,source_project,source_commit,usage_count,last_used_on",
+                "id,source_id,related_id,part_config_id,revision_policy,pinned_part_id,pinned_revision,entry_status,state,category,tags,note,source_project,source_commit,usage_count,last_used_on",
                 ct).ConfigureAwait(false);
 
             return result;
@@ -751,29 +925,6 @@ namespace IdeaCadConnector.Aras
                 "get",
                 "id,config_id,item_number,name,classification,major_rev,state,generation",
                 ct).ConfigureAwait(false);
-        }
-
-        private async Task<JObject> ResolveCurrentPartAsync(string configId, string fallbackPartId, CancellationToken ct)
-        {
-            if (!string.IsNullOrWhiteSpace(configId))
-            {
-                var latestReleased = await GetLatestReleasedPartAsync(configId, fallbackPartId, ct).ConfigureAwait(false);
-                if (latestReleased != null)
-                    return latestReleased;
-
-                var currentAml =
-                    "<Item type=\"Part\" action=\"get\" select=\"id,config_id,item_number,name,classification,major_rev,state,generation\">" +
-                    "<config_id>" + Escape(configId) + "</config_id>" +
-                    "<is_current>1</is_current>" +
-                    "</Item>";
-
-                var current = await _aml.ApplyAmlAsync(currentAml, "get", "Part", null, ct).ConfigureAwait(false);
-                var currentItem = EnumerateItems(current).FirstOrDefault();
-                if (currentItem != null)
-                    return currentItem;
-            }
-
-            return await GetPartAsync(fallbackPartId, ct).ConfigureAwait(false);
         }
 
         private async Task<JObject> ResolveLatestReleasedPartAsync(string configId, string fallbackPartId, CancellationToken ct)
@@ -810,6 +961,178 @@ namespace IdeaCadConnector.Aras
             }
 
             return SelectLatestPartVersion(releasedItems);
+        }
+
+        private async Task<JObject> ResolvePinnedPartAsync(string pinnedPartId, string configId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(pinnedPartId))
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    "Pinned revision is not available: pinned_part_id is missing on the Entry.");
+            }
+
+            var part = await GetPartAsync(pinnedPartId, ct).ConfigureAwait(false);
+            var partConfigId = part["config_id"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(configId) && !string.IsNullOrWhiteSpace(partConfigId) &&
+                !string.Equals(partConfigId, configId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    $"Pinned Part config_id '{partConfigId}' does not match Entry config_id '{configId}'.");
+            }
+
+            var state = part["state"]?.Value<string>();
+            if (PartLifecyclePolicy.IsPartObsolete(state))
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    $"Pinned Part is in state '{state}' and cannot be reused.");
+            }
+
+            return part;
+        }
+
+        private async Task<JObject> ResolveLatestReleasedPartStrictAsync(string configId, string fallbackPartId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(configId))
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    "Cannot resolve LatestReleased: Entry has no part_config_id.");
+            }
+
+            var releasedAml =
+                "<Item type=\"Part\" action=\"get\" select=\"id,config_id,item_number,name,classification,major_rev,state,generation\">" +
+                "<config_id>" + Escape(configId) + "</config_id>" +
+                "<state>" + PartLibrarySchemaNames.PartReleasedState + "</state>" +
+                "</Item>";
+
+            var released = await _aml.ApplyAmlAsync(releasedAml, "get", "Part", null, ct).ConfigureAwait(false);
+            var releasedItems = EnumerateItems(released).ToList();
+            if (releasedItems.Count == 0)
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    $"No released revision is available for Part configuration '{configId}'.");
+            }
+
+            var best = SelectLatestPartVersion(releasedItems);
+            var state = best["state"]?.Value<string>();
+            if (PartLifecyclePolicy.IsPartObsolete(state))
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    $"LatestReleased Part is in state '{state}' and cannot be reused.");
+            }
+
+            return best;
+        }
+
+        private async Task<JObject> ResolveCurrentPartStrictAsync(string configId, string fallbackPartId, CancellationToken ct)
+        {
+            if (!string.IsNullOrWhiteSpace(configId))
+            {
+                var currentAml =
+                    "<Item type=\"Part\" action=\"get\" select=\"id,config_id,item_number,name,classification,major_rev,state,generation\">" +
+                    "<config_id>" + Escape(configId) + "</config_id>" +
+                    "<is_current>1</is_current>" +
+                    "</Item>";
+
+                var current = await _aml.ApplyAmlAsync(currentAml, "get", "Part", null, ct).ConfigureAwait(false);
+                var currentItem = EnumerateItems(current).FirstOrDefault();
+                if (currentItem != null)
+                {
+                    var state = currentItem["state"]?.Value<string>();
+                    if (PartLifecyclePolicy.IsPartObsolete(state))
+                    {
+                        throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                            $"Current Part is in state '{state}' and cannot be reused.");
+                    }
+
+                    return currentItem;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(configId))
+            {
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                    "Cannot resolve LatestCurrent: Entry has no part_config_id.");
+            }
+
+            throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                $"No current revision is available for Part configuration '{configId}'.");
+        }
+
+        public async Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(
+            UpdateLibraryRevisionPolicyRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+            if (string.IsNullOrWhiteSpace(request.EntryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "EntryId is required.");
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+            var entry = await GetEntryRelationshipAsync(request.EntryId, cancellationToken).ConfigureAwait(false);
+            var configId = entry["part_config_id"]?.Value<string>();
+
+            if (request.RevisionPolicy == LibraryRevisionPolicy.Pinned)
+            {
+                if (string.IsNullOrWhiteSpace(request.PinnedPartId))
+                {
+                    throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                        "PinnedPartId is required when updating to Pinned policy.");
+                }
+
+                var pinnedPart = await GetPartAsync(request.PinnedPartId, cancellationToken).ConfigureAwait(false);
+                var pinnedConfigId = pinnedPart["config_id"]?.Value<string>();
+                if (!string.IsNullOrWhiteSpace(configId) && !string.IsNullOrWhiteSpace(pinnedConfigId) &&
+                    !string.Equals(pinnedConfigId, configId, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new ArasOperationException(ArasErrorCode.ValidationFailed,
+                        $"Pinned Part config_id '{pinnedConfigId}' does not match Entry config_id '{configId}'.");
+                }
+
+                var pinnedRev = pinnedPart["major_rev"]?.Value<string>() ?? string.Empty;
+                var editAml =
+                    "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"edit\" id=\"" + Escape(request.EntryId) + "\">" +
+                    "<revision_policy>Pinned</revision_policy>" +
+                    "<pinned_part_id>" + Escape(request.PinnedPartId) + "</pinned_part_id>" +
+                    "<pinned_revision>" + Escape(pinnedRev) + "</pinned_revision>" +
+                    "</Item>";
+
+                await _aml.ApplyAmlAsync(editAml, "edit", PartLibrarySchemaNames.EntryRelationshipType, request.EntryId, cancellationToken).ConfigureAwait(false);
+
+                return new UpdateLibraryRevisionPolicyResult
+                {
+                    Success = true,
+                    EntryId = request.EntryId,
+                    RevisionPolicy = LibraryRevisionPolicy.Pinned,
+                    ResolvedPartId = pinnedPart["id"]?.Value<string>(),
+                    ResolvedPartConfigId = pinnedConfigId,
+                    ResolvedRevision = pinnedRev
+                };
+            }
+            else
+            {
+                var policyStr = request.RevisionPolicy == LibraryRevisionPolicy.LatestReleased ? "LatestReleased" : "LatestCurrent";
+                var editAml =
+                    "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"edit\" id=\"" + Escape(request.EntryId) + "\">" +
+                    "<revision_policy>" + policyStr + "</revision_policy>" +
+                    "<pinned_part_id is_null=\"1\" />" +
+                    "<pinned_revision is_null=\"1\" />" +
+                    "</Item>";
+
+                await _aml.ApplyAmlAsync(editAml, "edit", PartLibrarySchemaNames.EntryRelationshipType, request.EntryId, cancellationToken).ConfigureAwait(false);
+
+                var resolved = await ResolveUsingStoredPolicyAsync(request.EntryId, cancellationToken).ConfigureAwait(false);
+                return new UpdateLibraryRevisionPolicyResult
+                {
+                    Success = true,
+                    EntryId = request.EntryId,
+                    RevisionPolicy = request.RevisionPolicy,
+                    ResolvedPartId = resolved?.ResolvedPartId,
+                    ResolvedPartConfigId = resolved?.ResolvedPartConfigId,
+                    ResolvedRevision = resolved?.ResolvedRevision
+                };
+            }
         }
 
         private async Task<string> FindDuplicateEntryIdAsync(
@@ -990,6 +1313,23 @@ namespace IdeaCadConnector.Aras
         private static LibraryEntryStatus ParseEntryStatus(string value)
         {
             return Enum.TryParse(value, true, out LibraryEntryStatus parsed) ? parsed : LibraryEntryStatus.Draft;
+        }
+
+        private static LibraryEntryStatus GetEffectiveEntryStatus(string lifecycleState, string entryStatus)
+        {
+            if (!string.IsNullOrWhiteSpace(lifecycleState))
+            {
+                if (string.Equals(lifecycleState, PartLibrarySchemaNames.EntryLifecycleDraftState, StringComparison.OrdinalIgnoreCase))
+                    return LibraryEntryStatus.Draft;
+                if (string.Equals(lifecycleState, PartLibrarySchemaNames.EntryLifecyclePendingReviewState, StringComparison.OrdinalIgnoreCase))
+                    return LibraryEntryStatus.PendingReview;
+                if (string.Equals(lifecycleState, PartLibrarySchemaNames.EntryLifecyclePublishedState, StringComparison.OrdinalIgnoreCase))
+                    return LibraryEntryStatus.Published;
+                if (string.Equals(lifecycleState, PartLibrarySchemaNames.EntryLifecycleDeprecatedState, StringComparison.OrdinalIgnoreCase))
+                    return LibraryEntryStatus.Deprecated;
+            }
+
+            return ParseEntryStatus(entryStatus);
         }
 
         private static bool ParseBoolean(string value)

@@ -6,6 +6,7 @@ namespace IdeaCadConnector.Core.Library
         public const string EntryRelationshipType = "idea_PartLibraryEntry";
         public const string UsageItemType = "idea_PartLibraryUsage";
         public const string AddPartToLibraryMethodName = "idea_AddPartToLibrary";
+        public const string RecordPartLibraryUsageMethodName = "idea_RecordPartLibraryUsage";
 
         public const string LibraryStatusActive = "Active";
         public const string LibraryStatusArchived = "Archived";
