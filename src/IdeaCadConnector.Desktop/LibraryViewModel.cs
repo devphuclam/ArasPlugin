@@ -24,7 +24,8 @@ namespace IdeaCadConnector.Desktop
     public sealed class LibraryViewModel : ILibraryViewModel
     {
         private readonly IAppSessionContext _session;
-        private readonly IPartLibraryClient _client;
+        private readonly IPartLibraryClient _injectedClient;
+        private readonly IPartLibraryClient _unavailableClient = new UnavailablePartLibraryClient();
         private PartLibrarySummaryRow _selectedLibrary;
         private PartLibraryEntryRow _selectedEntry;
         private PartLibraryEntryDetailsView _selectedEntryDetails;
@@ -41,14 +42,14 @@ namespace IdeaCadConnector.Desktop
         private int _pageSize = 25;
 
         public LibraryViewModel()
-            : this(AppSessionContext.Current, AppSessionContext.Current.PartLibraryClient ?? new UnavailablePartLibraryClient())
+            : this(AppSessionContext.Current, null)
         {
         }
 
         public LibraryViewModel(IAppSessionContext session, IPartLibraryClient client)
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
-            _client = client ?? throw new ArgumentNullException(nameof(client));
+            _injectedClient = client;
 
             Libraries = new ObservableCollection<PartLibrarySummaryRow>();
             Entries = new ObservableCollection<PartLibraryEntryRow>();
@@ -86,6 +87,11 @@ namespace IdeaCadConnector.Desktop
 
             _ = RefreshAsync();
         }
+
+        private IPartLibraryClient ActiveClient =>
+            _injectedClient
+            ?? _session.PartLibraryClient
+            ?? _unavailableClient;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -193,7 +199,9 @@ namespace IdeaCadConnector.Desktop
                     return _permissionMessage;
                 if (IsErrorState)
                     return _errorMessage;
-                return L(TranslationKeys.LibraryOverlayNoAccessibleLibraries);
+                if (Libraries.Count == 0)
+                    return L(TranslationKeys.LibraryOverlayNoAccessibleLibraries);
+                return string.Empty;
             }
         }
 
@@ -209,9 +217,11 @@ namespace IdeaCadConnector.Desktop
                     return _permissionMessage;
                 if (IsErrorState)
                     return _errorMessage;
-                return Libraries.Count == 0
-                    ? L(TranslationKeys.LibraryOverlaySelectLibraryAfterSignIn)
-                    : L(TranslationKeys.LibraryOverlayNoMatchedEntries);
+                if (Libraries.Count == 0)
+                    return L(TranslationKeys.LibraryOverlaySelectLibraryAfterSignIn);
+                if (Entries.Count > 0)
+                    return string.Empty;
+                return L(TranslationKeys.LibraryOverlayNoMatchedEntries);
             }
         }
 
@@ -286,7 +296,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                var libraries = await _client.GetLibrariesAsync(CancellationToken.None).ConfigureAwait(true);
+                var libraries = await ActiveClient.GetLibrariesAsync(CancellationToken.None).ConfigureAwait(true);
                 Libraries.Clear();
                 foreach (var library in libraries)
                 {
@@ -341,7 +351,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                var response = await _client.SearchEntriesAsync(new PartLibrarySearchRequest
+                var response = await ActiveClient.SearchEntriesAsync(new PartLibrarySearchRequest
                 {
                     LibraryId = SelectedLibrary?.Id,
                     SearchText = SearchText,
@@ -387,7 +397,7 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            var details = await _client.GetEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+            var details = await ActiveClient.GetEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
             SelectedEntryDetails = new PartLibraryEntryDetailsView
             {
                 EntryId = details.EntryId,
@@ -434,7 +444,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                var whereUsed = await _client.GetWhereUsedAsync(partId, CancellationToken.None).ConfigureAwait(true);
+                var whereUsed = await ActiveClient.GetWhereUsedAsync(partId, CancellationToken.None).ConfigureAwait(true);
                 var summary = BuildWhereUsedSummary(whereUsed);
                 SelectedEntryDetails = CloneDetailsWithWhereUsed(SelectedEntryDetails, summary);
                 StatusMessage = whereUsed.Count == 0
@@ -537,7 +547,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                await _client.RemoveEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                await ActiveClient.RemoveEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
                 StatusMessage = L(TranslationKeys.LibraryStatusEntryRemoved);
                 await RefreshAsync().ConfigureAwait(true);
             });
@@ -565,7 +575,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                await _client.MoveEntryAsync(SelectedEntry.EntryId, SelectedLibrary.Id, CancellationToken.None).ConfigureAwait(true);
+                await ActiveClient.MoveEntryAsync(SelectedEntry.EntryId, SelectedLibrary.Id, CancellationToken.None).ConfigureAwait(true);
                 StatusMessage = L(TranslationKeys.LibraryStatusEntryMoved);
                 await RefreshAsync().ConfigureAwait(true);
             });
@@ -587,7 +597,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                await _client.DeprecateEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                await ActiveClient.DeprecateEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
                 await RefreshAsync().ConfigureAwait(true);
                 StatusMessage = L(TranslationKeys.LibraryStatusEntryDeprecated);
             });
@@ -609,7 +619,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                await _client.PublishEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                await ActiveClient.PublishEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
                 await RefreshAsync().ConfigureAwait(true);
                 StatusMessage = L(TranslationKeys.LibraryStatusEntryPublished);
             });
@@ -622,7 +632,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                var resolved = await _client.ResolvePartAsync(SelectedEntry.EntryId, policy, CancellationToken.None).ConfigureAwait(true);
+                var resolved = await ActiveClient.ResolvePartAsync(SelectedEntry.EntryId, policy, CancellationToken.None).ConfigureAwait(true);
                 if (resolved == null)
                 {
                     StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);

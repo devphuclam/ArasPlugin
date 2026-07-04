@@ -613,6 +613,7 @@ namespace IdeaCadConnector.Desktop
                 });
                 partLibraryClient.SetSession(_loginResult.SessionToken, null, request.Database);
                 SharedPartLibraryClient = partLibraryClient;
+                AppSessionContext.Current.NotifyLibraryDataChanged();
             }
             catch (Exception ex)
             {
@@ -652,6 +653,7 @@ namespace IdeaCadConnector.Desktop
                 SharedUserName = null;
                 (SharedPartLibraryClient as IDisposable)?.Dispose();
                 SharedPartLibraryClient = null;
+                AppSessionContext.Current.NotifyLibraryDataChanged();
                 AppSessionContext.Current.CurrentPdmProjectsViewModel = null;
                 AppSessionContext.Current.PendingLibraryFocusLibraryId = null;
                 AppSessionContext.Current.PendingLibraryFocusEntryId = null;
