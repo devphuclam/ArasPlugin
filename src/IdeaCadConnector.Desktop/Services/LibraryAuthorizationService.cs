@@ -6,10 +6,17 @@ namespace IdeaCadConnector.Desktop.Services
     internal sealed class LibraryAuthorizationService : ILibraryAuthorizationService
     {
         private readonly IAppSessionContext _session;
+        private readonly LibraryAuthorizationRules _rules;
 
         public LibraryAuthorizationService(IAppSessionContext session)
+            : this(session, null)
+        {
+        }
+
+        internal LibraryAuthorizationService(IAppSessionContext session, LibraryAuthorizationRules rules)
         {
             _session = session ?? throw new System.ArgumentNullException(nameof(session));
+            _rules = rules ?? LibraryAuthorizationRules.Default;
         }
 
         public bool IsLibraryManager
@@ -17,11 +24,7 @@ namespace IdeaCadConnector.Desktop.Services
             get
             {
                 var user = Normalize(_session.CurrentUserName);
-                return user == "admin" ||
-                       user == "librarymanager" ||
-                       user == "manager" ||
-                       user == "tptkc" ||
-                       user == "truongphongthietkeco";
+                return _rules.IsManager(user);
             }
         }
 
@@ -33,14 +36,11 @@ namespace IdeaCadConnector.Desktop.Services
                     return true;
 
                 var user = Normalize(_session.CurrentUserName);
-                return user == "nvtkc" ||
-                       user == "tntkc" ||
-                       user == "librarycontributor" ||
-                       user == "libraryreviewer";
+                return _rules.IsContributorOrHigher(user);
             }
         }
 
-        public bool IsReadOnlyViewer => _session.IsConnected && !IsContributorOrHigher && !IsLibraryManager;
+        public bool IsReadOnlyViewer => !IsContributorOrHigher && !IsLibraryManager;
 
         public bool CanManageLibraries => _session.IsConnected && IsLibraryManager;
 
