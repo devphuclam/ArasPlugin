@@ -7,7 +7,7 @@ This directory is the only active documentation root for Part Library.
 | Phase | State | Baseline | Completion | Evidence |
 |---|---|---|---|---|
 | Phase 1 - Core governance and reuse | `COMPLETE` | `08a9986d9cc867a2948afe5a56676730ada54fe4` | `b7f6cf67d0d191ddb71b3e3926064d928ded2c8c` | Build: 0 warnings/errors; tests: 117/117; owner accepted 2026-07-06 |
-| Phase 2 - Complete Library UX | `IN_PROGRESS` | `956af6841392b609d9c06df60d484fe5244500c1` | Sprint 2.1 UI implemented locally | Library management UI and Aras Part Picker UI implemented; Debug build 0/0; Release build 0/0; tests 204/204 passed; manual app UAT still required |
+| Phase 2 - Complete Library UX | `LOCALLY_ACCEPTED` | `956af6841392b609d9c06df60d484fe5244500c1` | Sprint 2.1 UAT smoke passed; Sprint 2.2 not started | Admin, lamEngineer, lamPM, and viewer smoke evidence recorded; Debug build passed; Release build passed; tests 214/214 passed |
 
 ## Read Phase 1
 

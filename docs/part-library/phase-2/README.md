@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UI implemented; manual UAT pending)
+**State:** `LOCALLY_ACCEPTED` (Sprint 2.1 UAT smoke passed; Sprint 2.2 not started)
 
 ## Objective
 
@@ -83,12 +83,33 @@ Local Sprint 2.1 closeout now includes:
 - duplicate Library and duplicate Entry handling
 - archived Library target blocking
 
+Phase transition history:
+
+- Phase 2 moved from `IN_PROGRESS` to `LOCALLY_ACCEPTED` after Sprint 2.1 UAT smoke evidence was recorded on 2026-07-06.
+
 Verification on 2026-07-06:
 
 - Debug build: 0 warnings, 0 errors
 - Release build: 0 warnings, 0 errors
 - focused tests: 81/81 passed
-- full tests: 204/204 passed
+- full tests: 214/214 passed
+
+## Sprint 2.1 UAT Smoke Evidence
+
+Recorded closeout evidence:
+
+- Admin smoke test passed.
+- `lamEngineer` UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
+- `lamPM` UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
+- Viewer/unknown behavior confirmed conservative read-only behavior.
+- Automated verification passed: Debug build, Release build, and full tests `214/214`.
+
+Remaining live limitations:
+
+- role mapping is username/config based for UAT;
+- future hardening should use Aras Identity membership;
+- full customer/external viewer UAT remains pending unless tested;
+- Sprint 2.2 has not started.
 
 ## Package Intake Outcome
 
@@ -103,7 +124,7 @@ Retained as incoming-only helper material, not canonical:
 
 ## Acceptance Gates
 
-Phase 2 remains `IN_PROGRESS` until:
+Phase 2 remains locally accepted for Sprint 2.1 only. Full Phase 2 remains open until:
 
 - manual desktop app UAT confirms Sprint 2.1 behavior;
 - live Aras UAT confirms permission behavior and backend compatibility;

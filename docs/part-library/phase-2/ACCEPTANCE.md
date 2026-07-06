@@ -1,13 +1,14 @@
 # Part Library Phase 2 Acceptance
 
-**State:** `IN_PROGRESS`
+**State:** `LOCALLY_ACCEPTED`
 
-This file records Phase 2 acceptance gates and current implementation evidence. Phase 2 is not fully accepted yet.
+This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke passed, but full Phase 2 is not complete yet.
 
 ## Phase Transition History
 
 - Phase 2 moved from `INTAKE` to `PLANNED` on 2026-07-06.
 - Phase 2 moved from `PLANNED` to `IN_PROGRESS` when Sprint 2.1 UI implementation was completed locally on 2026-07-06.
+- Phase 2 moved from `IN_PROGRESS` to `LOCALLY_ACCEPTED` after Sprint 2.1 UAT smoke evidence was recorded on 2026-07-06.
 
 ## Baseline Verification Commands
 
@@ -88,10 +89,10 @@ Total: 81
 Full test result:
 
 ```text
-Passed: 204
+Passed: 214
 Failed: 0
 Skipped: 0
-Total: 204
+Total: 214
 ```
 
 Sprint 2.1 implemented locally:
@@ -104,6 +105,32 @@ Sprint 2.1 implemented locally:
 - Aras Part Picker search/filter/preview/add flow
 - duplicate Library and duplicate Entry handling
 - archived Library target blocking
+
+## Sprint 2.1 UAT Smoke Evidence
+
+Recorded UAT evidence:
+
+1. Admin smoke test passed.
+2. `lamEngineer` UAT:
+   - contributor behavior confirmed
+   - no Library admin commands
+   - Part Picker usable where Aras permission allows
+3. `lamPM` UAT:
+   - manager behavior confirmed for current UAT
+   - Create/Edit/Archive Library available
+4. Viewer/unknown behavior:
+   - conservative read-only behavior confirmed
+5. Automated verification:
+   - Debug build passed
+   - Release build passed
+   - Full tests passed `214/214`
+
+Remaining live limitations:
+
+- role mapping is username/config based for UAT;
+- future hardening should use Aras Identity membership;
+- full customer/external viewer UAT is still pending unless tested;
+- Sprint 2.2 has not started.
 
 ## Acceptance Gates by Sprint
 
@@ -154,7 +181,7 @@ The following cannot be claimed from local automation alone:
 
 ## Current Outcome
 
-Phase 2 is `IN_PROGRESS`.
+Phase 2 is `LOCALLY_ACCEPTED` for Sprint 2.1 only.
 
 Recommended next packet:
 

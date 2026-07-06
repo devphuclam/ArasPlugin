@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UI implemented; later workstreams still open)
+**State:** `LOCALLY_ACCEPTED` (Sprint 2.1 UAT smoke passed; later workstreams still open)
 
 ## Objective
 
@@ -60,6 +60,23 @@ The repository does **not** yet provide:
 - explicit Open in Aras URL generation (`WS6`);
 - real CAD/BOM/Revisions detail tabs (`WS7`);
 - advanced entry filters and hardening beyond Sprint 2.1 (`WS8`).
+
+## Sprint 2.1 UAT Closeout Evidence
+
+The following evidence has been recorded against the current design baseline:
+
+- Admin smoke test passed.
+- `lamEngineer` UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
+- `lamPM` UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
+- Viewer/unknown behavior confirmed conservative read-only behavior.
+- Automated verification passed: Debug build, Release build, and full tests `214/214`.
+
+Remaining live limitations:
+
+- role mapping is username/config based for UAT;
+- future hardening should use Aras Identity membership;
+- full customer/external viewer UAT remains pending unless tested;
+- Sprint 2.2 has not started.
 
 ## Approved Decisions
 
