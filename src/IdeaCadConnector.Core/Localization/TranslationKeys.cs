@@ -452,5 +452,110 @@ namespace IdeaCadConnector.Core.Localization
         // Task 21 final polish - tooltip keys
         public const string TooltipShowStructurePanels = "TooltipShowStructurePanels";
         public const string TooltipHideStructurePanels = "TooltipHideStructurePanels";
+
+        // Sprint 2.1 UI - Library Management
+        public const string LibraryFilterActive = "LibraryFilterActive";
+        public const string LibraryFilterArchived = "LibraryFilterArchived";
+        public const string LibraryFilterAll = "LibraryFilterAll";
+        public const string LibraryButtonEditLibrary = "LibraryButtonEditLibrary";
+        public const string LibraryButtonArchiveLibrary = "LibraryButtonArchiveLibrary";
+        public const string LibraryButtonPartPicker = "LibraryButtonPartPicker";
+        public const string LibraryCommandCreateLibrary = "LibraryCommandCreateLibrary";
+        public const string LibraryCommandEditLibrary = "LibraryCommandEditLibrary";
+        public const string LibraryCommandArchiveLibrary = "LibraryCommandArchiveLibrary";
+
+        // Create Library Dialog
+        public const string CreateLibraryTitle = "CreateLibraryTitle";
+        public const string CreateLibrarySubtitle = "CreateLibrarySubtitle";
+        public const string CreateLibraryNameLabel = "CreateLibraryNameLabel";
+        public const string CreateLibraryNameWatermark = "CreateLibraryNameWatermark";
+        public const string CreateLibraryDescriptionLabel = "CreateLibraryDescriptionLabel";
+        public const string CreateLibraryDescriptionWatermark = "CreateLibraryDescriptionWatermark";
+        public const string CreateLibraryTypeLabel = "CreateLibraryTypeLabel";
+        public const string CreateLibraryTypePersonal = "CreateLibraryTypePersonal";
+        public const string CreateLibraryTypeTeam = "CreateLibraryTypeTeam";
+        public const string CreateLibraryTypeStandard = "CreateLibraryTypeStandard";
+        public const string CreateLibraryDefaultRevisionPolicyLabel = "CreateLibraryDefaultRevisionPolicyLabel";
+        public const string CreateLibraryIsPublicLabel = "CreateLibraryIsPublicLabel";
+        public const string CreateLibrarySaveButton = "CreateLibrarySaveButton";
+        public const string CreateLibraryCancelButton = "CreateLibraryCancelButton";
+        public const string CreateLibraryNameRequired = "CreateLibraryNameRequired";
+        public const string CreateLibraryDuplicateName = "CreateLibraryDuplicateName";
+        public const string CreateLibraryPermissionDenied = "CreateLibraryPermissionDenied";
+        public const string CreateLibrarySaving = "CreateLibrarySaving";
+
+        // Edit Library Dialog
+        public const string EditLibraryTitle = "EditLibraryTitle";
+        public const string EditLibrarySubtitle = "EditLibrarySubtitle";
+        public const string EditLibrarySaveButton = "EditLibrarySaveButton";
+        public const string EditLibraryCancelButton = "EditLibraryCancelButton";
+        public const string EditLibrarySaving = "EditLibrarySaving";
+        public const string EditLibraryDuplicateName = "EditLibraryDuplicateName";
+        public const string EditLibraryPermissionDenied = "EditLibraryPermissionDenied";
+        public const string EditLibraryArchivedWarning = "EditLibraryArchivedWarning";
+
+        // Archive Library
+        public const string ArchiveLibraryTitle = "ArchiveLibraryTitle";
+        public const string ArchiveLibraryConfirmation = "ArchiveLibraryConfirmation";
+        public const string ArchiveLibraryWarning = "ArchiveLibraryWarning";
+        public const string ArchiveLibraryArchiveButton = "ArchiveLibraryArchiveButton";
+        public const string ArchiveLibraryCancelButton = "ArchiveLibraryCancelButton";
+        public const string ArchiveLibraryPermissionDenied = "ArchiveLibraryPermissionDenied";
+        public const string ArchiveLibrarySuccess = "ArchiveLibrarySuccess";
+        public const string ArchiveLibraryArchiving = "ArchiveLibraryArchiving";
+
+        // Part Picker Dialog
+        public const string PartPickerTitle = "PartPickerTitle";
+        public const string PartPickerSubtitle = "PartPickerSubtitle";
+        public const string PartPickerSearchButton = "PartPickerSearchButton";
+        public const string PartPickerKeywordLabel = "PartPickerKeywordLabel";
+        public const string PartPickerTypeLabel = "PartPickerTypeLabel";
+        public const string PartPickerLifecycleStateLabel = "PartPickerLifecycleStateLabel";
+        public const string PartPickerRevisionLabel = "PartPickerRevisionLabel";
+        public const string PartPickerCurrentOnlyCheckbox = "PartPickerCurrentOnlyCheckbox";
+        public const string PartPickerPageSizeLabel = "PartPickerPageSizeLabel";
+        public const string PartPickerPreviousButton = "PartPickerPreviousButton";
+        public const string PartPickerNextButton = "PartPickerNextButton";
+        public const string PartPickerColumnPartNumber = "PartPickerColumnPartNumber";
+        public const string PartPickerColumnName = "PartPickerColumnName";
+        public const string PartPickerColumnType = "PartPickerColumnType";
+        public const string PartPickerColumnRevision = "PartPickerColumnRevision";
+        public const string PartPickerColumnGeneration = "PartPickerColumnGeneration";
+        public const string PartPickerColumnLifecycleState = "PartPickerColumnLifecycleState";
+        public const string PartPickerColumnCurrent = "PartPickerColumnCurrent";
+        public const string PartPickerColumnReleased = "PartPickerColumnReleased";
+        public const string PartPickerColumnCadStatus = "PartPickerColumnCadStatus";
+        public const string PartPickerShowingPage = "PartPickerShowingPage";
+        public const string PartPickerNoResults = "PartPickerNoResults";
+        public const string PartPickerLoading = "PartPickerLoading";
+        public const string PartPickerSearchFailed = "PartPickerSearchFailed";
+        public const string PartPickerPermissionDenied = "PartPickerPermissionDenied";
+        public const string PartPickerPreviewHeader = "PartPickerPreviewHeader";
+        public const string PartPickerPreviewPartId = "PartPickerPreviewPartId";
+        public const string PartPickerPreviewConfigId = "PartPickerPreviewConfigId";
+        public const string PartPickerPreviewRevision = "PartPickerPreviewRevision";
+        public const string PartPickerPreviewLifecycleState = "PartPickerPreviewLifecycleState";
+        public const string PartPickerPreviewGeneration = "PartPickerPreviewGeneration";
+        public const string PartPickerPreviewCadStatus = "PartPickerPreviewCadStatus";
+        public const string PartPickerPreviewEligibility = "PartPickerPreviewEligibility";
+        public const string PartPickerPreviewIneligibilityReason = "PartPickerPreviewIneligibilityReason";
+        public const string PartPickerAddButton = "PartPickerAddButton";
+        public const string PartPickerCancelButton = "PartPickerCancelButton";
+        public const string PartPickerTargetLibrary = "PartPickerTargetLibrary";
+        public const string PartPickerRevisionPolicy = "PartPickerRevisionPolicy";
+        public const string PartPickerCategory = "PartPickerCategory";
+        public const string PartPickerTags = "PartPickerTags";
+        public const string PartPickerNote = "PartPickerNote";
+        public const string PartPickerNoActiveLibraries = "PartPickerNoActiveLibraries";
+        public const string PartPickerArchivedTarget = "PartPickerArchivedTarget";
+        public const string PartPickerDuplicateEntry = "PartPickerDuplicateEntry";
+        public const string PartPickerAdding = "PartPickerAdding";
+        public const string PartPickerAddSuccess = "PartPickerAddSuccess";
+        public const string PartPickerAlreadyExists = "PartPickerAlreadyExists";
+        public const string PartPickerNoConfigId = "PartPickerNoConfigId";
+        public const string PartPickerIneligible = "PartPickerIneligible";
+        public const string PartPickerEligible = "PartPickerEligible";
+        public const string PartPickerNotEligible = "PartPickerNotEligible";
+        public const string PartPickerSelectPartFirst = "PartPickerSelectPartFirst";
     }
 }

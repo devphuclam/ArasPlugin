@@ -94,7 +94,9 @@ namespace IdeaCadConnector.Aras
                     LibraryType = ParseLibraryType(item["library_type"]?.Value<string>()),
                     ItemCount = itemCount,
                     CanContribute = IsActiveLibrary(item["status"]?.Value<string>()),
-                    IsPublic = ParseBoolean(item["is_public"]?.Value<string>())
+                    IsPublic = ParseBoolean(item["is_public"]?.Value<string>()),
+                    Status = item["status"]?.Value<string>(),
+                    DefaultRevisionPolicy = item["default_revision_policy"]?.Value<string>()
                 });
             }
 

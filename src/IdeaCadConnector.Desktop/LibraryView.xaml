@@ -155,6 +155,8 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="0">
                     <TextBox Height="40" Padding="36,0,12,0" VerticalContentAlignment="Center"
@@ -177,6 +179,8 @@
                         Command="{Binding CreateLibraryCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonCreateLibrary]}"/>
                 <Button Grid.Column="12" Style="{StaticResource LibraryPrimaryButtonStyle}"
                         Command="{Binding AddPartCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonAddPart]}"/>
+                <Button Grid.Column="14" Style="{StaticResource LibraryButtonStyle}"
+                        Command="{Binding ShowPartPickerCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonPartPicker]}"/>
             </Grid>
         </Border>
 
@@ -196,12 +200,33 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="16,0">
-                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLibrariesHeader]}" FontSize="16" FontWeight="Bold"
-                                   VerticalAlignment="Center" Foreground="{StaticResource LibraryTextBrush}"/>
-                        <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonNew]}" Command="{Binding CreateLibraryCommand}"
-                                HorizontalAlignment="Right" VerticalAlignment="Center"
-                                Foreground="{StaticResource LibraryPrimaryBrush}"
-                                Background="Transparent" BorderThickness="0" FontWeight="SemiBold"/>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid>
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLibrariesHeader]}" FontSize="16" FontWeight="Bold"
+                                       VerticalAlignment="Center" Foreground="{StaticResource LibraryTextBrush}"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonEditLibrary]}"
+                                        Command="{Binding EditLibraryCommand}"
+                                        Margin="0,0,4,0"
+                                        Foreground="{StaticResource LibraryPrimaryBrush}"
+                                        Background="Transparent" BorderThickness="0" FontWeight="SemiBold" FontSize="12"/>
+                                <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonArchiveLibrary]}"
+                                        Command="{Binding ArchiveLibraryCommand}"
+                                        Margin="0,0,4,0"
+                                        Foreground="#B91C1C"
+                                        Background="Transparent" BorderThickness="0" FontWeight="SemiBold" FontSize="12"/>
+                                <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonNew]}" Command="{Binding CreateLibraryCommand}"
+                                        Foreground="{StaticResource LibraryPrimaryBrush}"
+                                        Background="Transparent" BorderThickness="0" FontWeight="SemiBold" FontSize="12"/>
+                            </StackPanel>
+                        </Grid>
+                        <ComboBox Grid.Row="1" Margin="0,6,0,0" Height="32"
+                                  ItemsSource="{Binding VisibilityFilters}"
+                                  SelectedItem="{Binding SelectedVisibilityFilter}"
+                                  FontSize="12"/>
                     </Grid>
                     <Grid Grid.Row="1" Margin="8">
                         <ListBox ItemsSource="{Binding Libraries}"

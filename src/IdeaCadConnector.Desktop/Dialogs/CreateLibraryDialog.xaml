@@ -1,0 +1,85 @@
+<Window x:Class="IdeaCadConnector.Desktop.CreateLibraryDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="clr-namespace:IdeaCadConnector.Core.Localization;assembly=IdeaCadConnector.Core"
+        Title="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryTitle]}" Width="540" Height="620"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="#F8FAFD">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Background="White" BorderBrush="#E4EAF3" BorderThickness="0,0,0,1" Padding="24,20">
+            <StackPanel>
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryTitle]}" FontSize="24" FontWeight="Bold" Foreground="#17305F"/>
+                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibrarySubtitle]}"
+                           Margin="0,5,0,0" Foreground="#687995"/>
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24">
+                <StackPanel>
+                    <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryNameLabel]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                    <TextBox Height="42" Margin="0,7,0,0" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,16,0,0">
+                    <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryDescriptionLabel]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                    <TextBox Height="92" Margin="0,7,0,0" AcceptsReturn="True" TextWrapping="Wrap"
+                             Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}"/>
+                </StackPanel>
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryTypeLabel]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <ComboBox Height="42" Margin="0,7,0,0"
+                                  ItemsSource="{Binding LibraryTypes}"
+                                  SelectedItem="{Binding SelectedType}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryDefaultRevisionPolicyLabel]}" FontWeight="SemiBold" Foreground="#334B76"/>
+                        <ComboBox Height="42" Margin="0,7,0,0"
+                                  ItemsSource="{Binding RevisionPolicies}"
+                                  SelectedItem="{Binding DefaultRevisionPolicy}"/>
+                    </StackPanel>
+                </Grid>
+
+                <CheckBox Margin="0,16,0,0" IsChecked="{Binding IsPublic}"
+                          Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryIsPublicLabel]}"
+                          Foreground="#334B76" FontWeight="SemiBold"/>
+
+                <TextBlock Margin="0,16,0,0" Text="{Binding ValidationMessage}"
+                           Foreground="#8B5800" TextWrapping="Wrap"/>
+
+                <TextBlock Margin="0,10,0,0"
+                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibrarySaving]}"
+                           Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}"
+                           Foreground="#2E7D32" TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="#E4EAF3" BorderThickness="0,1,0,0" Padding="24,16">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Width="110" Height="40"
+                        Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibraryCancelButton]}"
+                        IsCancel="True" Command="{Binding CancelCommand}"/>
+                <Button Width="180" Height="40" Margin="10,0,0,0"
+                        Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[CreateLibrarySaveButton]}"
+                        Command="{Binding SaveCommand}"
+                        Background="#0B57F0" Foreground="White"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

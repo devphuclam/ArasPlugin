@@ -1,0 +1,59 @@
+using IdeaCadConnector.Core.Library;
+using System;
+
+namespace IdeaCadConnector.Desktop.Services
+{
+    internal sealed class LibraryAuthorizationService : ILibraryAuthorizationService
+    {
+        private readonly IAppSessionContext _session;
+
+        public LibraryAuthorizationService(IAppSessionContext session)
+        {
+            _session = session ?? throw new System.ArgumentNullException(nameof(session));
+        }
+
+        public bool IsLibraryManager
+        {
+            get
+            {
+                var user = Normalize(_session.CurrentUserName);
+                return user == "admin" ||
+                       user == "librarymanager" ||
+                       user == "manager" ||
+                       user == "tptkc" ||
+                       user == "truongphongthietkeco";
+            }
+        }
+
+        public bool IsContributorOrHigher
+        {
+            get
+            {
+                if (IsLibraryManager)
+                    return true;
+
+                var user = Normalize(_session.CurrentUserName);
+                return user == "nvtkc" ||
+                       user == "tntkc" ||
+                       user == "librarycontributor" ||
+                       user == "libraryreviewer";
+            }
+        }
+
+        public bool IsReadOnlyViewer => _session.IsConnected && !IsContributorOrHigher && !IsLibraryManager;
+
+        public bool CanManageLibraries => _session.IsConnected && IsLibraryManager;
+
+        public bool CanUsePartPicker => _session.IsConnected && IsContributorOrHigher;
+
+        private static string Normalize(string value)
+        {
+            return (value ?? string.Empty)
+                .Trim()
+                .Replace(" ", string.Empty)
+                .Replace("-", string.Empty)
+                .Replace("_", string.Empty)
+                .ToLowerInvariant();
+        }
+    }
+}

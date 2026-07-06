@@ -23,4 +23,8 @@
     <ProjectReference Include="..\..\src\IdeaCadConnector.Desktop\IdeaCadConnector.Desktop.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
 </Project>

@@ -28,6 +28,9 @@ namespace IdeaCadConnector.Desktop
         ICommand RefreshCommand { get; }
         ICommand SearchCommand { get; }
         ICommand CreateLibraryCommand { get; }
+        ICommand EditLibraryCommand { get; }
+        ICommand ArchiveLibraryCommand { get; }
+        ICommand ShowPartPickerCommand { get; }
         ICommand AddPartCommand { get; }
         ICommand RemoveEntryCommand { get; }
         ICommand MoveEntryCommand { get; }
@@ -40,6 +43,14 @@ namespace IdeaCadConnector.Desktop
         ICommand UseLatestReleasedCommand { get; }
         ICommand ViewWhereUsedCommand { get; }
         ICommand OpenInArasCommand { get; }
+
+        string SelectedVisibilityFilter { get; set; }
+        ObservableCollection<string> VisibilityFilters { get; }
+        bool CanCreateLibrary { get; }
+        bool CanEditSelectedLibrary { get; }
+        bool CanArchiveSelectedLibrary { get; }
+        bool CanAddEntryToSelectedLibrary { get; }
+        bool CanUsePartPicker { get; }
     }
 
     public sealed class PartLibrarySummaryRow
@@ -49,6 +60,12 @@ namespace IdeaCadConnector.Desktop
         public int ItemCount { get; set; }
         public string LibraryType { get; set; }
         public bool CanContribute { get; set; }
+        public bool CanManage { get; set; }
+        public bool IsArchived { get; set; }
+        public string Description { get; set; }
+        public bool IsPublic { get; set; }
+        public string Status { get; set; }
+        public string DefaultRevisionPolicy { get; set; }
     }
 
     public sealed class PartLibraryEntryRow

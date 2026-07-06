@@ -18,7 +18,6 @@ using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Desktop.Services;
 using IdeaCadConnector.Workspace;
-
 namespace IdeaCadConnector.Desktop
 {
     public sealed class LibraryViewModel : ILibraryViewModel
@@ -27,6 +26,7 @@ namespace IdeaCadConnector.Desktop
         private readonly IAppSessionContext _session;
         private readonly IPartLibraryClient _injectedClient;
         private readonly IPartLibraryClient _unavailableClient = new UnavailablePartLibraryClient();
+        private readonly ILibraryAuthorizationService _authService;
         private PartLibrarySummaryRow _selectedLibrary;
         private PartLibraryEntryRow _selectedEntry;
         private PartLibraryEntryDetailsView _selectedEntryDetails;
@@ -42,27 +42,38 @@ namespace IdeaCadConnector.Desktop
         private int _totalCount;
         private int _pageNumber = 1;
         private int _pageSize = 25;
+        private string _selectedVisibilityFilter;
+        private LibraryVisibilityFilter _activeVisibilityFilter = LibraryVisibilityFilter.Active;
 
         public LibraryViewModel()
-            : this(AppSessionContext.Current, null)
+            : this(AppSessionContext.Current, null, null)
         {
         }
 
         public LibraryViewModel(IAppSessionContext session, IPartLibraryClient client)
+            : this(session, client, null)
+        {
+        }
+
+        internal LibraryViewModel(IAppSessionContext session, IPartLibraryClient client, ILibraryAuthorizationService authService)
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _injectedClient = client;
+            _authService = authService ?? new LibraryAuthorizationService(session);
 
             Libraries = new ObservableCollection<PartLibrarySummaryRow>();
             Entries = new ObservableCollection<PartLibraryEntryRow>();
             TypeFilters = new ObservableCollection<string>();
             StateFilters = new ObservableCollection<string>();
             RevisionFilters = new ObservableCollection<string>();
+            VisibilityFilters = new ObservableCollection<string>();
             RefreshFilterOptions();
+            RefreshVisibilityFilterOptions();
 
             _selectedTypeFilter = TypeFilters[0];
             _selectedStateFilter = StateFilters[0];
             _selectedRevisionFilter = RevisionFilters[0];
+            _selectedVisibilityFilter = VisibilityFilters[0];
             _selectedEntryDetails = CreateEmptyDetails();
             _statusMessage = L(TranslationKeys.LibraryStatusReady);
             _permissionMessage = string.Empty;
@@ -70,8 +81,11 @@ namespace IdeaCadConnector.Desktop
 
             RefreshCommand = new RelayCommand(_ => _ = RefreshAsync(), _ => !IsLoading);
             SearchCommand = new RelayCommand(_ => _ = SearchAsync(), _ => !IsLoading);
-            CreateLibraryCommand = new RelayCommand(_ => ShowCreateLibraryNotAvailableMessage(), _ => !IsLoading && !IsOffline);
-            AddPartCommand = new RelayCommand(_ => ShowSaveToLibraryDialog(), _ => !IsLoading && !IsOffline && CanContributeToSelectedLibrary);
+            CreateLibraryCommand = new RelayCommand(_ => _ = ShowCreateLibraryDialogAsync(), _ => CanCreateLibrary);
+            EditLibraryCommand = new RelayCommand(_ => _ = ShowEditLibraryDialogAsync(), _ => !IsLoading && !IsOffline && CanEditSelectedLibrary);
+            ArchiveLibraryCommand = new RelayCommand(_ => _ = ShowArchiveLibraryFlowAsync(), _ => !IsLoading && !IsOffline && CanArchiveSelectedLibrary);
+            ShowPartPickerCommand = new RelayCommand(_ => _ = ShowArasPartPickerDialogAsync(), _ => CanUsePartPickerForSelectedLibrary);
+            AddPartCommand = new RelayCommand(_ => ShowSaveToLibraryDialog(), _ => !IsLoading && !IsOffline && CanAddEntryToSelectedLibrary);
             RemoveEntryCommand = new RelayCommand(_ => _ = RemoveSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading);
             MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => SelectedEntry != null && SelectedLibrary != null && !IsLoading);
             AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => CanAddToCurrentProject());
@@ -88,6 +102,10 @@ namespace IdeaCadConnector.Desktop
             _session.LibraryDataChanged += OnLibraryDataChanged;
             AddToCurrentProjectDialogHandler = ShowAddToCurrentProjectDialog;
             AddLibraryReferenceHandler = (workspace, reference) => workspace.AddLibraryReference(reference);
+            CreateLibraryDialogHandler = ShowCreateLibraryDialog;
+            EditLibraryDialogHandler = ShowEditLibraryDialog;
+            PartPickerDialogHandler = ShowPartPickerDialog;
+            ConfirmDialogHandler = (message, caption, buttons, image) => MessageBox.Show(message, caption, buttons, image);
 
             _ = RefreshAsync();
         }
@@ -109,6 +127,56 @@ namespace IdeaCadConnector.Desktop
 
         public ObservableCollection<string> RevisionFilters { get; }
 
+        public ObservableCollection<string> VisibilityFilters { get; }
+
+        public string SelectedVisibilityFilter
+        {
+            get => _selectedVisibilityFilter;
+            set
+            {
+                if (SetField(ref _selectedVisibilityFilter, value))
+                {
+                    if (value == L(TranslationKeys.LibraryFilterActive))
+                        _activeVisibilityFilter = LibraryVisibilityFilter.Active;
+                    else if (value == L(TranslationKeys.LibraryFilterArchived))
+                        _activeVisibilityFilter = LibraryVisibilityFilter.Archived;
+                    else
+                        _activeVisibilityFilter = LibraryVisibilityFilter.All;
+
+                    _ = RefreshAsync();
+                }
+            }
+        }
+
+        public bool IsLibraryManager => _authService?.IsLibraryManager ?? false;
+
+        public bool IsContributorOrHigher => _authService?.IsContributorOrHigher ?? false;
+
+        public bool IsReadOnlyViewer => _authService?.IsReadOnlyViewer ?? true;
+
+        public bool CanManageLibraries => _authService?.CanManageLibraries ?? false;
+
+        public bool CanCreateLibrary => !IsLoading && !IsOffline && CanManageLibraries;
+
+        public bool CanUsePartPicker => !IsLoading && !IsOffline && (_authService?.CanUsePartPicker ?? false);
+
+        public bool CanEditSelectedLibrary =>
+            SelectedLibrary != null &&
+            CanManageLibraries &&
+            !SelectedLibrary.IsArchived;
+
+        public bool CanArchiveSelectedLibrary =>
+            SelectedLibrary != null &&
+            CanManageLibraries &&
+            !SelectedLibrary.IsArchived;
+
+        public bool CanAddEntryToSelectedLibrary =>
+            SelectedLibrary != null &&
+            !SelectedLibrary.IsArchived &&
+            CanUsePartPicker;
+
+        public bool CanUsePartPickerForSelectedLibrary => CanAddEntryToSelectedLibrary;
+
         public PartLibrarySummaryRow SelectedLibrary
         {
             get => _selectedLibrary;
@@ -117,6 +185,10 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _selectedLibrary, value))
                 {
                     OnPropertyChanged(nameof(CanContributeToSelectedLibrary));
+                    OnPropertyChanged(nameof(CanAddEntryToSelectedLibrary));
+                    OnPropertyChanged(nameof(CanUsePartPickerForSelectedLibrary));
+                    OnPropertyChanged(nameof(CanEditSelectedLibrary));
+                    OnPropertyChanged(nameof(CanArchiveSelectedLibrary));
                     NotifyPanelStateChanged();
                     _ = SearchAsync();
                     RaiseCommandStates();
@@ -185,7 +257,15 @@ namespace IdeaCadConnector.Desktop
 
         internal Func<PdmProjectsViewModel, WorkspaceLibraryReference, LibraryReferenceMutationResult> AddLibraryReferenceHandler { get; set; }
 
-        public bool CanContributeToSelectedLibrary => SelectedLibrary != null && SelectedLibrary.CanContribute;
+        internal Func<CreateLibraryDialogViewModel, bool?> CreateLibraryDialogHandler { get; set; }
+
+        internal Func<EditLibraryDialogViewModel, bool?> EditLibraryDialogHandler { get; set; }
+
+        internal Func<ArasPartPickerViewModel, bool?> PartPickerDialogHandler { get; set; }
+
+        internal Func<string, string, MessageBoxButton, MessageBoxImage, MessageBoxResult> ConfirmDialogHandler { get; set; }
+
+        public bool CanContributeToSelectedLibrary => CanAddEntryToSelectedLibrary;
 
         public bool IsPermissionState => !string.IsNullOrWhiteSpace(_permissionMessage);
 
@@ -284,6 +364,10 @@ namespace IdeaCadConnector.Desktop
         public ICommand ViewWhereUsedCommand { get; }
         public ICommand OpenInArasCommand { get; }
 
+        public ICommand EditLibraryCommand { get; }
+        public ICommand ArchiveLibraryCommand { get; }
+        public ICommand ShowPartPickerCommand { get; }
+
         private async Task RefreshAsync()
         {
             ClearTransientStates();
@@ -304,7 +388,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                var libraries = await ActiveClient.GetLibrariesAsync(LibraryVisibilityFilter.Active, CancellationToken.None).ConfigureAwait(true);
+                var libraries = await ActiveClient.GetLibrariesAsync(_activeVisibilityFilter, CancellationToken.None).ConfigureAwait(true);
                 Libraries.Clear();
                 foreach (var library in libraries)
                 {
@@ -314,7 +398,13 @@ namespace IdeaCadConnector.Desktop
                         Name = library.Name,
                         ItemCount = library.ItemCount,
                         LibraryType = library.LibraryType.ToString(),
-                        CanContribute = library.CanContribute
+                        CanContribute = library.CanContribute,
+                        CanManage = CanManageLibraries,
+                        IsArchived = string.Equals(library.Status, PartLibrarySchemaNames.LibraryStatusArchived, StringComparison.OrdinalIgnoreCase),
+                        Description = library.Description,
+                        IsPublic = library.IsPublic,
+                        Status = library.Status,
+                        DefaultRevisionPolicy = library.DefaultRevisionPolicy
                     });
                 }
 
@@ -673,9 +763,115 @@ namespace IdeaCadConnector.Desktop
             StatusMessage = L(TranslationKeys.LibraryStatusSaveDialogOpened);
         }
 
-        private void ShowCreateLibraryNotAvailableMessage()
+        private async Task ShowCreateLibraryDialogAsync()
         {
-            StatusMessage = L(TranslationKeys.LibraryStatusCreateLibraryUnavailable);
+            if (!CanManageLibraries)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusCreateLibraryUnavailable);
+                return;
+            }
+
+            var viewModel = new CreateLibraryDialogViewModel(ActiveClient);
+            await viewModel.InitializeAsync().ConfigureAwait(true);
+
+            if (CreateLibraryDialogHandler?.Invoke(viewModel) == true)
+            {
+                if (!string.IsNullOrWhiteSpace(viewModel.CreatedLibraryId))
+                    _session.PendingLibraryFocusLibraryId = viewModel.CreatedLibraryId;
+
+                await RefreshAsync().ConfigureAwait(true);
+            }
+        }
+
+        private async Task ShowEditLibraryDialogAsync()
+        {
+            if (SelectedLibrary == null || !CanEditSelectedLibrary)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectWritableLibrary);
+                return;
+            }
+
+            var library = new PartLibrarySummary
+            {
+                Id = SelectedLibrary.Id,
+                Name = SelectedLibrary.Name,
+                LibraryType = (LibraryType)Enum.Parse(typeof(LibraryType), SelectedLibrary.LibraryType),
+                Description = SelectedLibrary.Description,
+                IsPublic = SelectedLibrary.IsPublic,
+                CanContribute = SelectedLibrary.CanContribute,
+                ItemCount = SelectedLibrary.ItemCount,
+                Status = SelectedLibrary.Status,
+                DefaultRevisionPolicy = SelectedLibrary.DefaultRevisionPolicy
+            };
+
+            var viewModel = new EditLibraryDialogViewModel(ActiveClient, library);
+            await viewModel.InitializeAsync().ConfigureAwait(true);
+
+            if (EditLibraryDialogHandler?.Invoke(viewModel) == true)
+            {
+                _session.PendingLibraryFocusLibraryId = SelectedLibrary.Id;
+                await RefreshAsync().ConfigureAwait(true);
+            }
+        }
+
+        private async Task ShowArchiveLibraryFlowAsync()
+        {
+            if (SelectedLibrary == null || !CanArchiveSelectedLibrary)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectWritableLibrary);
+                return;
+            }
+
+            var confirm = ConfirmDialogHandler?.Invoke(
+                L(TranslationKeys.ArchiveLibraryConfirmation),
+                L(TranslationKeys.ArchiveLibraryTitle),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) ?? MessageBoxResult.No;
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            await RunBusyAsync(async () =>
+            {
+                var result = await ActiveClient.ArchiveLibraryAsync(SelectedLibrary.Id, CancellationToken.None).ConfigureAwait(true);
+
+                if (result?.Success == true)
+                {
+                    StatusMessage = L(TranslationKeys.ArchiveLibrarySuccess);
+                    await RefreshAsync().ConfigureAwait(true);
+                }
+                else if (result?.ErrorCode == ArasErrorCode.PermissionDenied)
+                {
+                    StatusMessage = L(TranslationKeys.ArchiveLibraryPermissionDenied);
+                }
+                else
+                {
+                    StatusMessage = result?.ErrorMessage ?? L(TranslationKeys.UnknownError);
+                }
+            });
+        }
+
+        private async Task ShowArasPartPickerDialogAsync()
+        {
+            if (!CanContributeToSelectedLibrary)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectWritableLibrary);
+                return;
+            }
+
+            var viewModel = new ArasPartPickerViewModel(ActiveClient);
+            await viewModel.InitializeAsync().ConfigureAwait(true);
+
+            if (PartPickerDialogHandler?.Invoke(viewModel) == true)
+            {
+                if (!string.IsNullOrWhiteSpace(viewModel.TargetLibrary?.Id))
+                    _session.PendingLibraryFocusLibraryId = viewModel.TargetLibrary.Id;
+                if (!string.IsNullOrWhiteSpace(viewModel.AddResult?.EntryId))
+                    _session.PendingLibraryFocusEntryId = viewModel.AddResult.EntryId;
+
+                StatusMessage = L(TranslationKeys.PartPickerAddSuccess);
+                await RefreshAsync().ConfigureAwait(true);
+            }
         }
 
         private async Task RemoveSelectedEntryAsync()
@@ -1119,6 +1315,9 @@ namespace IdeaCadConnector.Desktop
             (RefreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (SearchCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (CreateLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (EditLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (ArchiveLibraryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (ShowPartPickerCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (AddPartCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (RemoveEntryCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (MoveEntryCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -1143,6 +1342,16 @@ namespace IdeaCadConnector.Desktop
         private void NotifyPanelStateChanged()
         {
             OnPropertyChanged(nameof(CanContributeToSelectedLibrary));
+            OnPropertyChanged(nameof(CanCreateLibrary));
+            OnPropertyChanged(nameof(CanUsePartPicker));
+            OnPropertyChanged(nameof(CanAddEntryToSelectedLibrary));
+            OnPropertyChanged(nameof(CanUsePartPickerForSelectedLibrary));
+            OnPropertyChanged(nameof(IsLibraryManager));
+            OnPropertyChanged(nameof(IsContributorOrHigher));
+            OnPropertyChanged(nameof(IsReadOnlyViewer));
+            OnPropertyChanged(nameof(CanManageLibraries));
+            OnPropertyChanged(nameof(CanEditSelectedLibrary));
+            OnPropertyChanged(nameof(CanArchiveSelectedLibrary));
             OnPropertyChanged(nameof(IsPermissionState));
             OnPropertyChanged(nameof(IsErrorState));
             OnPropertyChanged(nameof(ShowLibrariesOverlay));
@@ -1171,6 +1380,61 @@ namespace IdeaCadConnector.Desktop
             SelectedEntry = matchedEntry;
             _session.PendingLibraryFocusEntryId = null;
             _session.PendingLibraryFocusLibraryId = null;
+        }
+
+        private void RefreshVisibilityFilterOptions()
+        {
+            var previousSelection = _selectedVisibilityFilter;
+
+            VisibilityFilters.Clear();
+            VisibilityFilters.Add(L(TranslationKeys.LibraryFilterActive));
+            VisibilityFilters.Add(L(TranslationKeys.LibraryFilterArchived));
+            VisibilityFilters.Add(L(TranslationKeys.LibraryFilterAll));
+
+            if (!string.IsNullOrWhiteSpace(previousSelection) &&
+                VisibilityFilters.Contains(previousSelection))
+            {
+                _selectedVisibilityFilter = previousSelection;
+            }
+            else
+            {
+                _selectedVisibilityFilter = VisibilityFilters[0];
+            }
+
+            OnPropertyChanged(nameof(SelectedVisibilityFilter));
+        }
+
+        private static bool? ShowCreateLibraryDialog(CreateLibraryDialogViewModel viewModel)
+        {
+            var dialog = new CreateLibraryDialog
+            {
+                Owner = Application.Current?.MainWindow,
+                DataContext = viewModel
+            };
+            viewModel.CloseRequested += accepted => dialog.DialogResult = accepted;
+            return dialog.ShowDialog();
+        }
+
+        private static bool? ShowEditLibraryDialog(EditLibraryDialogViewModel viewModel)
+        {
+            var dialog = new EditLibraryDialog
+            {
+                Owner = Application.Current?.MainWindow,
+                DataContext = viewModel
+            };
+            viewModel.CloseRequested += accepted => dialog.DialogResult = accepted;
+            return dialog.ShowDialog();
+        }
+
+        private static bool? ShowPartPickerDialog(ArasPartPickerViewModel viewModel)
+        {
+            var dialog = new ArasPartPickerDialog
+            {
+                Owner = Application.Current?.MainWindow,
+                DataContext = viewModel
+            };
+            viewModel.CloseRequested += accepted => dialog.DialogResult = accepted;
+            return dialog.ShowDialog();
         }
 
         private void RefreshFilterOptions()
@@ -1213,6 +1477,7 @@ namespace IdeaCadConnector.Desktop
                 return;
 
             RefreshFilterOptions();
+            RefreshVisibilityFilterOptions();
             if (SelectedEntry == null)
                 SelectedEntryDetails = CreateEmptyDetails();
             NotifyPanelStateChanged();

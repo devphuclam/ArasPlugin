@@ -55,6 +55,8 @@ namespace IdeaCadConnector.Core.Dto.Library
         public int ItemCount { get; set; }
         public bool CanContribute { get; set; }
         public bool IsPublic { get; set; }
+        public string Status { get; set; }
+        public string DefaultRevisionPolicy { get; set; }
     }
 
     public sealed class CreatePartLibraryRequest
