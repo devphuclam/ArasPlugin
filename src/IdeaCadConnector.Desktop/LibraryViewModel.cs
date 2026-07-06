@@ -1758,6 +1758,15 @@ namespace IdeaCadConnector.Desktop
 
         public Task RemoveEntryAsync(string entryId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task MoveEntryAsync(string entryId, string targetLibraryId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<MoveLibraryEntryResult> MoveLibraryEntryAsync(MoveLibraryEntryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new MoveLibraryEntryResult
+            {
+                Success = false,
+                EntryId = request?.EntryId,
+                TargetLibraryId = request?.TargetLibraryId,
+                ErrorCode = ArasErrorCode.ValidationFailed,
+                ErrorMessage = "Preview client does not persist move operations yet."
+            });
 
         public Task<ResolveLibraryPartResult> ResolvePartAsync(string entryId, LibraryRevisionPolicy policy, CancellationToken cancellationToken)
         {
@@ -1773,6 +1782,15 @@ namespace IdeaCadConnector.Desktop
                 HasNewerReleasedRevision = entry.HasNewerReleasedRevision
             });
         }
+
+        public Task<PartRevisionHistoryResponse> SearchPartRevisionsAsync(PartRevisionHistoryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new PartRevisionHistoryResponse
+            {
+                Items = Array.Empty<PartRevisionHistoryItem>(),
+                PageNumber = request?.PageNumber ?? 1,
+                PageSize = request?.PageSize ?? 25,
+                TotalCount = 0
+            });
 
         public Task PublishEntryAsync(string entryId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task DeprecateEntryAsync(string entryId, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -1914,8 +1932,14 @@ namespace IdeaCadConnector.Desktop
         public Task MoveEntryAsync(string entryId, string targetLibraryId, CancellationToken cancellationToken)
             => Task.FromException(CreateUnavailableException());
 
+        public Task<MoveLibraryEntryResult> MoveLibraryEntryAsync(MoveLibraryEntryRequest request, CancellationToken cancellationToken)
+            => Task.FromException<MoveLibraryEntryResult>(CreateUnavailableException());
+
         public Task<ResolveLibraryPartResult> ResolvePartAsync(string entryId, LibraryRevisionPolicy policy, CancellationToken cancellationToken)
             => Task.FromException<ResolveLibraryPartResult>(CreateUnavailableException());
+
+        public Task<PartRevisionHistoryResponse> SearchPartRevisionsAsync(PartRevisionHistoryRequest request, CancellationToken cancellationToken)
+            => Task.FromException<PartRevisionHistoryResponse>(CreateUnavailableException());
 
         public Task PublishEntryAsync(string entryId, CancellationToken cancellationToken)
             => Task.FromException(CreateUnavailableException());

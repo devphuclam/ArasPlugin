@@ -149,6 +149,60 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string SourceCommit { get; set; }
     }
 
+    public sealed class MoveLibraryEntryRequest
+    {
+        public string EntryId { get; set; }
+        public string TargetLibraryId { get; set; }
+    }
+
+    public sealed class MoveLibraryEntryResult
+    {
+        public bool Success { get; set; }
+        public string EntryId { get; set; }
+        public string SourceLibraryId { get; set; }
+        public string TargetLibraryId { get; set; }
+        public string PreservedEntryStatus { get; set; }
+        public string PreservedLifecycleState { get; set; }
+        public ArasErrorCode? ErrorCode { get; set; }
+        public string ErrorMessage { get; set; }
+    }
+
+    public sealed class PartRevisionHistoryRequest
+    {
+        public string PartConfigId { get; set; }
+        public string PartId { get; set; }
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+    }
+
+    public sealed class PartRevisionHistoryResponse
+    {
+        public IReadOnlyList<PartRevisionHistoryItem> Items { get; set; }
+        public int PageNumber { get; set; }
+        public int PageSize { get; set; }
+        public int TotalCount { get; set; }
+    }
+
+    public sealed class PartRevisionHistoryItem
+    {
+        public string PartId { get; set; }
+        public string ConfigId { get; set; }
+        public string PartNumber { get; set; }
+        public string Name { get; set; }
+        public string PartType { get; set; }
+        public string MajorRev { get; set; }
+        public string Generation { get; set; }
+        public string LifecycleState { get; set; }
+        public bool IsCurrent { get; set; }
+        public bool IsReleased { get; set; }
+        public bool IsObsolete { get; set; }
+        public string CadStatus { get; set; }
+        public DateTime? ModifiedOn { get; set; }
+        public DateTime? CreatedOn { get; set; }
+        public bool CanPin { get; set; }
+        public string CannotPinReason { get; set; }
+    }
+
     public sealed class DuplicateEntryCheckResult
     {
         public bool IsDuplicate { get; set; }
@@ -339,8 +393,16 @@ namespace IdeaCadConnector.Core.Contracts
             string libraryId,
             CancellationToken cancellationToken);
 
+        Task<MoveLibraryEntryResult> MoveLibraryEntryAsync(
+            MoveLibraryEntryRequest request,
+            CancellationToken cancellationToken);
+
         Task<PartPickerSearchResponse> SearchPartsAsync(
             PartPickerSearchRequest request,
+            CancellationToken cancellationToken);
+
+        Task<PartRevisionHistoryResponse> SearchPartRevisionsAsync(
+            PartRevisionHistoryRequest request,
             CancellationToken cancellationToken);
 
         Task<PartPreview> GetPartPreviewAsync(

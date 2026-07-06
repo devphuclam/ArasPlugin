@@ -337,11 +337,17 @@ namespace IdeaCadConnector.Tests
 
             public Task MoveEntryAsync(string entryId, string targetLibraryId, CancellationToken cancellationToken) => Task.CompletedTask;
 
+            public Task<MoveLibraryEntryResult> MoveLibraryEntryAsync(MoveLibraryEntryRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new MoveLibraryEntryResult { Success = true, EntryId = request?.EntryId, TargetLibraryId = request?.TargetLibraryId });
+
             public Task<ResolveLibraryPartResult> ResolvePartAsync(string entryId, LibraryRevisionPolicy policy, CancellationToken cancellationToken)
                 => Task.FromResult(new ResolveLibraryPartResult());
 
             public Task<ResolveLibraryPartResult> ResolveUsingStoredPolicyAsync(string entryId, CancellationToken cancellationToken)
                 => Task.FromResult(new ResolveLibraryPartResult());
+
+            public Task<PartRevisionHistoryResponse> SearchPartRevisionsAsync(PartRevisionHistoryRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new PartRevisionHistoryResponse { Items = Array.Empty<PartRevisionHistoryItem>(), PageNumber = 1, PageSize = 25, TotalCount = 0 });
 
             public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
                 => Task.FromResult(new UpdateLibraryRevisionPolicyResult());

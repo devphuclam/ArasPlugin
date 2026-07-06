@@ -1,8 +1,8 @@
 # Part Library Phase 2 Deployment
 
-**State:** `PLANNED`
+**State:** `IN_PROGRESS`
 
-This document records deployment assumptions and live-system dependencies for Phase 2 planning. It is not a claim that any Phase 2 change has been deployed.
+This document records deployment assumptions and live-system dependencies for Phase 2. It is not a claim that any Phase 2 change has been deployed.
 
 ## Baseline
 
@@ -34,6 +34,8 @@ Phase 2 must not rename or rebuild these artifacts just to match the package wor
 - `Desktop` dialogs, tabs, filters, status messaging, and localization
 - `Aras` client query logic and permission/error classification
 
+Current Sprint 2.2 core work is application-side only; no live Aras ItemType, Method, or lifecycle change is required for the code that landed in this packet.
+
 ### Potentially Aras-side
 
 The current package suggests operations that may remain client-driven or may need a server-owned entry point after implementation review:
@@ -59,7 +61,7 @@ No new server Method is approved yet.
 
 ## Decisions
 
-All decisions D-01 through D-06 are APPROVED as of 2026-07-06. No unresolved decisions block Sprint 2.1.
+All decisions D-01 through D-06 are APPROVED as of 2026-07-06. No unresolved decisions block the current packet.
 
 | ID | Approved Rule |
 |---|---|
@@ -98,4 +100,4 @@ All decisions D-01 through D-06 are APPROVED as of 2026-07-06. No unresolved dec
 
 ## Current Planning Outcome
 
-Phase 2 is `PLANNED`. Deployment remains a design-time topic. No additional Aras ItemType, Method, permission, lifecycle, or Vault configuration change is approved by this document.
+Phase 2 is `IN_PROGRESS`. Deployment remains a design-time topic for the current packet. No additional Aras ItemType, Method, permission, lifecycle, or Vault configuration change is approved by this document.

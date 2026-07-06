@@ -350,23 +350,285 @@ namespace IdeaCadConnector.Aras
 
         public async Task MoveEntryAsync(string entryId, string targetLibraryId, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(entryId) || string.IsNullOrWhiteSpace(targetLibraryId))
-                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "EntryId and targetLibraryId are required.");
+            var result = await MoveLibraryEntryAsync(
+                new MoveLibraryEntryRequest
+                {
+                    EntryId = entryId,
+                    TargetLibraryId = targetLibraryId
+                },
+                cancellationToken).ConfigureAwait(false);
+
+            if (!result.Success)
+            {
+                throw new ArasOperationException(
+                    result.ErrorCode ?? ArasErrorCode.UnexpectedServerError,
+                    result.ErrorMessage ?? "Move Entry failed.");
+            }
+        }
+
+        public async Task<MoveLibraryEntryResult> MoveLibraryEntryAsync(
+            MoveLibraryEntryRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+            if (string.IsNullOrWhiteSpace(request.EntryId))
+                return new MoveLibraryEntryResult
+                {
+                    Success = false,
+                    ErrorCode = ArasErrorCode.ValidationFailed,
+                    ErrorMessage = "EntryId is required."
+                };
+            if (string.IsNullOrWhiteSpace(request.TargetLibraryId))
+                return new MoveLibraryEntryResult
+                {
+                    Success = false,
+                    EntryId = request.EntryId,
+                    ErrorCode = ArasErrorCode.ValidationFailed,
+                    ErrorMessage = "TargetLibraryId is required."
+                };
 
             EnsureAuthenticated();
             await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
 
-            var aml =
-                "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"edit\" id=\"" + Escape(entryId) + "\">" +
-                "<source_id>" + Escape(targetLibraryId) + "</source_id>" +
-                "</Item>";
+            try
+            {
+                var sourceEntry = await GetEntryRelationshipAsync(request.EntryId, cancellationToken).ConfigureAwait(false);
+                var sourceEntryId = sourceEntry["id"]?.Value<string>();
+                var sourceLibraryId = sourceEntry["source_id"]?.Value<string>();
+                var partConfigId = sourceEntry["part_config_id"]?.Value<string>();
+                var revisionPolicy = sourceEntry["revision_policy"]?.Value<string>();
+                var pinnedPartId = sourceEntry["pinned_part_id"]?.Value<string>();
+                var pinnedRevision = sourceEntry["pinned_revision"]?.Value<string>();
+                var entryStatus = sourceEntry["entry_status"]?.Value<string>() ?? sourceEntry["state"]?.Value<string>();
+                var lifecycleState = sourceEntry["state"]?.Value<string>();
+                var category = sourceEntry["category"]?.Value<string>();
+                var tags = sourceEntry["tags"]?.Value<string>();
+                var note = sourceEntry["note"]?.Value<string>();
+                var sourceProject = sourceEntry["source_project"]?.Value<string>();
+                var sourceCommit = sourceEntry["source_commit"]?.Value<string>();
 
-            await _aml.ApplyAmlAsync(
-                aml,
-                "edit",
-                PartLibrarySchemaNames.EntryRelationshipType,
-                entryId,
-                cancellationToken).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(sourceEntryId))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = request.EntryId,
+                        ErrorCode = ArasErrorCode.PartNotFound,
+                        ErrorMessage = "Entry was not found."
+                    };
+                }
+
+                if (string.IsNullOrWhiteSpace(sourceLibraryId))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        ErrorCode = ArasErrorCode.ValidationFailed,
+                        ErrorMessage = "Source Library is missing on the Entry."
+                    };
+                }
+
+                if (string.IsNullOrWhiteSpace(partConfigId))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        ErrorCode = ArasErrorCode.ValidationFailed,
+                        ErrorMessage = "Entry is missing part_config_id."
+                    };
+                }
+
+                if (string.IsNullOrWhiteSpace(entryStatus) || string.IsNullOrWhiteSpace(lifecycleState))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        SourceLibraryId = sourceLibraryId,
+                        TargetLibraryId = request.TargetLibraryId,
+                        ErrorCode = ArasErrorCode.ValidationFailed,
+                        ErrorMessage = "Entry lifecycle state cannot be preserved safely."
+                    };
+                }
+
+                if (string.Equals(sourceLibraryId, request.TargetLibraryId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = true,
+                        EntryId = sourceEntryId,
+                        SourceLibraryId = sourceLibraryId,
+                        TargetLibraryId = request.TargetLibraryId,
+                        PreservedEntryStatus = entryStatus,
+                        PreservedLifecycleState = lifecycleState
+                    };
+                }
+
+                var targetLibrary = await GetLibraryAsync(request.TargetLibraryId, cancellationToken).ConfigureAwait(false);
+                var targetLibraryStatus = targetLibrary["status"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(targetLibrary["id"]?.Value<string>()))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        SourceLibraryId = sourceLibraryId,
+                        TargetLibraryId = request.TargetLibraryId,
+                        ErrorCode = ArasErrorCode.PartNotFound,
+                        ErrorMessage = "Target Library was not found."
+                    };
+                }
+
+                if (string.Equals(targetLibraryStatus, PartLibrarySchemaNames.LibraryStatusArchived, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        SourceLibraryId = sourceLibraryId,
+                        TargetLibraryId = request.TargetLibraryId,
+                        ErrorCode = ArasErrorCode.ValidationFailed,
+                        ErrorMessage = "Target Library is archived."
+                    };
+                }
+
+                var sourceLibrary = await GetLibraryAsync(sourceLibraryId, cancellationToken).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(sourceLibrary["id"]?.Value<string>()))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        SourceLibraryId = sourceLibraryId,
+                        TargetLibraryId = request.TargetLibraryId,
+                        ErrorCode = ArasErrorCode.PartNotFound,
+                        ErrorMessage = "Source Library was not found."
+                    };
+                }
+
+                var duplicateId = await FindDuplicateEntryIdD02Async(request.TargetLibraryId, partConfigId, cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(duplicateId))
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        SourceLibraryId = sourceLibraryId,
+                        TargetLibraryId = request.TargetLibraryId,
+                        ErrorCode = ArasErrorCode.ValidationFailed,
+                        ErrorMessage = "Target Library already contains an active Entry for the same part_config_id."
+                    };
+                }
+
+                var editAml =
+                    "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"edit\" id=\"" + Escape(sourceEntryId) + "\">" +
+                    "<source_id>" + Escape(request.TargetLibraryId) + "</source_id>" +
+                    "</Item>";
+
+                await _aml.ApplyAmlAsync(
+                    editAml,
+                    "edit",
+                    PartLibrarySchemaNames.EntryRelationshipType,
+                    sourceEntryId,
+                    cancellationToken).ConfigureAwait(false);
+
+                var refreshed = await GetEntryRelationshipAsync(sourceEntryId, cancellationToken).ConfigureAwait(false);
+                var refreshedSourceId = refreshed["source_id"]?.Value<string>();
+                var refreshedConfigId = refreshed["part_config_id"]?.Value<string>();
+                var refreshedRevisionPolicy = refreshed["revision_policy"]?.Value<string>();
+                var refreshedPinnedPartId = refreshed["pinned_part_id"]?.Value<string>();
+                var refreshedPinnedRevision = refreshed["pinned_revision"]?.Value<string>();
+                var refreshedEntryStatus = refreshed["entry_status"]?.Value<string>() ?? refreshed["state"]?.Value<string>();
+                var refreshedLifecycleState = refreshed["state"]?.Value<string>();
+                var refreshedCategory = refreshed["category"]?.Value<string>();
+                var refreshedTags = refreshed["tags"]?.Value<string>();
+                var refreshedNote = refreshed["note"]?.Value<string>();
+                var refreshedSourceProject = refreshed["source_project"]?.Value<string>();
+                var refreshedSourceCommit = refreshed["source_commit"]?.Value<string>();
+
+                var preserved =
+                    string.Equals(refreshedSourceId, request.TargetLibraryId, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedConfigId, partConfigId, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedRevisionPolicy, revisionPolicy, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedPinnedPartId, pinnedPartId, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedPinnedRevision, pinnedRevision, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedEntryStatus, entryStatus, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedLifecycleState, lifecycleState, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedCategory, category, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedTags, tags, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedNote, note, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedSourceProject, sourceProject, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(refreshedSourceCommit, sourceCommit, StringComparison.OrdinalIgnoreCase);
+
+                if (!preserved)
+                {
+                    return new MoveLibraryEntryResult
+                    {
+                        Success = false,
+                        EntryId = sourceEntryId,
+                        SourceLibraryId = sourceLibraryId,
+                        TargetLibraryId = request.TargetLibraryId,
+                        PreservedEntryStatus = refreshedEntryStatus,
+                        PreservedLifecycleState = refreshedLifecycleState,
+                        ErrorCode = ArasErrorCode.ValidationFailed,
+                        ErrorMessage = "Move verification failed. Metadata was not preserved exactly."
+                    };
+                }
+
+                return new MoveLibraryEntryResult
+                {
+                    Success = true,
+                    EntryId = sourceEntryId,
+                    SourceLibraryId = sourceLibraryId,
+                    TargetLibraryId = request.TargetLibraryId,
+                    PreservedEntryStatus = refreshedEntryStatus,
+                    PreservedLifecycleState = refreshedLifecycleState
+                };
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.AuthInvalid ||
+                                                     ex.ErrorCode == ArasErrorCode.AuthExpired ||
+                                                     ex.ErrorCode == ArasErrorCode.PermissionDenied ||
+                                                     ex.ErrorCode == ArasErrorCode.ServerUnavailable)
+            {
+                return new MoveLibraryEntryResult
+                {
+                    Success = false,
+                    EntryId = request.EntryId,
+                    TargetLibraryId = request.TargetLibraryId,
+                    ErrorCode = ex.ErrorCode,
+                    ErrorMessage = ex.Message
+                };
+            }
+            catch (ArasOperationException ex)
+            {
+                return new MoveLibraryEntryResult
+                {
+                    Success = false,
+                    EntryId = request.EntryId,
+                    TargetLibraryId = request.TargetLibraryId,
+                    ErrorCode = ex.ErrorCode,
+                    ErrorMessage = ex.Message
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Move Entry failed unexpectedly for Entry '{EntryId}'.", request.EntryId);
+                return new MoveLibraryEntryResult
+                {
+                    Success = false,
+                    EntryId = request.EntryId,
+                    TargetLibraryId = request.TargetLibraryId,
+                    ErrorCode = ArasErrorCode.UnexpectedServerError,
+                    ErrorMessage = "Move Entry failed unexpectedly."
+                };
+            }
         }
 
         public async Task<ResolveLibraryPartResult> ResolvePartAsync(string entryId, LibraryRevisionPolicy policy, CancellationToken cancellationToken)
@@ -818,6 +1080,73 @@ namespace IdeaCadConnector.Aras
             }
         }
 
+        public async Task<PartRevisionHistoryResponse> SearchPartRevisionsAsync(
+            PartRevisionHistoryRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+            var pageSize = request.PageSize <= 0 ? 25 : request.PageSize;
+            if (pageSize > 100)
+                pageSize = 100;
+            var pageNumber = request.PageNumber <= 0 ? 1 : request.PageNumber;
+
+            var configId = request.PartConfigId;
+            if (string.IsNullOrWhiteSpace(configId))
+            {
+                if (string.IsNullOrWhiteSpace(request.PartId))
+                {
+                    throw new ArasOperationException(
+                        ArasErrorCode.ValidationFailed,
+                        "PartConfigId or PartId is required for revision history.");
+                }
+
+                var part = await GetPartAsync(request.PartId, cancellationToken).ConfigureAwait(false);
+                configId = part["config_id"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(configId))
+                {
+                    throw new ArasOperationException(
+                        ArasErrorCode.ValidationFailed,
+                        "PartId does not resolve to a readable config_id.");
+                }
+            }
+
+            var totalCount = await CountPartRevisionsAsync(configId, cancellationToken).ConfigureAwait(false);
+            var aml =
+                "<Item type=\"Part\" action=\"get\" " +
+                "select=\"id,config_id,item_number,name,classification,major_rev,generation,state,is_current,modified_on,created_on\" " +
+                "orderBy=\"generation desc,modified_on desc,major_rev desc\" " +
+                "pagesize=\"" + pageSize + "\" " +
+                "page=\"" + pageNumber + "\">" +
+                "<config_id>" + Escape(configId) + "</config_id>" +
+                "</Item>";
+
+            var result = await _aml.ApplyAmlAsync(
+                aml,
+                "get",
+                "Part",
+                null,
+                cancellationToken).ConfigureAwait(false);
+
+            var items = EnumerateItems(result)
+                .Select(MapPartRevisionHistoryItem)
+                .Where(item => item != null)
+                .OrderBy(item => item, new PartRevisionHistoryItemComparer())
+                .ToList();
+
+            return new PartRevisionHistoryResponse
+            {
+                Items = items,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
+        }
+
         public async Task<PartPreview> GetPartPreviewAsync(
             string partId,
             CancellationToken cancellationToken)
@@ -1067,6 +1396,10 @@ namespace IdeaCadConnector.Aras
                 var result = await _aml.ApplyAmlAsync(aml, "get", "ItemType", null, ct).ConfigureAwait(false);
                 return EnumerateItems(result).Any();
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
             {
                 _logger.LogDebug(ex, "Failed to verify ItemType {ItemTypeName}.", itemTypeName);
@@ -1134,6 +1467,29 @@ namespace IdeaCadConnector.Aras
             }
 
             return summaries;
+        }
+
+        private async Task<int> CountPartRevisionsAsync(string configId, CancellationToken ct)
+        {
+            var aml =
+                "<Item type=\"Part\" action=\"get\" select=\"id\">" +
+                "<config_id>" + Escape(configId) + "</config_id>" +
+                "</Item>";
+
+            var result = await _aml.ApplyAmlAsync(
+                aml,
+                "get",
+                "Part",
+                null,
+                ct).ConfigureAwait(false);
+
+            return EnumerateItems(result)
+                .Count(item =>
+                {
+                    var itemType = item["type"]?.Value<string>();
+                    return string.IsNullOrWhiteSpace(itemType) ||
+                           string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase);
+                });
         }
 
         private async Task<UsageCountSnapshot> LoadUsageCountsAsync(CancellationToken ct)
@@ -1675,12 +2031,31 @@ namespace IdeaCadConnector.Aras
             string partConfigId,
             CancellationToken ct)
         {
-            var entries = await LoadEntrySummariesAsync(libraryId, ct).ConfigureAwait(false);
-            var match = entries.FirstOrDefault(entry =>
-                string.Equals(entry.PartConfigId, partConfigId, StringComparison.OrdinalIgnoreCase) &&
-                !entry.IsDeprecated);
+            var aml =
+                "<Item type=\"" + PartLibrarySchemaNames.EntryRelationshipType + "\" action=\"get\" " +
+                "select=\"id,part_config_id,entry_status,state\">" +
+                "<source_id>" + Escape(libraryId) + "</source_id>" +
+                "</Item>";
 
-            return match?.EntryId;
+            var result = await _aml.ApplyAmlAsync(
+                aml,
+                "get",
+                PartLibrarySchemaNames.EntryRelationshipType,
+                null,
+                ct).ConfigureAwait(false);
+
+            var match = EnumerateTopLevelEntryRelationships(result)
+                .FirstOrDefault(entry =>
+                {
+                    var entryConfigId = entry["part_config_id"]?.Value<string>();
+                    if (!string.Equals(entryConfigId, partConfigId, StringComparison.OrdinalIgnoreCase))
+                        return false;
+
+                    var entryStatus = entry["entry_status"]?.Value<string>() ?? entry["state"]?.Value<string>();
+                    return IsActiveEntryStatus(entryStatus);
+                });
+
+            return match?["id"]?.Value<string>();
         }
 
         private async Task<JObject> FindLibraryByNameAsync(
@@ -1924,6 +2299,13 @@ namespace IdeaCadConnector.Aras
             return Enum.TryParse(value, true, out LibraryEntryStatus parsed) ? parsed : LibraryEntryStatus.Draft;
         }
 
+        private static bool IsActiveEntryStatus(string value)
+        {
+            return string.Equals(value, PartLibrarySchemaNames.EntryStatusDraft, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(value, PartLibrarySchemaNames.EntryStatusPendingReview, StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(value, PartLibrarySchemaNames.EntryStatusPublished, StringComparison.OrdinalIgnoreCase);
+        }
+
         private static LibraryEntryStatus GetEffectiveEntryStatus(string lifecycleState, string entryStatus)
         {
             if (!string.IsNullOrWhiteSpace(lifecycleState))
@@ -2123,6 +2505,95 @@ namespace IdeaCadConnector.Aras
                 CadStatus = "Unknown",
                 ModifiedOn = item["created_on"]?.Value<string>()
             };
+        }
+
+        private static PartRevisionHistoryItem MapPartRevisionHistoryItem(JObject item)
+        {
+            if (item == null)
+                return null;
+
+            var itemType = item["type"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(itemType) &&
+                !string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            var partId = item["id"]?.Value<string>();
+            var configId = item["config_id"]?.Value<string>();
+            var majorRev = item["major_rev"]?.Value<string>();
+            var lifecycleState = item["state"]?.Value<string>();
+            var canPinReason = GetRevisionHistoryPinReason(partId, configId, majorRev, lifecycleState);
+
+            return new PartRevisionHistoryItem
+            {
+                PartId = partId,
+                ConfigId = configId,
+                PartNumber = item["item_number"]?.Value<string>(),
+                Name = item["name"]?.Value<string>(),
+                PartType = item["classification"]?.Value<string>(),
+                MajorRev = majorRev,
+                Generation = item["generation"]?.Value<string>(),
+                LifecycleState = lifecycleState,
+                IsCurrent = ParseBoolean(item["is_current"]?.Value<string>()),
+                IsReleased = string.Equals(lifecycleState, PartLibrarySchemaNames.PartReleasedState, StringComparison.OrdinalIgnoreCase),
+                IsObsolete = PartLifecyclePolicy.IsPartObsolete(lifecycleState),
+                CadStatus = "Unknown",
+                ModifiedOn = ParseDate(item["modified_on"]?.Value<string>()),
+                CreatedOn = ParseDate(item["created_on"]?.Value<string>()),
+                CanPin = string.IsNullOrWhiteSpace(canPinReason),
+                CannotPinReason = canPinReason
+            };
+        }
+
+        private static string GetRevisionHistoryPinReason(string partId, string configId, string majorRev, string lifecycleState)
+        {
+            if (string.IsNullOrWhiteSpace(partId))
+                return "Part ID is missing.";
+            if (string.IsNullOrWhiteSpace(configId))
+                return "config_id is missing.";
+            if (string.IsNullOrWhiteSpace(majorRev))
+                return "major_rev is missing.";
+            if (string.IsNullOrWhiteSpace(lifecycleState))
+                return "Lifecycle state is unreadable.";
+            if (PartLifecyclePolicy.IsPartObsolete(lifecycleState))
+                return "Part is obsolete and cannot be pinned.";
+
+            return null;
+        }
+
+        private sealed class PartRevisionHistoryItemComparer : IComparer<PartRevisionHistoryItem>
+        {
+            public int Compare(PartRevisionHistoryItem x, PartRevisionHistoryItem y)
+            {
+                if (ReferenceEquals(x, y))
+                    return 0;
+                if (x == null)
+                    return 1;
+                if (y == null)
+                    return -1;
+
+                var xGenerationNumeric = TryGetInt(x.Generation, out var xGeneration);
+                var yGenerationNumeric = TryGetInt(y.Generation, out var yGeneration);
+                if (xGenerationNumeric && yGenerationNumeric && xGeneration != yGeneration)
+                    return yGeneration.CompareTo(xGeneration);
+
+                var xDate = x.ModifiedOn ?? x.CreatedOn;
+                var yDate = y.ModifiedOn ?? y.CreatedOn;
+                if (xDate.HasValue || yDate.HasValue)
+                {
+                    var dateCompare = DateTime.Compare(yDate ?? DateTime.MinValue, xDate ?? DateTime.MinValue);
+                    if (dateCompare != 0)
+                        return dateCompare;
+                }
+
+                return string.Compare(y.MajorRev ?? string.Empty, x.MajorRev ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            }
+
+            private static bool TryGetInt(string value, out int result)
+            {
+                return int.TryParse(value, out result);
+            }
         }
 
         private static string Escape(string value)

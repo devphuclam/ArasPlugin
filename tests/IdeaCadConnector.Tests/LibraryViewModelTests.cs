@@ -732,6 +732,9 @@ namespace IdeaCadConnector.Tests
             public Task MoveEntryAsync(string entryId, string targetLibraryId, CancellationToken cancellationToken)
                 => Task.CompletedTask;
 
+            public Task<MoveLibraryEntryResult> MoveLibraryEntryAsync(MoveLibraryEntryRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new MoveLibraryEntryResult { Success = true, EntryId = request?.EntryId, TargetLibraryId = request?.TargetLibraryId });
+
             public Task<ResolveLibraryPartResult> ResolvePartAsync(string entryId, LibraryRevisionPolicy policy, CancellationToken cancellationToken)
                 => Task.FromResult(ResolveResultToReturn);
 
@@ -752,6 +755,9 @@ namespace IdeaCadConnector.Tests
                 ResolveUsingStoredPolicyCallCount++;
                 return Task.FromResult(ResolveResultToReturn);
             }
+
+            public Task<PartRevisionHistoryResponse> SearchPartRevisionsAsync(PartRevisionHistoryRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new PartRevisionHistoryResponse { Items = Array.Empty<PartRevisionHistoryItem>(), PageNumber = request?.PageNumber ?? 1, PageSize = request?.PageSize ?? 25, TotalCount = 0 });
 
             public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
                 => Task.FromResult(new UpdateLibraryRevisionPolicyResult());

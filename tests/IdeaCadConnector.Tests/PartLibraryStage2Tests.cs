@@ -761,10 +761,7 @@ namespace IdeaCadConnector.Tests
             // ResolveCurrentPartStrictAsync → ApplyAml
             fake.ApplyAmlResults.Enqueue(Items(
                 Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
-            // FindDuplicateEntryIdD02Async:
-            //   LoadEntrySummariesAsync → entries AML result (empty)
-            fake.ApplyAmlResults.Enqueue(Items());
-            //   LoadUsageCountsAsync → usage AML result (empty)
+            // FindDuplicateEntryIdD02Async → direct D-02 AML result (empty)
             fake.ApplyAmlResults.Enqueue(Items());
             // TryAddPartViaServerMethodAsync → ApplyMethod (returns empty JObject → no method)
             fake.ApplyMethodResults.Enqueue(new JObject());
@@ -798,8 +795,7 @@ namespace IdeaCadConnector.Tests
             // ResolveLatestReleasedPartStrictAsync
             fake.ApplyAmlResults.Enqueue(Items(
                 Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
-            // Duplicate check: empty entries + usage
-            fake.ApplyAmlResults.Enqueue(Items());
+            // Duplicate check: empty D-02 AML result
             fake.ApplyAmlResults.Enqueue(Items());
             // Server method → none
             fake.ApplyMethodResults.Enqueue(new JObject());
@@ -877,20 +873,7 @@ namespace IdeaCadConnector.Tests
             // Entries have a deprecated entry with matching config_id
             fake.ApplyAmlResults.Enqueue(Items(
                 Entry("entry-dep", "LatestCurrent", "cfg-1", "part-dep", null, "Deprecated", "Deprecated")));
-            // Usage counts
-            fake.ApplyAmlResults.Enqueue(Items());
-            // MapEntrySummaryAsync for the deprecated entry:
-            //   TryGetLibraryForEntryAsync → GetLibraryAsync → ApplyItem
-            fake.ApplyItemResults.Enqueue(Library("lib-1", "Test Lib"));
-            //   ResolveCurrentPartStrictAsync → ApplyAml
-            fake.ApplyAmlResults.Enqueue(Items(
-                Part("part-dep", "cfg-1", "DEP-001", "A", "Released")));
-            //   GetPrimaryCadInfoAsync → ApplyAml (Part CAD, empty)
-            fake.ApplyAmlResults.Enqueue(new JObject());
-            //   GetLatestReleasedPartAsync → ApplyAml (empty released, fallback)
-            fake.ApplyAmlResults.Enqueue(Items());
-            //   Fallback GetPartAsync → ApplyItem
-            fake.ApplyItemResults.Enqueue(Part("part-dep", "cfg-1", "DEP-001", "A", "Released"));
+            // Duplicate check path now uses direct D-02 AML only, so no usage-count or summary expansion.
 
             // No active duplicate found; proceed to add
             fake.ApplyMethodResults.Enqueue(new JObject());
@@ -923,8 +906,7 @@ namespace IdeaCadConnector.Tests
             // Request.RevisionPolicy = Pinned, so needs another GetPartAsync (line 251)
             // Actually the Pinned pre-resolve calls GetPartAsync again
             fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
-            // Duplicate check: empty entries + usage
-            fake.ApplyAmlResults.Enqueue(Items());
+            // Duplicate check: empty D-02 AML result
             fake.ApplyAmlResults.Enqueue(Items());
             // Server method → none
             fake.ApplyMethodResults.Enqueue(new JObject());

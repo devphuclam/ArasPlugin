@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `LOCALLY_ACCEPTED` (Sprint 2.1 UAT smoke passed; Sprint 2.2 not started)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 core backend implemented locally)
 
 ## Objective
 
@@ -23,7 +23,7 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 ## Current Owner
 
 - phase owner: Codex local implementation
-- current implementation surface: desktop client and tests only
+- current implementation surface: Aras client, desktop client, and tests
 
 ## Business Roles
 
@@ -65,7 +65,7 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 | Sprint | Scope | Status |
 |---|---|---|
 | `2.1` | `WS1` + `WS2` | implemented locally, awaiting manual UAT |
-| `2.2` | `WS3` + `WS4` | not started |
+| `2.2` | `WS3` + `WS4` | core backend support implemented locally; UI/live UAT pending |
 | `2.3` | `WS5` + `WS6` + `WS7` | not started |
 | `2.4` | `WS8` + hardening/UAT prep | not started |
 
@@ -94,6 +94,19 @@ Verification on 2026-07-06:
 - focused tests: 81/81 passed
 - full tests: 214/214 passed
 
+## Sprint 2.2 Core Packet
+
+Local Sprint 2.2 core work is now in place for the next packet:
+
+- `MoveLibraryEntryAsync` contract support added to `IPartLibraryClient`
+- backend move orchestration added in `HttpPartLibraryClient`
+- `SearchPartRevisionsAsync` contract support added to `IPartLibraryClient`
+- backend revision-history query and pin eligibility support added in `HttpPartLibraryClient`
+- focused core verification passed
+- Debug build passed
+- Release build passed
+- full tests passed `231/231`
+
 ## Sprint 2.1 UAT Smoke Evidence
 
 Recorded closeout evidence:
@@ -109,7 +122,7 @@ Remaining live limitations:
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
 - full customer/external viewer UAT remains pending unless tested;
-- Sprint 2.2 has not started.
+- Sprint 2.2 core backend is underway; UI/live integration remains pending.
 
 ## Package Intake Outcome
 
@@ -124,7 +137,7 @@ Retained as incoming-only helper material, not canonical:
 
 ## Acceptance Gates
 
-Phase 2 remains locally accepted for Sprint 2.1 only. Full Phase 2 remains open until:
+Phase 2 is in progress. Full Phase 2 remains open until:
 
 - manual desktop app UAT confirms Sprint 2.1 behavior;
 - live Aras UAT confirms permission behavior and backend compatibility;
@@ -138,7 +151,7 @@ Phase 2 remains locally accepted for Sprint 2.1 only. Full Phase 2 remains open 
 
 ## Next Sprint
 
-`Sprint 2.2: Move Entry + Revision Browser`
+`Sprint 2.2: Move Entry + Revision Browser UI and live integration`
 
 Canonical supporting docs:
 

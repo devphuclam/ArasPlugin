@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `LOCALLY_ACCEPTED` (Sprint 2.1 UAT smoke passed; later workstreams still open)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 core backend now in progress)
 
 ## Objective
 
@@ -51,11 +51,18 @@ Sprint 2.1 added:
   - duplicate check before add
   - block archived targets, missing `config_id`, and ineligible previews
 
+Sprint 2.2 core support now adds:
+
+- `IPartLibraryClient.MoveLibraryEntryAsync` request/response DTOs and backend support
+- safe move validation for source/target libraries, archived targets, duplicates, metadata preservation, and cancellation
+- `IPartLibraryClient.SearchPartRevisionsAsync` request/response DTOs and backend support
+- revision-history query, paging, sort normalization, and pin eligibility calculation
+- focused core tests for the new move and revision-browser paths
+
 The repository does **not** yet provide:
 
 - Library restore flows;
-- Move Entry workflow (`WS3`);
-- revision-history browser (`WS4`);
+- Move Entry UI workflow (`WS3`) or revision browser UI (`WS4`);
 - Vault download/open services for primary CAD (`WS5`);
 - explicit Open in Aras URL generation (`WS6`);
 - real CAD/BOM/Revisions detail tabs (`WS7`);
@@ -70,6 +77,15 @@ The following evidence has been recorded against the current design baseline:
 - `lamPM` UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
 - Viewer/unknown behavior confirmed conservative read-only behavior.
 - Automated verification passed: Debug build, Release build, and full tests `214/214`.
+
+## Sprint 2.2 Core Verification
+
+Local Sprint 2.2 core packet has been verified:
+
+- Debug build passed: 0 warnings, 0 errors
+- Release build passed: 0 warnings, 0 errors
+- focused core tests passed
+- full tests passed `231/231`
 
 Remaining live limitations:
 
@@ -135,4 +151,4 @@ Remaining live limitations:
 
 ## Next Implementation Packet
 
-`Sprint 2.2: Move Entry + Revision Browser`
+`Sprint 2.2: Move Entry + Revision Browser UI and live integration`

@@ -1,14 +1,15 @@
 # Part Library Phase 2 Acceptance
 
-**State:** `LOCALLY_ACCEPTED`
+**State:** `IN_PROGRESS`
 
-This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke passed, but full Phase 2 is not complete yet.
+This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted, and Sprint 2.2 core implementation is now in progress.
 
 ## Phase Transition History
 
 - Phase 2 moved from `INTAKE` to `PLANNED` on 2026-07-06.
 - Phase 2 moved from `PLANNED` to `IN_PROGRESS` when Sprint 2.1 UI implementation was completed locally on 2026-07-06.
 - Phase 2 moved from `IN_PROGRESS` to `LOCALLY_ACCEPTED` after Sprint 2.1 UAT smoke evidence was recorded on 2026-07-06.
+- Phase 2 returned to `IN_PROGRESS` when Sprint 2.2 core backend work started on 2026-07-06.
 
 ## Baseline Verification Commands
 
@@ -130,7 +131,22 @@ Remaining live limitations:
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
 - full customer/external viewer UAT is still pending unless tested;
-- Sprint 2.2 has not started.
+- Sprint 2.2 core backend is underway; UI/live integration remains pending.
+
+## Sprint 2.2 Core Verification
+
+Local Sprint 2.2 core verification passed on 2026-07-06:
+
+- Debug build passed
+- Release build passed
+- Focused core tests passed
+- Full tests passed `231/231`
+
+Sprint 2.2 core scope now covered locally:
+
+- Move Entry backend contract and client support
+- Revision Browser backend contract and client support
+- cancellation-safe schema validation path
 
 ## Acceptance Gates by Sprint
 
@@ -154,7 +170,8 @@ Current status:
 
 - `ME-01..06` and `RV-01..07` implemented with failure-safe behavior;
 - move rollback/block behavior evidenced;
-- revision policy changes do not mutate data on failed resolve.
+- revision policy changes do not mutate data on failed resolve;
+- current local implementation covers backend/core only; UI and live UAT remain pending.
 
 ### Sprint 2.3
 
@@ -181,7 +198,7 @@ The following cannot be claimed from local automation alone:
 
 ## Current Outcome
 
-Phase 2 is `LOCALLY_ACCEPTED` for Sprint 2.1 only.
+Phase 2 is `IN_PROGRESS`.
 
 Recommended next packet:
 
