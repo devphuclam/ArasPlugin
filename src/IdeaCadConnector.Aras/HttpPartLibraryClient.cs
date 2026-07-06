@@ -49,14 +49,24 @@ namespace IdeaCadConnector.Aras
             _schemaAvailable = null;
         }
 
-        public async Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(CancellationToken cancellationToken)
+        public async Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(
+            LibraryVisibilityFilter visibilityFilter = LibraryVisibilityFilter.Active,
+            CancellationToken cancellationToken = default)
         {
             EnsureAuthenticated();
             await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
 
+            var statusFilter = visibilityFilter switch
+            {
+                LibraryVisibilityFilter.Active => "<status>" + PartLibrarySchemaNames.LibraryStatusActive + "</status>",
+                LibraryVisibilityFilter.Archived => "<status>" + PartLibrarySchemaNames.LibraryStatusArchived + "</status>",
+                _ => string.Empty
+            };
+
             var aml =
                 "<Item type=\"" + PartLibrarySchemaNames.LibraryItemType + "\" action=\"get\" " +
                 "select=\"id,name,description,library_type,status,default_revision_policy,is_public\">" +
+                statusFilter +
                 "</Item>";
 
             var result = await _aml.ApplyAmlAsync(
@@ -479,6 +489,312 @@ namespace IdeaCadConnector.Aras
             }
 
             return list;
+        }
+
+        public async Task<LibraryMutationResult> CreateLibraryAsync(
+            CreatePartLibraryRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return new LibraryMutationResult { Success = false, ErrorMessage = "Library name is required." };
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+            var aml =
+                "<Item type=\"" + PartLibrarySchemaNames.LibraryItemType + "\" action=\"add\">" +
+                "<name>" + Escape(request.Name) + "</name>" +
+                "<description>" + Escape(request.Description) + "</description>" +
+                "<library_type>" + Escape(request.LibraryType.ToString()) + "</library_type>" +
+                "<status>" + PartLibrarySchemaNames.LibraryStatusActive + "</status>" +
+                "<default_revision_policy>" + Escape(request.DefaultRevisionPolicy ?? "LatestCurrent") + "</default_revision_policy>" +
+                "<is_public>" + (request.IsPublic ? "1" : "0") + "</is_public>" +
+                "</Item>";
+
+            try
+            {
+                var result = await _aml.ApplyAmlAsync(
+                    aml,
+                    "add",
+                    PartLibrarySchemaNames.LibraryItemType,
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+
+                var libraryId = result["id"]?.Value<string>();
+                return new LibraryMutationResult
+                {
+                    Success = !string.IsNullOrWhiteSpace(libraryId),
+                    LibraryId = libraryId,
+                    ErrorMessage = string.IsNullOrWhiteSpace(libraryId) ? "Library creation did not return an ID." : null
+                };
+            }
+            catch (ArasOperationException ex)
+            {
+                _logger.LogError(ex, "Failed to create library '{Name}'.", request.Name);
+                return new LibraryMutationResult
+                {
+                    Success = false,
+                    ErrorCode = ex.ErrorCode,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        public async Task<LibraryMutationResult> UpdateLibraryAsync(
+            UpdatePartLibraryRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+            if (string.IsNullOrWhiteSpace(request.LibraryId))
+                return new LibraryMutationResult { Success = false, ErrorMessage = "Library ID is required." };
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+            var xml = new System.Text.StringBuilder();
+            xml.Append("<Item type=\"").Append(PartLibrarySchemaNames.LibraryItemType)
+               .Append("\" action=\"edit\" id=\"").Append(Escape(request.LibraryId)).Append("\">");
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+                xml.Append("<name>").Append(Escape(request.Name)).Append("</name>");
+
+            if (request.Description != null)
+                xml.Append("<description>").Append(Escape(request.Description)).Append("</description>");
+
+            xml.Append("<library_type>").Append(Escape(request.LibraryType.ToString())).Append("</library_type>");
+
+            if (!string.IsNullOrWhiteSpace(request.DefaultRevisionPolicy))
+                xml.Append("<default_revision_policy>").Append(Escape(request.DefaultRevisionPolicy)).Append("</default_revision_policy>");
+
+            xml.Append("<is_public>").Append(request.IsPublic ? "1" : "0").Append("</is_public>");
+            xml.Append("</Item>");
+
+            try
+            {
+                await _aml.ApplyAmlAsync(
+                    xml.ToString(),
+                    "edit",
+                    PartLibrarySchemaNames.LibraryItemType,
+                    request.LibraryId,
+                    cancellationToken).ConfigureAwait(false);
+
+                return new LibraryMutationResult
+                {
+                    Success = true,
+                    LibraryId = request.LibraryId
+                };
+            }
+            catch (ArasOperationException ex)
+            {
+                _logger.LogError(ex, "Failed to update library '{LibraryId}'.", request.LibraryId);
+                return new LibraryMutationResult
+                {
+                    Success = false,
+                    LibraryId = request.LibraryId,
+                    ErrorCode = ex.ErrorCode,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        public async Task<LibraryMutationResult> ArchiveLibraryAsync(
+            string libraryId,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(libraryId))
+                return new LibraryMutationResult { Success = false, ErrorMessage = "Library ID is required." };
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+            var aml =
+                "<Item type=\"" + PartLibrarySchemaNames.LibraryItemType + "\" action=\"edit\" id=\"" + Escape(libraryId) + "\">" +
+                "<status>" + PartLibrarySchemaNames.LibraryStatusArchived + "</status>" +
+                "</Item>";
+
+            try
+            {
+                await _aml.ApplyAmlAsync(
+                    aml,
+                    "edit",
+                    PartLibrarySchemaNames.LibraryItemType,
+                    libraryId,
+                    cancellationToken).ConfigureAwait(false);
+
+                return new LibraryMutationResult
+                {
+                    Success = true,
+                    LibraryId = libraryId
+                };
+            }
+            catch (ArasOperationException ex)
+            {
+                _logger.LogError(ex, "Failed to archive library '{LibraryId}'.", libraryId);
+                return new LibraryMutationResult
+                {
+                    Success = false,
+                    LibraryId = libraryId,
+                    ErrorCode = ex.ErrorCode,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        public async Task<PartPickerSearchResponse> SearchPartsAsync(
+            PartPickerSearchRequest request,
+            CancellationToken cancellationToken)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            EnsureAuthenticated();
+
+            var aml = new System.Text.StringBuilder();
+            aml.Append("<Item type=\"Part\" action=\"get\" select=\"id,config_id,item_number,name,classification,major_rev,generation,state,is_current,created_on\">");
+
+            if (!string.IsNullOrWhiteSpace(request.Keyword))
+            {
+                aml.Append("<item_number condition=\"like\">")
+                   .Append(Escape(request.Keyword)).Append("%</item_number>");
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.PartType))
+                aml.Append("<classification>").Append(Escape(request.PartType)).Append("</classification>");
+
+            if (!string.IsNullOrWhiteSpace(request.LifecycleState))
+                aml.Append("<state>").Append(Escape(request.LifecycleState)).Append("</state>");
+
+            if (!string.IsNullOrWhiteSpace(request.MajorRev))
+                aml.Append("<major_rev>").Append(Escape(request.MajorRev)).Append("</major_rev>");
+
+            if (request.CurrentOnly == true)
+                aml.Append("<is_current>1</is_current>");
+
+            aml.Append("</Item>");
+
+            try
+            {
+                var result = await _aml.ApplyAmlAsync(
+                    aml.ToString(),
+                    "get",
+                    "Part",
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+
+                var allItems = EnumerateItems(result).ToList();
+                var totalCount = allItems.Count;
+
+                var pageSize = request.PageSize <= 0 ? 25 : request.PageSize;
+                var pageNumber = request.PageNumber <= 0 ? 1 : request.PageNumber;
+                var page = allItems
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(MapPartSearchItem)
+                    .ToList();
+
+                return new PartPickerSearchResponse
+                {
+                    Items = page,
+                    TotalCount = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+            }
+            catch (ArasOperationException)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Part search failed for keyword '{Keyword}'.", request.Keyword);
+                throw new ArasOperationException(
+                    ArasErrorCode.UnexpectedServerError,
+                    "Part search failed unexpectedly.");
+            }
+        }
+
+        public async Task<PartPreview> GetPartPreviewAsync(
+            string partId,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(partId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Part ID is required.");
+
+            EnsureAuthenticated();
+
+            try
+            {
+                var part = await GetPartAsync(partId, cancellationToken).ConfigureAwait(false);
+                var configId = part["config_id"]?.Value<string>();
+                var cadInfo = await GetPrimaryCadInfoAsync(partId, cancellationToken).ConfigureAwait(false);
+                var state = part["state"]?.Value<string>();
+                var isObsolete = PartLifecyclePolicy.IsPartObsolete(state);
+                var hasCad = !string.Equals(cadInfo.Status, "No CAD", StringComparison.OrdinalIgnoreCase);
+
+                return new PartPreview
+                {
+                    ConfigId = configId,
+                    PartId = part["id"]?.Value<string>(),
+                    Revision = part["major_rev"]?.Value<string>(),
+                    LifecycleState = state,
+                    Generation = part["generation"]?.Value<string>(),
+                    CadStatus = cadInfo.Status,
+                    IsEligibleForReuse = !isObsolete && hasCad,
+                    IneligibilityReason = isObsolete
+                        ? "Part is in state '" + state + "' and cannot be reused."
+                        : !hasCad
+                            ? "Part has no associated CAD file."
+                            : null
+                };
+            }
+            catch (ArasOperationException)
+            {
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get preview for Part '{PartId}'.", partId);
+                throw new ArasOperationException(
+                    ArasErrorCode.UnexpectedServerError,
+                    "Failed to retrieve Part preview.");
+            }
+        }
+
+        public async Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(
+            string libraryId,
+            string partConfigId,
+            CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(libraryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Library ID is required.");
+            if (string.IsNullOrWhiteSpace(partConfigId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Part config ID is required for duplicate check.");
+
+            EnsureAuthenticated();
+            await EnsureSchemaAvailableAsync(cancellationToken).ConfigureAwait(false);
+
+            var entries = await LoadEntrySummariesAsync(libraryId, cancellationToken).ConfigureAwait(false);
+            var match = entries.FirstOrDefault(entry =>
+                string.Equals(entry.PartConfigId, partConfigId, StringComparison.OrdinalIgnoreCase) &&
+                !entry.IsDeprecated);
+
+            return new DuplicateEntryCheckResult
+            {
+                IsDuplicate = match != null,
+                ExistingEntryId = match?.EntryId,
+                ExistingEntryStatus = match?.EntryStatus ?? LibraryEntryStatus.Draft
+            };
         }
 
         public async Task<RecordLibraryUsageResult> RecordUsageAsync(LibraryUsageRequest request, CancellationToken cancellationToken)
@@ -1661,6 +1977,25 @@ namespace IdeaCadConnector.Aras
                 .OrderByDescending(part => ParseInt(part["generation"]?.Value<string>(), 0))
                 .ThenByDescending(part => part["major_rev"]?.Value<string>() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
                 .FirstOrDefault();
+        }
+
+        private static PartPickerSearchResultItem MapPartSearchItem(JObject item)
+        {
+            return new PartPickerSearchResultItem
+            {
+                PartId = item["id"]?.Value<string>(),
+                ConfigId = item["config_id"]?.Value<string>(),
+                PartNumber = item["item_number"]?.Value<string>(),
+                Name = item["name"]?.Value<string>(),
+                PartType = item["classification"]?.Value<string>(),
+                MajorRev = item["major_rev"]?.Value<string>(),
+                Generation = item["generation"]?.Value<string>(),
+                LifecycleState = item["state"]?.Value<string>(),
+                IsCurrent = ParseBoolean(item["is_current"]?.Value<string>()),
+                IsReleased = string.Equals(item["state"]?.Value<string>(), PartLibrarySchemaNames.PartReleasedState, StringComparison.OrdinalIgnoreCase),
+                CadStatus = "Unknown",
+                ModifiedOn = item["created_on"]?.Value<string>()
+            };
         }
 
         private static string Escape(string value)

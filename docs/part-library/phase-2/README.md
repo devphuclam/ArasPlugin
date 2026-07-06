@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `PLANNED`
+**State:** `IN_PROGRESS` (Sprint 2.1 core/backend complete)
 
 ## Objective
 
@@ -186,12 +186,14 @@ Phase 2 moved to `PLANNED` on 2026-07-06 after:
 - scope, non-goals, rollback, and live dependencies are explicit;
 - no contradictory package content remains outside `incoming/`.
 
-Current baseline evidence on `956af6841392b609d9c06df60d484fe5244500c1`:
+## Sprint 2.1 Completion Evidence
+
+Baseline on `db8f2c167dd6336c4a522a0d0ec29d16a402a57b`:
 
 - Debug solution build: 0 warnings, 0 errors
-- full test project: `117/117` passed;
-- WPF temporary assembly build blocker diagnosed and fixed (stale `.g.i.cs` cache — see TASK 2 in implementation logs);
-- regression protection added for WPF build configuration.
+- Full test project: **163/163** passed (134 Phase 1 + 29 new Stage 2 tests)
+- All IPartLibraryClient interface methods implemented and tested
+- PreviewPartLibraryClient and UnavailablePartLibraryClient stubs updated
 
 ## Rollback Considerations
 
@@ -199,10 +201,8 @@ Current baseline evidence on `956af6841392b609d9c06df60d484fe5244500c1`:
 - future implementation work must preserve a revert path for desktop code and any new Aras artifacts separately;
 - Phase 1 evidence remains closed and must not be rewritten to hide Phase 2 issues.
 
-## Recommended Next Packet
+## Next Sprint
 
-All decisions D-01 through D-06 are APPROVED. The first implementation packet is:
+`Sprint 2.2 core: Move Entry (WS3) and Revision Browser (WS4)`
 
-`Sprint 2.1 core: Library CRUD contracts and paged Aras Part search`
-
-See [Phase Governance Rules](../../PHASE-GOVERNANCE.md).
+See [Status](../STATUS.md) and [Phase Governance Rules](../../PHASE-GOVERNANCE.md).

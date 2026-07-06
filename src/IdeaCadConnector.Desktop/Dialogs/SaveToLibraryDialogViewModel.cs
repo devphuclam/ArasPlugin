@@ -159,7 +159,7 @@ namespace IdeaCadConnector.Desktop
 
             try
             {
-                var libraries = await _client.GetLibrariesAsync(CancellationToken.None).ConfigureAwait(true);
+                var libraries = await _client.GetLibrariesAsync(LibraryVisibilityFilter.Active, CancellationToken.None).ConfigureAwait(true);
                 WritableLibraries.Clear();
                 foreach (var library in libraries.Where(item => item != null && item.CanContribute))
                 {

@@ -32,10 +32,18 @@ namespace IdeaCadConnector.Core.Library
         Generated,
         LibraryReference
     }
+
+    public enum LibraryVisibilityFilter
+    {
+        Active,
+        Archived,
+        All
+    }
 }
 
 namespace IdeaCadConnector.Core.Dto.Library
 {
+    using IdeaCadConnector.Core.Errors;
     using IdeaCadConnector.Core.Library;
 
     public sealed class PartLibrarySummary
@@ -47,6 +55,103 @@ namespace IdeaCadConnector.Core.Dto.Library
         public int ItemCount { get; set; }
         public bool CanContribute { get; set; }
         public bool IsPublic { get; set; }
+    }
+
+    public sealed class CreatePartLibraryRequest
+    {
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public LibraryType LibraryType { get; set; }
+        public string DefaultRevisionPolicy { get; set; }
+        public bool IsPublic { get; set; }
+    }
+
+    public sealed class UpdatePartLibraryRequest
+    {
+        public string LibraryId { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public LibraryType LibraryType { get; set; }
+        public string DefaultRevisionPolicy { get; set; }
+        public bool IsPublic { get; set; }
+    }
+
+    public sealed class LibraryMutationResult
+    {
+        public bool Success { get; set; }
+        public string LibraryId { get; set; }
+        public string ErrorMessage { get; set; }
+        public ArasErrorCode? ErrorCode { get; set; }
+    }
+
+    public sealed class PartPickerSearchRequest
+    {
+        public string Keyword { get; set; }
+        public string LifecycleState { get; set; }
+        public string PartType { get; set; }
+        public string MajorRev { get; set; }
+        public bool? CurrentOnly { get; set; }
+        public int PageNumber { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+        public string SortBy { get; set; }
+        public string SortDirection { get; set; }
+    }
+
+    public sealed class PartPickerSearchResponse
+    {
+        public IReadOnlyList<PartPickerSearchResultItem> Items { get; set; }
+        public int TotalCount { get; set; }
+        public int PageNumber { get; set; }
+        public int PageSize { get; set; }
+    }
+
+    public sealed class PartPickerSearchResultItem
+    {
+        public string PartId { get; set; }
+        public string ConfigId { get; set; }
+        public string PartNumber { get; set; }
+        public string Name { get; set; }
+        public string PartType { get; set; }
+        public string MajorRev { get; set; }
+        public string Generation { get; set; }
+        public string LifecycleState { get; set; }
+        public bool IsCurrent { get; set; }
+        public bool IsReleased { get; set; }
+        public string CadStatus { get; set; }
+        public string ModifiedOn { get; set; }
+    }
+
+    public sealed class PartPreview
+    {
+        public string ConfigId { get; set; }
+        public string PartId { get; set; }
+        public string Revision { get; set; }
+        public string LifecycleState { get; set; }
+        public string Generation { get; set; }
+        public string CadStatus { get; set; }
+        public bool IsEligibleForReuse { get; set; }
+        public string IneligibilityReason { get; set; }
+    }
+
+    public sealed class AddSelectedPartToLibraryRequest
+    {
+        public string LibraryId { get; set; }
+        public string PartId { get; set; }
+        public string PartConfigId { get; set; }
+        public string PartNumber { get; set; }
+        public LibraryRevisionPolicy RevisionPolicy { get; set; }
+        public string Category { get; set; }
+        public string Tags { get; set; }
+        public string Note { get; set; }
+        public string SourceProject { get; set; }
+        public string SourceCommit { get; set; }
+    }
+
+    public sealed class DuplicateEntryCheckResult
+    {
+        public bool IsDuplicate { get; set; }
+        public string ExistingEntryId { get; set; }
+        public LibraryEntryStatus ExistingEntryStatus { get; set; }
     }
 
     public sealed class PartLibrarySearchRequest
@@ -211,11 +316,39 @@ namespace IdeaCadConnector.Core.Dto.Library
 namespace IdeaCadConnector.Core.Contracts
 {
     using IdeaCadConnector.Core.Dto.Library;
+    using IdeaCadConnector.Core.Errors;
     using IdeaCadConnector.Core.Library;
 
     public interface IPartLibraryClient : IDisposable
     {
-        Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(CancellationToken cancellationToken);
+        Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(
+            LibraryVisibilityFilter visibilityFilter = LibraryVisibilityFilter.Active,
+            CancellationToken cancellationToken = default);
+
+        Task<LibraryMutationResult> CreateLibraryAsync(
+            CreatePartLibraryRequest request,
+            CancellationToken cancellationToken);
+
+        Task<LibraryMutationResult> UpdateLibraryAsync(
+            UpdatePartLibraryRequest request,
+            CancellationToken cancellationToken);
+
+        Task<LibraryMutationResult> ArchiveLibraryAsync(
+            string libraryId,
+            CancellationToken cancellationToken);
+
+        Task<PartPickerSearchResponse> SearchPartsAsync(
+            PartPickerSearchRequest request,
+            CancellationToken cancellationToken);
+
+        Task<PartPreview> GetPartPreviewAsync(
+            string partId,
+            CancellationToken cancellationToken);
+
+        Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(
+            string libraryId,
+            string partConfigId,
+            CancellationToken cancellationToken);
 
         Task<PartLibrarySearchResponse> SearchEntriesAsync(
             PartLibrarySearchRequest request,

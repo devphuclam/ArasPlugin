@@ -304,7 +304,7 @@ namespace IdeaCadConnector.Desktop
 
             await RunBusyAsync(async () =>
             {
-                var libraries = await ActiveClient.GetLibrariesAsync(CancellationToken.None).ConfigureAwait(true);
+                var libraries = await ActiveClient.GetLibrariesAsync(LibraryVisibilityFilter.Active, CancellationToken.None).ConfigureAwait(true);
                 Libraries.Clear();
                 foreach (var library in libraries)
                 {
@@ -1411,7 +1411,9 @@ namespace IdeaCadConnector.Desktop
             };
         }
 
-        public Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(
+            LibraryVisibilityFilter visibilityFilter = LibraryVisibilityFilter.Active,
+            CancellationToken cancellationToken = default)
         {
             return Task.FromResult((IReadOnlyList<PartLibrarySummary>)_libraries.ToList());
         }
@@ -1526,6 +1528,47 @@ namespace IdeaCadConnector.Desktop
                 ErrorMessage = "Preview client does not persist policy changes."
             });
         }
+        public Task<LibraryMutationResult> CreateLibraryAsync(CreatePartLibraryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryMutationResult
+            {
+                Success = false,
+                ErrorMessage = "Preview client does not persist library creation yet."
+            });
+
+        public Task<LibraryMutationResult> UpdateLibraryAsync(UpdatePartLibraryRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryMutationResult
+            {
+                Success = false,
+                ErrorMessage = "Preview client does not persist library updates yet."
+            });
+
+        public Task<LibraryMutationResult> ArchiveLibraryAsync(string libraryId, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryMutationResult
+            {
+                Success = false,
+                ErrorMessage = "Preview client does not persist library archiving yet."
+            });
+
+        public Task<PartPickerSearchResponse> SearchPartsAsync(PartPickerSearchRequest request, CancellationToken cancellationToken)
+            => Task.FromResult(new PartPickerSearchResponse
+            {
+                Items = Array.Empty<PartPickerSearchResultItem>(),
+                TotalCount = 0,
+                PageNumber = request?.PageNumber ?? 1,
+                PageSize = request?.PageSize ?? 25
+            });
+
+        public Task<PartPreview> GetPartPreviewAsync(string partId, CancellationToken cancellationToken)
+            => Task.FromResult(new PartPreview
+            {
+                PartId = partId,
+                IsEligibleForReuse = false,
+                IneligibilityReason = "Preview mode"
+            });
+
+        public Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(string libraryId, string partConfigId, CancellationToken cancellationToken)
+            => Task.FromResult(new DuplicateEntryCheckResult { IsDuplicate = false });
+
         public void Dispose() { }
 
         private static bool Contains(string value, string keyword)
@@ -1580,7 +1623,9 @@ namespace IdeaCadConnector.Desktop
 
     internal sealed class UnavailablePartLibraryClient : IPartLibraryClient
     {
-        public Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(CancellationToken cancellationToken)
+        public Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(
+            LibraryVisibilityFilter visibilityFilter = LibraryVisibilityFilter.Active,
+            CancellationToken cancellationToken = default)
             => Task.FromResult((IReadOnlyList<PartLibrarySummary>)Array.Empty<PartLibrarySummary>());
 
         public Task<PartLibrarySearchResponse> SearchEntriesAsync(PartLibrarySearchRequest request, CancellationToken cancellationToken)
@@ -1624,6 +1669,24 @@ namespace IdeaCadConnector.Desktop
 
         public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
             => Task.FromException<UpdateLibraryRevisionPolicyResult>(CreateUnavailableException());
+
+        public Task<LibraryMutationResult> CreateLibraryAsync(CreatePartLibraryRequest request, CancellationToken cancellationToken)
+            => Task.FromException<LibraryMutationResult>(CreateUnavailableException());
+
+        public Task<LibraryMutationResult> UpdateLibraryAsync(UpdatePartLibraryRequest request, CancellationToken cancellationToken)
+            => Task.FromException<LibraryMutationResult>(CreateUnavailableException());
+
+        public Task<LibraryMutationResult> ArchiveLibraryAsync(string libraryId, CancellationToken cancellationToken)
+            => Task.FromException<LibraryMutationResult>(CreateUnavailableException());
+
+        public Task<PartPickerSearchResponse> SearchPartsAsync(PartPickerSearchRequest request, CancellationToken cancellationToken)
+            => Task.FromException<PartPickerSearchResponse>(CreateUnavailableException());
+
+        public Task<PartPreview> GetPartPreviewAsync(string partId, CancellationToken cancellationToken)
+            => Task.FromException<PartPreview>(CreateUnavailableException());
+
+        public Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(string libraryId, string partConfigId, CancellationToken cancellationToken)
+            => Task.FromException<DuplicateEntryCheckResult>(CreateUnavailableException());
 
         public void Dispose() { }
 

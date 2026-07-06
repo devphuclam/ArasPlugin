@@ -706,7 +706,9 @@ namespace IdeaCadConnector.Tests
             public int SearchEntriesCallCount { get; private set; }
             public int ResolveUsingStoredPolicyCallCount { get; private set; }
 
-            public Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(CancellationToken cancellationToken)
+            public Task<IReadOnlyList<PartLibrarySummary>> GetLibrariesAsync(
+                LibraryVisibilityFilter visibilityFilter = LibraryVisibilityFilter.Active,
+                CancellationToken cancellationToken = default)
             {
                 GetLibrariesCallCount++;
                 return Task.FromResult(LibrariesToReturn);
@@ -753,6 +755,30 @@ namespace IdeaCadConnector.Tests
 
             public Task<UpdateLibraryRevisionPolicyResult> UpdateRevisionPolicyAsync(UpdateLibraryRevisionPolicyRequest request, CancellationToken cancellationToken)
                 => Task.FromResult(new UpdateLibraryRevisionPolicyResult());
+
+            public Task<LibraryMutationResult> CreateLibraryAsync(CreatePartLibraryRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryMutationResult { Success = true, LibraryId = "lib-created" });
+
+            public Task<LibraryMutationResult> UpdateLibraryAsync(UpdatePartLibraryRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryMutationResult { Success = true, LibraryId = request?.LibraryId });
+
+            public Task<LibraryMutationResult> ArchiveLibraryAsync(string libraryId, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryMutationResult { Success = true, LibraryId = libraryId });
+
+            public Task<PartPickerSearchResponse> SearchPartsAsync(PartPickerSearchRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new PartPickerSearchResponse
+                {
+                    Items = Array.Empty<PartPickerSearchResultItem>(),
+                    TotalCount = 0,
+                    PageNumber = request?.PageNumber ?? 1,
+                    PageSize = request?.PageSize ?? 25
+                });
+
+            public Task<PartPreview> GetPartPreviewAsync(string partId, CancellationToken cancellationToken)
+                => Task.FromResult(new PartPreview { PartId = partId, IsEligibleForReuse = true });
+
+            public Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(string libraryId, string partConfigId, CancellationToken cancellationToken)
+                => Task.FromResult(new DuplicateEntryCheckResult { IsDuplicate = false });
 
             public void Dispose()
             {

@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `PLANNED`
+**State:** `IN_PROGRESS` (Sprint 2.1 core/backend complete)
 
 ## Objective
 
@@ -34,10 +34,39 @@ The current repository already provides:
 - `IPartLibraryClient` support for `GetLibrariesAsync`, `SearchEntriesAsync`, `GetEntryAsync`, `AddPartAsync`, `MoveEntryAsync`, `ResolvePartAsync`, `ResolveUsingStoredPolicyAsync`, `UpdateRevisionPolicyAsync`, `PublishEntryAsync`, `DeprecateEntryAsync`, `GetWhereUsedAsync`, and `RecordUsageAsync`;
 - server Method deployment artifacts for `idea_AddPartToLibrary`, `idea_RecordPartLibraryUsage`, and `idea_SyncPartLibraryEntryStatus`.
 
+Sprint 2.1 (2026-07-06) added:
+
+- `IPartLibraryClient.CreateLibraryAsync`, `UpdateLibraryAsync`, `ArchiveLibraryAsync` with AML-based create/edit flows and `LibraryMutationResult` responses;
+- `IPartLibraryClient.SearchPartsAsync` — paged Aras Part search with keyword (LIKE), lifecycle state, classification, major_rev, and is_current filters, returning `PartPickerSearchResponse` with `PartPickerSearchResultItem` rows;
+- `IPartLibraryClient.GetPartPreviewAsync` — single-Part detail (config_id, revision, generation, lifecycle state) with CAD presence and Obsolete-state check for reuse eligibility;
+- `IPartLibraryClient.CheckDuplicateEntryAsync` — active duplicate detection by Library + part_config_id (case-insensitive), per D-02;
+- `GetLibrariesAsync(LibraryVisibilityFilter)` — optional Archived/All filter (D-03);
+- `DuplicateEntryCheckResult` and `AddSelectedPartToLibraryRequest` DTOs.
+
 The current repository does **not** yet expose:
 
-- Library create, edit, archive, or restore flows;
-- an Aras Part picker separate from the current save-to-library workflow;
+- Library restore flows (soft-unarchive);
+- an Aras Part picker UI dialog separate from the current save-to-library workflow;
+- Library create/edit/archive UI in the LibraryView;
+<｜｜DSML｜｜parameter name="newString" string="true">Sprint 2.1 (2026-07-06) added:
+
+- `IPartLibraryClient.CreateLibraryAsync`, `UpdateLibraryAsync`, `ArchiveLibraryAsync` with AML-based create/edit flows and `LibraryMutationResult` responses;
+- `IPartLibraryClient.SearchPartsAsync` — paged Aras Part search with keyword (LIKE), lifecycle state, classification, major_rev, and is_current filters, returning `PartPickerSearchResponse` with `PartPickerSearchResultItem` rows;
+- `IPartLibraryClient.GetPartPreviewAsync` — single-Part detail (config_id, revision, generation, lifecycle state) with CAD presence and Obsolete-state check for reuse eligibility;
+- `IPartLibraryClient.CheckDuplicateEntryAsync` — active duplicate detection by Library + part_config_id (case-insensitive), per D-02;
+- `GetLibrariesAsync(LibraryVisibilityFilter)` — optional Archived/All filter (D-03);
+- `DuplicateEntryCheckResult` and `AddSelectedPartToLibraryRequest` DTOs.
+
+The current repository does **not** yet expose:
+
+- Library restore flows (soft-unarchive);
+- an Aras Part picker UI dialog separate from the current save-to-library workflow;
+- Library create/edit/archive UI in the LibraryView;
+- revision-history browsing for all revisions of a `config_id`;
+- primary CAD download/open services for library entries;
+- explicit Open in Aras URL generation from Library details;
+- complete CAD, BOM, Revisions, and Where Used tabs backed by dedicated data contracts;
+- production-grade entry filters for CAD availability or resolution state.
 - revision-history browsing for all revisions of a `config_id`;
 - primary CAD download/open services for library entries;
 - explicit Open in Aras URL generation from Library details;

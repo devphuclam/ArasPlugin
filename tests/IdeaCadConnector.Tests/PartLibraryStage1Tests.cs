@@ -158,7 +158,7 @@ namespace IdeaCadConnector.Tests
 
             var client = CreateClient(fake);
 
-            var libraries = await client.GetLibrariesAsync(CancellationToken.None);
+            var libraries = await client.GetLibrariesAsync(LibraryVisibilityFilter.Active, CancellationToken.None);
 
             var library = Assert.Single(libraries);
             Assert.Equal(3, library.ItemCount);
