@@ -61,12 +61,18 @@ No new server Method is approved yet.
 
 | ID | Dependency | Why it blocks planning completion |
 |---|---|---|
-| `D-01` | Library creator identity | affects CRUD permissions and UI availability |
+| `D-01` | Library creator identity | `APPROVED` |
 | `D-02` | duplicate Entry rule | affects add/move validation and potential server-side enforcement |
 | `D-03` | archived visibility policy | affects search/list queries and archive UX |
 | `D-04` | move lifecycle preservation rule | determines whether a server Method is required |
 | `D-05` | cache location and retention | affects filesystem behavior, cleanup, and UAT |
 | `D-06` | IronCAD launch contract | affects desktop service boundary and testability |
+
+## Known Identities
+
+| Account | Role | Password | Notes |
+|---|---|---|---|
+| `admin` | Full Access | `innovator` | Bypasses all role-based restrictions. For setup/emergency only. |
 
 ## Deployment Rules for Later Implementation
 

@@ -60,13 +60,11 @@ The current repository does **not** yet expose:
 - duplicate prompt packs as a second source of truth;
 - any suggestion that live Aras deployment or Vault validation has already happened.
 
-## Unresolved Decisions
-
-Phase 2 remains `INTAKE` until the following are explicitly approved:
+## Decision Status
 
 | ID | Decision | Package default | Current status |
 |---|---|---|---|
-| `D-01` | who may create Libraries | Library Manager only | `UNRESOLVED` |
+| `D-01` | who may create Libraries | Library Manager only (Trưởng phòng thiết kế cơ) | `APPROVED` |
 | `D-02` | duplicate active Entry rule | `Library + part_config_id` unique | `UNRESOLVED` |
 | `D-03` | archived Library visibility | hidden by default, filterable | `UNRESOLVED` |
 | `D-04` | move preserves metadata and lifecycle | preserve both | `UNRESOLVED` |
@@ -89,8 +87,8 @@ Phase 2 remains `INTAKE` until the following are explicitly approved:
 ## Sprint Plan
 
 | Sprint | Scope | Planned output | Dependency gate |
-|---|---|---|---|
-| `2.1` | `WS1`, `WS2` | Library CRUD planning, Aras Part picker contracts/UI | approve `D-01`, `D-02`, `D-03` |
+|---|---|---|---|---|
+| `2.1` | `WS1`, `WS2` | Library CRUD planning, Aras Part picker contracts/UI | approve `D-02`, `D-03` (D-01 approved) |
 | `2.2` | `WS3`, `WS4` | move safety and revision browser | approve `D-04` |
 | `2.3` | `WS5`, `WS6`, `WS7` | Vault/CAD services, Aras links, populated detail tabs | approve `D-05`, `D-06` |
 | `2.4` | `WS8` + hardening | advanced filters, regression closure, UAT prep | previous sprints verified |
@@ -126,4 +124,4 @@ The first recommended packet after decision approval is:
 
 `Sprint 2.1 core planning check -> Library CRUD contracts + paged Aras Part search`
 
-That packet should start only after `D-01`, `D-02`, and `D-03` are approved and Phase 2 is moved to `PLANNED`.
+That packet should start only after `D-02` and `D-03` are approved (D-01 is already approved) and Phase 2 is moved to `PLANNED`.

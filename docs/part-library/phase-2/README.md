@@ -24,11 +24,30 @@ Plan the complete Part Library user experience that Phase 1 intentionally deferr
 - current phase owner: Codex intake and planning
 - implementation owner: not assigned in canonical docs until scope is approved
 
+## Approved Role Model (D-01)
+
+| Role | Persona | Permission |
+|---|---|---|
+| Library Manager | Trưởng phòng thiết kế cơ | Create/Edit/Archive/Restore Library, full Management |
+| Library Reviewer | TNTKC — Mechanical Team Leader | Review, Publish, Request Rework, manage Entries within team scope |
+| Library Contributor | NVTKC — Mechanical Designer | Search Parts, add Draft Entries, edit Draft metadata, submit for review, reuse approved Library Parts |
+| Project Viewer | Quản lý dự án | Read-only Library, BOM, Usage, Where Used, project impact |
+| Manufacturing Viewer | Nhân viên lắp ráp cơ | View only Published production-relevant Parts, BOMs, approved files |
+| External Viewer | Khách hàng | View only explicitly shared Published data. No access to Draft, Usage, notes, commits, or unrestricted native CAD |
+
+### Admin Account
+
+| Field | Value |
+|---|---|
+| Username | `admin` |
+| Password | `innovator` |
+| Permission | Full — bypasses all role-based restrictions |
+
 ## Approved and Unresolved Decisions
 
 | ID | Decision | Status | Note |
 |---|---|---|---|
-| `D-01` | who may create Libraries | `UNRESOLVED` | package recommends Library Manager only |
+| `D-01` | who may create Libraries | `APPROVED` | Only Trưởng phòng thiết kế cơ (Library Manager); see role model below |
 | `D-02` | duplicate active Entry rule | `UNRESOLVED` | package recommends `Library + part_config_id` |
 | `D-03` | archived Library visibility | `UNRESOLVED` | package recommends hidden by default with opt-in view |
 | `D-04` | move preserves metadata and lifecycle | `UNRESOLVED` | package recommends preserving both |

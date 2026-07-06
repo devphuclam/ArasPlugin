@@ -120,7 +120,7 @@ The following checks cannot be claimed from local automation alone:
 
 ## Known Planning Blockers
 
-- `D-01` through `D-06` are unresolved;
+- `D-01` is approved; `D-02` through `D-06` are unresolved;
 - no approved canonical owner acceptance yet for the Phase 2 scope;
 - the current baseline does not have a clean solution build because of the existing Desktop WPF temporary assembly failure.
 
