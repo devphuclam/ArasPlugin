@@ -1,0 +1,22 @@
+State,Condition,Visible message,Primary action,Disabled actions,Data behavior
+Connected,Aras session active and Library query succeeds,Library sync up to date,Normal Library actions,None,Load live Part CAD and revision metadata
+NoLibrary,User has no accessible Library,Create your first Part Library,Create Library,Add Part; Move; Publish,Show onboarding instead of empty table
+EmptyLibrary,Selected Library has zero entries,No reusable Parts yet,Add Existing Part,Move; Remove; Publish,Keep Library selection and filters visible
+Loading,Search refresh or revision resolution in progress,Refreshing Library...,Cancel or wait,Destructive commands,Retain previous results to avoid layout shift
+Offline,Aras request fails or session expires,Could not reach Aras Innovator,Retry,Save; Publish; Checkout; Push,Allow cached browsing only when available
+ReadOnly,User can get Library but lacks contributor permission,You can view but cannot modify,Open or reuse if Part permissions allow,Add; Move; Remove; Publish,Do not hide commands; show disabled reason tooltip
+DuplicateEntry,Same Library plus Part config plus revision policy exists,HANDLE already exists in this Library,Open Existing Entry,Save duplicate,Select existing relationship
+PartNotPushed,Selected PDM node has no Aras Part ID,Push the Part to Aras before saving,Open PDM Project,Save to Library,Do not create Library relationship to local-only node
+PartNoCad,Part exists but no linked native CAD,No linked CAD found,Reuse BOM only,Open IronCAD; Checkout,Allow Part reference when category policy permits
+LockedByOther,CAD is locked by another Identity,Locked by lamEngineer,Add to Project,Checkout; Edit,Reuse BOM remains allowed
+NewRevision,Resolved current revision differs from latest released,Revision B is available,Use B or Keep A,Automatic silent replacement,Show impact and Where Used
+Deprecated,Entry or Part is deprecated or obsolete,Do not use in new designs,Find Replacement,Add to Project by default,Preserve audit and Where Used
+NoProjectOpen,No active PDM workspace,Open or clone a PDM Project,Open PDM Projects,Add to Current Project,Library browsing remains enabled
+NonMainBranch,Active branch is not main,Local staging only,Add to working tree,Live Push,Commit reference locally
+UncommittedChanges,Current workspace snapshot differs from last commit,Uncommitted changes detected,Preview Working Tree,None,Merge new Library reference into current changes
+CircularBom,Selected parent would produce a recursive structure,Circular BOM blocked,Choose another parent,Add to Project,Do not write library-references.json
+ExistingBom,Parent already contains resolved Part,Part already exists under selected parent,Update quantity or cancel,Duplicate relationship,Edit existing Part BOM quantity
+PermissionPart,User can see Library entry but cannot get related Part,You do not have permission to read this Part,Request Access,Open; Reuse; Download,Do not leak restricted Part metadata
+PermissionFile,User can read Part CAD but cannot download File,Native File access denied,Request File Access,Download; Open IronCAD,Allow metadata and BOM reuse if permitted
+PublishPending,Standard Library entry is waiting for reviewer,Pending Review,Open workflow task,Edit published metadata,Display reviewer and submitted comment
+PublishRejected,Reviewer requests rework,Rework requested,Edit and resubmit,Publish,Preserve review history

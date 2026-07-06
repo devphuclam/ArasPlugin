@@ -1330,7 +1330,9 @@ namespace IdeaCadConnector.Tests
             var docPath = Path.Combine(
                 FindRepoRoot(),
                 "docs",
-                "part-library-stage1-deployment.md");
+                "part-library",
+                "phase-1",
+                "DEPLOYMENT.md");
             Assert.True(File.Exists(docPath), "Deployment documentation not found.");
             var source = File.ReadAllText(docPath);
             Assert.Contains("idea_PartLibrary", source, StringComparison.OrdinalIgnoreCase);

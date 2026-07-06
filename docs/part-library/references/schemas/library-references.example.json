@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "references": [
+    {
+      "referenceId": "example-guid",
+      "libraryId": "ARAS_LIBRARY_ID",
+      "libraryEntryId": "ARAS_ENTRY_ID",
+      "partId": "ARAS_PART_VERSION_ID",
+      "partConfigId": "ARAS_PART_CONFIG_ID",
+      "partNumber": "HANDLE",
+      "partName": "ALU-CASE04__BODY__HANDLE",
+      "partType": "Component",
+      "revision": "A",
+      "parentLogicalCode": "BODY",
+      "localLogicalCode": "LIB__HANDLE__example",
+      "quantity": 4,
+      "revisionPolicy": "Pinned",
+      "primaryCadId": "ARAS_CAD_ID",
+      "primaryCadFileName": "Comp_ALU-CASE04__BODY__HANDLE_Qty4.ics",
+      "addedOn": "2026-07-02T00:00:00Z",
+      "addedBy": "lamEngineer"
+    }
+  ]
+}

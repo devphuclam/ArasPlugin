@@ -1,0 +1,24 @@
+﻿Object,Property,Type,Required,Allowed/Notes
+idea_PartLibrary,name,String,Yes,Keyed name
+idea_PartLibrary,description,Text,No,
+idea_PartLibrary,library_type,List,Yes,Personal|Team|Standard
+idea_PartLibrary,owner_id,Identity,Yes,
+idea_PartLibrary,team_identity_id,Identity,No,
+idea_PartLibrary,status,List,Yes,Active|Archived
+idea_PartLibrary,default_revision_policy,List,Yes,Pinned|LatestReleased|LatestCurrent
+idea_PartLibrary,is_public,Boolean,Yes,Default false
+idea_PartLibraryEntry,related_id,Part,Yes,Reference existing Part
+idea_PartLibraryEntry,part_config_id,String,Yes,
+idea_PartLibraryEntry,revision_policy,List,Yes,Pinned|LatestReleased|LatestCurrent
+idea_PartLibraryEntry,pinned_part_id,Part,Conditional,Required for Pinned
+idea_PartLibraryEntry,pinned_revision,String,No,
+idea_PartLibraryEntry,entry_status,List,Yes,Draft|PendingReview|Published|Deprecated
+idea_PartLibraryEntry,category,String/List,No,
+idea_PartLibraryEntry,tags,Text,No,
+idea_PartLibraryEntry,note,Text,No,
+idea_PartLibraryEntry,source_project,String,No,
+idea_PartLibraryEntry,source_commit,String,No,
+idea_PartLibraryEntry,usage_count,Integer,Yes,Default 0
+idea_PartLibraryEntry,last_used_on,Date,No,
+idea_PartLibraryEntry,approved_by_id,Identity,No,
+idea_PartLibraryEntry,approved_on,Date,No,
