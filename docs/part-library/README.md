@@ -7,7 +7,7 @@ This directory is the only active documentation root for Part Library.
 | Phase | State | Baseline | Completion | Evidence |
 |---|---|---|---|---|
 | Phase 1 - Core governance and reuse | `COMPLETE` | `08a9986d9cc867a2948afe5a56676730ada54fe4` | `b7f6cf67d0d191ddb71b3e3926064d928ded2c8c` | Build: 0 warnings/errors; tests: 117/117; owner accepted 2026-07-06 |
-| Phase 2 - Complete Library UX | `NOT STARTED` | - | - | Package not imported |
+| Phase 2 - Complete Library UX | `INTAKE` | `956af6841392b609d9c06df60d484fe5244500c1` | - | Package inventoried; tests 117/117 passed; solution build currently fails in existing WPF temp assembly path; decisions unresolved |
 
 ## Read Phase 1
 
@@ -19,6 +19,9 @@ This directory is the only active documentation root for Part Library.
 ## Prepare Phase 2
 
 - [Phase 2 intake boundary](phase-2/README.md)
+- [Phase 2 design and work breakdown](phase-2/DESIGN.md)
+- [Phase 2 deployment assumptions](phase-2/DEPLOYMENT.md)
+- [Phase 2 acceptance gates](phase-2/ACCEPTANCE.md)
 
 ## Shared References
 
