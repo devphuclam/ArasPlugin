@@ -129,12 +129,12 @@ namespace IdeaCadConnector.Aras
                 || fault.IndexOf("No items found", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private static JObject ParseResultAsItems(string resultContent)
+        internal static JObject ParseResultAsItems(string resultContent)
         {
             var doc = new XmlDocument();
             doc.LoadXml("<Root>" + resultContent + "</Root>");
 
-            var items = doc.SelectNodes("//Item");
+            var items = doc.DocumentElement?.SelectNodes("./Item");
             if (items == null || items.Count == 0)
                 return new JObject();
 

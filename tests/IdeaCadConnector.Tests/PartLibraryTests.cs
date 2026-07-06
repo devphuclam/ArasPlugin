@@ -267,6 +267,46 @@ namespace IdeaCadConnector.Tests
                 null));
         }
 
+        [Fact]
+        public void ParseResultAsItems_IgnoresNestedRelationshipItems()
+        {
+            var result = ArasAmlClient.ParseResultAsItems(@"
+                <Item type='idea_PartLibraryEntry' id='entry-1'>
+                    <source_id>lib-1</source_id>
+                    <related_id>part-1</related_id>
+                    <Relationships>
+                        <Item type='Part' id='part-1'>
+                            <item_number>P-001</item_number>
+                        </Item>
+                    </Relationships>
+                </Item>
+                <Item type='idea_PartLibraryEntry' id='entry-2'>
+                    <source_id>lib-1</source_id>
+                    <related_id>part-2</related_id>
+                    <Relationships>
+                        <Item type='Part' id='part-2'>
+                            <item_number>P-002</item_number>
+                        </Item>
+                    </Relationships>
+                </Item>
+                <Item type='idea_PartLibraryEntry' id='entry-3'>
+                    <source_id>lib-1</source_id>
+                    <related_id>part-3</related_id>
+                    <Relationships>
+                        <Item type='Part' id='part-3'>
+                            <item_number>P-003</item_number>
+                        </Item>
+                    </Relationships>
+                </Item>");
+
+            var items = Assert.IsType<JArray>(result["Items"]);
+            Assert.Equal(3, items.Count);
+            Assert.Equal(new[] { "entry-1", "entry-2", "entry-3" }, items.Select(item => (string)item["id"]));
+            Assert.All(items, item => Assert.Equal("idea_PartLibraryEntry", item["type"]));
+            Assert.Single((JArray)items[0]["Relationships"]);
+            Assert.DoesNotContain(items, item => ((string)item["type"]) == "Part");
+        }
+
         private static PdmPartRequest MakeLibraryPart(string logicalCode, string parentLogicalCode, string existingPartId = "part-1", string configId = "cfg-1", string revision = "A")
         {
             return new PdmPartRequest

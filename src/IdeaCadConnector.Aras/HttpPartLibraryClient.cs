@@ -682,7 +682,7 @@ namespace IdeaCadConnector.Aras
                 null,
                 ct).ConfigureAwait(false);
 
-            return EnumerateItems(result).Count();
+            return EnumerateTopLevelEntryRelationships(result).Count();
         }
 
         private async Task<List<PartLibraryEntrySummary>> LoadEntrySummariesAsync(string libraryId, CancellationToken ct)
@@ -705,7 +705,7 @@ namespace IdeaCadConnector.Aras
             var usageCounts = await LoadUsageCountsAsync(ct).ConfigureAwait(false);
 
             var summaries = new List<PartLibraryEntrySummary>();
-            foreach (var rel in EnumerateItems(result))
+            foreach (var rel in EnumerateTopLevelEntryRelationships(result))
             {
                 try
                 {
@@ -930,15 +930,23 @@ namespace IdeaCadConnector.Aras
                     : resolutionError + " " + libMsg;
             }
 
+            var entryId = relationship["id"]?.Value<string>();
+            var diagnosticPartNumber = string.IsNullOrWhiteSpace(partNumber)
+                ? "(Invalid Library Entry)"
+                : partNumber;
+            var diagnosticPartName = string.IsNullOrWhiteSpace(partName)
+                ? BuildDiagnosticEntryName(entryId)
+                : partName;
+
             return new PartLibraryEntrySummary
             {
-                EntryId = relationship["id"]?.Value<string>(),
+                EntryId = entryId,
                 LibraryId = libraryId,
                 LibraryName = libraryName,
                 PartId = relatedPartId,
                 PartConfigId = relationship["part_config_id"]?.Value<string>(),
-                PartNumber = partNumber,
-                PartName = partName,
+                PartNumber = diagnosticPartNumber,
+                PartName = diagnosticPartName,
                 PartType = partType,
                 Revision = relationship["pinned_revision"]?.Value<string>(),
                 LifecycleState = partState,
@@ -962,6 +970,18 @@ namespace IdeaCadConnector.Aras
                 return "Part was not found. It may have been deleted or moved.";
 
             return SanitizeForEntry(ex);
+        }
+
+        private static string BuildDiagnosticEntryName(string entryId)
+        {
+            if (string.IsNullOrWhiteSpace(entryId))
+                return "Unknown Entry";
+
+            var safeId = entryId.Trim();
+            var suffix = safeId.Length <= 8
+                ? safeId
+                : safeId.Substring(safeId.Length - 8);
+            return "Entry " + suffix;
         }
 
         private static int GetUsageCountForEntry(
@@ -1396,6 +1416,44 @@ namespace IdeaCadConnector.Aras
 
             if (result.HasValues)
                 yield return result;
+        }
+
+        private IEnumerable<JObject> EnumerateTopLevelEntryRelationships(JObject result)
+        {
+            var seenEntryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var item in EnumerateItems(result))
+            {
+                var itemType = item["type"]?.Value<string>();
+                if (!string.IsNullOrWhiteSpace(itemType) &&
+                    !string.Equals(
+                        itemType,
+                        PartLibrarySchemaNames.EntryRelationshipType,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var entryId = item["id"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(entryId))
+                {
+                    _logger.LogWarning(
+                        "Ignored a top-level {EntryType} result because its relationship ID is blank.",
+                        PartLibrarySchemaNames.EntryRelationshipType);
+                    continue;
+                }
+
+                if (!seenEntryIds.Add(entryId))
+                {
+                    _logger.LogWarning(
+                        "Ignored duplicate {EntryType} relationship ID {EntryId}.",
+                        PartLibrarySchemaNames.EntryRelationshipType,
+                        entryId);
+                    continue;
+                }
+
+                yield return item;
+            }
         }
 
         private static string NormalizePolicyFilter(string value)

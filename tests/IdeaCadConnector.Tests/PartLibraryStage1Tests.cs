@@ -139,6 +139,100 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task GetLibrariesAsync_CountsUniqueTopLevelEntryRelationshipsOnly()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(Library("lib-1", "Engineering Part Library")));
+            fake.ApplyAmlResults.Enqueue(Items(
+                Entry("entry-1", "Pinned", "cfg-1", "part-1", "part-1"),
+                Entry("entry-2", "Pinned", "cfg-2", "part-2", "part-2"),
+                Entry("entry-3", "Pinned", "cfg-3", "part-3", "part-3"),
+                Entry("entry-3", "Pinned", "cfg-3", "part-3", "part-3"),
+                new JObject
+                {
+                    ["type"] = "Part",
+                    ["id"] = "nested-part-1",
+                    ["item_number"] = "PART-NESTED"
+                }));
+
+            var client = CreateClient(fake);
+
+            var libraries = await client.GetLibrariesAsync(CancellationToken.None);
+
+            var library = Assert.Single(libraries);
+            Assert.Equal(3, library.ItemCount);
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_DeduplicatesEntryIdsAndIgnoresNonEntryItems()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(
+                Entry("entry-1", "Pinned", "cfg-1", "part-1", "part-1"),
+                Entry("entry-1", "Pinned", "cfg-1", "part-1", "part-1"),
+                new JObject
+                {
+                    ["type"] = "Part",
+                    ["id"] = "nested-part-1",
+                    ["item_number"] = "PART-NESTED"
+                }));
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "PART-001", "A", "Released")));
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "PART-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "PART-001", "A", "Released"));
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "PART-001", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(
+                new PartLibrarySearchRequest { LibraryId = "lib-1" },
+                CancellationToken.None);
+
+            var entry = Assert.Single(result.Entries);
+            Assert.Equal("entry-1", entry.EntryId);
+            Assert.Equal(1, result.TotalCount);
+            Assert.False(string.IsNullOrWhiteSpace(entry.PartNumber));
+        }
+
+        [Fact]
+        public async Task SearchEntriesAsync_RealMalformedEntryKeepsNonBlankDiagnostic()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["type"] = PartLibrarySchemaNames.EntryRelationshipType,
+                ["id"] = "entry-malformed-12345678",
+                ["source_id"] = "lib-1",
+                ["part_config_id"] = "cfg-1",
+                ["revision_policy"] = "Pinned",
+                ["entry_status"] = "Draft"
+            }));
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Engineering Part Library"));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchEntriesAsync(
+                new PartLibrarySearchRequest { LibraryId = "lib-1" },
+                CancellationToken.None);
+
+            var entry = Assert.Single(result.Entries);
+            Assert.Equal("entry-malformed-12345678", entry.EntryId);
+            Assert.Equal("(Invalid Library Entry)", entry.PartNumber);
+            Assert.False(string.IsNullOrWhiteSpace(entry.PartName));
+            Assert.True(entry.ResolutionFailed);
+            Assert.False(entry.CanAddToProject);
+            Assert.False(string.IsNullOrWhiteSpace(entry.ResolutionError));
+        }
+
+        [Fact]
         public async Task UpdateRevisionPolicyAsync_Pinned_WritesPinnedFields()
         {
             var fake = new FakeArasAmlClient();
@@ -1167,8 +1261,18 @@ namespace IdeaCadConnector.Tests
         {
             var sourcePath = FindMethodSourceFile("idea_RecordPartLibraryUsage.cs");
             var source = File.ReadAllText(sourcePath);
-            Assert.Contains("if (existingUsage.getItemCount() >= 1)", source, StringComparison.Ordinal);
-            Assert.Contains("No existing Usage found - create one", source, StringComparison.Ordinal);
+            var duplicateCheckIndex = source.IndexOf(
+                "if (existingUsage.getItemCount() >= 1)",
+                StringComparison.Ordinal);
+            var usageConstructionIndex = source.IndexOf(
+                "Item usage = inn.newItem(",
+                StringComparison.Ordinal);
+
+            Assert.True(duplicateCheckIndex >= 0, "Existing Usage duplicate check was not found.");
+            Assert.True(usageConstructionIndex >= 0, "New Usage construction was not found.");
+            Assert.True(
+                usageConstructionIndex > duplicateCheckIndex,
+                "New Usage must be constructed only after the duplicate check.");
         }
 
         [Fact]
@@ -1259,6 +1363,79 @@ namespace IdeaCadConnector.Tests
         }
 
         // ── Helpers ────────────────────────────────────────────────────
+
+        [Fact]
+        public void AddLibraryPartDialog_ReadOnlyFieldsUseOneWayBinding()
+        {
+            var sourcePath = Path.Combine(
+                FindRepoRoot(),
+                "src",
+                "IdeaCadConnector.Desktop",
+                "Dialogs",
+                "AddLibraryPartToProjectDialog.xaml");
+
+            var source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("Text=\"{Binding RepositoryCode, Mode=OneWay}\"", source, StringComparison.Ordinal);
+            Assert.Contains("Text=\"{Binding BranchName, Mode=OneWay}\"", source, StringComparison.Ordinal);
+            Assert.Contains("Text=\"{Binding BaseCommitSummary, Mode=OneWay}\"", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void AddToCurrentProjectDialog_DoesNotCallDialogClose()
+        {
+            var sourcePath = Path.Combine(
+                FindRepoRoot(),
+                "src",
+                "IdeaCadConnector.Desktop",
+                "LibraryViewModel.cs");
+
+            var source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("dialog.DialogResult = accepted;", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("dialog.Close();", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void AddToCurrentProjectWorkflow_ValidatesTargetParentAndQuantity()
+        {
+            var sourcePath = Path.Combine(
+                FindRepoRoot(),
+                "src",
+                "IdeaCadConnector.Desktop",
+                "LibraryViewModel.cs");
+
+            var source = File.ReadAllText(sourcePath);
+
+            Assert.Contains("NoValidTargetParentMessage", source, StringComparison.Ordinal);
+            Assert.Contains("SelectedParent == null", source, StringComparison.Ordinal);
+            Assert.Contains("ParsedQuantity <= 0", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void LibraryAddButton_HasExplicitDisabledVisualState()
+        {
+            var sourcePath = Path.Combine(
+                FindRepoRoot(),
+                "src",
+                "IdeaCadConnector.Desktop",
+                "LibraryView.xaml");
+
+            var source = File.ReadAllText(sourcePath);
+
+            Assert.Contains(
+                "<Trigger Property=\"IsEnabled\" Value=\"False\">",
+                source,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "x:Key=\"LibraryPrimaryButtonStyle\"",
+                source,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                "Command=\"{Binding AddToCurrentProjectCommand}\"",
+                source,
+                StringComparison.Ordinal);
+        }
 
         private static string FindMethodSourceFile(string fileName)
         {

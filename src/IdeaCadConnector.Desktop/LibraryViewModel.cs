@@ -23,6 +23,7 @@ namespace IdeaCadConnector.Desktop
 {
     public sealed class LibraryViewModel : ILibraryViewModel
     {
+        private const string NoValidTargetParentMessage = "Current PDM Project does not contain a valid target parent Part. Analyze or open a valid PDM Project first.";
         private readonly IAppSessionContext _session;
         private readonly IPartLibraryClient _injectedClient;
         private readonly IPartLibraryClient _unavailableClient = new UnavailablePartLibraryClient();
@@ -34,6 +35,7 @@ namespace IdeaCadConnector.Desktop
         private string _selectedStateFilter;
         private string _selectedRevisionFilter;
         private bool _isLoading;
+        private bool _isAddingToCurrentProject;
         private string _statusMessage;
         private string _errorMessage;
         private string _permissionMessage;
@@ -72,7 +74,7 @@ namespace IdeaCadConnector.Desktop
             AddPartCommand = new RelayCommand(_ => ShowSaveToLibraryDialog(), _ => !IsLoading && !IsOffline && CanContributeToSelectedLibrary);
             RemoveEntryCommand = new RelayCommand(_ => _ = RemoveSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading);
             MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => SelectedEntry != null && SelectedLibrary != null && !IsLoading);
-            AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => SelectedEntry != null && HasActivePdmWorkspace && !IsLoading && !SelectedEntry.IsDeprecated && SelectedEntry.CanAddToProject && !SelectedEntry.ResolutionFailed);
+            AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => CanAddToCurrentProject());
             OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
             DownloadCadCommand = new RelayCommand(_ => _ = RevealPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
             PublishCommand = new RelayCommand(_ => _ = PublishSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
@@ -84,6 +86,8 @@ namespace IdeaCadConnector.Desktop
 
             LocalizationSource.Instance.PropertyChanged += OnLocalizationChanged;
             _session.LibraryDataChanged += OnLibraryDataChanged;
+            AddToCurrentProjectDialogHandler = ShowAddToCurrentProjectDialog;
+            AddLibraryReferenceHandler = (workspace, reference) => workspace.AddLibraryReference(reference);
 
             _ = RefreshAsync();
         }
@@ -176,6 +180,10 @@ namespace IdeaCadConnector.Desktop
         public bool IsOffline => !_session.IsConnected;
 
         public bool HasActivePdmWorkspace => _session.CurrentPdmProjectsViewModel != null;
+
+        internal Func<AddLibraryPartToProjectDialogViewModel, bool?> AddToCurrentProjectDialogHandler { get; set; }
+
+        internal Func<PdmProjectsViewModel, WorkspaceLibraryReference, LibraryReferenceMutationResult> AddLibraryReferenceHandler { get; set; }
 
         public bool CanContributeToSelectedLibrary => SelectedLibrary != null && SelectedLibrary.CanContribute;
 
@@ -463,64 +471,179 @@ namespace IdeaCadConnector.Desktop
 
         private async Task AddToCurrentProjectAsync()
         {
-            var workspace = _session.CurrentPdmProjectsViewModel;
-            if (workspace == null || SelectedEntry == null)
-            {
-                StatusMessage = L(TranslationKeys.LibraryStatusOpenPdmWorkspaceFirst);
+            if (_isAddingToCurrentProject)
                 return;
-            }
 
-            if (SelectedEntry.IsDeprecated)
-            {
-                StatusMessage = L(TranslationKeys.LibraryStatusEntryDeprecated);
-                return;
-            }
+            _isAddingToCurrentProject = true;
+            RaiseCommandStates();
 
-            if (SelectedEntry.ResolutionFailed || !SelectedEntry.CanAddToProject)
+            try
             {
-                StatusMessage = SelectedEntry.ResolutionError ?? SelectedEntryDetails?.ResolutionError ?? L(TranslationKeys.LibraryStatusNoRevisionResolution);
-                return;
-            }
-
-            // Resolve according to Entry revision policy first
-            ResolveLibraryPartResult resolved = null;
-            await RunBusyAsync(async () =>
-            {
-                try
+                var workspace = _session.CurrentPdmProjectsViewModel;
+                if (workspace == null || SelectedEntry == null)
                 {
-                    resolved = await ActiveClient.ResolveUsingStoredPolicyAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                    StatusMessage = L(TranslationKeys.LibraryStatusOpenPdmWorkspaceFirst);
+                    return;
                 }
-                catch (ArasOperationException ex)
-                {
-                    StatusMessage = ex.Message;
-                }
-            }).ConfigureAwait(true);
 
-            if (resolved == null || string.IsNullOrWhiteSpace(resolved.ResolvedPartId))
-            {
-                if (string.IsNullOrWhiteSpace(StatusMessage))
+                if (string.IsNullOrWhiteSpace(workspace.FolderPath))
+                {
+                    StatusMessage = L(TranslationKeys.LibraryStatusOpenPdmWorkspaceFirst);
+                    return;
+                }
+
+                if (SelectedEntry.IsDeprecated)
+                {
+                    StatusMessage = L(TranslationKeys.LibraryStatusEntryDeprecated);
+                    return;
+                }
+
+                if (SelectedEntry.ResolutionFailed || !SelectedEntry.CanAddToProject)
+                {
+                    StatusMessage = SelectedEntry.ResolutionError ?? SelectedEntryDetails?.ResolutionError ?? L(TranslationKeys.LibraryStatusNoRevisionResolution);
+                    return;
+                }
+
+                var validParentCandidates = workspace.GetLibraryParentCandidates()
+                    .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.LogicalCode))
+                    .ToList() ?? new List<LibraryParentCandidate>();
+                Debug.WriteLine(
+                    "Part Library add: EntryId=" + SelectedEntry.EntryId +
+                    ", ParentCandidateCount=" + validParentCandidates.Count + ".");
+
+                if (validParentCandidates.Count == 0)
+                {
+                    StatusMessage = NoValidTargetParentMessage;
+                    return;
+                }
+
+                // Resolve according to Entry revision policy first
+                ResolveLibraryPartResult resolved = null;
+                await RunBusyAsync(async () =>
+                {
+                    try
+                    {
+                        resolved = await ActiveClient.ResolveUsingStoredPolicyAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+                    }
+                    catch (ArasOperationException ex)
+                    {
+                        StatusMessage = ex.Message;
+                    }
+                }).ConfigureAwait(true);
+
+                if (resolved == null || string.IsNullOrWhiteSpace(resolved.ResolvedPartId))
+                {
+                    if (string.IsNullOrWhiteSpace(StatusMessage))
+                        StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(resolved.ResolvedPartConfigId) || string.IsNullOrWhiteSpace(resolved.ResolvedRevision))
+                {
                     StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
-                return;
-            }
+                    return;
+                }
 
-            if (string.IsNullOrWhiteSpace(resolved.ResolvedPartConfigId) || string.IsNullOrWhiteSpace(resolved.ResolvedRevision))
+                var resolvedPartId = resolved.ResolvedPartId;
+                var resolvedConfigId = resolved.ResolvedPartConfigId;
+                var resolvedRevision = resolved.ResolvedRevision;
+                var resolvedPartNumber = SelectedEntryDetails?.PartNumber ?? SelectedEntry.PartNumber;
+                var resolvedPartName = SelectedEntryDetails?.PartName ?? SelectedEntry.PartName;
+                Debug.WriteLine(
+                    "Part Library add resolved: EntryId=" + SelectedEntry.EntryId +
+                    ", PartId=" + resolvedPartId +
+                    ", ConfigId=" + resolvedConfigId + ".");
+
+                var dialogViewModel = new AddLibraryPartToProjectDialogViewModel(
+                    workspace,
+                    resolvedPartNumber,
+                    resolvedPartName,
+                    resolvedRevision,
+                    resolvedPartId,
+                    validParentCandidates);
+
+                var accepted = AddToCurrentProjectDialogHandler?.Invoke(dialogViewModel);
+                Debug.WriteLine(
+                    "Part Library add dialog: EntryId=" + SelectedEntry.EntryId +
+                    ", Accepted=" + (accepted == true) + ".");
+                if (accepted != true)
+                    return;
+
+                if (dialogViewModel.SelectedParent == null || string.IsNullOrWhiteSpace(dialogViewModel.SelectedParent.LogicalCode))
+                {
+                    StatusMessage = NoValidTargetParentMessage;
+                    return;
+                }
+
+                if (dialogViewModel.ParsedQuantity <= 0)
+                {
+                    StatusMessage = L(TranslationKeys.LibraryAddDialogValidationMessage);
+                    return;
+                }
+                Debug.WriteLine(
+                    "Part Library add placement: EntryId=" + SelectedEntry.EntryId +
+                    ", ParentLogicalCode=" + dialogViewModel.SelectedParent.LogicalCode +
+                    ", Quantity=" + dialogViewModel.ParsedQuantity + ".");
+
+                var reference = new WorkspaceLibraryReference
+                {
+                    ReferenceId = Guid.NewGuid().ToString("N"),
+                    LibraryId = SelectedEntry.LibraryId,
+                    LibraryEntryId = SelectedEntry.EntryId,
+                    PartId = resolvedPartId,
+                    PartConfigId = resolvedConfigId,
+                    PartNumber = resolvedPartNumber,
+                    PartName = resolvedPartName,
+                    Revision = resolvedRevision,
+                    ParentLogicalCode = dialogViewModel.SelectedParent.LogicalCode,
+                    LocalLogicalCode = "LIB-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpperInvariant(),
+                    Quantity = dialogViewModel.ParsedQuantity,
+                    RevisionPolicy = SelectedEntry.RevisionPolicy,
+                    AddedOn = DateTime.UtcNow,
+                    AddedBy = _session.CurrentUserName ?? "engineer"
+                };
+
+                var result = AddLibraryReferenceHandler(workspace, reference);
+                Debug.WriteLine(
+                    "Part Library add result: EntryId=" + SelectedEntry.EntryId +
+                    ", Success=" + result.Success + ".");
+                StatusMessage = result.Message;
+
+                if (result.Success)
+                    await SearchAsync().ConfigureAwait(true);
+            }
+            catch (ArasOperationException ex)
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusNoRevisionResolution);
-                return;
+                Debug.WriteLine(ex.ToString());
+                StatusMessage = ex.Message;
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.ToString());
+                StatusMessage = Lf(TranslationKeys.LibraryFailedPrefix, "Failed to add Library Part to the current PDM Project: " + ex.Message);
+            }
+            finally
+            {
+                _isAddingToCurrentProject = false;
+                RaiseCommandStates();
+            }
+        }
 
-            var resolvedPartId = resolved.ResolvedPartId;
-            var resolvedConfigId = resolved.ResolvedPartConfigId;
-            var resolvedRevision = resolved.ResolvedRevision;
-            var resolvedPartNumber = SelectedEntryDetails?.PartNumber ?? SelectedEntry.PartNumber;
-            var resolvedPartName = SelectedEntryDetails?.PartName ?? SelectedEntry.PartName;
+        private bool CanAddToCurrentProject()
+        {
+            return SelectedEntry != null &&
+                   HasActivePdmWorkspace &&
+                   !IsLoading &&
+                   !_isAddingToCurrentProject &&
+                   !SelectedEntry.IsDeprecated &&
+                   SelectedEntry.CanAddToProject &&
+                   !SelectedEntry.ResolutionFailed;
+        }
 
-            var dialogViewModel = new AddLibraryPartToProjectDialogViewModel(
-                workspace,
-                resolvedPartNumber,
-                resolvedPartName,
-                resolvedRevision,
-                resolvedPartId);
+        private bool? ShowAddToCurrentProjectDialog(AddLibraryPartToProjectDialogViewModel dialogViewModel)
+        {
+            if (dialogViewModel == null)
+                throw new ArgumentNullException(nameof(dialogViewModel));
 
             var dialog = new AddLibraryPartToProjectDialog
             {
@@ -528,38 +651,9 @@ namespace IdeaCadConnector.Desktop
                 DataContext = dialogViewModel
             };
 
-            dialogViewModel.CloseRequested += accepted =>
-            {
-                dialog.DialogResult = accepted;
-                dialog.Close();
-            };
+            dialogViewModel.CloseRequested += accepted => dialog.DialogResult = accepted;
 
-            if (dialog.ShowDialog() != true)
-                return;
-
-            var reference = new WorkspaceLibraryReference
-            {
-                ReferenceId = Guid.NewGuid().ToString("N"),
-                LibraryId = SelectedEntry.LibraryId,
-                LibraryEntryId = SelectedEntry.EntryId,
-                PartId = resolvedPartId,
-                PartConfigId = resolvedConfigId,
-                PartNumber = resolvedPartNumber,
-                PartName = resolvedPartName,
-                Revision = resolvedRevision,
-                ParentLogicalCode = dialogViewModel.SelectedParent.LogicalCode,
-                LocalLogicalCode = "LIB-" + Guid.NewGuid().ToString("N").Substring(0, 8).ToUpperInvariant(),
-                Quantity = dialogViewModel.ParsedQuantity,
-                RevisionPolicy = SelectedEntry.RevisionPolicy,
-                AddedOn = DateTime.UtcNow,
-                AddedBy = _session.CurrentUserName ?? "engineer"
-            };
-
-            var result = workspace.AddLibraryReference(reference);
-            StatusMessage = result.Message;
-
-            if (result.Success)
-                await SearchAsync().ConfigureAwait(true);
+            return dialog.ShowDialog();
         }
 
         private void ShowSaveToLibraryDialog()
@@ -1164,7 +1258,13 @@ namespace IdeaCadConnector.Desktop
         private string _quantity = "1";
         private string _workspaceWarning;
 
-        public AddLibraryPartToProjectDialogViewModel(PdmProjectsViewModel workspace, string partNumber, string partName, string revision, string partId)
+        public AddLibraryPartToProjectDialogViewModel(
+            PdmProjectsViewModel workspace,
+            string partNumber,
+            string partName,
+            string revision,
+            string partId,
+            IEnumerable<LibraryParentCandidate> parentCandidates = null)
         {
             if (workspace == null)
                 throw new ArgumentNullException(nameof(workspace));
@@ -1179,7 +1279,9 @@ namespace IdeaCadConnector.Desktop
             RepositoryCode = workspace.SelectedRepository ?? workspace.RepositoryCodeForDisplay;
             BranchName = workspace.SelectedBranch ?? TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogBranchFallbackMain);
             BaseCommitSummary = workspace.LatestCommitSummary;
-            ParentCandidates = new ObservableCollection<LibraryParentCandidate>(workspace.GetLibraryParentCandidates());
+            ParentCandidates = new ObservableCollection<LibraryParentCandidate>(
+                (parentCandidates ?? workspace.GetLibraryParentCandidates() ?? Array.Empty<LibraryParentCandidate>())
+                .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.LogicalCode)));
             SelectedParent = ParentCandidates.FirstOrDefault();
             WorkspaceWarning = workspace.HasUncommittedChanges
                 ? TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogUncommittedWarning)

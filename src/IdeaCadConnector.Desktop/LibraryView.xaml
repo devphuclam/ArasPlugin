@@ -45,12 +45,28 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#F4F7FB"/>
+                    <Setter Property="Foreground" Value="#A0AEC0"/>
+                    <Setter Property="BorderBrush" Value="#D6DFEA"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                    <Setter Property="Opacity" Value="1"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="LibraryPrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource LibraryButtonStyle}">
             <Setter Property="Background" Value="{StaticResource LibraryPrimaryBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderBrush" Value="{StaticResource LibraryPrimaryBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#D9E4F4"/>
+                    <Setter Property="Foreground" Value="#7F8DA5"/>
+                    <Setter Property="BorderBrush" Value="#D0D9E6"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="LibraryComboBoxStyle" TargetType="ComboBox">
