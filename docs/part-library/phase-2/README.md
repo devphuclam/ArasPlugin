@@ -188,12 +188,13 @@ Phase 2 moved to `PLANNED` on 2026-07-06 after:
 
 ## Sprint 2.1 Completion Evidence
 
-Baseline on `db8f2c167dd6336c4a522a0d0ec29d16a402a57b`:
+Baseline on `bd2826c3051b644d367b224cc348c8dd1acd1efe`:
 
-- Debug solution build: 0 warnings, 0 errors
-- Full test project: **163/163** passed (134 Phase 1 + 29 new Stage 2 tests)
-- All IPartLibraryClient interface methods implemented and tested
+- Debug solution build: 0 warnings, 0 errors; Release build: 0 warnings, 0 errors
+- Full test project: **182/182** passed (134 Phase 1 + 48 Stage 2 tests)
+- All IPartLibraryClient interface methods implemented and tested (including `AddPartAsync`)
 - PreviewPartLibraryClient and UnavailablePartLibraryClient stubs updated
+- Closeout patch (F1–F10) addresses: duplicate name check in CreateLibrary/UpdateLibrary, AML `<OR>` keyword search, server-side `pagesize`/`page` paging, D-02 identity (`libraryId + part_config_id` only), D-03 Archived Library rejection, pre-resolution ordering, catch filter propagation for auth/perm/server errors
 
 ## Rollback Considerations
 
@@ -203,6 +204,6 @@ Baseline on `db8f2c167dd6336c4a522a0d0ec29d16a402a57b`:
 
 ## Next Sprint
 
-`Sprint 2.2 core: Move Entry (WS3) and Revision Browser (WS4)`
+`Sprint 2.1 UI: Library Management UI + Aras Part Picker UI`
 
-See [Status](../STATUS.md) and [Phase Governance Rules](../../PHASE-GOVERNANCE.md).
+See [Phase Governance Rules](../../PHASE-GOVERNANCE.md).

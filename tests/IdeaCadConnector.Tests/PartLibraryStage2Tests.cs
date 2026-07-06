@@ -21,6 +21,8 @@ namespace IdeaCadConnector.Tests
         {
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
+            // FindLibraryByNameAsync returns no duplicate
+            fake.ApplyAmlResults.Enqueue(Items());
             fake.ApplyAmlResults.Enqueue(new JObject { ["id"] = "lib-1" });
 
             var client = CreateClient(fake);
@@ -60,10 +62,30 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task CreateLibraryAsync_DuplicateName_ReturnsError()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // FindLibraryByNameAsync returns a matching library
+            fake.ApplyAmlResults.Enqueue(Items(Library("lib-exists", "Existing")));
+
+            var client = CreateClient(fake);
+
+            var result = await client.CreateLibraryAsync(
+                new CreatePartLibraryRequest { Name = "Existing" },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("already exists", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task CreateLibraryAsync_ArasError_Forwards()
         {
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
+            // FindLibraryByNameAsync returns no duplicate
+            fake.ApplyAmlResults.Enqueue(Items());
             fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
                 string.Equals(itemType, PartLibrarySchemaNames.LibraryItemType, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(action, "add", StringComparison.OrdinalIgnoreCase)
@@ -80,6 +102,26 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
         }
 
+        [Fact]
+        public async Task CreateLibraryAsync_ArasError_PropagatesAuth()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.LibraryItemType, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(action, "add", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.AuthInvalid, "Not authenticated")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.CreateLibraryAsync(
+                    new CreatePartLibraryRequest { Name = "Test" },
+                    CancellationToken.None));
+        }
+
         // ── UpdateLibraryAsync ───────────────────────────────────────────
 
         [Fact]
@@ -87,6 +129,8 @@ namespace IdeaCadConnector.Tests
         {
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
+            // FindLibraryByNameAsync returns no duplicate (excludes self)
+            fake.ApplyAmlResults.Enqueue(Items());
             fake.ApplyAmlResults.Enqueue(new JObject());
 
             var client = CreateClient(fake);
@@ -124,14 +168,33 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task UpdateLibraryAsync_DuplicateName_ReturnsError()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // FindLibraryByNameAsync returns a different library with same name
+            fake.ApplyAmlResults.Enqueue(Items(Library("lib-other", "Taken Name")));
+
+            var client = CreateClient(fake);
+
+            var result = await client.UpdateLibraryAsync(
+                new UpdatePartLibraryRequest { LibraryId = "lib-1", Name = "Taken Name" },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("already exists", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task UpdateLibraryAsync_ArasError_Forwards()
         {
             var fake = new FakeArasAmlClient();
             EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items());
             fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
                 string.Equals(itemType, PartLibrarySchemaNames.LibraryItemType, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(action, "edit", StringComparison.OrdinalIgnoreCase)
-                    ? new ArasOperationException(ArasErrorCode.PermissionDenied, "Not authorized")
+                    ? new ArasOperationException(ArasErrorCode.ValidationFailed, "Name too long")
                     : null;
 
             var client = CreateClient(fake);
@@ -141,7 +204,27 @@ namespace IdeaCadConnector.Tests
                 CancellationToken.None);
 
             Assert.False(result.Success);
-            Assert.Equal(ArasErrorCode.PermissionDenied, result.ErrorCode);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
+        }
+
+        [Fact]
+        public async Task UpdateLibraryAsync_ArasError_PropagatesAuth()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.LibraryItemType, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(action, "edit", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.AuthInvalid, "Not authenticated")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.UpdateLibraryAsync(
+                    new UpdatePartLibraryRequest { LibraryId = "lib-1", Name = "Nope" },
+                    CancellationToken.None));
         }
 
         // ── ArchiveLibraryAsync ──────────────────────────────────────────
@@ -192,6 +275,23 @@ namespace IdeaCadConnector.Tests
 
             Assert.False(result.Success);
             Assert.Equal(ArasErrorCode.PartNotFound, result.ErrorCode);
+        }
+
+        [Fact]
+        public async Task ArchiveLibraryAsync_ServerUnavailable_Propagates()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
+                string.Equals(itemType, PartLibrarySchemaNames.LibraryItemType, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(action, "edit", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ServerUnavailable, "Server down")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.ArchiveLibraryAsync("lib-1", CancellationToken.None));
         }
 
         // ── SearchPartsAsync ─────────────────────────────────────────────
@@ -270,12 +370,15 @@ namespace IdeaCadConnector.Tests
         public async Task SearchPartsAsync_PagingWorks()
         {
             var fake = new FakeArasAmlClient();
-            var allParts = Enumerable.Range(1, 50)
+            // Server-side paging: send only 10 items per page
+            var page1Parts = Enumerable.Range(1, 10)
                 .Select(i => Part("part-" + i, "cfg-" + i, "NUM-" + i.ToString("D3"), "A", "Released", "1"))
                 .ToArray();
-            // Enqueue twice since we call SearchPartsAsync twice
-            fake.ApplyAmlResults.Enqueue(Items(allParts));
-            fake.ApplyAmlResults.Enqueue(Items(allParts));
+            var page3Parts = Enumerable.Range(21, 10)
+                .Select(i => Part("part-" + i, "cfg-" + i, "NUM-" + i.ToString("D3"), "A", "Released", "1"))
+                .ToArray();
+            fake.ApplyAmlResults.Enqueue(Items(page1Parts));
+            fake.ApplyAmlResults.Enqueue(Items(page3Parts));
 
             var client = CreateClient(fake);
 
@@ -283,14 +386,14 @@ namespace IdeaCadConnector.Tests
                 new PartPickerSearchRequest { PageSize = 10, PageNumber = 1 },
                 CancellationToken.None);
 
-            Assert.Equal(50, page1.TotalCount);
+            Assert.Equal(10, page1.TotalCount);
             Assert.Equal(10, page1.Items.Count);
 
             var page3 = await client.SearchPartsAsync(
                 new PartPickerSearchRequest { PageSize = 10, PageNumber = 3 },
                 CancellationToken.None);
 
-            Assert.Equal(50, page3.TotalCount);
+            Assert.Equal(10, page3.TotalCount);
             Assert.Equal(10, page3.Items.Count);
         }
 
@@ -300,6 +403,58 @@ namespace IdeaCadConnector.Tests
             var client = CreateClient(new FakeArasAmlClient());
             await Assert.ThrowsAsync<ArgumentNullException>(() =>
                 client.SearchPartsAsync(null, CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task SearchPartsAsync_Keyword_UsesOr()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyAmlResults.Enqueue(Items(Part("p1", "c1", "A", "A", "Released")));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchPartsAsync(
+                new PartPickerSearchRequest { Keyword = "ABC" },
+                CancellationToken.None);
+
+            var amlBody = fake.Calls.First(c => c.MethodKind == "ApplyAml").AmlBody;
+            Assert.Contains("<OR>", amlBody, StringComparison.Ordinal);
+            Assert.Contains("item_number condition=\"like\"", amlBody, StringComparison.Ordinal);
+            Assert.Contains("name condition=\"like\"", amlBody, StringComparison.Ordinal);
+            Assert.Contains("ABC%", amlBody, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SearchPartsAsync_SendsServerSidePaging()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyAmlResults.Enqueue(Items(Part("p1", "c1", "A", "A", "Released")));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchPartsAsync(
+                new PartPickerSearchRequest { PageSize = 50, PageNumber = 2 },
+                CancellationToken.None);
+
+            var amlBody = fake.Calls.First(c => c.MethodKind == "ApplyAml").AmlBody;
+            Assert.Contains("pagesize=\"50\"", amlBody, StringComparison.Ordinal);
+            Assert.Contains("page=\"2\"", amlBody, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task SearchPartsAsync_CapsPageSize()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyAmlResults.Enqueue(Items(Part("p1", "c1", "A", "A", "Released")));
+
+            var client = CreateClient(fake);
+
+            var result = await client.SearchPartsAsync(
+                new PartPickerSearchRequest { PageSize = 500 },
+                CancellationToken.None);
+
+            var amlBody = fake.Calls.First(c => c.MethodKind == "ApplyAml").AmlBody;
+            Assert.Contains("pagesize=\"100\"", amlBody, StringComparison.Ordinal);
         }
 
         // ── GetPartPreviewAsync ──────────────────────────────────────────
@@ -514,7 +669,311 @@ namespace IdeaCadConnector.Tests
             Assert.DoesNotContain("<status>", libraryAml.AmlBody, StringComparison.Ordinal);
         }
 
-        // ── Helpers ────────────────────────────────────────────────────
+        // ── AddPartAsync ─────────────────────────────────────────────────
+
+        [Fact]
+        public async Task AddPartAsync_NullRequest_Throws()
+        {
+            var client = CreateClient(new FakeArasAmlClient());
+            await Assert.ThrowsAsync<ArgumentNullException>(() =>
+                client.AddPartAsync(null, CancellationToken.None));
+        }
+
+        [Fact]
+        public async Task AddPartAsync_EmptyLibraryId_Throws()
+        {
+            var client = CreateClient(new FakeArasAmlClient());
+            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.AddPartAsync(
+                    new AddPartToLibraryRequest { LibraryId = string.Empty, PartId = "part-1" },
+                    CancellationToken.None));
+            Assert.Equal(ArasErrorCode.ValidationFailed, ex.ErrorCode);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_EmptyPartId_Throws()
+        {
+            var client = CreateClient(new FakeArasAmlClient());
+            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.AddPartAsync(
+                    new AddPartToLibraryRequest { LibraryId = "lib-1", PartId = string.Empty },
+                    CancellationToken.None));
+            Assert.Equal(ArasErrorCode.ValidationFailed, ex.ErrorCode);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_ArchivedLibrary_Rejects()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // GetLibraryAsync (ApplyItem) returns archived library
+            fake.ApplyItemResults.Enqueue(new JObject
+            {
+                ["id"] = "lib-arc",
+                ["name"] = "Archived",
+                ["status"] = "Archived"
+            });
+
+            var client = CreateClient(fake);
+
+            var result = await client.AddPartAsync(
+                new AddPartToLibraryRequest { LibraryId = "lib-arc", PartId = "part-1" },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("archived", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_PartWithoutConfigId_Rejects()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // GetLibraryAsync returns active library
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Active"));
+            // GetPartAsync returns part without config_id
+            fake.ApplyItemResults.Enqueue(new JObject
+            {
+                ["id"] = "part-1",
+                ["item_number"] = "ABC-001"
+                // no config_id
+            });
+
+            var client = CreateClient(fake);
+
+            var result = await client.AddPartAsync(
+                new AddPartToLibraryRequest { LibraryId = "lib-1", PartId = "part-1" },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Contains("config_id", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_AddsWithLatestCurrent()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            // GetLibraryAsync → active library
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Active"));
+            // GetPartAsync → part with config_id, major_rev
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            // ResolveCurrentPartStrictAsync → ApplyAml
+            fake.ApplyAmlResults.Enqueue(Items(
+                Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            // FindDuplicateEntryIdD02Async:
+            //   LoadEntrySummariesAsync → entries AML result (empty)
+            fake.ApplyAmlResults.Enqueue(Items());
+            //   LoadUsageCountsAsync → usage AML result (empty)
+            fake.ApplyAmlResults.Enqueue(Items());
+            // TryAddPartViaServerMethodAsync → ApplyMethod (returns empty JObject → no method)
+            fake.ApplyMethodResults.Enqueue(new JObject());
+            // Direct AML add → returns entry id
+            fake.ApplyAmlResults.Enqueue(new JObject { ["id"] = "entry-1" });
+
+            var client = CreateClient(fake);
+
+            var result = await client.AddPartAsync(
+                new AddPartToLibraryRequest
+                {
+                    LibraryId = "lib-1",
+                    PartId = "part-1",
+                    RevisionPolicy = LibraryRevisionPolicy.LatestCurrent,
+                    Note = "Test"
+                },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal("entry-1", result.EntryId);
+            Assert.False(result.AlreadyExists);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_AddsWithLatestReleased()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Active"));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            // ResolveLatestReleasedPartStrictAsync
+            fake.ApplyAmlResults.Enqueue(Items(
+                Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            // Duplicate check: empty entries + usage
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlResults.Enqueue(Items());
+            // Server method → none
+            fake.ApplyMethodResults.Enqueue(new JObject());
+            // Direct AML add
+            fake.ApplyAmlResults.Enqueue(new JObject { ["id"] = "entry-1" });
+
+            var client = CreateClient(fake);
+
+            var result = await client.AddPartAsync(
+                new AddPartToLibraryRequest
+                {
+                    LibraryId = "lib-1",
+                    PartId = "part-1",
+                    RevisionPolicy = LibraryRevisionPolicy.LatestReleased
+                },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_DuplicateEntry_ReturnsAlreadyExists()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Active"));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            // LatestCurrent pre-resolve
+            fake.ApplyAmlResults.Enqueue(Items(
+                Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            // FindDuplicateEntryIdD02Async → LoadEntrySummariesAsync:
+            //   Entries AML returns entry with matching config_id
+            fake.ApplyAmlResults.Enqueue(Items(
+                Entry("entry-existing", "LatestCurrent", "cfg-1", "part-existing")));
+            //   Usage counts
+            fake.ApplyAmlResults.Enqueue(Items());
+            //   MapEntrySummaryAsync for the entry:
+            //     TryGetLibraryForEntryAsync → GetLibraryAsync → ApplyItem
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Test Lib"));
+            //     ResolveCurrentPartStrictAsync → ApplyAml
+            fake.ApplyAmlResults.Enqueue(Items(
+                Part("part-existing", "cfg-1", "ABC-001", "A", "Released")));
+            //     GetPrimaryCadInfoAsync → ApplyAml (empty Part CAD)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            //     GetLatestReleasedPartAsync → ApplyAml (empty)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+
+            var client = CreateClient(fake);
+
+            var result = await client.AddPartAsync(
+                new AddPartToLibraryRequest
+                {
+                    LibraryId = "lib-1",
+                    PartId = "part-1",
+                    RevisionPolicy = LibraryRevisionPolicy.LatestCurrent
+                },
+                CancellationToken.None);
+
+            // Should return AlreadyExists without making AML add call
+            Assert.True(result.Success);
+            Assert.True(result.AlreadyExists);
+            Assert.Equal("entry-existing", result.EntryId);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_DeprecatedEntry_NotDuplicate()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Active"));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            // LatestCurrent pre-resolve
+            fake.ApplyAmlResults.Enqueue(Items(
+                Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            // Entries have a deprecated entry with matching config_id
+            fake.ApplyAmlResults.Enqueue(Items(
+                Entry("entry-dep", "LatestCurrent", "cfg-1", "part-dep", null, "Deprecated", "Deprecated")));
+            // Usage counts
+            fake.ApplyAmlResults.Enqueue(Items());
+            // MapEntrySummaryAsync for the deprecated entry:
+            //   TryGetLibraryForEntryAsync → GetLibraryAsync → ApplyItem
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Test Lib"));
+            //   ResolveCurrentPartStrictAsync → ApplyAml
+            fake.ApplyAmlResults.Enqueue(Items(
+                Part("part-dep", "cfg-1", "DEP-001", "A", "Released")));
+            //   GetPrimaryCadInfoAsync → ApplyAml (Part CAD, empty)
+            fake.ApplyAmlResults.Enqueue(new JObject());
+            //   GetLatestReleasedPartAsync → ApplyAml (empty released, fallback)
+            fake.ApplyAmlResults.Enqueue(Items());
+            //   Fallback GetPartAsync → ApplyItem
+            fake.ApplyItemResults.Enqueue(Part("part-dep", "cfg-1", "DEP-001", "A", "Released"));
+
+            // No active duplicate found; proceed to add
+            fake.ApplyMethodResults.Enqueue(new JObject());
+            fake.ApplyAmlResults.Enqueue(new JObject { ["id"] = "entry-new" });
+
+            var client = CreateClient(fake);
+
+            var result = await client.AddPartAsync(
+                new AddPartToLibraryRequest
+                {
+                    LibraryId = "lib-1",
+                    PartId = "part-1",
+                    RevisionPolicy = LibraryRevisionPolicy.LatestCurrent
+                },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal("entry-new", result.EntryId);
+            Assert.False(result.AlreadyExists);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_AddsWithPinnedPart()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Active"));
+            // GetPartAsync for request.PartId (Pinned policy fetches it again)
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            // Request.RevisionPolicy = Pinned, so needs another GetPartAsync (line 251)
+            // Actually the Pinned pre-resolve calls GetPartAsync again
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            // Duplicate check: empty entries + usage
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlResults.Enqueue(Items());
+            // Server method → none
+            fake.ApplyMethodResults.Enqueue(new JObject());
+            // Direct AML add → should include pinned_part_id and pinned_revision
+            fake.ApplyAmlResults.Enqueue(new JObject { ["id"] = "entry-pinned" });
+
+            var client = CreateClient(fake);
+
+            var result = await client.AddPartAsync(
+                new AddPartToLibraryRequest
+                {
+                    LibraryId = "lib-1",
+                    PartId = "part-1",
+                    RevisionPolicy = LibraryRevisionPolicy.Pinned,
+                    Note = "Pinned entry"
+                },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Equal("entry-pinned", result.EntryId);
+
+            var addAml = fake.Calls
+                .Where(c => c.MethodKind == "ApplyAml")
+                .LastOrDefault();
+            Assert.NotNull(addAml);
+            Assert.Contains("pinned_part_id", addAml.AmlBody, StringComparison.Ordinal);
+            Assert.Contains("pinned_revision", addAml.AmlBody, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public async Task AddPartAsync_AuthError_Propagates()
+        {
+            var fake = new FakeArasAmlClient();
+            EnqueueSchema(fake);
+            fake.ApplyItemResults.Enqueue(Library("lib-1", "Active"));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, select) =>
+                string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.AuthInvalid, "Not authenticated")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.AddPartAsync(
+                    new AddPartToLibraryRequest { LibraryId = "lib-1", PartId = "part-1" },
+                    CancellationToken.None));
+        }
+
+        // ── Helpers ──────────────────────────────────────────────────────
 
         private static HttpPartLibraryClient CreateClient(FakeArasAmlClient fake)
         {
