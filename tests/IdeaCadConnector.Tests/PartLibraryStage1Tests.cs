@@ -1470,5 +1470,92 @@ namespace IdeaCadConnector.Tests
                 ["Items"] = new JArray(items ?? Array.Empty<JObject>())
             };
         }
+
+        // ── WPF Configuration Regression Tests ──────────────────────────
+
+        [Fact]
+        public void AppXaml_HasApplicationRootElement()
+        {
+            var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", "App.xaml"));
+            Assert.Contains("<Application", source, StringComparison.Ordinal);
+            Assert.Contains("x:Class=\"IdeaCadConnector.Desktop.App\"", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void AppXaml_ClassMatchesCodeBehind()
+        {
+            var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", "App.xaml.cs"));
+            Assert.Contains("namespace IdeaCadConnector.Desktop", source, StringComparison.Ordinal);
+            Assert.Contains("public partial class App : Application", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DesktopProject_OutputTypeIsWinExe()
+        {
+            var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", "IdeaCadConnector.Desktop.csproj"));
+            Assert.Contains("<OutputType>WinExe</OutputType>", source, StringComparison.Ordinal);
+            Assert.Contains("<UseWPF>true</UseWPF>", source, StringComparison.Ordinal);
+        }
+
+        [Theory]
+        [InlineData("Dialogs", "AddLibraryPartToProjectDialog")]
+        [InlineData("Dialogs", "PublishLibraryEntryDialog")]
+        [InlineData("Dialogs", "SaveToLibraryDialog")]
+        public void DialogXaml_HasWindowRootElement(string subDir, string className)
+        {
+            var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", subDir, className + ".xaml"));
+            Assert.Contains("<Window", source, StringComparison.Ordinal);
+            Assert.Contains($"x:Class=\"IdeaCadConnector.Desktop.{className}\"", source, StringComparison.Ordinal);
+        }
+
+        [Theory]
+        [InlineData("Dialogs", "AddLibraryPartToProjectDialog")]
+        [InlineData("Dialogs", "PublishLibraryEntryDialog")]
+        [InlineData("Dialogs", "SaveToLibraryDialog")]
+        public void DialogCodeBehind_IsPartialClass(string subDir, string className)
+        {
+            var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", subDir, className + ".xaml.cs"));
+            Assert.Contains("namespace IdeaCadConnector.Desktop", source, StringComparison.Ordinal);
+            Assert.Contains($"public partial class {className} : Window", source, StringComparison.Ordinal);
+        }
+
+        [Theory]
+        [InlineData("Dialogs", "AddLibraryPartToProjectDialog")]
+        [InlineData("Dialogs", "PublishLibraryEntryDialog")]
+        [InlineData("Dialogs", "SaveToLibraryDialog")]
+        public void DialogCodeBehind_DoesNotImplementInitializeComponent(string subDir, string className)
+        {
+            var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", subDir, className + ".xaml.cs"));
+            var constructorPattern = $"void InitializeComponent()";
+            Assert.DoesNotContain(constructorPattern, source);
+            Assert.Contains("InitializeComponent();", source, StringComparison.Ordinal);
+        }
+
+        [Theory]
+        [InlineData("MainWindow")]
+        [InlineData("LibraryView")]
+        [InlineData("PdmProjectsView")]
+        public void ExistingXaml_RootElementMatchesConvention(string className)
+        {
+            var source = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", className + ".xaml"));
+            Assert.Contains($"x:Class=\"IdeaCadConnector.Desktop.{className}\"", source, StringComparison.Ordinal);
+        }
+
+        [Fact]
+        public void DesktopProject_HasNoDuplicateAppDefinition()
+        {
+            var csproj = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", "IdeaCadConnector.Desktop.csproj"));
+            // No explicit ApplicationDefinition override should exist; SDK automatics handle it.
+            Assert.DoesNotContain("<ApplicationDefinition", csproj);
+            Assert.DoesNotContain("<Page Remove", csproj);
+        }
+
+        [Fact]
+        public void DesktopProject_DoesNotSuppressDefaultApplicationDefinition()
+        {
+            var csproj = File.ReadAllText(Path.Combine(FindRepoRoot(), "src", "IdeaCadConnector.Desktop", "IdeaCadConnector.Desktop.csproj"));
+            Assert.DoesNotContain("EnableDefaultApplicationDefinition", csproj);
+            Assert.DoesNotContain("EnableDefaultPageItems", csproj);
+        }
     }
 }

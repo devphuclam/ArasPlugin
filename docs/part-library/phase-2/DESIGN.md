@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `INTAKE`
+**State:** `PLANNED`
 
 ## Objective
 
@@ -62,14 +62,14 @@ The current repository does **not** yet expose:
 
 ## Decision Status
 
-| ID | Decision | Package default | Current status |
-|---|---|---|---|
-| `D-01` | who may create Libraries | Library Manager only (Trưởng phòng thiết kế cơ) | `APPROVED` |
-| `D-02` | duplicate active Entry rule | `Library + part_config_id` unique | `UNRESOLVED` |
-| `D-03` | archived Library visibility | hidden by default, filterable | `UNRESOLVED` |
-| `D-04` | move preserves metadata and lifecycle | preserve both | `UNRESOLVED` |
-| `D-05` | Vault cache location/key model | per-user safe cache | `UNRESOLVED` |
-| `D-06` | IronCAD open mechanism | existing bridge first, process fallback | `UNRESOLVED` |
+| ID | Decision | Approved Rule |
+|---|---|---|
+| `D-01` | who may create Libraries | Only Trưởng phòng thiết kế cơ (Library Manager) |
+| `D-02` | duplicate active Entry rule | Unique on `Library ID + part_config_id`, case-insensitive. Active: Draft, PendingReview, Published. |
+| `D-03` | archived Library visibility | Hidden by default; explicit Archived/All filter; read-only; no new Entries; not a Move or Part Picker target. |
+| `D-04` | move preserves metadata and lifecycle | Preserve identity, config_id, policy, pinned info, lifecycle, status, metadata. Block if lifecycle cannot be preserved safely. |
+| `D-05` | Vault cache model | Per-Windows-user cache keyed by server/db/File ID/revision. Temp-first download; reject zero-byte; validate extension; atomic move; clean on failure. |
+| `D-06` | IronCAD open mechanism | Preferred: existing bridge/connector. Process launch fallback only with verified local file. |
 
 ## Workstreams
 
@@ -88,10 +88,12 @@ The current repository does **not** yet expose:
 
 | Sprint | Scope | Planned output | Dependency gate |
 |---|---|---|---|---|
-| `2.1` | `WS1`, `WS2` | Library CRUD planning, Aras Part picker contracts/UI | approve `D-02`, `D-03` (D-01 approved) |
-| `2.2` | `WS3`, `WS4` | move safety and revision browser | approve `D-04` |
-| `2.3` | `WS5`, `WS6`, `WS7` | Vault/CAD services, Aras links, populated detail tabs | approve `D-05`, `D-06` |
+| `2.1` | `WS1`, `WS2` | Library CRUD planning, Aras Part picker contracts/UI | D-01, D-02, D-03 APPROVED |
+| `2.2` | `WS3`, `WS4` | move safety and revision browser | D-04 APPROVED |
+| `2.3` | `WS5`, `WS6`, `WS7` | Vault/CAD services, Aras links, populated detail tabs | D-05, D-06 APPROVED |
 | `2.4` | `WS8` + hardening | advanced filters, regression closure, UAT prep | previous sprints verified |
+
+All decisions D-01 through D-06 are APPROVED as of 2026-07-06.
 
 ## Requirement Mapping
 
@@ -118,10 +120,8 @@ The current repository does **not** yet expose:
 
 ## Recommended First Implementation Packet
 
-No production implementation packet is approved yet.
+All decisions D-01 through D-06 are APPROVED and Phase 2 is moved to `PLANNED`.
 
-The first recommended packet after decision approval is:
+The first recommended packet is:
 
 `Sprint 2.1 core planning check -> Library CRUD contracts + paged Aras Part search`
-
-That packet should start only after `D-02` and `D-03` are approved (D-01 is already approved) and Phase 2 is moved to `PLANNED`.

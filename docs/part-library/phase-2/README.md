@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `INTAKE`
+**State:** `PLANNED`
 
 ## Objective
 
@@ -24,16 +24,92 @@ Plan the complete Part Library user experience that Phase 1 intentionally deferr
 - current phase owner: Codex intake and planning
 - implementation owner: not assigned in canonical docs until scope is approved
 
-## Approved Role Model (D-01)
+## Business Roles
 
-| Role | Persona | Permission |
+| ID | Persona | Role |
 |---|---|---|
-| Library Manager | Trưởng phòng thiết kế cơ | Create/Edit/Archive/Restore Library, full Management |
-| Library Reviewer | TNTKC — Mechanical Team Leader | Review, Publish, Request Rework, manage Entries within team scope |
-| Library Contributor | NVTKC — Mechanical Designer | Search Parts, add Draft Entries, edit Draft metadata, submit for review, reuse approved Library Parts |
-| Project Viewer | Quản lý dự án | Read-only Library, BOM, Usage, Where Used, project impact |
-| Manufacturing Viewer | Nhân viên lắp ráp cơ | View only Published production-relevant Parts, BOMs, approved files |
-| External Viewer | Khách hàng | View only explicitly shared Published data. No access to Draft, Usage, notes, commits, or unrestricted native CAD |
+| NVTKC | Mechanical Designer | Library Contributor |
+| TNTKC | Mechanical Team Leader | Library Reviewer |
+| Trưởng phòng thiết kế cơ | Mechanical Design Department Manager | Library Manager |
+| Quản lý dự án | Project Manager | Project and Usage Viewer |
+| Nhân viên lắp ráp cơ | Mechanical Assembly User | Manufacturing Viewer |
+| Khách hàng | Customer | External Viewer |
+
+## Approved Permissions
+
+### NVTKC (Library Contributor)
+
+May:
+- view permitted Active Libraries
+- search Parts
+- add Draft Entries
+- edit permitted Draft Entry metadata
+- submit Entries for review
+- reuse valid approved Library Parts in PDM Projects
+- view permitted CAD, BOM, revisions, and Where Used
+
+May not:
+- create, edit, archive, or restore a Library
+- publish or deprecate an Entry unless separately assigned
+- manage permissions
+
+### TNTKC (Library Reviewer)
+
+May:
+- perform all NVTKC actions
+- review Entries
+- publish Entries
+- request rework
+- manage Entries in the assigned team scope
+- move Entries when permitted
+
+May not:
+- archive or restore a Library
+- modify global Library permissions
+
+### Trưởng phòng thiết kế cơ (Library Manager)
+
+May:
+- create, edit, archive, and restore Libraries
+- move and remove Entries
+- publish and deprecate Entries
+- manage Library content and business exceptions
+
+Only Trưởng phòng thiết kế cơ may create, edit, archive, or restore a Library.
+
+### Quản lý dự án (Project and Usage Viewer)
+
+Read-only for:
+- permitted Libraries
+- Published Entries
+- BOM
+- Usage
+- Where Used
+- revision and project-impact information
+
+### Nhân viên lắp ráp cơ (Manufacturing Viewer)
+
+May view only:
+- Published production-relevant Parts
+- released BOM
+- approved drawings and assembly documents
+- approved CAD or neutral files where permission allows
+
+### Khách hàng (External Viewer)
+
+May view only:
+- explicitly shared Published data
+- approved revisions
+- approved drawings and delivery documents
+
+Must not see:
+- Draft or PendingReview data
+- internal Usage
+- internal notes
+- source_project
+- source_commit
+- unrestricted native CAD
+- other projects' or customers' data
 
 ### Admin Account
 
@@ -43,18 +119,16 @@ Plan the complete Part Library user experience that Phase 1 intentionally deferr
 | Password | `innovator` |
 | Permission | Full — bypasses all role-based restrictions |
 
-## Approved and Unresolved Decisions
+## Approved Decisions
 
-| ID | Decision | Status | Note |
+| ID | Decision | Status | Approved Rule |
 |---|---|---|---|
-| `D-01` | who may create Libraries | `APPROVED` | Only Trưởng phòng thiết kế cơ (Library Manager); see role model below |
-| `D-02` | duplicate active Entry rule | `UNRESOLVED` | package recommends `Library + part_config_id` |
-| `D-03` | archived Library visibility | `UNRESOLVED` | package recommends hidden by default with opt-in view |
-| `D-04` | move preserves metadata and lifecycle | `UNRESOLVED` | package recommends preserving both |
-| `D-05` | Vault cache model | `UNRESOLVED` | package recommends per-user collision-safe cache |
-| `D-06` | IronCAD open mechanism | `UNRESOLVED` | package recommends existing bridge before process launch |
-
-Because these decisions remain unresolved, Phase 2 stays in `INTAKE`.
+| `D-01` | who may create Libraries | `APPROVED` | Only Trưởng phòng thiết kế cơ (Library Manager) |
+| `D-02` | duplicate active Entry rule | `APPROVED` | Unique on `Library ID + part_config_id`, case-insensitive. Active statuses: Draft, PendingReview, Published. Deprecated is not active. |
+| `D-03` | archived Library visibility | `APPROVED` | Hidden by default; explicit Archived or All filter to display. Read-only, no new Entries, not selectable as Move or Part Picker target. |
+| `D-04` | move preserves metadata and lifecycle | `APPROVED` | Preserve related Part identity, part_config_id, revision_policy, pinned_part_id, pinned_revision, lifecycle state, entry_status, category, tags, note, source_project, source_commit. Block with clear error if lifecycle cannot be preserved safely. |
+| `D-05` | Vault cache model | `APPROVED` | Per-Windows-user cache keyed by Aras server, database, File ID, and revision/generation. Download to temp first; reject zero-byte; validate extension; move atomically; clean temp on failure. |
+| `D-06` | IronCAD open mechanism | `APPROVED` | Preferred: existing bridge/connector. Fallback: process launch only when local file exists, readable, >0 bytes, approved extension, from verified Vault download or trusted workspace. |
 
 ## Workstreams
 
@@ -73,10 +147,12 @@ Because these decisions remain unresolved, Phase 2 stays in `INTAKE`.
 
 | Sprint | Scope | Exit dependency |
 |---|---|---|
-| `2.1` | `WS1` + `WS2` | approve `D-01`, `D-02`, `D-03` |
-| `2.2` | `WS3` + `WS4` | approve `D-04` |
-| `2.3` | `WS5` + `WS6` + `WS7` | approve `D-05`, `D-06` |
+| `2.1` | `WS1` + `WS2` | D-01, D-02, D-03 APPROVED |
+| `2.2` | `WS3` + `WS4` | D-04 APPROVED |
+| `2.3` | `WS5` + `WS6` + `WS7` | D-05, D-06 APPROVED |
 | `2.4` | `WS8` + hardening/UAT prep | earlier sprints verified |
+
+All decisions D-01 through D-06 are APPROVED as of 2026-07-06. Each sprint may begin as soon as its predecessor is complete.
 
 ## Canonical Phase Documents
 
@@ -103,18 +179,19 @@ Rejected as durable repository truth:
 
 ## Acceptance Gates
 
-Phase 2 may move to `PLANNED` only after:
+Phase 2 moved to `PLANNED` on 2026-07-06 after:
 
-- baseline build/test evidence is recorded;
-- unresolved decisions that affect the first sprint are approved;
+- baseline build/test evidence recorded and verified;
+- all decisions D-01 through D-06 are APPROVED;
 - scope, non-goals, rollback, and live dependencies are explicit;
 - no contradictory package content remains outside `incoming/`.
 
 Current baseline evidence on `956af6841392b609d9c06df60d484fe5244500c1`:
 
+- Debug solution build: 0 warnings, 0 errors
 - full test project: `117/117` passed;
-- solution build: failed in the existing WPF temporary assembly path for `IdeaCadConnector.Desktop`;
-- therefore Phase 2 planning may proceed, but implementation should not claim a clean baseline build until that blocker is resolved or explicitly accepted.
+- WPF temporary assembly build blocker diagnosed and fixed (stale `.g.i.cs` cache — see TASK 2 in implementation logs);
+- regression protection added for WPF build configuration.
 
 ## Rollback Considerations
 
@@ -124,7 +201,7 @@ Current baseline evidence on `956af6841392b609d9c06df60d484fe5244500c1`:
 
 ## Recommended Next Packet
 
-After baseline verification and approval of `D-01`, `D-02`, and `D-03`, the first implementation packet should be:
+All decisions D-01 through D-06 are APPROVED. The first implementation packet is:
 
 `Sprint 2.1 core: Library CRUD contracts and paged Aras Part search`
 

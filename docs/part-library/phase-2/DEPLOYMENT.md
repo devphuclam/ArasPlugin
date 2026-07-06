@@ -1,6 +1,6 @@
 # Part Library Phase 2 Deployment
 
-**State:** `INTAKE`
+**State:** `PLANNED`
 
 This document records deployment assumptions and live-system dependencies for Phase 2 planning. It is not a claim that any Phase 2 change has been deployed.
 
@@ -57,16 +57,18 @@ No new server Method is approved yet.
 | `TAB` | readable BOM, CAD, revision, and where-used relationships |
 | `FLT` | no additional schema required if based on resolved query data |
 
-## Unresolved Live Dependencies
+## Decisions
 
-| ID | Dependency | Why it blocks planning completion |
-|---|---|---|
-| `D-01` | Library creator identity | `APPROVED` |
-| `D-02` | duplicate Entry rule | affects add/move validation and potential server-side enforcement |
-| `D-03` | archived visibility policy | affects search/list queries and archive UX |
-| `D-04` | move lifecycle preservation rule | determines whether a server Method is required |
-| `D-05` | cache location and retention | affects filesystem behavior, cleanup, and UAT |
-| `D-06` | IronCAD launch contract | affects desktop service boundary and testability |
+All decisions D-01 through D-06 are APPROVED as of 2026-07-06. No unresolved decisions block Sprint 2.1.
+
+| ID | Approved Rule |
+|---|---|
+| `D-01` | Only Trưởng phòng thiết kế cơ (Library Manager) may create Libraries |
+| `D-02` | Unique on `Library ID + part_config_id`, case-insensitive. Active: Draft, PendingReview, Published. |
+| `D-03` | Archived Libraries hidden by default; explicit filter to display; read-only; no new Entries; not selectable as Move or Part Picker target |
+| `D-04` | Move preserves identity, config_id, policy, pinned info, lifecycle, status, metadata. Block on unsafe lifecycle preservation |
+| `D-05` | Per-Windows-user Vault cache keyed by server/db/File ID/revision. Temp-first download; zero-byte reject; extension validate; atomic move; temp cleanup |
+| `D-06` | Preferred: existing bridge/connector. Process launch fallback only with verified local file |
 
 ## Known Identities
 
@@ -96,4 +98,4 @@ No new server Method is approved yet.
 
 ## Current Planning Outcome
 
-Phase 2 deployment remains a design-time topic. No additional Aras ItemType, Method, permission, lifecycle, or Vault configuration change is approved by this document.
+Phase 2 is `PLANNED`. Deployment remains a design-time topic. No additional Aras ItemType, Method, permission, lifecycle, or Vault configuration change is approved by this document.

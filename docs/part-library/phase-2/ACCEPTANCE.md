@@ -1,17 +1,19 @@
 # Part Library Phase 2 Acceptance
 
-**State:** `INTAKE`
+**State:** `PLANNED`
 
 This file records Phase 2 acceptance gates and the planning baseline evidence. It does not mark any Phase 2 implementation complete.
 
-## Required Phase Transition Gate
+## Phase Transition Gate
 
-Phase 2 may move from `INTAKE` to `PLANNED` only when:
+Phase 2 moved from `INTAKE` to `PLANNED` on 2026-07-06.
+
+All gate criteria satisfied:
 
 - the package has been inventoried and isolated under `incoming/`;
 - canonical `README`, `DESIGN`, `DEPLOYMENT`, and `ACCEPTANCE` files exist;
-- unresolved decisions `D-01` through `D-06` are either approved or explicitly deferred with no impact on the next sprint;
-- baseline build/test evidence is recorded;
+- decisions `D-01` through `D-06` are approved;
+- baseline build/test evidence recorded and verified;
 - scope, non-goals, dependencies, and rollback considerations are explicit.
 
 ## Baseline Verification Commands
@@ -47,7 +49,7 @@ b7f6cf67d0d191ddb71b3e3926064d928ded2c8c
 Current Phase 2 state:
 
 ```text
-INTAKE
+PLANNED
 ```
 
 Verification date:
@@ -59,17 +61,22 @@ Verification date:
 Build result:
 
 ```text
-FAILED
+Debug: 0 warnings, 0 errors
+Release: 0 warnings, 0 errors
 ```
 
-Observed build blocker:
+WPF build blocker root cause:
 
 ```text
-IdeaCadConnector.Desktop temporary WPF assembly build fails with:
-- CS5001: Program does not contain a static 'Main' method suitable for an entry point
-- CS0103: InitializeComponent does not exist in AddLibraryPartToProjectDialog.xaml.cs
-- CS0103: InitializeComponent does not exist in SaveToLibraryDialog.xaml.cs
-- CS0103: InitializeComponent does not exist in PublishLibraryEntryDialog.xaml.cs
+Stale .g.i.cs cache files from the WPF markup compilation pipeline.
+Microsoft.NET.Sdk.WindowsDesktop does not remove .g.i.cs files during
+incremental rebuild. When XAML files are added or modified, the cached
+.g.i.cs can become stale relative to code-behind, causing the temporary
+WPF assembly to fail with CS0103 (InitializeComponent not found in
+partial class) and CS5001 (no Main in temp assembly as cascading failure).
+
+Fix: dotnet clean removes the stale cache, allowing regeneration of
+matching .g.i.cs files on the next build.
 ```
 
 Full test result:
@@ -118,19 +125,27 @@ The following checks cannot be claimed from local automation alone:
 5. move/revision/CAD-detail behavior against real Aras data volume;
 6. no regression of Phase 1 live reuse and usage tracking.
 
-## Known Planning Blockers
+### Role-Based UAT Expectations
 
-- `D-01` is approved; `D-02` through `D-06` are unresolved;
-- no approved canonical owner acceptance yet for the Phase 2 scope;
-- the current baseline does not have a clean solution build because of the existing Desktop WPF temporary assembly failure.
+| Role | UAT Scope |
+|---|---|
+| NVTKC (Library Contributor) | Add Draft Entry, edit metadata, submit for review, reuse approved Part in PDM Project, view CAD/BOM/Where Used |
+| TNTKC (Library Reviewer) | Review Entry, publish, request rework, manage Entries in team scope, move Entry |
+| Trưởng phòng thiết kế cơ (Library Manager) | Create, edit, archive, restore Library; move/remove Entry; publish/deprecate; manage content exceptions |
+| Quản lý dự án (Project Viewer) | Read-only access to Libraries, Published Entries, BOM, Usage, Where Used, project impact |
+| Nhân viên lắp ráp cơ (Manufacturing Viewer) | View only Published production Parts, released BOM, approved drawings and CAD |
+| Khách hàng (External Viewer) | View only explicitly shared Published data, approved revisions/drawings. Must not see Draft, internal Usage, notes, source_project/commit, unrestricted CAD |
 
 ## Implementation Readiness Outcome
 
-Phase 2 is **not** ready to claim `IN PROGRESS`.
+Phase 2 is `PLANNED`.
 
-The earliest acceptable next step is:
+Readiness gate completed 2026-07-06:
 
-1. record baseline build/test evidence;
-2. approve `D-01`, `D-02`, and `D-03`;
-3. move the phase to `PLANNED`;
-4. start the first implementation packet for Sprint `2.1`.
+- all decisions D-01 through D-06 are APPROVED;
+- baseline build/test evidence recorded: Debug 0/0, Release 0/0, tests 117/117;
+- WPF build blocker diagnosed and verified fixed;
+- regression protection added for WPF configuration;
+- no Sprint 2.1 production code was implemented in this gate.
+
+Next step: begin Sprint 2.1 implementation (Library CRUD contracts and paged Aras Part search).
