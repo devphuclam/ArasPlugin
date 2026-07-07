@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 core backend implemented locally)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 core + UI implemented locally)
 
 ## Objective
 
@@ -65,7 +65,7 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 | Sprint | Scope | Status |
 |---|---|---|
 | `2.1` | `WS1` + `WS2` | implemented locally, awaiting manual UAT |
-| `2.2` | `WS3` + `WS4` | core backend support implemented locally; UI/live UAT pending |
+| `2.2` | `WS3` + `WS4` | implemented locally; manual/live UAT pending |
 | `2.3` | `WS5` + `WS6` + `WS7` | not started |
 | `2.4` | `WS8` + hardening/UAT prep | not started |
 
@@ -94,18 +94,21 @@ Verification on 2026-07-06:
 - focused tests: 81/81 passed
 - full tests: 214/214 passed
 
-## Sprint 2.2 Core Packet
+## Sprint 2.2 Complete Packet
 
-Local Sprint 2.2 core work is now in place for the next packet:
+Sprint 2.2 core backend + UI are now implemented:
 
 - `MoveLibraryEntryAsync` contract support added to `IPartLibraryClient`
 - backend move orchestration added in `HttpPartLibraryClient`
 - `SearchPartRevisionsAsync` contract support added to `IPartLibraryClient`
 - backend revision-history query and pin eligibility support added in `HttpPartLibraryClient`
-- focused core verification passed
+- Move Entry dialog (`MoveLibraryEntryDialog`) with target Library selection, archived/current exclusion, duplicate blocking, and backend error handling
+- Revision Browser dialog (`PartRevisionBrowserDialog`) with paged revision history grid, page size selection, and Pin Selected Revision action
+- role-aware command gating for Move Entry (manager/contributor) and Revision Browser (contributor/reviewer/manager)
+- focused Sprint 2.2 UI tests: 30 new (8 Move VM + 11 Revision VM + 11 LibraryViewModel integration)
 - Debug build passed
 - Release build passed
-- full tests passed `231/231`
+- full tests passed `261/261`
 
 ## Sprint 2.1 UAT Smoke Evidence
 

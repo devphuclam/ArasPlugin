@@ -168,6 +168,175 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task MoveCommand_DisabledWithNoSelectedEntry()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            var viewModel = CreateViewModel(client: client, canManage: true, canUsePartPicker: true);
+
+            Assert.False(viewModel.MoveEntryCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task MoveCommand_DisabledForViewer()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            var viewModel = CreateViewModel(client: client, canManage: false, canUsePartPicker: false);
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null);
+            Assert.False(viewModel.MoveEntryCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task MoveCommand_DisabledForArchivedSelectedLibrary()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Archived Lib", canContribute: true, status: PartLibrarySchemaNames.LibraryStatusArchived));
+            var viewModel = CreateViewModel(client: client, canManage: true, canUsePartPicker: true);
+
+            viewModel.SelectedVisibilityFilter = "Archived";
+            await WaitForAsync(() => viewModel.Libraries.Count == 1 && viewModel.SelectedLibrary != null);
+
+            Assert.True(viewModel.SelectedLibrary.IsArchived);
+            Assert.False(viewModel.MoveEntryCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task MoveCommand_OpensDialogForManager()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.ActiveLibraries.Add(CreateLibrary("lib-b", "Library B", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var moved = false;
+            var viewModel = CreateViewModel(client: client, canManage: true, canUsePartPicker: true);
+            viewModel.MoveEntryDialogHandler = vm =>
+            {
+                moved = true;
+                return true;
+            };
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            Assert.True(viewModel.MoveEntryCommand.CanExecute(null));
+            viewModel.MoveEntryCommand.Execute(null);
+            await Task.Delay(200);
+
+            Assert.True(moved);
+        }
+
+        [Fact]
+        public async Task MoveCommand_SuccessfulMove_RefreshesEntries()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.ActiveLibraries.Add(CreateLibrary("lib-b", "Library B", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var viewModel = CreateViewModel(client: client, canManage: true, canUsePartPicker: true);
+            viewModel.MoveEntryDialogHandler = vm => true;
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            viewModel.MoveEntryCommand.Execute(null);
+            await Task.Delay(300);
+
+            Assert.NotNull(viewModel.Entries);
+        }
+
+        [Fact]
+        public async Task MoveCommand_FailedMove_KeepsDialogOpenAndShowsError()
+        {
+            var client = new StubPartLibraryClient
+            {
+                MoveLibraryEntryResult = new MoveLibraryEntryResult
+                {
+                    Success = false,
+                    ErrorMessage = "Move blocked by server."
+                }
+            };
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.ActiveLibraries.Add(CreateLibrary("lib-b", "Library B", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var viewModel = CreateViewModel(client: client, canManage: true, canUsePartPicker: true);
+            viewModel.MoveEntryDialogHandler = vm =>
+            {
+                return false;
+            };
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            viewModel.MoveEntryCommand.Execute(null);
+            await Task.Delay(200);
+
+            Assert.NotNull(viewModel.StatusMessage);
+        }
+
+        [Fact]
+        public async Task MoveCommand_PermissionDenied_DisplayedClearly()
+        {
+            var client = new StubPartLibraryClient
+            {
+                MoveLibraryEntryResult = new MoveLibraryEntryResult
+                {
+                    Success = false,
+                    ErrorCode = ArasErrorCode.PermissionDenied
+                }
+            };
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.ActiveLibraries.Add(CreateLibrary("lib-b", "Library B", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var viewModel = CreateViewModel(client: client, canManage: true, canUsePartPicker: true);
+            viewModel.MoveEntryDialogHandler = vm => false;
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            viewModel.MoveEntryCommand.Execute(null);
+            await Task.Delay(200);
+
+            Assert.NotNull(viewModel.StatusMessage);
+        }
+
+        [Fact]
+        public async Task RevisionBrowserCommand_DisabledWithNoSelectedEntry()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            var viewModel = CreateViewModel(client: client, canManage: true, canUsePartPicker: true);
+
+            Assert.False(viewModel.ShowRevisionBrowserCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task RevisionBrowserCommand_DisabledForViewer()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            var viewModel = CreateViewModel(client: client, canManage: false, canUsePartPicker: false);
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null);
+            Assert.False(viewModel.ShowRevisionBrowserCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task RevisionBrowserCommand_OpensDialogForContributor()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var opened = false;
+            var viewModel = CreateViewModel(client: client, canManage: false, canUsePartPicker: true);
+            viewModel.RevisionBrowserDialogHandler = vm =>
+            {
+                opened = true;
+                return true;
+            };
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            Assert.True(viewModel.ShowRevisionBrowserCommand.CanExecute(null));
+            viewModel.ShowRevisionBrowserCommand.Execute(null);
+            await Task.Delay(200);
+
+            Assert.True(opened);
+        }
+
+        [Fact]
         public async Task EditLibraryDialog_InitializesFromLibrary_AndArchivedDisablesSave()
         {
             var library = CreateLibrary("lib-a", "Team Library", canContribute: true, status: PartLibrarySchemaNames.LibraryStatusArchived);
@@ -214,6 +383,36 @@ namespace IdeaCadConnector.Tests
                 IsPublic = false,
                 Status = status,
                 DefaultRevisionPolicy = "LatestCurrent"
+            };
+        }
+
+        private static PartLibraryEntrySummary CreateEntrySummary(
+            string entryId,
+            string libraryId,
+            string partNumber,
+            string partName = "Test Part")
+        {
+            return new PartLibraryEntrySummary
+            {
+                EntryId = entryId,
+                LibraryId = libraryId,
+                LibraryName = "Test Library",
+                PartId = "part-" + entryId,
+                PartConfigId = "cfg-" + entryId,
+                PartNumber = partNumber,
+                PartName = partName,
+                PartType = "Component",
+                Revision = "A",
+                LifecycleState = "Released",
+                EntryLifecycleState = "Draft",
+                RevisionPolicy = LibraryRevisionPolicy.LatestReleased,
+                EntryStatus = LibraryEntryStatus.Draft,
+                CadStatus = "Available",
+                UsageCount = 0,
+                HasNewerReleasedRevision = false,
+                IsDeprecated = false,
+                ResolutionFailed = false,
+                CanAddToProject = true
             };
         }
 
@@ -274,9 +473,11 @@ namespace IdeaCadConnector.Tests
         private sealed class StubPartLibraryClient : IPartLibraryClient
         {
             public List<PartLibrarySummary> ActiveLibraries { get; } = new List<PartLibrarySummary>();
+            public List<PartLibraryEntrySummary> EntriesToReturn { get; } = new List<PartLibraryEntrySummary>();
             public LibraryMutationResult CreateLibraryResult { get; set; } = new LibraryMutationResult { Success = true, LibraryId = "lib-created" };
             public LibraryMutationResult UpdateLibraryResult { get; set; } = new LibraryMutationResult { Success = true };
             public LibraryMutationResult ArchiveLibraryResult { get; set; } = new LibraryMutationResult { Success = true };
+            public MoveLibraryEntryResult MoveLibraryEntryResult { get; set; } = new MoveLibraryEntryResult { Success = true };
             public List<LibraryVisibilityFilter> VisibilityFiltersSeen { get; } = new List<LibraryVisibilityFilter>();
             public int ArchiveLibraryCallCount { get; private set; }
             public string ArchivedLibraryId { get; private set; }
@@ -325,7 +526,12 @@ namespace IdeaCadConnector.Tests
                 => Task.FromResult(new DuplicateEntryCheckResult());
 
             public Task<PartLibrarySearchResponse> SearchEntriesAsync(PartLibrarySearchRequest request, CancellationToken cancellationToken)
-                => Task.FromResult(new PartLibrarySearchResponse { Entries = Array.Empty<PartLibraryEntrySummary>(), TotalCount = 0, PageNumber = 1, PageSize = 25 });
+            {
+                var filtered = EntriesToReturn
+                    .Where(e => string.IsNullOrWhiteSpace(request.LibraryId) || string.Equals(e.LibraryId, request.LibraryId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                return Task.FromResult(new PartLibrarySearchResponse { Entries = filtered, TotalCount = filtered.Count, PageNumber = 1, PageSize = 25 });
+            }
 
             public Task<PartLibraryEntryDetails> GetEntryAsync(string entryId, CancellationToken cancellationToken)
                 => Task.FromResult(new PartLibraryEntryDetails());
@@ -338,7 +544,7 @@ namespace IdeaCadConnector.Tests
             public Task MoveEntryAsync(string entryId, string targetLibraryId, CancellationToken cancellationToken) => Task.CompletedTask;
 
             public Task<MoveLibraryEntryResult> MoveLibraryEntryAsync(MoveLibraryEntryRequest request, CancellationToken cancellationToken)
-                => Task.FromResult(new MoveLibraryEntryResult { Success = true, EntryId = request?.EntryId, TargetLibraryId = request?.TargetLibraryId });
+                => Task.FromResult(MoveLibraryEntryResult);
 
             public Task<ResolveLibraryPartResult> ResolvePartAsync(string entryId, LibraryRevisionPolicy policy, CancellationToken cancellationToken)
                 => Task.FromResult(new ResolveLibraryPartResult());

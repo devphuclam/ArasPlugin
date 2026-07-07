@@ -2,7 +2,7 @@
 
 **State:** `IN_PROGRESS`
 
-This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted, and Sprint 2.2 core implementation is now in progress.
+This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted, and Sprint 2.2 core + UI is now implemented locally.
 
 ## Phase Transition History
 
@@ -10,6 +10,7 @@ This file records Phase 2 acceptance gates and current implementation evidence. 
 - Phase 2 moved from `PLANNED` to `IN_PROGRESS` when Sprint 2.1 UI implementation was completed locally on 2026-07-06.
 - Phase 2 moved from `IN_PROGRESS` to `LOCALLY_ACCEPTED` after Sprint 2.1 UAT smoke evidence was recorded on 2026-07-06.
 - Phase 2 returned to `IN_PROGRESS` when Sprint 2.2 core backend work started on 2026-07-06.
+- Phase 2 Sprint 2.2 core + UI implementation completed locally on 2026-07-07.
 
 ## Baseline Verification Commands
 
@@ -131,22 +132,26 @@ Remaining live limitations:
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
 - full customer/external viewer UAT is still pending unless tested;
-- Sprint 2.2 core backend is underway; UI/live integration remains pending.
+- Sprint 2.2 is implemented locally; live Aras UAT remains pending.
 
-## Sprint 2.2 Core Verification
+## Sprint 2.2 Core + UI Verification
 
-Local Sprint 2.2 core verification passed on 2026-07-06:
+Local Sprint 2.2 core + UI verification passed on 2026-07-07:
 
-- Debug build passed
-- Release build passed
-- Focused core tests passed
-- Full tests passed `231/231`
+- Debug build passed: 0 warnings, 0 errors
+- Release build passed: 0 warnings, 0 errors
+- Focused Sprint 2.2 core tests passed
+- Focused Sprint 2.2 UI tests passed: 30 new (8 Move VM + 11 Revision VM + 11 LibraryViewModel integration)
+- Full tests passed `261/261`
 
-Sprint 2.2 core scope now covered locally:
+Sprint 2.2 scope now covered locally:
 
 - Move Entry backend contract and client support
 - Revision Browser backend contract and client support
 - cancellation-safe schema validation path
+- Move Entry dialog (MoveLibraryEntryDialog): target Library selection, archived/same-Library exclusion, duplicate blocking, backend error handling
+- Revision Browser dialog (PartRevisionBrowserDialog): paged revision history grid, page size selection, Pin Selected Revision with CanPin gating
+- role-aware command gating: manager may move, contributor/reviewer may move depending on UAT role, viewer cannot; Revision Browser available to contributor/reviewer/manager, viewer blocked
 
 ## Acceptance Gates by Sprint
 
@@ -171,7 +176,7 @@ Current status:
 - `ME-01..06` and `RV-01..07` implemented with failure-safe behavior;
 - move rollback/block behavior evidenced;
 - revision policy changes do not mutate data on failed resolve;
-- current local implementation covers backend/core only; UI and live UAT remain pending.
+- current local implementation covers backend/core + UI; live UAT remains pending.
 
 ### Sprint 2.3
 
@@ -202,4 +207,4 @@ Phase 2 is `IN_PROGRESS`.
 
 Recommended next packet:
 
-`Sprint 2.2: Move Entry + Revision Browser`
+`Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`

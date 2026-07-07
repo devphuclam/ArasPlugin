@@ -34,6 +34,7 @@ namespace IdeaCadConnector.Desktop
         ICommand AddPartCommand { get; }
         ICommand RemoveEntryCommand { get; }
         ICommand MoveEntryCommand { get; }
+        ICommand ShowRevisionBrowserCommand { get; }
         ICommand AddToCurrentProjectCommand { get; }
         ICommand OpenInIronCadCommand { get; }
         ICommand DownloadCadCommand { get; }

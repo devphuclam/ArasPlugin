@@ -7,7 +7,7 @@ This directory is the only active documentation root for Part Library.
 | Phase | State | Baseline | Completion | Evidence |
 |---|---|---|---|---|
 | Phase 1 - Core governance and reuse | `COMPLETE` | `08a9986d9cc867a2948afe5a56676730ada54fe4` | `b7f6cf67d0d191ddb71b3e3926064d928ded2c8c` | Build: 0 warnings/errors; tests: 117/117; owner accepted 2026-07-06 |
-| Phase 2 - Complete Library UX | `IN_PROGRESS` | `956af6841392b609d9c06df60d484fe5244500c1` | Sprint 2.1 UAT smoke accepted; Sprint 2.2 core backend in progress | Admin, lamEngineer, lamPM, and viewer smoke evidence recorded; Sprint 2.2 core backend support added for Move Entry and Revision Browser; Debug build passed; Release build passed; tests 231/231 passed |
+| Phase 2 - Complete Library UX | `IN_PROGRESS` | `956af6841392b609d9c06df60d484fe5244500c1` | Sprint 2.1 UAT smoke accepted; Sprint 2.2 core + UI complete | Admin, lamEngineer, lamPM, and viewer smoke evidence recorded; Sprint 2.2 core backend support added for Move Entry and Revision Browser; Sprint 2.2 UI: Move Entry dialog, Revision Browser dialog, pin selected revision; Debug build passed; Release build passed; tests 261/261 passed |
 
 ## Read Phase 1
 

@@ -557,5 +557,76 @@ namespace IdeaCadConnector.Core.Localization
         public const string PartPickerEligible = "PartPickerEligible";
         public const string PartPickerNotEligible = "PartPickerNotEligible";
         public const string PartPickerSelectPartFirst = "PartPickerSelectPartFirst";
+
+        // Sprint 2.2 UI - Move Entry Dialog
+        public const string MoveEntryTitle = "MoveEntryTitle";
+        public const string MoveEntrySubtitle = "MoveEntrySubtitle";
+        public const string MoveEntryPartNumberLabel = "MoveEntryPartNumberLabel";
+        public const string MoveEntryPartNameLabel = "MoveEntryPartNameLabel";
+        public const string MoveEntryCurrentLibraryLabel = "MoveEntryCurrentLibraryLabel";
+        public const string MoveEntryEntryStatusLabel = "MoveEntryEntryStatusLabel";
+        public const string MoveEntryLifecycleStateLabel = "MoveEntryLifecycleStateLabel";
+        public const string MoveEntryRevisionPolicyLabel = "MoveEntryRevisionPolicyLabel";
+        public const string MoveEntryTargetLibraryLabel = "MoveEntryTargetLibraryLabel";
+        public const string MoveEntryNoValidTargetsMessage = "MoveEntryNoValidTargetsMessage";
+        public const string MoveEntryArchivedTargetBlocked = "MoveEntryArchivedTargetBlocked";
+        public const string MoveEntrySameLibraryBlocked = "MoveEntrySameLibraryBlocked";
+        public const string MoveEntryPreservationWarning = "MoveEntryPreservationWarning";
+        public const string MoveEntryMoveButton = "MoveEntryMoveButton";
+        public const string MoveEntryCancelButton = "MoveEntryCancelButton";
+        public const string MoveEntryMoving = "MoveEntryMoving";
+        public const string MoveEntryMoveFailed = "MoveEntryMoveFailed";
+        public const string MoveEntryMoveSucceeded = "MoveEntryMoveSucceeded";
+        public const string MoveEntryDuplicateInTarget = "MoveEntryDuplicateInTarget";
+        public const string MoveEntryPermissionDenied = "MoveEntryPermissionDenied";
+        public const string MoveEntryLoadingTargets = "MoveEntryLoadingTargets";
+
+        // Sprint 2.2 UI - Revision Browser Dialog
+        public const string RevisionBrowserTitle = "RevisionBrowserTitle";
+        public const string RevisionBrowserSubtitle = "RevisionBrowserSubtitle";
+        public const string RevisionBrowserPartNumberLabel = "RevisionBrowserPartNumberLabel";
+        public const string RevisionBrowserPartNameLabel = "RevisionBrowserPartNameLabel";
+        public const string RevisionBrowserConfigIdLabel = "RevisionBrowserConfigIdLabel";
+        public const string RevisionBrowserCurrentRevisionPolicy = "RevisionBrowserCurrentRevisionPolicy";
+        public const string RevisionBrowserCurrentPinnedRevision = "RevisionBrowserCurrentPinnedRevision";
+        public const string RevisionBrowserColumnPartNumber = "RevisionBrowserColumnPartNumber";
+        public const string RevisionBrowserColumnName = "RevisionBrowserColumnName";
+        public const string RevisionBrowserColumnMajorRev = "RevisionBrowserColumnMajorRev";
+        public const string RevisionBrowserColumnGeneration = "RevisionBrowserColumnGeneration";
+        public const string RevisionBrowserColumnLifecycleState = "RevisionBrowserColumnLifecycleState";
+        public const string RevisionBrowserColumnCurrent = "RevisionBrowserColumnCurrent";
+        public const string RevisionBrowserColumnReleased = "RevisionBrowserColumnReleased";
+        public const string RevisionBrowserColumnObsolete = "RevisionBrowserColumnObsolete";
+        public const string RevisionBrowserColumnCadStatus = "RevisionBrowserColumnCadStatus";
+        public const string RevisionBrowserColumnModifiedOn = "RevisionBrowserColumnModifiedOn";
+        public const string RevisionBrowserColumnCreatedOn = "RevisionBrowserColumnCreatedOn";
+        public const string RevisionBrowserColumnCanPin = "RevisionBrowserColumnCanPin";
+        public const string RevisionBrowserColumnCannotPinReason = "RevisionBrowserColumnCannotPinReason";
+        public const string RevisionBrowserRefreshButton = "RevisionBrowserRefreshButton";
+        public const string RevisionBrowserPreviousPageButton = "RevisionBrowserPreviousPageButton";
+        public const string RevisionBrowserNextPageButton = "RevisionBrowserNextPageButton";
+        public const string RevisionBrowserPageSizeLabel = "RevisionBrowserPageSizeLabel";
+        public const string RevisionBrowserPinButton = "RevisionBrowserPinButton";
+        public const string RevisionBrowserCancelButton = "RevisionBrowserCancelButton";
+        public const string RevisionBrowserNoRevisions = "RevisionBrowserNoRevisions";
+        public const string RevisionBrowserLoading = "RevisionBrowserLoading";
+        public const string RevisionBrowserShowPage = "RevisionBrowserShowPage";
+        public const string RevisionBrowserPinSuccess = "RevisionBrowserPinSuccess";
+        public const string RevisionBrowserPinFailed = "RevisionBrowserPinFailed";
+        public const string RevisionBrowserPermissionDenied = "RevisionBrowserPermissionDenied";
+        public const string RevisionBrowserPinEligible = "RevisionBrowserPinEligible";
+        public const string RevisionBrowserPinIneligible = "RevisionBrowserPinIneligible";
+        public const string RevisionBrowserNoConfigId = "RevisionBrowserNoConfigId";
+
+        // Sprint 2.2 UI - Library Commands
+        public const string LibraryButtonMoveEntry = "LibraryButtonMoveEntry";
+        public const string LibraryButtonRevisionBrowser = "LibraryButtonRevisionBrowser";
+        public const string LibraryStatusMoveEntryOpened = "LibraryStatusMoveEntryOpened";
+        public const string LibraryStatusMoveEntryFailed = "LibraryStatusMoveEntryFailed";
+        public const string LibraryStatusMoveEntrySuccess = "LibraryStatusMoveEntrySuccess";
+        public const string LibraryStatusRevisionBrowserOpened = "LibraryStatusRevisionBrowserOpened";
+        public const string LibraryStatusMoveEntryNoTarget = "LibraryStatusMoveEntryNoTarget";
+        public const string LibraryStatusMoveEntryPermissionDenied = "LibraryStatusMoveEntryPermissionDenied";
+        public const string LibraryStatusEntryMovedSuccess = "LibraryStatusEntryMovedSuccess";
     }
 }

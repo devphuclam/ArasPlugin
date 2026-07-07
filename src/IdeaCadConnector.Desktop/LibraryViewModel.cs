@@ -87,7 +87,8 @@ namespace IdeaCadConnector.Desktop
             ShowPartPickerCommand = new RelayCommand(_ => _ = ShowArasPartPickerDialogAsync(), _ => CanUsePartPickerForSelectedLibrary);
             AddPartCommand = new RelayCommand(_ => ShowSaveToLibraryDialog(), _ => !IsLoading && !IsOffline && CanAddEntryToSelectedLibrary);
             RemoveEntryCommand = new RelayCommand(_ => _ = RemoveSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading);
-            MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => SelectedEntry != null && SelectedLibrary != null && !IsLoading);
+            MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => CanExecuteMoveEntry());
+            ShowRevisionBrowserCommand = new RelayCommand(_ => _ = ShowRevisionBrowserDialogAsync(), _ => CanExecuteShowRevisionBrowser());
             AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => CanAddToCurrentProject());
             OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
             DownloadCadCommand = new RelayCommand(_ => _ = RevealPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
@@ -105,6 +106,8 @@ namespace IdeaCadConnector.Desktop
             CreateLibraryDialogHandler = ShowCreateLibraryDialog;
             EditLibraryDialogHandler = ShowEditLibraryDialog;
             PartPickerDialogHandler = ShowPartPickerDialog;
+            MoveEntryDialogHandler = ShowMoveEntryDialog;
+            RevisionBrowserDialogHandler = ShowRevisionBrowserDialog;
             ConfirmDialogHandler = (message, caption, buttons, image) => MessageBox.Show(message, caption, buttons, image);
 
             _ = RefreshAsync();
@@ -263,6 +266,10 @@ namespace IdeaCadConnector.Desktop
 
         internal Func<ArasPartPickerViewModel, bool?> PartPickerDialogHandler { get; set; }
 
+        internal Func<MoveLibraryEntryDialogViewModel, bool?> MoveEntryDialogHandler { get; set; }
+
+        internal Func<PartRevisionBrowserViewModel, bool?> RevisionBrowserDialogHandler { get; set; }
+
         internal Func<string, string, MessageBoxButton, MessageBoxImage, MessageBoxResult> ConfirmDialogHandler { get; set; }
 
         public bool CanContributeToSelectedLibrary => CanAddEntryToSelectedLibrary;
@@ -354,6 +361,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand AddPartCommand { get; }
         public ICommand RemoveEntryCommand { get; }
         public ICommand MoveEntryCommand { get; }
+        public ICommand ShowRevisionBrowserCommand { get; }
         public ICommand AddToCurrentProjectCommand { get; }
         public ICommand OpenInIronCadCommand { get; }
         public ICommand DownloadCadCommand { get; }
@@ -896,32 +904,113 @@ namespace IdeaCadConnector.Desktop
             });
         }
 
+        private bool CanExecuteMoveEntry()
+        {
+            if (SelectedEntry == null || SelectedLibrary == null || IsLoading || IsOffline)
+                return false;
+
+            if (!IsContributorOrHigher)
+                return false;
+
+            if (SelectedLibrary.IsArchived)
+                return false;
+
+            return true;
+        }
+
+        private bool CanExecuteShowRevisionBrowser()
+        {
+            if (SelectedEntry == null || IsLoading || IsOffline)
+                return false;
+
+            if (IsReadOnlyViewer)
+                return false;
+
+            return true;
+        }
+
         private async Task MoveSelectedEntryAsync()
         {
-            if (SelectedEntry == null || SelectedLibrary == null)
+            if (!CanExecuteMoveEntry())
                 return;
 
-            if (string.Equals(SelectedEntry.LibraryId, SelectedLibrary.Id, StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(SelectedEntry.EntryId))
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusSelectDifferentLibrary);
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectPartFirst);
                 return;
             }
 
-            var confirm = MessageBox.Show(
-                L(TranslationKeys.LibraryConfirmMoveEntry),
-                L(TranslationKeys.LibraryDialogActionTitle),
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+            var entrySummary = new PartLibraryEntrySummary
+            {
+                EntryId = SelectedEntry.EntryId,
+                LibraryId = SelectedEntry.LibraryId,
+                LibraryName = SelectedEntry.LibraryName,
+                PartId = SelectedEntry.PartId,
+                PartConfigId = SelectedEntry.PartConfigId,
+                PartNumber = SelectedEntry.PartNumber,
+                PartName = SelectedEntry.PartName,
+                PartType = SelectedEntry.PartType,
+                Revision = SelectedEntry.Revision,
+                LifecycleState = SelectedEntry.LifecycleState,
+                EntryLifecycleState = SelectedEntry.EntryLifecycleState,
+                RevisionPolicy = ParseRevisionPolicy(SelectedEntry.RevisionPolicy),
+                EntryStatus = ParseEntryStatus(SelectedEntry.EntryStatus),
+                CadStatus = SelectedEntry.CadStatus,
+                UsageCount = SelectedEntry.UsageCount,
+                HasNewerReleasedRevision = SelectedEntry.HasNewerReleasedRevision,
+                IsDeprecated = SelectedEntry.IsDeprecated,
+                ResolutionFailed = SelectedEntry.ResolutionFailed,
+                ResolutionError = SelectedEntry.ResolutionError,
+                CanAddToProject = SelectedEntry.CanAddToProject
+            };
 
-            if (confirm != MessageBoxResult.Yes)
+            var viewModel = new MoveLibraryEntryDialogViewModel(ActiveClient, entrySummary, SelectedLibrary.Id);
+            await viewModel.InitializeAsync().ConfigureAwait(true);
+
+            if (MoveEntryDialogHandler?.Invoke(viewModel) == true)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusEntryMovedSuccess);
+                await RefreshAsync().ConfigureAwait(true);
+
+                if (!string.IsNullOrWhiteSpace(viewModel.MoveResult?.EntryId))
+                    _session.PendingLibraryFocusEntryId = viewModel.MoveResult.EntryId;
+            }
+            else
+            {
+                if (viewModel.MoveResult?.Success == false)
+                {
+                    StatusMessage = viewModel.MoveResult.ErrorMessage ?? L(TranslationKeys.LibraryStatusMoveEntryFailed);
+                }
+            }
+        }
+
+        private async Task ShowRevisionBrowserDialogAsync()
+        {
+            if (!CanExecuteShowRevisionBrowser())
                 return;
 
-            await RunBusyAsync(async () =>
+            if (SelectedEntry == null)
             {
-                await ActiveClient.MoveEntryAsync(SelectedEntry.EntryId, SelectedLibrary.Id, CancellationToken.None).ConfigureAwait(true);
-                StatusMessage = L(TranslationKeys.LibraryStatusEntryMoved);
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectPartFirst);
+                return;
+            }
+
+            var viewModel = new PartRevisionBrowserViewModel(
+                ActiveClient,
+                SelectedEntry,
+                SelectedEntryDetails?.RevisionPolicy ?? SelectedEntry.RevisionPolicy);
+
+            await viewModel.InitializeAsync().ConfigureAwait(true);
+
+            if (RevisionBrowserDialogHandler?.Invoke(viewModel) == true)
+            {
+            }
+
+            if (viewModel.PinSuccess)
+            {
+                StatusMessage = L(TranslationKeys.RevisionBrowserPinSuccess);
                 await RefreshAsync().ConfigureAwait(true);
-            });
+            }
         }
 
         private async Task DeprecateSelectedEntryAsync()
@@ -1321,6 +1410,7 @@ namespace IdeaCadConnector.Desktop
             (AddPartCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (RemoveEntryCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (MoveEntryCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (ShowRevisionBrowserCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (AddToCurrentProjectCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (OpenInIronCadCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (DownloadCadCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -1437,6 +1527,28 @@ namespace IdeaCadConnector.Desktop
             return dialog.ShowDialog();
         }
 
+        private static bool? ShowMoveEntryDialog(MoveLibraryEntryDialogViewModel viewModel)
+        {
+            var dialog = new MoveLibraryEntryDialog
+            {
+                Owner = Application.Current?.MainWindow,
+                DataContext = viewModel
+            };
+            viewModel.CloseRequested += accepted => dialog.DialogResult = accepted;
+            return dialog.ShowDialog();
+        }
+
+        private static bool? ShowRevisionBrowserDialog(PartRevisionBrowserViewModel viewModel)
+        {
+            var dialog = new PartRevisionBrowserDialog
+            {
+                Owner = Application.Current?.MainWindow,
+                DataContext = viewModel
+            };
+            viewModel.CloseRequested += accepted => dialog.DialogResult = accepted;
+            return dialog.ShowDialog();
+        }
+
         private void RefreshFilterOptions()
         {
             var normalizedType = NormalizeTypeFilter(_selectedTypeFilter);
@@ -1514,6 +1626,28 @@ namespace IdeaCadConnector.Desktop
         private void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private static LibraryRevisionPolicy ParseRevisionPolicy(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return LibraryRevisionPolicy.LatestCurrent;
+
+            if (Enum.TryParse<LibraryRevisionPolicy>(value, true, out var parsed))
+                return parsed;
+
+            return LibraryRevisionPolicy.LatestCurrent;
+        }
+
+        private static LibraryEntryStatus ParseEntryStatus(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return LibraryEntryStatus.Draft;
+
+            if (Enum.TryParse<LibraryEntryStatus>(value, true, out var parsed))
+                return parsed;
+
+            return LibraryEntryStatus.Draft;
         }
     }
 

@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 core backend now in progress)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 core + UI now implemented locally)
 
 ## Objective
 
@@ -78,21 +78,32 @@ The following evidence has been recorded against the current design baseline:
 - Viewer/unknown behavior confirmed conservative read-only behavior.
 - Automated verification passed: Debug build, Release build, and full tests `214/214`.
 
-## Sprint 2.2 Core Verification
+## Sprint 2.2 Verification
 
-Local Sprint 2.2 core packet has been verified:
+Local Sprint 2.2 core + UI packet has been verified:
 
 - Debug build passed: 0 warnings, 0 errors
 - Release build passed: 0 warnings, 0 errors
-- focused core tests passed
-- full tests passed `231/231`
+- focused Sprint 2.2 core tests passed
+- focused Sprint 2.2 UI tests passed: 30 new (8 Move VM + 11 Revision VM + 11 LibraryViewModel integration)
+- full tests passed `261/261`
+
+Sprint 2.2 UI now includes:
+
+- Move Entry dialog with target Library selection (excludes current Library, Archived Libraries, non-contributable Libraries)
+- role-aware Move command gating (manager can move, contributor/reviewer allowed, viewer cannot)
+- Revision Browser dialog with paged revision history, page size selection, and Pin Selected Revision
+- Pin calls `UpdateRevisionPolicyAsync` with `Pinned` policy and selected `PartId`
+- backend error handling: permission denied, validation failed, server errors displayed clearly
+- `CanPin=false` revisions disable Pin button with reason
+- duplicate active Entry in target Library blocks move
 
 Remaining live limitations:
 
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
 - full customer/external viewer UAT remains pending unless tested;
-- Sprint 2.2 has not started.
+- Sprint 2.3 has not started.
 
 ## Approved Decisions
 

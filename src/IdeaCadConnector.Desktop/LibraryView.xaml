@@ -495,6 +495,10 @@
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,8,8"
                                         Command="{Binding ViewWhereUsedCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryViewWhereUsed]}"/>
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="8,0,0,8"
+                                        Command="{Binding ShowRevisionBrowserCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonRevisionBrowser]}"/>
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,8,8"
+                                        Command="{Binding MoveEntryCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonMoveEntry]}"/>
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="8,0,0,8"
                                         Command="{Binding PinRevisionCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryPinCurrentRevision]}"/>
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,8,8"
                                         Command="{Binding UseLatestReleasedCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryUseLatestReleased]}"/>
