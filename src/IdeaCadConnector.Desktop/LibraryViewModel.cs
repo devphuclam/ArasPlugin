@@ -79,10 +79,11 @@ namespace IdeaCadConnector.Desktop
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _injectedClient = client;
             _authService = authService ?? new LibraryAuthorizationService(session);
-            _vaultService = vaultService;
-            _ironCadService = ironCadService;
-            _openUrlService = openUrlService;
-            _browserLauncher = browserLauncher;
+            var composedServices = LibraryServicesFactory.Create(session, client);
+            _vaultService = vaultService ?? composedServices.VaultService;
+            _ironCadService = ironCadService ?? composedServices.IronCadOpenService;
+            _openUrlService = openUrlService ?? composedServices.ArasOpenUrlService;
+            _browserLauncher = browserLauncher ?? composedServices.BrowserLauncher;
 
             Libraries = new ObservableCollection<PartLibrarySummaryRow>();
             Entries = new ObservableCollection<PartLibraryEntryRow>();
@@ -117,14 +118,18 @@ namespace IdeaCadConnector.Desktop
             MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => CanExecuteMoveEntry());
             ShowRevisionBrowserCommand = new RelayCommand(_ => _ = ShowRevisionBrowserDialogAsync(), _ => CanExecuteShowRevisionBrowser());
             AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => CanAddToCurrentProject());
-            OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading && _vaultService != null);
-            DownloadCadCommand = new RelayCommand(_ => _ = DownloadCadAsync(), _ => SelectedEntry != null && !IsLoading && _vaultService != null);
+            OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
+            DownloadCadCommand = new RelayCommand(_ => _ = DownloadCadAsync(), _ => SelectedEntry != null && !IsLoading);
             PublishCommand = new RelayCommand(_ => _ = PublishSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
             DeprecateCommand = new RelayCommand(_ => _ = DeprecateSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
             PinRevisionCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.Pinned), _ => SelectedEntry != null && !IsLoading);
             UseLatestReleasedCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.LatestReleased), _ => SelectedEntry != null && !IsLoading);
             ViewWhereUsedCommand = new RelayCommand(_ => _ = ViewWhereUsedAsync(), _ => SelectedEntry != null && !IsLoading);
-            OpenInArasCommand = new RelayCommand(_ => _ = OpenInArasAsync(), _ => SelectedEntry != null && _openUrlService != null);
+            OpenSelectedPartInArasCommand = new RelayCommand(_ => _ = OpenSelectedPartInArasAsync(), _ => SelectedEntry != null && !IsLoading);
+            OpenSelectedEntryInArasCommand = new RelayCommand(_ => _ = OpenSelectedEntryInArasAsync(), _ => SelectedEntry != null && !IsLoading);
+            OpenSelectedLibraryInArasCommand = new RelayCommand(_ => _ = OpenSelectedLibraryInArasAsync(), _ => SelectedLibrary != null && !IsLoading);
+            OpenSelectedCadInArasCommand = new RelayCommand(_ => _ = OpenSelectedCadInArasAsync(), _ => SelectedEntry != null && !IsLoading);
+            OpenInArasCommand = OpenSelectedPartInArasCommand;
 
             LocalizationSource.Instance.PropertyChanged += OnLocalizationChanged;
             _session.LibraryDataChanged += OnLibraryDataChanged;
@@ -272,7 +277,11 @@ namespace IdeaCadConnector.Desktop
         public bool IsLoadingDetails
         {
             get => _isLoadingDetails;
-            private set => SetField(ref _isLoadingDetails, value);
+            private set
+            {
+                if (SetField(ref _isLoadingDetails, value))
+                    NotifyDetailStateChanged();
+            }
         }
 
         public string DetailStatusMessage
@@ -455,6 +464,10 @@ namespace IdeaCadConnector.Desktop
         public ICommand PinRevisionCommand { get; }
         public ICommand UseLatestReleasedCommand { get; }
         public ICommand ViewWhereUsedCommand { get; }
+        public ICommand OpenSelectedPartInArasCommand { get; }
+        public ICommand OpenSelectedEntryInArasCommand { get; }
+        public ICommand OpenSelectedLibraryInArasCommand { get; }
+        public ICommand OpenSelectedCadInArasCommand { get; }
         public ICommand OpenInArasCommand { get; }
 
         public ICommand EditLibraryCommand { get; }
@@ -590,6 +603,7 @@ namespace IdeaCadConnector.Desktop
             }
 
             var entryId = SelectedEntry.EntryId;
+            ClearDetailTabs();
             var details = await ActiveClient.GetEntryAsync(entryId, CancellationToken.None).ConfigureAwait(true);
             SelectedEntryDetails = new PartLibraryEntryDetailsView
             {
@@ -641,10 +655,7 @@ namespace IdeaCadConnector.Desktop
             _lastLoadedDetailEntryId = null;
             DetailStatusMessage = null;
             DetailErrorMessage = null;
-            OnPropertyChanged(nameof(HasCadDetails));
-            OnPropertyChanged(nameof(HasBomItems));
-            OnPropertyChanged(nameof(HasRevisionItems));
-            OnPropertyChanged(nameof(HasWhereUsedItems));
+            NotifyDetailStateChanged();
         }
 
         private async Task LoadDetailTabsAsync(string entryId)
@@ -761,11 +772,19 @@ namespace IdeaCadConnector.Desktop
             }
             catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.PermissionDenied)
             {
+                SelectedCadDetails = new CadDetailsView();
+                SelectedBomDetails = CreateEmptyBom();
+                SelectedRevisionDetails = CreateEmptyRevisions();
+                SelectedWhereUsedDetails = CreateEmptyWhereUsed();
                 DetailStatusMessage = null;
                 DetailErrorMessage = L(TranslationKeys.LibraryPermissionDenied);
             }
             catch (ArasOperationException ex)
             {
+                SelectedCadDetails = new CadDetailsView();
+                SelectedBomDetails = CreateEmptyBom();
+                SelectedRevisionDetails = CreateEmptyRevisions();
+                SelectedWhereUsedDetails = CreateEmptyWhereUsed();
                 DetailStatusMessage = null;
                 DetailErrorMessage = Lf(TranslationKeys.LibraryStatusDetailLoadFailed, ex.Message);
             }
@@ -775,16 +794,17 @@ namespace IdeaCadConnector.Desktop
             }
             catch (Exception ex)
             {
+                SelectedCadDetails = new CadDetailsView();
+                SelectedBomDetails = CreateEmptyBom();
+                SelectedRevisionDetails = CreateEmptyRevisions();
+                SelectedWhereUsedDetails = CreateEmptyWhereUsed();
                 DetailStatusMessage = null;
                 DetailErrorMessage = Lf(TranslationKeys.LibraryStatusDetailLoadFailed, ex.Message);
             }
             finally
             {
                 IsLoadingDetails = false;
-                OnPropertyChanged(nameof(HasCadDetails));
-                OnPropertyChanged(nameof(HasBomItems));
-                OnPropertyChanged(nameof(HasRevisionItems));
-                OnPropertyChanged(nameof(HasWhereUsedItems));
+                NotifyDetailStateChanged();
             }
         }
 
@@ -1356,7 +1376,7 @@ namespace IdeaCadConnector.Desktop
         {
             if (_vaultService == null)
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
+                StatusMessage = L(TranslationKeys.LibraryStatusVaultServiceUnavailable);
                 return;
             }
 
@@ -1406,9 +1426,9 @@ namespace IdeaCadConnector.Desktop
 
         private async Task OpenPrimaryCadAsync()
         {
-            if (_vaultService == null || _ironCadService == null)
+            if (_vaultService == null)
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
+                StatusMessage = L(TranslationKeys.LibraryStatusVaultServiceUnavailable);
                 return;
             }
 
@@ -1438,6 +1458,12 @@ namespace IdeaCadConnector.Desktop
             if (cadInfo == null || !cadInfo.HasNative)
             {
                 StatusMessage = L(TranslationKeys.LibraryCadNoCadFound);
+                return;
+            }
+
+            if (_ironCadService == null || !_ironCadService.IsIronCadAvailable)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusIronCadServiceUnavailable);
                 return;
             }
 
@@ -1485,14 +1511,8 @@ namespace IdeaCadConnector.Desktop
             });
         }
 
-        private async Task OpenInArasAsync()
+        private async Task OpenSelectedPartInArasAsync()
         {
-            if (_openUrlService == null)
-            {
-                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
-                return;
-            }
-
             var partId = SelectedEntryDetails?.PartId ?? SelectedEntry?.PartId;
             if (string.IsNullOrWhiteSpace(partId))
             {
@@ -1500,13 +1520,69 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            var configId = SelectedEntryDetails?.PartConfigId;
-            var request = new ArasOpenUrlRequest
+            await OpenInArasAsync(new ArasOpenUrlRequest
             {
                 ItemType = "Part",
                 ItemId = partId,
-                ConfigId = configId
-            };
+                ConfigId = SelectedEntryDetails?.PartConfigId
+            });
+        }
+
+        private async Task OpenSelectedEntryInArasAsync()
+        {
+            var entryId = SelectedEntryDetails?.EntryId ?? SelectedEntry?.EntryId;
+            if (string.IsNullOrWhiteSpace(entryId))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectPartFirst);
+                return;
+            }
+
+            await OpenInArasAsync(new ArasOpenUrlRequest
+            {
+                ItemType = "idea_PartLibraryEntry",
+                ItemId = entryId
+            });
+        }
+
+        private async Task OpenSelectedLibraryInArasAsync()
+        {
+            var libraryId = SelectedLibrary?.Id;
+            if (string.IsNullOrWhiteSpace(libraryId))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectDifferentLibrary);
+                return;
+            }
+
+            await OpenInArasAsync(new ArasOpenUrlRequest
+            {
+                ItemType = "idea_PartLibrary",
+                ItemId = libraryId
+            });
+        }
+
+        private async Task OpenSelectedCadInArasAsync()
+        {
+            var cadId = SelectedCadDetails?.PrimaryCadId ?? SelectedEntryDetails?.PrimaryCadId;
+            if (string.IsNullOrWhiteSpace(cadId))
+            {
+                StatusMessage = L(TranslationKeys.LibraryCadNoCadFound);
+                return;
+            }
+
+            await OpenInArasAsync(new ArasOpenUrlRequest
+            {
+                ItemType = "CAD",
+                ItemId = cadId
+            });
+        }
+
+        private async Task OpenInArasAsync(ArasOpenUrlRequest request)
+        {
+            if (_openUrlService == null)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusBrowserLauncherUnavailable);
+                return;
+            }
 
             ArasOpenUrlResult urlResult;
             try
@@ -1527,7 +1603,7 @@ namespace IdeaCadConnector.Desktop
 
             if (_browserLauncher == null)
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasSucceeded);
+                StatusMessage = L(TranslationKeys.LibraryStatusBrowserLauncherUnavailable);
                 return;
             }
 
@@ -1794,6 +1870,10 @@ namespace IdeaCadConnector.Desktop
             (PinRevisionCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (UseLatestReleasedCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (ViewWhereUsedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (OpenSelectedPartInArasCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (OpenSelectedEntryInArasCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (OpenSelectedLibraryInArasCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (OpenSelectedCadInArasCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (OpenInArasCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
@@ -1824,6 +1904,11 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(LibrariesOverlayMessage));
             OnPropertyChanged(nameof(EntriesOverlayMessage));
             OnPropertyChanged(nameof(AddToProjectHint));
+            NotifyDetailStateChanged();
+        }
+
+        private void NotifyDetailStateChanged()
+        {
             OnPropertyChanged(nameof(HasCadDetails));
             OnPropertyChanged(nameof(HasNoCadDetails));
             OnPropertyChanged(nameof(HasBomItems));

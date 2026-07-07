@@ -244,8 +244,8 @@ The following cannot be claimed from local automation alone:
 
 ## Current Outcome
 
-Phase 2 is `IN_PROGRESS` (Sprint 2.2 state: `LOCALLY_ACCEPTED`).
+Phase 2 is `IN_PROGRESS` (Sprint 2.3 UI wiring completed locally; Sprint 2.2 remains `LOCALLY_ACCEPTED`).
 
 Recommended next packet:
 
-`Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
+`Sprint 2.4: Filters and UX Hardening (WS8)`

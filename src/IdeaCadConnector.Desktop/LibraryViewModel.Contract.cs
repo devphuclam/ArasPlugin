@@ -43,6 +43,10 @@ namespace IdeaCadConnector.Desktop
         ICommand PinRevisionCommand { get; }
         ICommand UseLatestReleasedCommand { get; }
         ICommand ViewWhereUsedCommand { get; }
+        ICommand OpenSelectedPartInArasCommand { get; }
+        ICommand OpenSelectedEntryInArasCommand { get; }
+        ICommand OpenSelectedLibraryInArasCommand { get; }
+        ICommand OpenSelectedCadInArasCommand { get; }
         ICommand OpenInArasCommand { get; }
 
         string SelectedVisibilityFilter { get; set; }

@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 core gaps closed; 340/340 tests pass)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 UI wiring completed locally; 346/346 tests pass)
 
 ## Objective
 
@@ -180,12 +180,19 @@ Sprint 2.3 core backend is now implemented (gaps closed 2026-07-07):
 
 **Detail tabs (WS7):** Backend DTOs + `IPartLibraryClient` methods (`GetCadDetailsAsync`, `GetBomDetailsAsync`, `GetRevisionDetailsAsync`, `GetWhereUsedDetailsAsync`, `GetDetailBundleAsync`) — `HttpPartLibraryClient` throws `NotSupportedException` as placeholder for Sprint 2.3 UI wiring.
 
-**Tests:** 340 total — 0 failed, 0 skipped (previous + 29 new: 10 vault, 9 IronCAD, 10 Aras URL covering D-05, D-06, cache key, equality, extension, traversal, cancellation, result properties, `GetPrimaryCadFileInfoAsync` with injected client). All source projects 0w/0e. All test projects 0w/0e.
+**Tests:** 346 total â€” 0 failed, 0 skipped (previous + 29 new: 10 vault, 9 IronCAD, 10 Aras URL covering D-05, D-06, cache key, equality, extension, traversal, cancellation, result properties, `GetPrimaryCadFileInfoAsync` with injected client; plus 6 UI wiring tests for BrowserLauncher, service composition, Aras target routing, and detail-state notifications). All source projects 0w/0e. All test projects 0w/0e.
 
-Remaining for Sprint 2.3 UI:
-- Wire services into `LibraryViewModel` (OpenInIronCad, OpenInAras, DownloadCad)
-- Wire detail tab data queries behind tabs
-- WPF tab UI implementation (WP-32)
+**Sprint 2.3 UI Wiring Packet**
+
+Completed locally:
+
+- `LibraryServicesFactory` composes real services from the current session context and falls back to safe unavailable services when Aras context is missing.
+- `LibraryViewModel` now routes Open in Aras actions for Part, Entry, Library, and CAD targets.
+- `LibraryViewModel` now raises detail empty-state notifications when tabs are cleared or reloaded.
+- `BrowserLauncher` now validates safe `http`/`https` URLs before launch.
+- localization keys were added for English, Vietnamese, and Japanese.
+- focused unit tests cover routing, safe launch behavior, and empty-state refresh behavior.
+
 
 ## Next Sprint
 

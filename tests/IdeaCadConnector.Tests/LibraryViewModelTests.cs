@@ -54,6 +54,162 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task LibraryViewModel_OpenCommands_RouteToExpectedArasTargets()
+        {
+            var session = new FakeAppSessionContext
+            {
+                ArasServerUrl = "http://innovator-test/InnovatorServer/",
+                ArasDatabase = "InnovatorSolutions"
+            };
+            var client = CreateReusableClient();
+            client.EntryDetailsToReturn.PrimaryCadId = "cad-1";
+            client.DetailBundleToReturn = new LibraryEntryDetailBundle
+            {
+                Cad = new LibraryEntryCadDetails
+                {
+                    PrimaryCadId = "cad-1",
+                    PrimaryCadNumber = "CAD-1",
+                    PrimaryCadName = "Test CAD",
+                    PrimaryCadState = "Released",
+                    FileId = "file-1",
+                    FileName = "cad-1.ics",
+                    FileVersion = "1",
+                    HasNative = true
+                },
+                Bom = new LibraryEntryBomDetails
+                {
+                    EntryId = "entry-1",
+                    BomItems = new[]
+                    {
+                        new BomLineItem
+                        {
+                            ComponentPartId = "part-2",
+                            ComponentPartNumber = "P-002",
+                            ComponentName = "Component",
+                            ComponentRevision = "A",
+                            Quantity = 1,
+                            Unit = "EA"
+                        }
+                    }
+                },
+                Revisions = new LibraryEntryRevisionDetails
+                {
+                    EntryId = "entry-1",
+                    CurrentPartId = "part-1",
+                    CurrentRevision = "A",
+                    CurrentLifecycleState = "Released",
+                    CurrentGeneration = "1",
+                    RevisionHistory = new[]
+                    {
+                        new RevisionHistoryItem
+                        {
+                            PartId = "part-1",
+                            Revision = "A",
+                            Generation = "1",
+                            LifecycleState = "Released",
+                            ModifiedOn = "2026-07-07",
+                            IsCurrent = true
+                        }
+                    }
+                },
+                WhereUsed = new LibraryEntryWhereUsedDetails
+                {
+                    EntryId = "entry-1",
+                    WhereUsedItems = new[]
+                    {
+                        new WhereUsedItemEx
+                        {
+                            ParentPartId = "parent-1",
+                            ParentPartNumber = "PARENT-1",
+                            ParentPartName = "Parent",
+                            ParentRevision = "B",
+                            ParentState = "Released",
+                            Quantity = 1,
+                            Source = WhereUsedSource.Bom
+                        }
+                    }
+                }
+            };
+
+            var browserLauncher = new CapturingBrowserLauncher();
+            var openUrlService = new ArasOpenUrlService(
+                new Uri("http://innovator-test/InnovatorServer/"),
+                "InnovatorSolutions");
+
+            var viewModel = new LibraryViewModel(
+                session,
+                client,
+                null,
+                null,
+                null,
+                openUrlService,
+                browserLauncher);
+
+            session.NotifyLibraryDataChanged();
+            await WaitForAsync(() => viewModel.SelectedEntry != null && viewModel.SelectedCadDetails?.PrimaryCadId == "cad-1");
+            viewModel.SelectedLibrary = viewModel.Libraries[0];
+
+            viewModel.OpenSelectedPartInArasCommand.Execute(null);
+            await WaitForAsync(() => browserLauncher.LastUrl != null && browserLauncher.LastUrl.Contains("type=Part", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains("cfg-1", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
+
+            browserLauncher.Reset();
+            viewModel.OpenSelectedEntryInArasCommand.Execute(null);
+            await WaitForAsync(() => browserLauncher.LastUrl != null && browserLauncher.LastUrl.Contains("type=idea_PartLibraryEntry", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains("entry-1", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
+
+            browserLauncher.Reset();
+            viewModel.OpenSelectedLibraryInArasCommand.Execute(null);
+            await WaitForAsync(() => browserLauncher.LastUrl != null && browserLauncher.LastUrl.Contains("type=idea_PartLibrary", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains("lib-1", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
+
+            browserLauncher.Reset();
+            viewModel.OpenSelectedCadInArasCommand.Execute(null);
+            await WaitForAsync(() => browserLauncher.LastUrl != null && browserLauncher.LastUrl.Contains("type=CAD", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains("cad-1", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task LibraryViewModel_DetailEmptyStates_UpdateAfterSelectionClears()
+        {
+            var session = new FakeAppSessionContext();
+            var client = CreateReusableClient();
+            client.EntryDetailsToReturn.PrimaryCadId = "cad-1";
+            client.DetailBundleToReturn = new LibraryEntryDetailBundle
+            {
+                Cad = new LibraryEntryCadDetails { PrimaryCadId = "cad-1", HasNative = true },
+                Bom = new LibraryEntryBomDetails { BomItems = new[] { new BomLineItem { ComponentPartId = "part-2", ComponentPartNumber = "P-002", ComponentName = "Component", ComponentRevision = "A", Quantity = 1, Unit = "EA" } } },
+                Revisions = new LibraryEntryRevisionDetails { RevisionHistory = new[] { new RevisionHistoryItem { PartId = "part-1", Revision = "A", Generation = "1", LifecycleState = "Released", ModifiedOn = "2026-07-07", IsCurrent = true } } },
+                WhereUsed = new LibraryEntryWhereUsedDetails { WhereUsedItems = new[] { new WhereUsedItemEx { ParentPartId = "parent-1", ParentPartNumber = "PARENT-1", ParentPartName = "Parent", ParentRevision = "B", ParentState = "Released", Quantity = 1, Source = WhereUsedSource.Bom } } }
+            };
+
+            var viewModel = new LibraryViewModel(session, client);
+            session.NotifyLibraryDataChanged();
+            await WaitForAsync(() => viewModel.SelectedEntry != null && viewModel.HasCadDetails && viewModel.HasBomItems && viewModel.HasRevisionItems && viewModel.HasWhereUsedItems);
+
+            var changes = new List<string>();
+            viewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(viewModel.HasNoCadDetails) ||
+                    e.PropertyName == nameof(viewModel.HasNoBomItems) ||
+                    e.PropertyName == nameof(viewModel.HasNoRevisionItems) ||
+                    e.PropertyName == nameof(viewModel.HasNoWhereUsedItems))
+                {
+                    changes.Add(e.PropertyName);
+                }
+            };
+
+            viewModel.SelectedEntry = null;
+
+            await WaitForAsync(() => viewModel.HasNoCadDetails && viewModel.HasNoBomItems && viewModel.HasNoRevisionItems && viewModel.HasNoWhereUsedItems);
+
+            Assert.Contains(nameof(viewModel.HasNoCadDetails), changes);
+            Assert.Contains(nameof(viewModel.HasNoBomItems), changes);
+            Assert.Contains(nameof(viewModel.HasNoRevisionItems), changes);
+            Assert.Contains(nameof(viewModel.HasNoWhereUsedItems), changes);
+        }
+
+        [Fact]
         public async Task LibraryViewModel_InjectedClientRemainsAuthoritative()
         {
             var session = new FakeAppSessionContext();
@@ -605,6 +761,9 @@ namespace IdeaCadConnector.Tests
             public IPdmRepositoryClient PdmClient { get; set; }
             public IArasCadClient ArasCadClient { get; set; }
             public IPartLibraryClient PartLibraryClient { get; set; }
+            public string ArasServerUrl { get; set; }
+            public string ArasDatabase { get; set; }
+            public string IronCadExecutablePath { get; set; }
             public string CurrentUserName { get; set; }
             public PdmProjectsViewModel CurrentPdmProjectsViewModel { get; set; }
             public string PendingLibraryFocusLibraryId { get; set; }
@@ -702,6 +861,7 @@ namespace IdeaCadConnector.Tests
             public PartLibraryEntryDetails EntryDetailsToReturn { get; set; } = new PartLibraryEntryDetails();
             public ResolveLibraryPartResult ResolveResultToReturn { get; set; } = new ResolveLibraryPartResult();
             public IReadOnlyList<PartWhereUsedItem> WhereUsedToReturn { get; set; } = Array.Empty<PartWhereUsedItem>();
+            public LibraryEntryDetailBundle DetailBundleToReturn { get; set; } = new LibraryEntryDetailBundle();
             public int GetLibrariesCallCount { get; private set; }
             public int SearchEntriesCallCount { get; private set; }
             public int ResolveUsingStoredPolicyCallCount { get; private set; }
@@ -795,10 +955,26 @@ namespace IdeaCadConnector.Tests
             public Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(string entryId, CancellationToken cancellationToken)
                 => Task.FromResult(new LibraryEntryWhereUsedDetails());
             public Task<LibraryEntryDetailBundle> GetDetailBundleAsync(string entryId, CancellationToken cancellationToken)
-                => Task.FromResult(new LibraryEntryDetailBundle());
+                => Task.FromResult(DetailBundleToReturn);
 
             public void Dispose()
             {
+            }
+        }
+
+        private sealed class CapturingBrowserLauncher : IBrowserLauncher
+        {
+            public string LastUrl { get; private set; }
+
+            public Task<bool> LaunchUrlAsync(string url, CancellationToken cancellationToken)
+            {
+                LastUrl = url;
+                return Task.FromResult(true);
+            }
+
+            public void Reset()
+            {
+                LastUrl = null;
             }
         }
     }

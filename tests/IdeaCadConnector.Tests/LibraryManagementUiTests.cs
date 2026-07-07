@@ -521,6 +521,9 @@ namespace IdeaCadConnector.Tests
             public IPdmRepositoryClient PdmClient { get; set; }
             public IArasCadClient ArasCadClient { get; set; }
             public IPartLibraryClient PartLibraryClient { get; set; }
+            public string ArasServerUrl { get; set; }
+            public string ArasDatabase { get; set; }
+            public string IronCadExecutablePath { get; set; }
             public string CurrentUserName { get; set; }
             public PdmProjectsViewModel CurrentPdmProjectsViewModel { get; set; }
             public string PendingLibraryFocusLibraryId { get; set; }

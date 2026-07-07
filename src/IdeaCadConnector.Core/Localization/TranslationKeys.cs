@@ -222,6 +222,13 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryStatusPrimaryCadFolderOpenFailed = "LibraryStatusPrimaryCadFolderOpenFailed";
         public const string LibraryStatusPrimaryCadOpened = "LibraryStatusPrimaryCadOpened";
         public const string LibraryStatusPrimaryCadFolderOpened = "LibraryStatusPrimaryCadFolderOpened";
+        public const string LibraryStatusVaultServiceUnavailable = "LibraryStatusVaultServiceUnavailable";
+        public const string LibraryStatusIronCadServiceUnavailable = "LibraryStatusIronCadServiceUnavailable";
+        public const string LibraryStatusBrowserLauncherUnavailable = "LibraryStatusBrowserLauncherUnavailable";
+        public const string LibraryStatusOpenPartInAras = "LibraryStatusOpenPartInAras";
+        public const string LibraryStatusOpenEntryInAras = "LibraryStatusOpenEntryInAras";
+        public const string LibraryStatusOpenLibraryInAras = "LibraryStatusOpenLibraryInAras";
+        public const string LibraryStatusOpenCadInAras = "LibraryStatusOpenCadInAras";
         public const string LibraryStatusOpenInArasRequiresUrl = "LibraryStatusOpenInArasRequiresUrl";
         public const string LibraryPermissionDenied = "LibraryPermissionDenied";
         public const string LibraryFailedPrefix = "LibraryFailedPrefix";

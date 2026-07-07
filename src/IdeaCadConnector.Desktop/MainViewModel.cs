@@ -86,6 +86,7 @@ namespace IdeaCadConnector.Desktop
             _cadAdapter = cadAdapter ?? new IronCadExternalAdapter(options?.IronCadExecutablePath);
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
             _revisionService = new GuidanceRevisionService();
+            AppSessionContext.Current.IronCadExecutablePath = _options.IronCadExecutablePath;
 
             _selectedLanguage = SettingsService.LoadLanguage() ?? "en-US";
 
@@ -594,6 +595,8 @@ namespace IdeaCadConnector.Desktop
                 IsLoginPanelVisible = false;
                 OnPropertyChanged(nameof(IsConnected));
                 OnPropertyChanged(nameof(ConnectedUserText));
+                AppSessionContext.Current.ArasServerUrl = request.ServerUrl;
+                AppSessionContext.Current.ArasDatabase = request.Database;
                 SharedUserName = _loginResult.UserName;
                 StatusMessage = string.Format(Loc(TranslationKeys.StatusConnected), _loginResult.UserName);
 
@@ -653,6 +656,8 @@ namespace IdeaCadConnector.Desktop
                 SharedUserName = null;
                 (SharedPartLibraryClient as IDisposable)?.Dispose();
                 SharedPartLibraryClient = null;
+                AppSessionContext.Current.ArasServerUrl = null;
+                AppSessionContext.Current.ArasDatabase = null;
                 AppSessionContext.Current.NotifyLibraryDataChanged();
                 AppSessionContext.Current.CurrentPdmProjectsViewModel = null;
                 AppSessionContext.Current.PendingLibraryFocusLibraryId = null;

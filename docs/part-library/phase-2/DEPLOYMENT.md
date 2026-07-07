@@ -34,7 +34,7 @@ Phase 2 must not rename or rebuild these artifacts just to match the package wor
 - `Desktop` dialogs, tabs, filters, status messaging, and localization
 - `Aras` client query logic and permission/error classification
 
-Current Sprint 2.2 core work is application-side only; no live Aras ItemType, Method, or lifecycle change is required for the code that landed in this packet.
+Current Sprint 2.3 UI wiring is application-side only; no live Aras ItemType, Method, or lifecycle change is required for the code that landed in this packet.
 
 ### Potentially Aras-side
 
@@ -100,4 +100,4 @@ All decisions D-01 through D-06 are APPROVED as of 2026-07-06. No unresolved dec
 
 ## Current Planning Outcome
 
-Phase 2 is `IN_PROGRESS`. Deployment remains a design-time topic for the current packet. No additional Aras ItemType, Method, permission, lifecycle, or Vault configuration change is approved by this document.
+Phase 2 is `IN_PROGRESS`. Sprint 2.3 UI wiring is application-side only. Deployment remains a design-time topic for the current packet. No additional Aras ItemType, Method, permission, lifecycle, or Vault configuration change is approved by this document.

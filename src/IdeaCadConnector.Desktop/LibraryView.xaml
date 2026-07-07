@@ -494,7 +494,7 @@
                                                         Command="{Binding DownloadCadCommand}"
                                                         Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonDownload]}"/>
                                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="4,0,0,0"
-                                                        Command="{Binding OpenInArasCommand}"
+                                                        Command="{Binding OpenSelectedEntryInArasCommand}"
                                                         Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonOpenInAras]}"/>
                                             </UniformGrid>
                                             <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadNoCadFound]}"
@@ -578,8 +578,10 @@
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,5,0"
                                         Command="{Binding OpenInIronCadCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryOpenInIronCad]}"/>
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="5,0,0,0"
-                                        Command="{Binding DownloadCadCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryDownloadCad]}"/>
+                                        Command="{Binding OpenSelectedCadInArasCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonOpenInAras]}"/>
                             </UniformGrid>
+                            <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,10,0,0"
+                                    Command="{Binding DownloadCadCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryDownloadCad]}"/>
                             <Button Style="{StaticResource LibraryPrimaryButtonStyle}" Margin="0,10,0,0"
                                     Command="{Binding AddToCurrentProjectCommand}"
                                     Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryAddToProject]}"/>

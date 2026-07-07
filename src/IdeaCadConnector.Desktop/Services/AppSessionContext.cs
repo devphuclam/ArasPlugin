@@ -8,6 +8,9 @@ namespace IdeaCadConnector.Desktop.Services
         IPdmRepositoryClient PdmClient { get; set; }
         IArasCadClient ArasCadClient { get; set; }
         IPartLibraryClient PartLibraryClient { get; set; }
+        string ArasServerUrl { get; set; }
+        string ArasDatabase { get; set; }
+        string IronCadExecutablePath { get; set; }
         string CurrentUserName { get; set; }
         PdmProjectsViewModel CurrentPdmProjectsViewModel { get; set; }
         string PendingLibraryFocusLibraryId { get; set; }
@@ -34,6 +37,12 @@ namespace IdeaCadConnector.Desktop.Services
         public IArasCadClient ArasCadClient { get; set; }
 
         public IPartLibraryClient PartLibraryClient { get; set; }
+
+        public string ArasServerUrl { get; set; }
+
+        public string ArasDatabase { get; set; }
+
+        public string IronCadExecutablePath { get; set; }
 
         public string CurrentUserName { get; set; }
 

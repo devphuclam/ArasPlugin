@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 UI wiring completed locally)
 
 ## Objective
 
@@ -67,10 +67,18 @@ The repository now **adds** in Sprint 2.3 core:
 - `PartLibraryCadFileInfo`, `VaultCacheKey`, `VaultDownloadResult` DTOs in `Core.Library`
 - 44 focused service tests covering all VT and OA requirements
 
-The repository does **not** yet provide:
+Sprint 2.3 UI wiring now adds:
+
+- `LibraryServicesFactory` to compose real services from the current session and fall back safely when Aras context is missing.
+- `LibraryViewModel` open-target commands for Part, Entry, Library, and CAD navigation.
+- `LibraryViewModel` detail-state notifications when tabs are cleared or reloaded.
+- `BrowserLauncher` validation for safe `http`/`https` URLs.
+- localization keys for English, Vietnamese, and Japanese.
+- focused UI wiring tests covering routing, service composition, browser launch behavior, and empty-state refreshes.
+
+The repository still does **not** yet provide:
 
 - Library restore flows;
-- Wired ViewModel commands consuming the new services;
 - real CAD/BOM/Revisions detail tabs (`WS7`);
 - advanced entry filters and hardening beyond Sprint 2.1 (`WS8`).
 
@@ -125,7 +133,7 @@ Remaining live limitations:
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
 - full customer/external viewer UAT remains pending unless tested;
-- Sprint 2.3 has not started.
+- Sprint 2.3 has completed locally, but live UAT remains pending.
 
 ## Approved Decisions
 
