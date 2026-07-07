@@ -567,6 +567,152 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task GetCadDetailsAsync_RelatedIdAsObjectWithId_ReturnsAvailable()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["related_id"] = new JObject { ["id"] = "cad-1", ["keyed_name"] = "ABC-001-ICS" }
+            }));
+            fake.ApplyItemResults.Enqueue(Cad("cad-1", "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "A", "Released", "file-1"));
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("Available", details.CadStatus);
+            Assert.Equal("file-1", details.FileId);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_RelatedIdAsNestedItemWithId_ReturnsAvailable()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["related_id"] = new JObject
+                {
+                    ["Item"] = new JObject { ["id"] = "cad-1", ["keyed_name"] = "ABC-001-ICS" }
+                }
+            }));
+            fake.ApplyItemResults.Enqueue(Cad("cad-1", "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "A", "Released", "file-1"));
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("Available", details.CadStatus);
+            Assert.Equal("file-1", details.FileId);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_NestedCadWithNativeFile_ReturnsAvailableWithoutCadItemReload()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["related_id"] = new JObject
+                {
+                    ["Item"] = Cad("cad-1", "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "A", "Released", "file-1")
+                }
+            }));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, select) =>
+                string.Equals(itemType, "CAD", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ServerUnavailable, "CAD item type not readable")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("Available", details.CadStatus);
+            Assert.Equal("file-1", details.FileId);
+            Assert.DoesNotContain(fake.Calls, call => call.MethodKind == "ApplyItem" && call.ItemType == "CAD");
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_NestedCadWithoutNativeFile_ReturnsNoNativeFile()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["related_id"] = new JObject
+                {
+                    ["Item"] = Cad("cad-1", "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "A", "Released")
+                }
+            }));
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("No native file", details.CadStatus);
+            Assert.False(details.HasNative);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_RelatedIdMissing_ReturnsDiagnosticStatus()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject { ["id"] = "rel-1" }));
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.StartsWith("CAD lookup unavailable:", details.CadStatus, StringComparison.Ordinal);
+            Assert.Contains("related_id", details.CadStatus, StringComparison.OrdinalIgnoreCase);
+            Assert.Null(details.PrimaryCadId);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_PartCadRelationshipUnavailable_TriesCadDocumentsFallback()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["related_id"] = new JObject
+                {
+                    ["Item"] = Cad("cad-1", "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "A", "Released", "file-1")
+                }
+            }));
+            fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
+                string.Equals(itemType, "Part CAD", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ValidationFailed, "Part CAD item type not found")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("Available", details.CadStatus);
+            Assert.Contains(fake.Calls, call => call.MethodKind == "ApplyAml" && call.ItemType == "CAD Documents");
+        }
+
+        [Fact]
         public async Task GetCadDetailsAsync_NoPartCadRel_FallsBackToExpectedCadAndMarksUnlinked()
         {
             var fake = new FakeArasAmlClient();
@@ -621,7 +767,8 @@ namespace IdeaCadConnector.Tests
 
             var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
 
-            Assert.Equal("CAD lookup unavailable", details.CadStatus);
+            Assert.StartsWith("CAD lookup unavailable:", details.CadStatus, StringComparison.Ordinal);
+            Assert.Contains("Down", details.CadStatus, StringComparison.Ordinal);
             Assert.Null(details.PrimaryCadId);
         }
 

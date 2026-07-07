@@ -2427,34 +2427,85 @@ namespace IdeaCadConnector.Aras
                 var part = await GetPartAsync(partId, ct).ConfigureAwait(false);
                 var partNumber = part["item_number"]?.Value<string>();
 
-                var relAml =
-                    "<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
-                    "<source_id>" + Escape(partId) + "</source_id>" +
-                    "</Item>";
+                var cadSelect = "id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file";
+                var relResult = await GetPartCadRelationshipResultAsync(partId, cadSelect, ct).ConfigureAwait(false);
+                var relationshipItems = EnumerateItems(relResult).ToList();
 
-                var relResult = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", null, ct).ConfigureAwait(false);
-                var relatedCadIds = EnumerateItems(relResult)
-                    .Select(rel => rel["related_id"]?.Value<string>())
-                    .Where(cadId => !string.IsNullOrWhiteSpace(cadId))
-                    .ToList();
+                PrimaryCadInfo bestNativeMatch = null;
+                PrimaryCadInfo bestNativeAny = null;
+                PrimaryCadInfo bestNonNativeMatch = null;
+                PrimaryCadInfo bestNonNativeAny = null;
+                var relatedCadIds = new List<string>();
+                var unparsedRelatedCount = 0;
 
-                  PrimaryCadInfo bestNativeAny = null;
-                  PrimaryCadInfo bestNonNativeMatch = null;
-                  PrimaryCadInfo bestNonNativeAny = null;
-
-                foreach (var cadId in relatedCadIds)
+                foreach (var rel in relationshipItems)
                 {
-                    var cad = await _aml.ApplyItemAsync(
-                        "CAD",
-                        cadId,
-                        "get",
-                        "id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file",
-                        ct).ConfigureAwait(false);
+                    var relatedToken = rel["related_id"];
+                    var nestedCad = ExtractRelatedCadObject(relatedToken) ?? ExtractRelatedCadObject(rel);
+                    if (nestedCad != null && nestedCad.HasValues)
+                    {
+                        var info = CreatePrimaryCadInfo(
+                            nestedCad,
+                            HasNativeFile(nestedCad) ? CadStatusAvailable : CadStatusNoNativeFile);
+
+                        if (HasNativeFile(nestedCad))
+                        {
+                            if (IsPreferredIronCad(nestedCad))
+                                bestNativeMatch ??= info;
+
+                            bestNativeAny ??= info;
+                        }
+                        else
+                        {
+                            if (IsPreferredIronCad(nestedCad))
+                                bestNonNativeMatch ??= info;
+
+                            bestNonNativeAny ??= info;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(info.CadId))
+                            relatedCadIds.Add(info.CadId);
+
+                        continue;
+                    }
+
+                    var cadId = ExtractArasItemId(relatedToken);
+                    if (string.IsNullOrWhiteSpace(cadId))
+                    {
+                        unparsedRelatedCount++;
+                        continue;
+                    }
+
+                    relatedCadIds.Add(cadId);
+                }
+
+                if (bestNativeMatch != null)
+                    return bestNativeMatch;
+                if (bestNativeAny != null)
+                    return bestNativeAny;
+
+                foreach (var cadId in relatedCadIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    JObject cad;
+                    try
+                    {
+                        cad = await _aml.ApplyItemAsync(
+                            "CAD",
+                            cadId,
+                            "get",
+                            cadSelect,
+                            ct).ConfigureAwait(false);
+                    }
+                    catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex) && (bestNonNativeMatch != null || bestNonNativeAny != null))
+                    {
+                        _logger.LogDebug(ex, "Could not refresh CAD {CadId}; using expanded Part CAD relationship data.", cadId);
+                        continue;
+                    }
 
                     if (cad == null || !cad.HasValues)
                         continue;
 
-                    var info = CreatePrimaryCadInfo(cad, IsPreferredIronCad(cad) ? CadStatusAvailable : CadStatusUnlinkedFound);
+                    var info = CreatePrimaryCadInfo(cad, HasNativeFile(cad) ? CadStatusAvailable : CadStatusNoNativeFile);
                     if (HasNativeFile(cad))
                     {
                         if (IsPreferredIronCad(cad))
@@ -2471,8 +2522,8 @@ namespace IdeaCadConnector.Aras
                     }
                 }
 
-                  if (bestNativeAny != null)
-                      return bestNativeAny;
+                if (bestNativeAny != null)
+                    return bestNativeAny;
                 if (bestNonNativeMatch != null)
                 {
                     bestNonNativeMatch.Status = CadStatusNoNativeFile;
@@ -2484,11 +2535,13 @@ namespace IdeaCadConnector.Aras
                     return bestNonNativeAny;
                 }
 
-                if (relatedCadIds.Count > 0)
+                if (relatedCadIds.Count > 0 || unparsedRelatedCount > 0)
                 {
                     return new PrimaryCadInfo
                     {
-                        Status = CadStatusNoNativeFile,
+                        Status = relatedCadIds.Count > 0
+                            ? CadStatusNoNativeFile
+                            : CadStatusLookupUnavailable + ": Part CAD related_id could not be parsed",
                         CadNumber = partNumber
                     };
                 }
@@ -2520,7 +2573,7 @@ namespace IdeaCadConnector.Aras
             catch (ArasOperationException ex)
             {
                 _logger.LogDebug(ex, "Primary CAD info lookup failed for Part {PartId}.", partId);
-                return new PrimaryCadInfo { Status = CadStatusLookupUnavailable };
+                return new PrimaryCadInfo { Status = CadStatusLookupUnavailable + ": " + SanitizeDiagnostic(ex.Message) };
             }
             catch (Exception ex)
             {
@@ -2528,8 +2581,42 @@ namespace IdeaCadConnector.Aras
                     throw;
 
                 _logger.LogDebug(ex, "Primary CAD info lookup failed for Part {PartId}.", partId);
-                return new PrimaryCadInfo { Status = CadStatusLookupUnavailable };
+                return new PrimaryCadInfo { Status = CadStatusLookupUnavailable + ": " + SanitizeDiagnostic(ex.Message) };
             }
+        }
+
+        private async Task<JObject> GetPartCadRelationshipResultAsync(string partId, string cadSelect, CancellationToken ct)
+        {
+            var relationshipTypes = new[] { "Part CAD", "CAD Documents" };
+            ArasOperationException lastUnavailable = null;
+
+            foreach (var relationshipType in relationshipTypes)
+            {
+                var relAml =
+                    "<Item type=\"" + relationshipType + "\" action=\"get\" select=\"id,related_id\">" +
+                    "<source_id>" + Escape(partId) + "</source_id>" +
+                    "<related_id>" +
+                    "<Item type=\"CAD\" action=\"get\" select=\"" + cadSelect + "\" />" +
+                    "</related_id>" +
+                    "</Item>";
+
+                try
+                {
+                    var result = await _aml.ApplyAmlAsync(relAml, "get", relationshipType, null, ct).ConfigureAwait(false);
+                    if (!string.Equals(relationshipType, "Part CAD", StringComparison.OrdinalIgnoreCase))
+                        _logger.LogInformation("Primary CAD lookup used relationship type '{RelationshipType}'.", relationshipType);
+                    return result;
+                }
+                catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex) && IsRelationshipTypeUnavailable(ex, relationshipType))
+                {
+                    lastUnavailable = ex;
+                    _logger.LogDebug(ex, "CAD relationship type '{RelationshipType}' is unavailable.", relationshipType);
+                }
+            }
+
+            throw lastUnavailable ?? new ArasOperationException(
+                ArasErrorCode.ValidationFailed,
+                "CAD relationship type is not readable.");
         }
 
         private static IEnumerable<JObject> EnumerateItems(JObject result)
@@ -2663,6 +2750,109 @@ namespace IdeaCadConnector.Aras
         private static bool HasNativeFile(JObject cad)
         {
             return cad != null && !string.IsNullOrWhiteSpace(cad["native_file"]?.Value<string>());
+        }
+
+        private static string ExtractArasItemId(JToken token)
+        {
+            if (token == null || token.Type == JTokenType.Null)
+                return null;
+
+            if (token.Type == JTokenType.String)
+                return token.Value<string>();
+
+            if (token is JObject obj)
+            {
+                var direct = obj["id"]?.Value<string>()
+                    ?? obj["@id"]?.Value<string>()
+                    ?? obj["attributes"]?["id"]?.Value<string>()
+                    ?? obj["@attributes"]?["id"]?.Value<string>()
+                    ?? obj["_attributes"]?["id"]?.Value<string>();
+                if (!string.IsNullOrWhiteSpace(direct))
+                    return direct;
+
+                var item = obj["Item"];
+                if (item is JObject itemObject)
+                    return ExtractArasItemId(itemObject);
+                if (item is JArray itemArray)
+                {
+                    foreach (var child in itemArray)
+                    {
+                        var childId = ExtractArasItemId(child);
+                        if (!string.IsNullOrWhiteSpace(childId))
+                            return childId;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static JObject ExtractRelatedCadObject(JToken token)
+        {
+            if (token is JObject obj)
+            {
+                if (LooksLikeCadObject(obj))
+                    return obj;
+
+                if (obj["Item"] is JObject itemObject && LooksLikeCadObject(itemObject))
+                    return itemObject;
+
+                if (obj["Item"] is JArray itemArray)
+                {
+                    foreach (var child in itemArray.OfType<JObject>())
+                    {
+                        if (LooksLikeCadObject(child))
+                            return child;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private static bool LooksLikeCadObject(JObject obj)
+        {
+            if (obj == null)
+                return false;
+
+            return obj["item_number"] != null ||
+                   obj["name"] != null ||
+                   obj["classification"] != null ||
+                   obj["authoring_tool"] != null ||
+                   obj["generation"] != null ||
+                   obj["state"] != null ||
+                   obj["locked_by_id"] != null ||
+                   obj["native_file"] != null;
+        }
+
+        private static string SanitizeDiagnostic(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+                return "unknown error";
+
+            var sanitized = message.Replace("\r", " ").Replace("\n", " ").Trim();
+            const int maxLength = 180;
+            return sanitized.Length <= maxLength ? sanitized : sanitized.Substring(0, maxLength) + "...";
+        }
+
+        private static bool IsRelationshipTypeUnavailable(ArasOperationException ex, string relationshipType)
+        {
+            if (ex == null || string.IsNullOrWhiteSpace(relationshipType))
+                return false;
+
+            if (ex.ErrorCode != ArasErrorCode.ValidationFailed &&
+                ex.ErrorCode != ArasErrorCode.CadNotFound &&
+                ex.ErrorCode != ArasErrorCode.UnexpectedServerError)
+            {
+                return false;
+            }
+
+            var message = ex.Message ?? string.Empty;
+            return message.IndexOf(relationshipType, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                   (message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("not available", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         private static bool IsPreferredIronCad(JObject cad)
