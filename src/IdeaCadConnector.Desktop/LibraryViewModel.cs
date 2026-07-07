@@ -490,6 +490,7 @@ namespace IdeaCadConnector.Desktop
 
         private async Task RefreshAsync()
         {
+            RefreshLibraryServices();
             ClearTransientStates();
             if (IsOffline)
             {
@@ -1935,6 +1936,8 @@ namespace IdeaCadConnector.Desktop
 
         private void OnLibraryDataChanged(object sender, EventArgs e)
         {
+            RefreshLibraryServices();
+            RaiseCommandStates();
             _ = RefreshAsync();
         }
 

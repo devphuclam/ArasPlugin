@@ -78,8 +78,45 @@ namespace IdeaCadConnector.Tests
 
             Assert.NotNull(openUrlService);
             Assert.NotNull(vaultService);
-            Assert.Contains("ArasOpenUrlService", openUrlService.GetType().Name);
-            Assert.Contains("PartLibraryVaultService", vaultService.GetType().Name);
+            Assert.Equal("ArasOpenUrlService", openUrlService.GetType().Name);
+            Assert.Equal("PartLibraryVaultService", vaultService.GetType().Name);
+        }
+
+        [Fact]
+        public async Task LibraryViewModel_OpenSelectedPartInAras_UsesRecomposedServicesAfterLogin()
+        {
+            var session = new FakeAppSessionContext();
+            var client = CreateReusableClient();
+            var browserLauncher = new CapturingBrowserLauncher();
+
+            var viewModel = new LibraryViewModel(
+                session,
+                null,
+                null,
+                null,
+                null,
+                null,
+                browserLauncher);
+
+            session.PartLibraryClient = client;
+            session.ArasCadClient = new StubArasCadClient();
+            session.ArasServerUrl = "http://innovator-test/InnovatorServer/";
+            session.ArasDatabase = "InnovatorSolutions";
+            session.NotifyLibraryDataChanged();
+
+            viewModel.SelectedEntry = new PartLibraryEntryRow
+            {
+                EntryId = "entry-1",
+                PartId = "part-123"
+            };
+
+            viewModel.OpenSelectedPartInArasCommand.Execute(null);
+
+            await WaitForAsync(() => browserLauncher.LastUrl != null);
+
+            Assert.Contains("type=Part", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("InnovatorSolutions", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Unavailable", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
