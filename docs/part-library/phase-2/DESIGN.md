@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 UAT smoke passed with follow-up)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted)
 
 ## Objective
 
@@ -97,20 +97,21 @@ Sprint 2.2 UI now includes:
 - `CanPin=false` revisions disable Pin button with reason
 - duplicate active Entry in target Library blocks move
 
-## Sprint 2.2 UAT Closeout Evidence
+## Sprint 2.2 Follow-Up Patch
 
-The following evidence has been recorded against the current design baseline:
+Follow-up patch applied with commit `<PENDING>`. Authorization model extended:
 
-- **Admin** Move Entry and Revision Browser: PASS
-- **lamEngineer/NVTKC** Move Entry: FAIL (can move via `IsContributorOrHigher`; business rule says view-only) — follow-up required
-- **lamEngineer/NVTKC** Pin Revision: FAIL (can pin via `IsContributorOrHigher`; business rule says view-only) — follow-up required
-- **lamEngineer/NVTKC** Revision Browser view-only: PASS
-- **TNTKC** Move Entry and Pin Revision: PASS
-- **lamPM** Move Entry and Pin Revision: PASS
-- **viewer/unknown** Move Entry and Revision Browser: PASS (hidden/blocked)
-- **Automated verification:** Debug build passed, Release build passed, focused tests passed, full tests 261/261 passed.
+- `ILibraryAuthorizationService` gained `IsReviewerOrHigher`, `CanMoveEntries`, `CanPinRevisions`.
+- `LibraryAuthorizationRules` gained `ReviewerUsers` collection and `IsReviewer()` method.
+- Default reviewer users: tntkc, lampm, tptkc, truongphongthietkeco, admin, innovatoradmin.
+- `CanExecuteMoveEntry` now gates on `CanMoveEntries` (reviewer-or-higher) instead of `IsContributorOrHigher`.
+- `PartRevisionBrowserViewModel` accepts `canPinRevisions` parameter; `CanPin` gates on it.
+- lamEngineer/NVTKC: `IsReviewerOrHigher=false` → `CanMoveEntries=false`, `CanPinRevisions=false`.
+- TNTKC: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
+- lamPM: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
+- viewer/unknown: conservative read-only, no Move/Pin.
 
-Known limitation: `CanExecuteMoveEntry` and `CanPin` use `IsContributorOrHigher`, which includes NVTKC/lamEngineer. A follow-up patch is needed to restrict Move Entry and Pin to `IsReviewerOrHigher` (TNTKC and lamPM only).
+No backend `MoveLibraryEntryAsync`, `SearchPartRevisionsAsync`, or `UpdateRevisionPolicyAsync` behavior was changed.
 
 Remaining live limitations:
 
@@ -176,4 +177,4 @@ Remaining live limitations:
 
 ## Next Implementation Packet
 
-`Sprint 2.2 Follow-Up: Tighten lamEngineer/NVTKC Move Entry and Pin permission` OR `Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
+`Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`

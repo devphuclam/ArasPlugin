@@ -909,7 +909,7 @@ namespace IdeaCadConnector.Desktop
             if (SelectedEntry == null || SelectedLibrary == null || IsLoading || IsOffline)
                 return false;
 
-            if (!IsContributorOrHigher)
+            if (!(_authService?.CanMoveEntries ?? false))
                 return false;
 
             if (SelectedLibrary.IsArchived)
@@ -998,7 +998,8 @@ namespace IdeaCadConnector.Desktop
             var viewModel = new PartRevisionBrowserViewModel(
                 ActiveClient,
                 SelectedEntry,
-                SelectedEntryDetails?.RevisionPolicy ?? SelectedEntry.RevisionPolicy);
+                SelectedEntryDetails?.RevisionPolicy ?? SelectedEntry.RevisionPolicy,
+                _authService?.CanPinRevisions ?? false);
 
             await viewModel.InitializeAsync().ConfigureAwait(true);
 

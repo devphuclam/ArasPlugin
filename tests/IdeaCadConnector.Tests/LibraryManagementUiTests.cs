@@ -294,6 +294,68 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task MoveCommand_DisabledForContributorWithoutMovePermission()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var viewModel = CreateViewModel(client: client, canManage: false, canUsePartPicker: true, canMoveEntries: false);
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            Assert.False(viewModel.MoveEntryCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task MoveCommand_EnabledForReviewer()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.ActiveLibraries.Add(CreateLibrary("lib-b", "Library B", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var viewModel = CreateViewModel(client: client, canManage: false, canUsePartPicker: false, canMoveEntries: true);
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            Assert.True(viewModel.MoveEntryCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task MoveCommand_ArchivedSelectedLibrary_DisablesMoveForReviewer()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Archived Lib", canContribute: true, status: PartLibrarySchemaNames.LibraryStatusArchived));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var viewModel = CreateViewModel(client: client, canManage: false, canUsePartPicker: false, canMoveEntries: true);
+
+            viewModel.SelectedVisibilityFilter = "Archived";
+            await WaitForAsync(() => viewModel.Libraries.Count == 1 && viewModel.SelectedLibrary != null);
+
+            Assert.True(viewModel.SelectedLibrary.IsArchived);
+            Assert.False(viewModel.MoveEntryCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task RevisionBrowserCommand_ContributorCanViewButCannotPin()
+        {
+            var client = new StubPartLibraryClient();
+            client.ActiveLibraries.Add(CreateLibrary("lib-a", "Library A", canContribute: true));
+            client.EntriesToReturn.Add(CreateEntrySummary("entry-1", "lib-a", "PART-001"));
+            var opened = false;
+            var viewModel = CreateViewModel(client: client, canManage: false, canUsePartPicker: true, canMoveEntries: false, canPinRevisions: false);
+            viewModel.RevisionBrowserDialogHandler = vm =>
+            {
+                opened = true;
+                return true;
+            };
+
+            await WaitForAsync(() => viewModel.SelectedLibrary != null && viewModel.Entries.Count > 0);
+            Assert.True(viewModel.ShowRevisionBrowserCommand.CanExecute(null));
+            viewModel.ShowRevisionBrowserCommand.Execute(null);
+            await Task.Delay(200);
+
+            Assert.True(opened);
+        }
+
+        [Fact]
         public async Task RevisionBrowserCommand_DisabledWithNoSelectedEntry()
         {
             var client = new StubPartLibraryClient();
@@ -353,7 +415,9 @@ namespace IdeaCadConnector.Tests
         private static LibraryViewModel CreateViewModel(
             StubPartLibraryClient client = null,
             bool canManage = false,
-            bool canUsePartPicker = false)
+            bool canUsePartPicker = false,
+            bool? canMoveEntries = null,
+            bool? canPinRevisions = null)
         {
             var session = new FakeAppSessionContext { PdmClient = new StubPdmRepositoryClient() };
             return new LibraryViewModel(
@@ -362,7 +426,9 @@ namespace IdeaCadConnector.Tests
                 new StubLibraryAuthorizationService
                 {
                     CanManage = canManage,
-                    CanUsePicker = canUsePartPicker
+                    CanUsePicker = canUsePartPicker,
+                    CanMoveEntries = canMoveEntries ?? canManage,
+                    CanPinRevisions = canPinRevisions ?? canManage
                 });
         }
 
@@ -434,10 +500,14 @@ namespace IdeaCadConnector.Tests
         {
             public bool CanManage { get; set; }
             public bool CanUsePicker { get; set; }
+            public bool CanMoveEntries { get; set; }
+            public bool CanPinRevisions { get; set; }
 
             public bool IsLibraryManager => CanManage;
 
             public bool IsContributorOrHigher => CanManage || CanUsePicker;
+
+            public bool IsReviewerOrHigher => CanManage || CanMoveEntries;
 
             public bool IsReadOnlyViewer => !IsContributorOrHigher;
 

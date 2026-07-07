@@ -85,7 +85,7 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public async Task CanPin_True_EnablesPin()
+        public async Task CanPin_True_EnablesPin_ForReviewer()
         {
             var client = new StubPartLibraryClient
             {
@@ -94,7 +94,7 @@ namespace IdeaCadConnector.Tests
             };
             var entry = CreateEntryRow("entry-1", configId: "cfg-001");
 
-            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased");
+            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased", canPinRevisions: true);
             await vm.InitializeAsync();
 
             vm.SelectedRevision = vm.Revisions.FirstOrDefault();
@@ -102,6 +102,53 @@ namespace IdeaCadConnector.Tests
             Assert.NotNull(vm.SelectedRevision);
             Assert.True(vm.CanPin);
             Assert.True(vm.PinCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task CanPin_False_WhenCanPinRevisionsIsFalse()
+        {
+            var client = new StubPartLibraryClient
+            {
+                SearchPartRevisionsResult = CreateResponse(
+                    new PartRevisionHistoryItem { PartId = "part-2b", CanPin = true })
+            };
+            var entry = CreateEntryRow("entry-1", configId: "cfg-001");
+
+            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased", canPinRevisions: false);
+            await vm.InitializeAsync();
+
+            vm.SelectedRevision = vm.Revisions.FirstOrDefault();
+
+            Assert.NotNull(vm.SelectedRevision);
+            Assert.False(vm.CanPin);
+            Assert.False(vm.PinCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task Pin_DoesNotCallUpdate_WhenCanPinRevisionsIsFalse()
+        {
+            var client = new StubPartLibraryClient
+            {
+                SearchPartRevisionsResult = CreateResponse(
+                    new PartRevisionHistoryItem { PartId = "part-2c", CanPin = true }),
+                UpdateRevisionPolicyResult = new UpdateLibraryRevisionPolicyResult
+                {
+                    Success = true,
+                    EntryId = "entry-1",
+                    RevisionPolicy = LibraryRevisionPolicy.Pinned
+                }
+            };
+            var entry = CreateEntryRow("entry-1", configId: "cfg-001");
+
+            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased", canPinRevisions: false);
+            await vm.InitializeAsync();
+
+            vm.SelectedRevision = vm.Revisions.FirstOrDefault();
+            vm.PinCommand.Execute(null);
+            await Task.Delay(150);
+
+            Assert.Null(client.LastUpdateRevisionPolicyRequest);
+            Assert.False(vm.PinSuccess);
         }
 
         [Fact]
@@ -121,7 +168,7 @@ namespace IdeaCadConnector.Tests
             };
             var entry = CreateEntryRow("entry-1", configId: "cfg-001");
 
-            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased");
+            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased", canPinRevisions: true);
             await vm.InitializeAsync();
 
             vm.SelectedRevision = vm.Revisions.FirstOrDefault();
@@ -153,7 +200,7 @@ namespace IdeaCadConnector.Tests
             };
             var entry = CreateEntryRow("entry-1", configId: "cfg-001");
 
-            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased");
+            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased", canPinRevisions: true);
             await vm.InitializeAsync();
 
             vm.SelectedRevision = vm.Revisions.FirstOrDefault();
@@ -179,7 +226,7 @@ namespace IdeaCadConnector.Tests
             };
             var entry = CreateEntryRow("entry-1", configId: "cfg-001");
 
-            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased");
+            var vm = new PartRevisionBrowserViewModel(client, entry, "LatestReleased", canPinRevisions: true);
             await vm.InitializeAsync();
 
             vm.SelectedRevision = vm.Revisions.FirstOrDefault();

@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 UAT smoke passed with follow-up)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted)
 
 ## Objective
 
@@ -30,8 +30,8 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 | ID | Persona | Role |
 |---|---|---|
 | `NVTKC` | Mechanical Designer | Library Contributor |
-| `TNTKC` | Mechanical Team Leader | Library Reviewer |
-| `TKC_MANAGER` | Mechanical Design Department Manager | Library Manager |
+| `TNTKC` | Mechanical Team Leader | Library Reviewer (inherits Contributor) |
+| `TKC_MANAGER` | Mechanical Design Department Manager | Library Manager (inherits Reviewer + Contributor) |
 | `PROJECT_VIEWER` | Project Manager | Project and Usage Viewer |
 | `MFG_VIEWER` | Mechanical Assembly User | Manufacturing Viewer |
 | `CUSTOMER` | Customer | External Viewer |
@@ -65,7 +65,7 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 | Sprint | Scope | Status |
 |---|---|---|---|
 | `2.1` | `WS1` + `WS2` | UAT smoke accepted |
-| `2.2` | `WS3` + `WS4` | UAT smoke passed with follow-up |
+| `2.2` | `WS3` + `WS4` | locally accepted |
 | `2.3` | `WS5` + `WS6` + `WS7` | not started |
 | `2.4` | `WS8` + hardening/UAT prep | not started |
 
@@ -112,20 +112,7 @@ Sprint 2.2 core backend + UI are now implemented:
 - Release build passed
 - full tests passed `261/261`
 
-Sprint 2.2 UAT smoke recorded with the following results:
-
-- **Move Entry — Admin:** PASS
-- **Move Entry — TNTKC:** PASS
-- **Move Entry — lamPM:** PASS  
-- **Move Entry — viewer/unknown:** PASS
-- **Move Entry — lamEngineer/NVTKC:** FAIL (can currently move via `IsContributorOrHigher`; business rule says view-only) — logged as follow-up
-- **Revision Browser — lamEngineer/NVTKC:** PASS (view-only; Pin button disabled)
-- **Revision Browser — TNTKC:** PASS (can view and pin)
-- **Revision Browser — lamPM:** PASS (can view and pin)
-- **Revision Browser — viewer/unknown:** PASS (button hidden)
-- **Pin Selected Revision — TNTKC/lamPM:** PASS
-- **Pin Selected Revision — lamEngineer/NVTKC:** FAIL (can currently pin via `IsContributorOrHigher`; business rule says view-only) — logged as follow-up
-- **Automated verification:** Debug build passed, Release build passed, focused tests passed, full tests 261/261 passed.
+Sprint 2.2 follow-up patch applied. Move Entry and Pin Revision are now gated on `IsReviewerOrHigher` (TNTKC, lamPM, admin). lamEngineer/NVTKC can view Revision Browser but cannot Move or Pin.
 
 ## Sprint 2.1 UAT Smoke Evidence
 
@@ -142,18 +129,17 @@ Recorded closeout evidence:
 Recorded closeout evidence:
 
 - Admin smoke test passed.
-- `lamEngineer`/NVTKC UAT confirmed contributor behavior, Part Picker usability, and Revision Browser view. Move Entry and Pin are currently gated on `IsContributorOrHigher`, which incorrectly grants these actions — business rule requires view-only for NVTKC. This is a known limitation.
+- `lamEngineer`/NVTKC UAT confirmed contributor behavior, Part Picker usability, Revision Browser view. Move Entry and Pin are correctly blocked for lamEngineer/NVTKC.
 - `TNTKC` UAT confirmed reviewer behavior: Move Entry and Pin Revision available.
 - `lamPM` UAT confirmed manager behavior: Move Entry and Pin Revision available.
 - Viewer/unknown behavior confirmed conservative read-only behavior.
-- Automated verification passed: Debug build, Release build, full tests 261/261.
+- Automated verification passed: Debug build, Release build, full tests 267/267.
 
 Remaining live limitations:
 
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
-- full customer/external viewer UAT remains pending unless tested;
-- lamEngineer/NVTKC Move Entry and Pin permission must be tightened — requires follow-up patch.
+- full customer/external viewer UAT remains pending unless tested.
 
 ## Package Intake Outcome
 
@@ -172,7 +158,6 @@ Phase 2 is in progress. Full Phase 2 remains open until:
 
 - manual desktop app UAT confirms Sprint 2.1 behavior;
 - live Aras UAT confirms permission behavior and backend compatibility;
-- Sprint 2.2 follow-up patch tightens lamEngineer/NVTKC Move Entry and Pin permission;
 - Sprint 2.3 and 2.4 workstreams are implemented and accepted.
 
 ## Rollback Considerations
@@ -182,10 +167,6 @@ Phase 2 is in progress. Full Phase 2 remains open until:
 - Phase 1 documents remain closed evidence and must not be rewritten.
 
 ## Next Sprint
-
-`Sprint 2.2 Follow-Up: Tighten lamEngineer permission for Move Entry and Pin (business rule vs IsContributorOrHigher)`
-
-OR
 
 `Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
 

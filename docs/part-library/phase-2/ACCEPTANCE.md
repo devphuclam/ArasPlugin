@@ -2,7 +2,7 @@
 
 **State:** `IN_PROGRESS`
 
-This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted. Sprint 2.2 UAT smoke passed with follow-up (lamEngineer/NVTKC Move Entry and Pin permission must be tightened).
+This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted. Sprint 2.2 is locally accepted (follow-up permission patch applied).
 
 ## Phase Transition History
 
@@ -12,6 +12,7 @@ This file records Phase 2 acceptance gates and current implementation evidence. 
 - Phase 2 returned to `IN_PROGRESS` when Sprint 2.2 core backend work started on 2026-07-06.
 - Phase 2 Sprint 2.2 core + UI implementation completed locally on 2026-07-07.
 - Phase 2 Sprint 2.2 UAT smoke evidence recorded on 2026-07-07 (`UAT_SMOKE_PASSED_WITH_FOLLOW_UP`).
+- Phase 2 Sprint 2.2 follow-up permission patch applied and locally accepted on 2026-07-07 (`LOCALLY_ACCEPTED`).
 
 ## Baseline Verification Commands
 
@@ -159,7 +160,19 @@ Recorded UAT evidence on 2026-07-07:
    - Focused tests passed
    - Full tests passed `261/261`
 
-Known limitation: `CanExecuteMoveEntry` and `CanPin` use `IsContributorOrHigher`, which includes NVTKC/lamEngineer. A follow-up patch is needed to restrict Move Entry and Pin to `IsReviewerOrHigher` (TNTKC and lamPM only).
+## Sprint 2.2 Follow-Up Patch
+
+Follow-up patch applied. Authorization model extended: `IsReviewerOrHigher` capability separates reviewer from contributor. `CanExecuteMoveEntry` now gates on `CanMoveEntries` (reviewer-or-higher). `PartRevisionBrowserViewModel.CanPin` gates on `canPinRevisions` parameter.
+
+- lamEngineer/NVTKC: `IsReviewerOrHigher=false` → Move/Pin blocked, Revision Browser view allowed.
+- TNTKC: `IsReviewerOrHigher=true` → Move/Pin allowed.
+- lamPM: `IsReviewerOrHigher=true` → Move/Pin allowed.
+- viewer/unknown: read-only, no Move/Pin.
+
+Default role mapping:
+- Manager: admin, innovatoradmin, lampm, tptkc, truongphongthietkeco
+- Reviewer: tntkc, lampm, tptkc, truongphongthietkeco, admin, innovatoradmin
+- Contributor: lamengineer, nvtkc, tntkc
 
 ## Sprint 2.2 Core + UI Verification
 
@@ -203,7 +216,7 @@ Current status:
 - `ME-01..06` and `RV-01..07` implemented with failure-safe behavior;
 - move rollback/block behavior evidenced;
 - revision policy changes do not mutate data on failed resolve;
-- local UAT smoke passed with follow-up: lamEngineer/NVTKC Move Entry and Pin permission must be tightened;
+- local UAT smoke passed; follow-up permission patch applied and verified;
 - live Aras UAT remains pending.
 
 ### Sprint 2.3
@@ -231,8 +244,8 @@ The following cannot be claimed from local automation alone:
 
 ## Current Outcome
 
-Phase 2 is `IN_PROGRESS` (Sprint 2.2 state: `UAT_SMOKE_PASSED_WITH_FOLLOW_UP`).
+Phase 2 is `IN_PROGRESS` (Sprint 2.2 state: `LOCALLY_ACCEPTED`).
 
 Recommended next packet:
 
-`Sprint 2.2 Follow-Up: Tighten lamEngineer/NVTKC Move Entry and Pin permission` OR `Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
+`Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`

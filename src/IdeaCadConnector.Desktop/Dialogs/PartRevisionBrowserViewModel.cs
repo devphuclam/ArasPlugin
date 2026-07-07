@@ -20,6 +20,7 @@ namespace IdeaCadConnector.Desktop
         private readonly IPartLibraryClient _client;
         private readonly PartLibraryEntryRow _entry;
         private readonly string _currentRevisionPolicy;
+        private readonly bool _canPinRevisions;
         private int _pageNumber = 1;
         private int _pageSize = 25;
         private int _totalCount;
@@ -31,11 +32,12 @@ namespace IdeaCadConnector.Desktop
         private bool _hasLoaded;
         private bool _pinSuccess;
 
-        public PartRevisionBrowserViewModel(IPartLibraryClient client, PartLibraryEntryRow entry, string currentRevisionPolicy)
+        public PartRevisionBrowserViewModel(IPartLibraryClient client, PartLibraryEntryRow entry, string currentRevisionPolicy, bool canPinRevisions = false)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _entry = entry ?? throw new ArgumentNullException(nameof(entry));
             _currentRevisionPolicy = currentRevisionPolicy ?? string.Empty;
+            _canPinRevisions = canPinRevisions;
             _statusMessage = string.Empty;
             _errorMessage = string.Empty;
 
@@ -141,6 +143,7 @@ namespace IdeaCadConnector.Desktop
         public bool HasNoConfigId => string.IsNullOrWhiteSpace(ConfigId);
 
         public bool CanPin =>
+            _canPinRevisions &&
             !IsBusy &&
             !IsPinning &&
             SelectedRevision != null &&

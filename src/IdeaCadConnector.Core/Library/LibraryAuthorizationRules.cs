@@ -7,17 +7,22 @@ namespace IdeaCadConnector.Core.Library
     {
         public static LibraryAuthorizationRules Default { get; } = new LibraryAuthorizationRules(
             managerUsers: new[] { "admin", "innovatoradmin", "lampm", "tptkc", "truongphongthietkeco" },
+            reviewerUsers: new[] { "tntkc", "lampm", "tptkc", "truongphongthietkeco", "admin", "innovatoradmin" },
             contributorUsers: new[] { "lamengineer", "nvtkc", "tntkc" });
 
         public LibraryAuthorizationRules(
             IEnumerable<string> managerUsers = null,
+            IEnumerable<string> reviewerUsers = null,
             IEnumerable<string> contributorUsers = null)
         {
             ManagerUsers = new ReadOnlyCollection<string>(NormalizeAll(managerUsers));
+            ReviewerUsers = new ReadOnlyCollection<string>(NormalizeAll(reviewerUsers));
             ContributorUsers = new ReadOnlyCollection<string>(NormalizeAll(contributorUsers));
         }
 
         public IReadOnlyCollection<string> ManagerUsers { get; }
+
+        public IReadOnlyCollection<string> ReviewerUsers { get; }
 
         public IReadOnlyCollection<string> ContributorUsers { get; }
 
@@ -26,9 +31,19 @@ namespace IdeaCadConnector.Core.Library
             return !string.IsNullOrWhiteSpace(normalizedUser) && Contains(ManagerUsers, normalizedUser);
         }
 
+        public bool IsReviewer(string normalizedUser)
+        {
+            return !string.IsNullOrWhiteSpace(normalizedUser) && Contains(ReviewerUsers, normalizedUser);
+        }
+
         public bool IsContributorOrHigher(string normalizedUser)
         {
             return IsManager(normalizedUser) || (!string.IsNullOrWhiteSpace(normalizedUser) && Contains(ContributorUsers, normalizedUser));
+        }
+
+        public bool IsReviewerOrHigher(string normalizedUser)
+        {
+            return IsManager(normalizedUser) || IsReviewer(normalizedUser);
         }
 
         private static bool Contains(IReadOnlyCollection<string> values, string value)

@@ -40,11 +40,27 @@ namespace IdeaCadConnector.Desktop.Services
             }
         }
 
+        public bool IsReviewerOrHigher
+        {
+            get
+            {
+                if (IsLibraryManager)
+                    return true;
+
+                var user = Normalize(_session.CurrentUserName);
+                return _rules.IsReviewer(user);
+            }
+        }
+
         public bool IsReadOnlyViewer => !IsContributorOrHigher && !IsLibraryManager;
 
         public bool CanManageLibraries => _session.IsConnected && IsLibraryManager;
 
         public bool CanUsePartPicker => _session.IsConnected && IsContributorOrHigher;
+
+        public bool CanMoveEntries => _session.IsConnected && IsReviewerOrHigher;
+
+        public bool CanPinRevisions => _session.IsConnected && IsReviewerOrHigher;
 
         private static string Normalize(string value)
         {
