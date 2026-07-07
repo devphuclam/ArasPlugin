@@ -628,5 +628,51 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryStatusMoveEntryNoTarget = "LibraryStatusMoveEntryNoTarget";
         public const string LibraryStatusMoveEntryPermissionDenied = "LibraryStatusMoveEntryPermissionDenied";
         public const string LibraryStatusEntryMovedSuccess = "LibraryStatusEntryMovedSuccess";
+
+        // Sprint 2.3 UI - Detail Tabs
+        public const string LibraryCadLabelCadNumber = "LibraryCadLabelCadNumber";
+        public const string LibraryCadLabelCadName = "LibraryCadLabelCadName";
+        public const string LibraryCadLabelCadState = "LibraryCadLabelCadState";
+        public const string LibraryCadLabelFileId = "LibraryCadLabelFileId";
+        public const string LibraryCadLabelFileName = "LibraryCadLabelFileName";
+        public const string LibraryCadLabelFileVersion = "LibraryCadLabelFileVersion";
+        public const string LibraryCadLabelLockedBy = "LibraryCadLabelLockedBy";
+        public const string LibraryCadLabelHasNative = "LibraryCadLabelHasNative";
+        public const string LibraryCadButtonDownload = "LibraryCadButtonDownload";
+        public const string LibraryCadButtonOpenInIronCad = "LibraryCadButtonOpenInIronCad";
+        public const string LibraryCadButtonOpenInAras = "LibraryCadButtonOpenInAras";
+        public const string LibraryCadNoCadFound = "LibraryCadNoCadFound";
+
+        public const string LibraryBomColumnComponentPartNumber = "LibraryBomColumnComponentPartNumber";
+        public const string LibraryBomColumnComponentName = "LibraryBomColumnComponentName";
+        public const string LibraryBomColumnRevision = "LibraryBomColumnRevision";
+        public const string LibraryBomColumnQuantity = "LibraryBomColumnQuantity";
+        public const string LibraryBomColumnUnit = "LibraryBomColumnUnit";
+        public const string LibraryBomNoItems = "LibraryBomNoItems";
+
+        public const string LibraryRevisionColumnPartId = "LibraryRevisionColumnPartId";
+        public const string LibraryRevisionColumnRevision = "LibraryRevisionColumnRevision";
+        public const string LibraryRevisionColumnGeneration = "LibraryRevisionColumnGeneration";
+        public const string LibraryRevisionColumnLifecycleState = "LibraryRevisionColumnLifecycleState";
+        public const string LibraryRevisionColumnModifiedOn = "LibraryRevisionColumnModifiedOn";
+        public const string LibraryRevisionColumnIsCurrent = "LibraryRevisionColumnIsCurrent";
+        public const string LibraryRevisionNoRevisions = "LibraryRevisionNoRevisions";
+
+        public const string LibraryWhereUsedColumnParentPartNumber = "LibraryWhereUsedColumnParentPartNumber";
+        public const string LibraryWhereUsedColumnParentName = "LibraryWhereUsedColumnParentName";
+        public const string LibraryWhereUsedColumnParentRevision = "LibraryWhereUsedColumnParentRevision";
+        public const string LibraryWhereUsedColumnParentState = "LibraryWhereUsedColumnParentState";
+        public const string LibraryWhereUsedColumnQuantity = "LibraryWhereUsedColumnQuantity";
+        public const string LibraryWhereUsedColumnSource = "LibraryWhereUsedColumnSource";
+        public const string LibraryWhereUsedNoRecords = "LibraryWhereUsedNoRecords";
+
+        public const string LibraryStatusDownloadSucceeded = "LibraryStatusDownloadSucceeded";
+        public const string LibraryStatusDownloadFailed = "LibraryStatusDownloadFailed";
+        public const string LibraryStatusOpenInIronCadSucceeded = "LibraryStatusOpenInIronCadSucceeded";
+        public const string LibraryStatusOpenInIronCadFailed = "LibraryStatusOpenInIronCadFailed";
+        public const string LibraryStatusOpenInArasSucceeded = "LibraryStatusOpenInArasSucceeded";
+        public const string LibraryStatusOpenInArasFailed = "LibraryStatusOpenInArasFailed";
+        public const string LibraryStatusLoadingDetails = "LibraryStatusLoadingDetails";
+        public const string LibraryStatusDetailLoadFailed = "LibraryStatusDetailLoadFailed";
     }
 }

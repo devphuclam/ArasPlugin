@@ -118,5 +118,75 @@ namespace IdeaCadConnector.Desktop
         public string ResolutionError { get; set; }
         public bool CanAddToProject { get; set; }
         public string WhereUsedSummary { get; set; }
+
+        public string Generation { get; set; }
+        public string PrimaryCadFileId { get; set; }
+    }
+
+    public sealed class CadDetailsView
+    {
+        public string PrimaryCadId { get; set; }
+        public string PrimaryCadNumber { get; set; }
+        public string PrimaryCadName { get; set; }
+        public string PrimaryCadState { get; set; }
+        public string FileId { get; set; }
+        public string FileName { get; set; }
+        public string FileVersion { get; set; }
+        public string LockedBy { get; set; }
+        public bool HasNative { get; set; }
+        public string PartId { get; set; }
+    }
+
+    public sealed class BomDetailsView
+    {
+        public string EntryId { get; set; }
+        public ObservableCollection<BomLineItemView> Items { get; set; }
+    }
+
+    public sealed class BomLineItemView
+    {
+        public string ComponentPartId { get; set; }
+        public string ComponentPartNumber { get; set; }
+        public string ComponentName { get; set; }
+        public string ComponentRevision { get; set; }
+        public int Quantity { get; set; }
+        public string Unit { get; set; }
+    }
+
+    public sealed class RevisionDetailsView
+    {
+        public string EntryId { get; set; }
+        public string CurrentPartId { get; set; }
+        public string CurrentRevision { get; set; }
+        public string CurrentLifecycleState { get; set; }
+        public string CurrentGeneration { get; set; }
+        public ObservableCollection<RevisionHistoryItemView> Items { get; set; }
+    }
+
+    public sealed class RevisionHistoryItemView
+    {
+        public string PartId { get; set; }
+        public string Revision { get; set; }
+        public string Generation { get; set; }
+        public string LifecycleState { get; set; }
+        public string ModifiedOn { get; set; }
+        public bool IsCurrent { get; set; }
+    }
+
+    public sealed class WhereUsedDetailsView
+    {
+        public string EntryId { get; set; }
+        public ObservableCollection<WhereUsedItemView> Items { get; set; }
+    }
+
+    public sealed class WhereUsedItemView
+    {
+        public string ParentPartId { get; set; }
+        public string ParentPartNumber { get; set; }
+        public string ParentPartName { get; set; }
+        public string ParentRevision { get; set; }
+        public string ParentState { get; set; }
+        public int Quantity { get; set; }
+        public string Source { get; set; }
     }
 }

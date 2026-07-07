@@ -27,6 +27,10 @@ namespace IdeaCadConnector.Desktop
         private readonly IPartLibraryClient _injectedClient;
         private readonly IPartLibraryClient _unavailableClient = new UnavailablePartLibraryClient();
         private readonly ILibraryAuthorizationService _authService;
+        private readonly IPartLibraryVaultService _vaultService;
+        private readonly IIronCadOpenService _ironCadService;
+        private readonly IArasOpenUrlService _openUrlService;
+        private readonly IBrowserLauncher _browserLauncher;
         private PartLibrarySummaryRow _selectedLibrary;
         private PartLibraryEntryRow _selectedEntry;
         private PartLibraryEntryDetailsView _selectedEntryDetails;
@@ -44,22 +48,41 @@ namespace IdeaCadConnector.Desktop
         private int _pageSize = 25;
         private string _selectedVisibilityFilter;
         private LibraryVisibilityFilter _activeVisibilityFilter = LibraryVisibilityFilter.Active;
+        private CadDetailsView _cadDetails;
+        private BomDetailsView _bomDetails;
+        private RevisionDetailsView _revisionDetails;
+        private WhereUsedDetailsView _whereUsedDetails;
+        private bool _isLoadingDetails;
+        private string _detailStatusMessage;
+        private string _detailErrorMessage;
+        private string _lastLoadedDetailEntryId;
 
         public LibraryViewModel()
-            : this(AppSessionContext.Current, null, null)
+            : this(AppSessionContext.Current, null, null, null, null, null, null)
         {
         }
 
         public LibraryViewModel(IAppSessionContext session, IPartLibraryClient client)
-            : this(session, client, null)
+            : this(session, client, null, null, null, null, null)
         {
         }
 
-        internal LibraryViewModel(IAppSessionContext session, IPartLibraryClient client, ILibraryAuthorizationService authService)
+        internal LibraryViewModel(
+            IAppSessionContext session,
+            IPartLibraryClient client,
+            ILibraryAuthorizationService authService,
+            IPartLibraryVaultService vaultService = null,
+            IIronCadOpenService ironCadService = null,
+            IArasOpenUrlService openUrlService = null,
+            IBrowserLauncher browserLauncher = null)
         {
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _injectedClient = client;
             _authService = authService ?? new LibraryAuthorizationService(session);
+            _vaultService = vaultService;
+            _ironCadService = ironCadService;
+            _openUrlService = openUrlService;
+            _browserLauncher = browserLauncher;
 
             Libraries = new ObservableCollection<PartLibrarySummaryRow>();
             Entries = new ObservableCollection<PartLibraryEntryRow>();
@@ -78,6 +101,10 @@ namespace IdeaCadConnector.Desktop
             _statusMessage = L(TranslationKeys.LibraryStatusReady);
             _permissionMessage = string.Empty;
             _errorMessage = string.Empty;
+            _cadDetails = new CadDetailsView();
+            _bomDetails = new BomDetailsView { Items = new ObservableCollection<BomLineItemView>() };
+            _revisionDetails = new RevisionDetailsView { Items = new ObservableCollection<RevisionHistoryItemView>() };
+            _whereUsedDetails = new WhereUsedDetailsView { Items = new ObservableCollection<WhereUsedItemView>() };
 
             RefreshCommand = new RelayCommand(_ => _ = RefreshAsync(), _ => !IsLoading);
             SearchCommand = new RelayCommand(_ => _ = SearchAsync(), _ => !IsLoading);
@@ -90,14 +117,14 @@ namespace IdeaCadConnector.Desktop
             MoveEntryCommand = new RelayCommand(_ => _ = MoveSelectedEntryAsync(), _ => CanExecuteMoveEntry());
             ShowRevisionBrowserCommand = new RelayCommand(_ => _ = ShowRevisionBrowserDialogAsync(), _ => CanExecuteShowRevisionBrowser());
             AddToCurrentProjectCommand = new RelayCommand(_ => _ = AddToCurrentProjectAsync(), _ => CanAddToCurrentProject());
-            OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
-            DownloadCadCommand = new RelayCommand(_ => _ = RevealPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading);
+            OpenInIronCadCommand = new RelayCommand(_ => _ = OpenPrimaryCadAsync(), _ => SelectedEntry != null && !IsLoading && _vaultService != null);
+            DownloadCadCommand = new RelayCommand(_ => _ = DownloadCadAsync(), _ => SelectedEntry != null && !IsLoading && _vaultService != null);
             PublishCommand = new RelayCommand(_ => _ = PublishSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
             DeprecateCommand = new RelayCommand(_ => _ = DeprecateSelectedEntryAsync(), _ => SelectedEntry != null && !IsLoading && !SelectedEntry.IsDeprecated);
             PinRevisionCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.Pinned), _ => SelectedEntry != null && !IsLoading);
             UseLatestReleasedCommand = new RelayCommand(_ => _ = ResolveSelectedEntryAsync(LibraryRevisionPolicy.LatestReleased), _ => SelectedEntry != null && !IsLoading);
             ViewWhereUsedCommand = new RelayCommand(_ => _ = ViewWhereUsedAsync(), _ => SelectedEntry != null && !IsLoading);
-            OpenInArasCommand = new RelayCommand(_ => OpenInAras(), _ => SelectedEntry != null);
+            OpenInArasCommand = new RelayCommand(_ => _ = OpenInArasAsync(), _ => SelectedEntry != null && _openUrlService != null);
 
             LocalizationSource.Instance.PropertyChanged += OnLocalizationChanged;
             _session.LibraryDataChanged += OnLibraryDataChanged;
@@ -217,6 +244,64 @@ namespace IdeaCadConnector.Desktop
             get => _selectedEntryDetails;
             private set => SetField(ref _selectedEntryDetails, value);
         }
+
+        public CadDetailsView SelectedCadDetails
+        {
+            get => _cadDetails;
+            private set => SetField(ref _cadDetails, value);
+        }
+
+        public BomDetailsView SelectedBomDetails
+        {
+            get => _bomDetails;
+            private set => SetField(ref _bomDetails, value);
+        }
+
+        public RevisionDetailsView SelectedRevisionDetails
+        {
+            get => _revisionDetails;
+            private set => SetField(ref _revisionDetails, value);
+        }
+
+        public WhereUsedDetailsView SelectedWhereUsedDetails
+        {
+            get => _whereUsedDetails;
+            private set => SetField(ref _whereUsedDetails, value);
+        }
+
+        public bool IsLoadingDetails
+        {
+            get => _isLoadingDetails;
+            private set => SetField(ref _isLoadingDetails, value);
+        }
+
+        public string DetailStatusMessage
+        {
+            get => _detailStatusMessage;
+            private set => SetField(ref _detailStatusMessage, value);
+        }
+
+        public string DetailErrorMessage
+        {
+            get => _detailErrorMessage;
+            private set => SetField(ref _detailErrorMessage, value);
+        }
+
+        public bool HasCadDetails => SelectedCadDetails != null && SelectedCadDetails.HasNative;
+
+        public bool HasNoCadDetails => !HasCadDetails && !IsLoadingDetails;
+
+        public bool HasBomItems => SelectedBomDetails?.Items != null && SelectedBomDetails.Items.Count > 0;
+
+        public bool HasNoBomItems => !HasBomItems && !IsLoadingDetails;
+
+        public bool HasRevisionItems => SelectedRevisionDetails?.Items != null && SelectedRevisionDetails.Items.Count > 0;
+
+        public bool HasNoRevisionItems => !HasRevisionItems && !IsLoadingDetails;
+
+        public bool HasWhereUsedItems => SelectedWhereUsedDetails?.Items != null && SelectedWhereUsedDetails.Items.Count > 0;
+
+        public bool HasNoWhereUsedItems => !HasWhereUsedItems && !IsLoadingDetails;
 
         public string SearchText
         {
@@ -500,10 +585,12 @@ namespace IdeaCadConnector.Desktop
             if (SelectedEntry == null)
             {
                 SelectedEntryDetails = CreateEmptyDetails();
+                ClearDetailTabs();
                 return;
             }
 
-            var details = await ActiveClient.GetEntryAsync(SelectedEntry.EntryId, CancellationToken.None).ConfigureAwait(true);
+            var entryId = SelectedEntry.EntryId;
+            var details = await ActiveClient.GetEntryAsync(entryId, CancellationToken.None).ConfigureAwait(true);
             SelectedEntryDetails = new PartLibraryEntryDetailsView
             {
                 EntryId = details.EntryId,
@@ -515,12 +602,14 @@ namespace IdeaCadConnector.Desktop
                 PartName = details.PartName,
                 PartType = details.PartType,
                 Revision = details.Revision,
+                Generation = details.Generation,
                 LifecycleState = details.LifecycleState,
                 EntryLifecycleState = details.EntryLifecycleState,
                 RevisionPolicy = details.RevisionPolicy.ToString(),
                 PrimaryCadId = details.PrimaryCadId,
                 PrimaryCadFileName = details.PrimaryCadFileName,
                 PrimaryCadState = details.PrimaryCadState,
+                PrimaryCadFileId = details.PrimaryCadFileId,
                 LockedBy = details.LockedBy,
                 UsageCount = details.UsageCount,
                 CadStatus = details.CadStatus,
@@ -538,6 +627,164 @@ namespace IdeaCadConnector.Desktop
             else if (details.HasNewerReleasedRevision)
             {
                 StatusMessage = L(TranslationKeys.LibraryWarningNewerReleasedRevision);
+            }
+
+            _ = LoadDetailTabsAsync(entryId);
+        }
+
+        private void ClearDetailTabs()
+        {
+            SelectedCadDetails = new CadDetailsView();
+            SelectedBomDetails = new BomDetailsView { Items = new ObservableCollection<BomLineItemView>() };
+            SelectedRevisionDetails = new RevisionDetailsView { Items = new ObservableCollection<RevisionHistoryItemView>() };
+            SelectedWhereUsedDetails = new WhereUsedDetailsView { Items = new ObservableCollection<WhereUsedItemView>() };
+            _lastLoadedDetailEntryId = null;
+            DetailStatusMessage = null;
+            DetailErrorMessage = null;
+            OnPropertyChanged(nameof(HasCadDetails));
+            OnPropertyChanged(nameof(HasBomItems));
+            OnPropertyChanged(nameof(HasRevisionItems));
+            OnPropertyChanged(nameof(HasWhereUsedItems));
+        }
+
+        private async Task LoadDetailTabsAsync(string entryId)
+        {
+            if (string.IsNullOrWhiteSpace(entryId) || string.Equals(entryId, _lastLoadedDetailEntryId, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            _lastLoadedDetailEntryId = entryId;
+            IsLoadingDetails = true;
+            DetailStatusMessage = L(TranslationKeys.LibraryStatusLoadingDetails);
+            DetailErrorMessage = null;
+
+            try
+            {
+                var bundle = await ActiveClient.GetDetailBundleAsync(entryId, CancellationToken.None).ConfigureAwait(true);
+
+                if (!string.Equals(entryId, _lastLoadedDetailEntryId, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                if (bundle?.Cad != null)
+                {
+                    SelectedCadDetails = new CadDetailsView
+                    {
+                        PrimaryCadId = bundle.Cad.PrimaryCadId,
+                        PrimaryCadNumber = bundle.Cad.PrimaryCadNumber,
+                        PrimaryCadName = bundle.Cad.PrimaryCadName,
+                        PrimaryCadState = bundle.Cad.PrimaryCadState,
+                        FileId = bundle.Cad.FileId,
+                        FileName = bundle.Cad.FileName,
+                        FileVersion = bundle.Cad.FileVersion,
+                        LockedBy = bundle.Cad.LockedBy,
+                        HasNative = bundle.Cad.HasNative,
+                        PartId = SelectedEntryDetails?.PartId
+                    };
+                }
+                else
+                {
+                    SelectedCadDetails = new CadDetailsView();
+                }
+
+                if (bundle?.Bom?.BomItems != null)
+                {
+                    SelectedBomDetails = new BomDetailsView
+                    {
+                        EntryId = entryId,
+                        Items = new ObservableCollection<BomLineItemView>(
+                            bundle.Bom.BomItems.Select(i => new BomLineItemView
+                            {
+                                ComponentPartId = i.ComponentPartId,
+                                ComponentPartNumber = i.ComponentPartNumber,
+                                ComponentName = i.ComponentName,
+                                ComponentRevision = i.ComponentRevision,
+                                Quantity = i.Quantity,
+                                Unit = i.Unit
+                            }))
+                    };
+                }
+                else
+                {
+                    SelectedBomDetails = new BomDetailsView { Items = new ObservableCollection<BomLineItemView>() };
+                }
+
+                if (bundle?.Revisions?.RevisionHistory != null)
+                {
+                    SelectedRevisionDetails = new RevisionDetailsView
+                    {
+                        EntryId = entryId,
+                        CurrentPartId = bundle.Revisions.CurrentPartId,
+                        CurrentRevision = bundle.Revisions.CurrentRevision,
+                        CurrentLifecycleState = bundle.Revisions.CurrentLifecycleState,
+                        CurrentGeneration = bundle.Revisions.CurrentGeneration,
+                        Items = new ObservableCollection<RevisionHistoryItemView>(
+                            bundle.Revisions.RevisionHistory.Select(r => new RevisionHistoryItemView
+                            {
+                                PartId = r.PartId,
+                                Revision = r.Revision,
+                                Generation = r.Generation,
+                                LifecycleState = r.LifecycleState,
+                                ModifiedOn = r.ModifiedOn,
+                                IsCurrent = r.IsCurrent
+                            }))
+                    };
+                }
+                else
+                {
+                    SelectedRevisionDetails = new RevisionDetailsView { Items = new ObservableCollection<RevisionHistoryItemView>() };
+                }
+
+                if (bundle?.WhereUsed?.WhereUsedItems != null)
+                {
+                    SelectedWhereUsedDetails = new WhereUsedDetailsView
+                    {
+                        EntryId = entryId,
+                        Items = new ObservableCollection<WhereUsedItemView>(
+                            bundle.WhereUsed.WhereUsedItems.Select(w => new WhereUsedItemView
+                            {
+                                ParentPartId = w.ParentPartId,
+                                ParentPartNumber = w.ParentPartNumber,
+                                ParentPartName = w.ParentPartName,
+                                ParentRevision = w.ParentRevision,
+                                ParentState = w.ParentState,
+                                Quantity = w.Quantity,
+                                Source = w.Source.ToString()
+                            }))
+                    };
+                }
+                else
+                {
+                    SelectedWhereUsedDetails = new WhereUsedDetailsView { Items = new ObservableCollection<WhereUsedItemView>() };
+                }
+
+                DetailStatusMessage = null;
+                DetailErrorMessage = null;
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.PermissionDenied)
+            {
+                DetailStatusMessage = null;
+                DetailErrorMessage = L(TranslationKeys.LibraryPermissionDenied);
+            }
+            catch (ArasOperationException ex)
+            {
+                DetailStatusMessage = null;
+                DetailErrorMessage = Lf(TranslationKeys.LibraryStatusDetailLoadFailed, ex.Message);
+            }
+            catch (OperationCanceledException)
+            {
+                _lastLoadedDetailEntryId = null;
+            }
+            catch (Exception ex)
+            {
+                DetailStatusMessage = null;
+                DetailErrorMessage = Lf(TranslationKeys.LibraryStatusDetailLoadFailed, ex.Message);
+            }
+            finally
+            {
+                IsLoadingDetails = false;
+                OnPropertyChanged(nameof(HasCadDetails));
+                OnPropertyChanged(nameof(HasBomItems));
+                OnPropertyChanged(nameof(HasRevisionItems));
+                OnPropertyChanged(nameof(HasWhereUsedItems));
             }
         }
 
@@ -1105,71 +1352,147 @@ namespace IdeaCadConnector.Desktop
             });
         }
 
+        private async Task DownloadCadAsync()
+        {
+            if (_vaultService == null)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
+                return;
+            }
+
+            var entryId = SelectedEntry?.EntryId ?? SelectedEntryDetails?.EntryId;
+            if (string.IsNullOrWhiteSpace(entryId))
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectPartFirst);
+                return;
+            }
+
+            PartLibraryCadFileInfo cadInfo = null;
+            try
+            {
+                cadInfo = await _vaultService.GetPrimaryCadFileInfoAsync(entryId, CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                StatusMessage = L(TranslationKeys.LibraryCadNoCadFound);
+                return;
+            }
+            catch (ArasOperationException ex)
+            {
+                StatusMessage = ex.Message;
+                return;
+            }
+
+            if (cadInfo == null || !cadInfo.HasNative)
+            {
+                StatusMessage = L(TranslationKeys.LibraryCadNoCadFound);
+                return;
+            }
+
+            await RunBusyAsync(async () =>
+            {
+                var result = await _vaultService.DownloadToCacheAsync(cadInfo, CancellationToken.None).ConfigureAwait(true);
+
+                if (result.Success)
+                {
+                    StatusMessage = Lf(TranslationKeys.LibraryStatusDownloadSucceeded, result.LocalFilePath);
+                }
+                else
+                {
+                    StatusMessage = result.ErrorMessage ?? L(TranslationKeys.LibraryStatusDownloadFailed);
+                }
+            });
+        }
+
         private async Task OpenPrimaryCadAsync()
         {
-            var fileName = SelectedEntryDetails?.PrimaryCadFileName;
-            if (string.IsNullOrWhiteSpace(fileName))
+            if (_vaultService == null || _ironCadService == null)
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusNoPrimaryCadFileName);
+                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
                 return;
             }
 
-            var resolved = FindWorkspaceCadFile(fileName);
-            if (string.IsNullOrWhiteSpace(resolved))
+            var entryId = SelectedEntry?.EntryId ?? SelectedEntryDetails?.EntryId;
+            if (string.IsNullOrWhiteSpace(entryId))
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadNotFound);
+                StatusMessage = L(TranslationKeys.LibraryStatusSelectPartFirst);
                 return;
             }
 
-            await Task.Run(() =>
+            PartLibraryCadFileInfo cadInfo = null;
+            try
             {
-                Process.Start(new ProcessStartInfo
+                cadInfo = await _vaultService.GetPrimaryCadFileInfoAsync(entryId, CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+            {
+                StatusMessage = L(TranslationKeys.LibraryCadNoCadFound);
+                return;
+            }
+            catch (ArasOperationException ex)
+            {
+                StatusMessage = ex.Message;
+                return;
+            }
+
+            if (cadInfo == null || !cadInfo.HasNative)
+            {
+                StatusMessage = L(TranslationKeys.LibraryCadNoCadFound);
+                return;
+            }
+
+            await RunBusyAsync(async () =>
+            {
+                // Try cache first
+                var cached = _vaultService.GetCachedFilePath(cadInfo);
+                if (string.IsNullOrWhiteSpace(cached))
                 {
-                    FileName = resolved,
-                    UseShellExecute = true
-                });
-            }).ConfigureAwait(true);
+                    var download = await _vaultService.DownloadToCacheAsync(cadInfo, CancellationToken.None).ConfigureAwait(true);
+                    if (!download.Success)
+                    {
+                        StatusMessage = download.ErrorMessage ?? L(TranslationKeys.LibraryStatusOpenInIronCadFailed);
+                        return;
+                    }
+                    cached = download.LocalFilePath;
+                }
 
-            StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadOpened);
+                if (string.IsNullOrWhiteSpace(cached) || !File.Exists(cached))
+                {
+                    StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadNotFound);
+                    return;
+                }
+
+                var fileInfo = new FileInfo(cached);
+                var request = new IronCadOpenRequest
+                {
+                    FilePath = cached,
+                    FileSize = fileInfo.Length,
+                    IsRemoteUrl = false,
+                    IsTrustedSource = true,
+                    Source = "VaultCache"
+                };
+
+                var result = await _ironCadService.OpenCadFileAsync(request, CancellationToken.None).ConfigureAwait(true);
+
+                if (result.Success)
+                {
+                    StatusMessage = L(TranslationKeys.LibraryStatusOpenInIronCadSucceeded);
+                }
+                else
+                {
+                    StatusMessage = result.ErrorMessage ?? L(TranslationKeys.LibraryStatusOpenInIronCadFailed);
+                }
+            });
         }
 
-        private async Task RevealPrimaryCadAsync()
+        private async Task OpenInArasAsync()
         {
-            var fileName = SelectedEntryDetails?.PrimaryCadFileName;
-            if (string.IsNullOrWhiteSpace(fileName))
+            if (_openUrlService == null)
             {
-                StatusMessage = L(TranslationKeys.LibraryStatusNoPrimaryCadFileName);
+                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
                 return;
             }
 
-            var resolved = FindWorkspaceCadFile(fileName);
-            if (string.IsNullOrWhiteSpace(resolved))
-            {
-                StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadNotFound);
-                return;
-            }
-
-            var folder = Path.GetDirectoryName(resolved);
-            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
-            {
-                StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadFolderOpenFailed);
-                return;
-            }
-
-            await Task.Run(() =>
-            {
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = folder,
-                    UseShellExecute = true
-                });
-            }).ConfigureAwait(true);
-
-            StatusMessage = L(TranslationKeys.LibraryStatusPrimaryCadFolderOpened);
-        }
-
-        private void OpenInAras()
-        {
             var partId = SelectedEntryDetails?.PartId ?? SelectedEntry?.PartId;
             if (string.IsNullOrWhiteSpace(partId))
             {
@@ -1177,7 +1500,41 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasRequiresUrl);
+            var configId = SelectedEntryDetails?.PartConfigId;
+            var request = new ArasOpenUrlRequest
+            {
+                ItemType = "Part",
+                ItemId = partId,
+                ConfigId = configId
+            };
+
+            ArasOpenUrlResult urlResult;
+            try
+            {
+                urlResult = await _openUrlService.BuildUrlAsync(request, CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = Lf(TranslationKeys.LibraryStatusOpenInArasFailed, ex.Message);
+                return;
+            }
+
+            if (!urlResult.Success || string.IsNullOrWhiteSpace(urlResult.Url))
+            {
+                StatusMessage = urlResult.ErrorMessage ?? L(TranslationKeys.LibraryStatusOpenInArasFailed);
+                return;
+            }
+
+            if (_browserLauncher == null)
+            {
+                StatusMessage = L(TranslationKeys.LibraryStatusOpenInArasSucceeded);
+                return;
+            }
+
+            var launched = await _browserLauncher.LaunchUrlAsync(urlResult.Url, CancellationToken.None).ConfigureAwait(true);
+            StatusMessage = launched
+                ? L(TranslationKeys.LibraryStatusOpenInArasSucceeded)
+                : Lf(TranslationKeys.LibraryStatusOpenInArasFailed, urlResult.Url);
         }
 
         private string FindWorkspaceCadFile(string fileName)
@@ -1339,6 +1696,21 @@ namespace IdeaCadConnector.Desktop
             };
         }
 
+        private BomDetailsView CreateEmptyBom()
+        {
+            return new BomDetailsView { Items = new ObservableCollection<BomLineItemView>() };
+        }
+
+        private RevisionDetailsView CreateEmptyRevisions()
+        {
+            return new RevisionDetailsView { Items = new ObservableCollection<RevisionHistoryItemView>() };
+        }
+
+        private WhereUsedDetailsView CreateEmptyWhereUsed()
+        {
+            return new WhereUsedDetailsView { Items = new ObservableCollection<WhereUsedItemView>() };
+        }
+
         private static PartLibraryEntryDetailsView CloneDetailsWithWhereUsed(PartLibraryEntryDetailsView details, string whereUsedSummary)
         {
             details = details ?? new PartLibraryEntryDetailsView();
@@ -1353,12 +1725,14 @@ namespace IdeaCadConnector.Desktop
                 PartName = details.PartName,
                 PartType = details.PartType,
                 Revision = details.Revision,
+                Generation = details.Generation,
                 LifecycleState = details.LifecycleState,
                 EntryLifecycleState = details.EntryLifecycleState,
                 RevisionPolicy = details.RevisionPolicy,
                 PrimaryCadId = details.PrimaryCadId,
                 PrimaryCadFileName = details.PrimaryCadFileName,
                 PrimaryCadState = details.PrimaryCadState,
+                PrimaryCadFileId = details.PrimaryCadFileId,
                 LockedBy = details.LockedBy,
                 UsageCount = details.UsageCount,
                 CadStatus = details.CadStatus,
@@ -1450,6 +1824,14 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(LibrariesOverlayMessage));
             OnPropertyChanged(nameof(EntriesOverlayMessage));
             OnPropertyChanged(nameof(AddToProjectHint));
+            OnPropertyChanged(nameof(HasCadDetails));
+            OnPropertyChanged(nameof(HasNoCadDetails));
+            OnPropertyChanged(nameof(HasBomItems));
+            OnPropertyChanged(nameof(HasNoBomItems));
+            OnPropertyChanged(nameof(HasRevisionItems));
+            OnPropertyChanged(nameof(HasNoRevisionItems));
+            OnPropertyChanged(nameof(HasWhereUsedItems));
+            OnPropertyChanged(nameof(HasNoWhereUsedItems));
         }
 
         private void OnLibraryDataChanged(object sender, EventArgs e)

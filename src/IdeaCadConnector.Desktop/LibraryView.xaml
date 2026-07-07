@@ -449,15 +449,119 @@
                                         <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedEntryDetails.UsageCount}"/>
                                     </Grid>
                                 </TabItem>
-                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabCad]}"/>
-                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabBom]}"/>
-                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabRevisions]}"/>
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabCad]}">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                                        <StackPanel>
+                                            <Border Visibility="{Binding IsLoadingDetails, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding DetailStatusMessage}" Foreground="{StaticResource LibraryMutedBrush}" Margin="8"/>
+                                            </Border>
+                                            <Border Visibility="{Binding DetailErrorMessage, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding DetailErrorMessage}" Foreground="{StaticResource StatusErrorBrush}" Margin="8" TextWrapping="Wrap"/>
+                                            </Border>
+                                            <Grid Margin="8" Visibility="{Binding HasCadDetails, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                </Grid.RowDefinitions>
+                                                <TextBlock Grid.Row="0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelCadNumber]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedCadDetails.PrimaryCadNumber}"/>
+                                                <TextBlock Grid.Row="1" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelCadName]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedCadDetails.PrimaryCadName}"/>
+                                                <TextBlock Grid.Row="2" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelCadState]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedCadDetails.PrimaryCadState}"/>
+                                                <TextBlock Grid.Row="3" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelFileId]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedCadDetails.FileId}"/>
+                                                <TextBlock Grid.Row="4" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelFileName]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedCadDetails.FileName}"/>
+                                                <TextBlock Grid.Row="5" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelFileVersion]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedCadDetails.FileVersion}"/>
+                                                <TextBlock Grid.Row="6" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelLockedBy]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedCadDetails.LockedBy}"/>
+                                                <TextBlock Grid.Row="7" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelHasNative]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding SelectedCadDetails.HasNative}"/>
+                                            </Grid>
+                                            <UniformGrid Columns="3" Margin="8">
+                                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,4,0"
+                                                        Command="{Binding OpenInIronCadCommand}"
+                                                        Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonOpenInIronCad]}"/>
+                                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="4,0,4,0"
+                                                        Command="{Binding DownloadCadCommand}"
+                                                        Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonDownload]}"/>
+                                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="4,0,0,0"
+                                                        Command="{Binding OpenInArasCommand}"
+                                                        Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonOpenInAras]}"/>
+                                            </UniformGrid>
+                                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadNoCadFound]}"
+                                                       Margin="8"
+                                                       Foreground="{StaticResource LibraryMutedBrush}"
+                                                       Visibility="{Binding HasNoCadDetails, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabBom]}">
+                                    <Grid Margin="0,8,0,0">
+                                        <DataGrid Style="{StaticResource LibraryDataGridStyle}"
+                                                  ItemsSource="{Binding SelectedBomDetails.Items}"
+                                                  Visibility="{Binding HasBomItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryBomColumnComponentPartNumber]}" Binding="{Binding ComponentPartNumber}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryBomColumnComponentName]}" Binding="{Binding ComponentName}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryBomColumnRevision]}" Binding="{Binding ComponentRevision}" Width="70"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryBomColumnQuantity]}" Binding="{Binding Quantity}" Width="60"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryBomColumnUnit]}" Binding="{Binding Unit}" Width="60"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryBomNoItems]}"
+                                                   Margin="8"
+                                                   Foreground="{StaticResource LibraryMutedBrush}"
+                                                   Visibility="{Binding HasNoBomItems, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </Grid>
+                                </TabItem>
+                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabRevisions]}">
+                                    <Grid Margin="0,8,0,0">
+                                        <DataGrid Style="{StaticResource LibraryDataGridStyle}"
+                                                  ItemsSource="{Binding SelectedRevisionDetails.Items}"
+                                                  Visibility="{Binding HasRevisionItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRevisionColumnPartId]}" Binding="{Binding PartId}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRevisionColumnRevision]}" Binding="{Binding Revision}" Width="70"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRevisionColumnGeneration]}" Binding="{Binding Generation}" Width="70"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRevisionColumnLifecycleState]}" Binding="{Binding LifecycleState}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRevisionColumnModifiedOn]}" Binding="{Binding ModifiedOn}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRevisionColumnIsCurrent]}" Binding="{Binding IsCurrent}" Width="60"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRevisionNoRevisions]}"
+                                                   Margin="8"
+                                                   Foreground="{StaticResource LibraryMutedBrush}"
+                                                   Visibility="{Binding HasNoRevisionItems, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </Grid>
+                                </TabItem>
                                 <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabWhereUsed]}">
-                                    <Border Padding="12,10,12,4">
-                                        <TextBlock Text="{Binding SelectedEntryDetails.WhereUsedSummary}"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource LibraryMutedBrush}"/>
-                                    </Border>
+                                    <Grid Margin="0,8,0,0">
+                                        <DataGrid Style="{StaticResource LibraryDataGridStyle}"
+                                                  ItemsSource="{Binding SelectedWhereUsedDetails.Items}"
+                                                  Visibility="{Binding HasWhereUsedItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWhereUsedColumnParentPartNumber]}" Binding="{Binding ParentPartNumber}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWhereUsedColumnParentName]}" Binding="{Binding ParentPartName}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWhereUsedColumnParentRevision]}" Binding="{Binding ParentRevision}" Width="70"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWhereUsedColumnParentState]}" Binding="{Binding ParentState}" Width="*"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWhereUsedColumnQuantity]}" Binding="{Binding Quantity}" Width="60"/>
+                                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWhereUsedColumnSource]}" Binding="{Binding Source}" Width="80"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryWhereUsedNoRecords]}"
+                                                   Margin="8"
+                                                   Foreground="{StaticResource LibraryMutedBrush}"
+                                                   Visibility="{Binding HasNoWhereUsedItems, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </Grid>
                                 </TabItem>
                             </TabControl>
                         </StackPanel>
