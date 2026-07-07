@@ -99,7 +99,7 @@ Sprint 2.2 UI now includes:
 
 ## Sprint 2.2 Follow-Up Patch
 
-Follow-up patch applied with commit `<PENDING>`. Authorization model extended:
+Follow-up patch applied with commit `f0db0348e4a6a9a70ff6232d5031304b1ed9c211`. Authorization model extended:
 
 - `ILibraryAuthorizationService` gained `IsReviewerOrHigher`, `CanMoveEntries`, `CanPinRevisions`.
 - `LibraryAuthorizationRules` gained `ReviewerUsers` collection and `IsReviewer()` method.
