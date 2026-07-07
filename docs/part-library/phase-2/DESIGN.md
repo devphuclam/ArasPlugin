@@ -59,11 +59,18 @@ Sprint 2.2 core support now adds:
 - revision-history query, paging, sort normalization, and pin eligibility calculation
 - focused core tests for the new move and revision-browser paths
 
+The repository now **adds** in Sprint 2.3 core:
+
+- `IPartLibraryVaultService` contract and `PartLibraryVaultService` implementation with temp-first download, zero-byte rejection, atomic cache move, and cleanup (VT-01..06)
+- `IIronCadOpenService` contract and `IronCadOpenService` implementation with executable availability check, file validation, and adapter-based launch (D-06)
+- `IArasOpenUrlService` contract and `ArasOpenUrlService` implementation with configurable URI + database URL builder (OA-01..02)
+- `PartLibraryCadFileInfo`, `VaultCacheKey`, `VaultDownloadResult` DTOs in `Core.Library`
+- 44 focused service tests covering all VT and OA requirements
+
 The repository does **not** yet provide:
 
 - Library restore flows;
-- Vault download/open services for primary CAD (`WS5`);
-- explicit Open in Aras URL generation (`WS6`);
+- Wired ViewModel commands consuming the new services;
 - real CAD/BOM/Revisions detail tabs (`WS7`);
 - advanced entry filters and hardening beyond Sprint 2.1 (`WS8`).
 
@@ -151,6 +158,8 @@ Remaining live limitations:
 | `2.1` | `WS1`, `WS2` | Library management UI and Aras Part Picker UI | D-01, D-02, D-03 approved |
 | `2.2` | `WS3`, `WS4` | Move Entry and Revision Browser | D-04 approved |
 | `2.3` | `WS5`, `WS6`, `WS7` | Vault/CAD services, Aras links, populated detail tabs | D-05, D-06 approved |
+| `2.3-core` | `WS5`, `WS6` (backend) | Service contracts, Desktop vault service, IronCAD service, URL builder, DTOs, tests | VT-01..06, OA-01..02 |
+| `2.3-ui` | `WS7`, WS5/WS6 wiring | Wired ViewModel commands, detail tab data queries, WPF tab UI | `2.3-core` |
 | `2.4` | `WS8` | advanced filters, regression closure, UAT prep | previous sprints verified |
 
 ## Requirement Mapping

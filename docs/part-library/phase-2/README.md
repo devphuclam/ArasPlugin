@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 core implemented)
 
 ## Objective
 
@@ -66,7 +66,7 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 |---|---|---|---|
 | `2.1` | `WS1` + `WS2` | UAT smoke accepted |
 | `2.2` | `WS3` + `WS4` | locally accepted |
-| `2.3` | `WS5` + `WS6` + `WS7` | not started |
+| `2.3` | `WS5` + `WS6` + `WS7` | core implemented |
 | `2.4` | `WS8` + hardening/UAT prep | not started |
 
 ## Sprint 2.1 Completion Evidence
@@ -166,9 +166,26 @@ Phase 2 is in progress. Full Phase 2 remains open until:
 - no live Aras schema or Method change is included in this closeout;
 - Phase 1 documents remain closed evidence and must not be rewritten.
 
+## Sprint 2.3 Core Packet
+
+Sprint 2.3 core backend is now implemented:
+
+- `IPartLibraryVaultService` contract + `PartLibraryVaultService` with temp-first download, zero-byte rejection, atomic cache move, temp cleanup on failure
+- `IIronCadOpenService` contract + `IronCadOpenService` with executable availability check, file validation, and `ICadApplicationAdapter` launch
+- `IArasOpenUrlService` contract + `ArasOpenUrlService` configurable URI + database URL builder
+- `PartLibraryCadFileInfo`, `VaultCacheKey`, `VaultDownloadResult` DTOs
+- 44 focused service tests covering VT-01..06 and OA-01..02 requirements
+- Debug build: 0 warnings, 0 errors
+- Full tests: 311/311 passed
+
+Remaining for Sprint 2.3 UI:
+- Wire services into `LibraryViewModel` (OpenInIronCad, OpenInAras, DownloadCad)
+- Detail tab data queries (CAD, BOM, Revisions, Where Used)
+- WPF tab UI implementation (WP-32)
+
 ## Next Sprint
 
-`Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
+`Sprint 2.4: Filters and UX Hardening (WS8)`
 
 Canonical supporting docs:
 
