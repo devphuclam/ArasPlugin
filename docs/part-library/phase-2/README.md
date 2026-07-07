@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 core implemented)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 core gaps closed; 340/340 tests pass)
 
 ## Objective
 
@@ -168,19 +168,23 @@ Phase 2 is in progress. Full Phase 2 remains open until:
 
 ## Sprint 2.3 Core Packet
 
-Sprint 2.3 core backend is now implemented:
+Sprint 2.3 core backend is now implemented (gaps closed 2026-07-07):
 
-- `IPartLibraryVaultService` contract + `PartLibraryVaultService` with temp-first download, zero-byte rejection, atomic cache move, temp cleanup on failure
-- `IIronCadOpenService` contract + `IronCadOpenService` with executable availability check, file validation, and `ICadApplicationAdapter` launch
-- `IArasOpenUrlService` contract + `ArasOpenUrlService` configurable URI + database URL builder
-- `PartLibraryCadFileInfo`, `VaultCacheKey`, `VaultDownloadResult` DTOs
-- 44 focused service tests covering VT-01..06 and OA-01..02 requirements
-- Debug build: 0 warnings, 0 errors
-- Full tests: 311/311 passed
+**DTOs:** `VaultCacheKey` (now includes `UserName`, `FileName`, `Extension`; cache file name uses approved extension, not `.cache`; equality includes `UserName` + `Extension`), `VaultDownloadResult` (gains `FileId`, `FileName`, `BytesWritten`, `FromCache`, `CacheKey`), `IronCadOpenRequest`/`IronCadOpenResult`, `ArasOpenUrlRequest`/`ArasOpenUrlResult`, `VaultFileValidator` (approved extension allowlist + path traversal detection), detail tab DTOs (`LibraryEntryCadDetails`, `LibraryEntryBomDetails`, `LibraryEntryRevisionDetails`, `LibraryEntryWhereUsedDetails`, `LibraryEntryDetailBundle`).
+
+**Vault service (D-05):** `GetPrimaryCadFileInfoAsync` now injects `IPartLibraryClient` and maps from `GetEntryAsync` (never throws `NotSupportedException`). `BuildCacheKey` uses injected `serverUrl`/`database` (no hardcoded defaults). `DownloadToCacheAsync` validates extension, rejects path traversal, validates cache hit (exists/readable/size>0/approved extension), returns `FromCache=true` when cached, uses atomic temp-to-cache copy.
+
+**IronCAD open (D-06):** `IronCadOpenRequest`/`IronCadOpenResult` enforce zero-byte rejection, approved extension check, trusted source gating, remote URL rejection; adapter-first before process fallback.
+
+**Aras URL (WS6):** `ArasOpenUrlRequest`/`ArasOpenUrlResult` validate item type against approved list (`Part`, `CAD`, `idea_PartLibrary`, `idea_PartLibraryEntry`); throw `ValidationFailed` on bad input; `BuildUserUrl` removed.
+
+**Detail tabs (WS7):** Backend DTOs + `IPartLibraryClient` methods (`GetCadDetailsAsync`, `GetBomDetailsAsync`, `GetRevisionDetailsAsync`, `GetWhereUsedDetailsAsync`, `GetDetailBundleAsync`) — `HttpPartLibraryClient` throws `NotSupportedException` as placeholder for Sprint 2.3 UI wiring.
+
+**Tests:** 340 total — 0 failed, 0 skipped (previous + 29 new: 10 vault, 9 IronCAD, 10 Aras URL covering D-05, D-06, cache key, equality, extension, traversal, cancellation, result properties, `GetPrimaryCadFileInfoAsync` with injected client). All source projects 0w/0e. All test projects 0w/0e.
 
 Remaining for Sprint 2.3 UI:
 - Wire services into `LibraryViewModel` (OpenInIronCad, OpenInAras, DownloadCad)
-- Detail tab data queries (CAD, BOM, Revisions, Where Used)
+- Wire detail tab data queries behind tabs
 - WPF tab UI implementation (WP-32)
 
 ## Next Sprint

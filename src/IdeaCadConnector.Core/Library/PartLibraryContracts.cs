@@ -463,5 +463,25 @@ namespace IdeaCadConnector.Core.Contracts
         Task<RecordLibraryUsageResult> RecordUsageAsync(
             LibraryUsageRequest request,
             CancellationToken cancellationToken);
+
+        Task<LibraryEntryCadDetails> GetCadDetailsAsync(
+            string entryId,
+            CancellationToken cancellationToken);
+
+        Task<LibraryEntryBomDetails> GetBomDetailsAsync(
+            string entryId,
+            CancellationToken cancellationToken);
+
+        Task<LibraryEntryRevisionDetails> GetRevisionDetailsAsync(
+            string entryId,
+            CancellationToken cancellationToken);
+
+        Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(
+            string entryId,
+            CancellationToken cancellationToken);
+
+        Task<LibraryEntryDetailBundle> GetDetailBundleAsync(
+            string entryId,
+            CancellationToken cancellationToken);
     }
 }

@@ -1,10 +1,22 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using IdeaCadConnector.Core.Errors;
 using IdeaCadConnector.Core.Library;
 
 namespace IdeaCadConnector.Desktop.Services
 {
     internal sealed class ArasOpenUrlService : IArasOpenUrlService
     {
+        private static readonly HashSet<string> ApprovedItemTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Part",
+            "CAD",
+            "idea_PartLibrary",
+            "idea_PartLibraryEntry"
+        };
+
         private readonly Uri _baseUri;
         private readonly string _database;
 
@@ -35,9 +47,58 @@ namespace IdeaCadConnector.Desktop.Services
             return BuildItemUrl("idea_PartLibraryEntry", entryId);
         }
 
-        public string BuildUserUrl(string userId)
+        public Task<ArasOpenUrlResult> BuildUrlAsync(ArasOpenUrlRequest request, CancellationToken cancellationToken)
         {
-            return BuildItemUrl("User", userId);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (request == null)
+                return Task.FromResult(new ArasOpenUrlResult
+                {
+                    Success = false,
+                    ErrorMessage = "URL request is required.",
+                    ErrorCode = ArasErrorCode.ValidationFailed
+                });
+
+            if (string.IsNullOrWhiteSpace(request.ItemType))
+                return Task.FromResult(new ArasOpenUrlResult
+                {
+                    Success = false,
+                    ErrorMessage = "Item type is required.",
+                    ErrorCode = ArasErrorCode.ValidationFailed
+                });
+
+            if (string.IsNullOrWhiteSpace(request.ItemId) && string.IsNullOrWhiteSpace(request.ConfigId))
+                return Task.FromResult(new ArasOpenUrlResult
+                {
+                    Success = false,
+                    ErrorMessage = "Item ID or config ID is required.",
+                    ErrorCode = ArasErrorCode.ValidationFailed
+                });
+
+            if (!ApprovedItemTypes.Contains(request.ItemType))
+                return Task.FromResult(new ArasOpenUrlResult
+                {
+                    Success = false,
+                    ErrorMessage = $"Item type '{request.ItemType}' is not in the approved list for URL generation.",
+                    ErrorCode = ArasErrorCode.ValidationFailed
+                });
+
+            var id = !string.IsNullOrWhiteSpace(request.ConfigId) ? request.ConfigId : request.ItemId;
+            var url = BuildItemUrl(request.ItemType, id);
+
+            if (string.IsNullOrWhiteSpace(url))
+                return Task.FromResult(new ArasOpenUrlResult
+                {
+                    Success = false,
+                    ErrorMessage = "Failed to generate URL.",
+                    ErrorCode = ArasErrorCode.ValidationFailed
+                });
+
+            return Task.FromResult(new ArasOpenUrlResult
+            {
+                Success = true,
+                Url = url
+            });
         }
 
         private string BuildItemUrl(string itemType, string itemId)
@@ -45,8 +106,6 @@ namespace IdeaCadConnector.Desktop.Services
             if (string.IsNullOrWhiteSpace(itemId))
                 return null;
 
-            // Aras Innovator client URL pattern:
-            // {BaseUri}resource.aspx?id={itemId}&type={itemType}&db={database}
             var baseUri = _baseUri.ToString().TrimEnd('/');
             return $"{baseUri}/resource.aspx?id={Uri.EscapeDataString(itemId)}&type={Uri.EscapeDataString(itemType)}&db={Uri.EscapeDataString(_database)}";
         }

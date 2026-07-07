@@ -1234,6 +1234,31 @@ namespace IdeaCadConnector.Aras
             return await TryRecordUsageViaServerMethodAsync(request, cancellationToken).ConfigureAwait(false);
         }
 
+        public Task<LibraryEntryCadDetails> GetCadDetailsAsync(string entryId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+        }
+
+        public Task<LibraryEntryBomDetails> GetBomDetailsAsync(string entryId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+        }
+
+        public Task<LibraryEntryRevisionDetails> GetRevisionDetailsAsync(string entryId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+        }
+
+        public Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(string entryId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+        }
+
+        public Task<LibraryEntryDetailBundle> GetDetailBundleAsync(string entryId, CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+        }
+
         private static string ComputeIdempotencyKey(LibraryUsageRequest request)
         {
             var raw = string.Join("|",

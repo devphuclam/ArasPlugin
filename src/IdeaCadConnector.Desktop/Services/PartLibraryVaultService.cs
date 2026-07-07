@@ -11,11 +11,22 @@ namespace IdeaCadConnector.Desktop.Services
     internal sealed class PartLibraryVaultService : IPartLibraryVaultService
     {
         private readonly IArasCadClient _arasCadClient;
+        private readonly IPartLibraryClient _partLibraryClient;
+        private readonly string _serverUrl;
+        private readonly string _database;
         private readonly string _cacheRoot;
 
-        public PartLibraryVaultService(IArasCadClient arasCadClient, string cacheRoot = null)
+        public PartLibraryVaultService(
+            IArasCadClient arasCadClient,
+            string cacheRoot = null,
+            IPartLibraryClient partLibraryClient = null,
+            string serverUrl = null,
+            string database = null)
         {
             _arasCadClient = arasCadClient ?? throw new ArgumentNullException(nameof(arasCadClient));
+            _partLibraryClient = partLibraryClient;
+            _serverUrl = serverUrl ?? "default";
+            _database = database ?? "default";
             _cacheRoot = cacheRoot ?? Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "IdeaCadConnector",
@@ -31,13 +42,31 @@ namespace IdeaCadConnector.Desktop.Services
                     ArasErrorCode.ValidationFailed,
                     "Entry ID is required to resolve primary CAD.");
 
-            // CAD file info is returned as part of PartLibraryEntryDetails.
-            // This service method would need an injected IPartLibraryClient or the details
-            // would be pre-loaded by the caller. For now, the method signature exists
-            // so the VM can pass already-loaded PartLibraryEntryDetails data.
-            // Full AML-backed resolution lives in the Aras project.
-            throw new NotSupportedException(
-                "Use an IPartLibraryClient to load entry details, then pass the data to DownloadToCacheAsync.");
+            if (_partLibraryClient == null)
+                throw new ArasOperationException(
+                    ArasErrorCode.ValidationFailed,
+                    "IPartLibraryClient is not available. Cannot resolve entry details.");
+
+            var entry = await _partLibraryClient.GetEntryAsync(entryId, cancellationToken).ConfigureAwait(false);
+            if (entry == null)
+                throw new ArasOperationException(
+                    ArasErrorCode.CadNotFound,
+                    $"Library entry '{entryId}' not found.");
+
+            if (string.IsNullOrWhiteSpace(entry.PrimaryCadId))
+                throw new ArasOperationException(
+                    ArasErrorCode.CadNotFound,
+                    $"Library entry '{entryId}' has no primary CAD associated.");
+
+            return new PartLibraryCadFileInfo
+            {
+                CadId = entry.PrimaryCadId,
+                CadName = entry.PrimaryCadFileName,
+                FileName = entry.PrimaryCadFileName,
+                CadState = entry.PrimaryCadState,
+                LockedBy = entry.LockedBy,
+                HasNative = !string.IsNullOrWhiteSpace(entry.PrimaryCadId)
+            };
         }
 
         public async Task<VaultDownloadResult> DownloadToCacheAsync(
@@ -60,21 +89,61 @@ namespace IdeaCadConnector.Desktop.Services
                     ErrorCode = ArasErrorCode.CadNotFound
                 };
 
-            var cacheKey = BuildCacheKey(cadFileInfo.FileId, cadFileInfo.Generation);
-            var cached = GetCachedFilePath(cacheKey);
-            if (!string.IsNullOrWhiteSpace(cached) && File.Exists(cached))
+            // D-05: Validate file name, extension, and path traversal
+            var fileName = cadFileInfo.FileName ?? $"file_{cadFileInfo.FileId}.ics";
+            if (!VaultFileValidator.IsValidFileName(fileName))
             {
+                if (VaultFileValidator.ContainsPathTraversal(fileName))
+                    return new VaultDownloadResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Invalid file name: path traversal detected.",
+                        ErrorCode = ArasErrorCode.ValidationFailed
+                    };
+
                 return new VaultDownloadResult
                 {
-                    Success = true,
-                    LocalFilePath = cached
+                    Success = false,
+                    ErrorMessage = $"File extension '{Path.GetExtension(fileName)}' is not in the approved list.",
+                    ErrorCode = ArasErrorCode.ValidationFailed
                 };
+            }
+
+            var cacheKey = BuildCacheKey(cadFileInfo.FileId, cadFileInfo.Generation, fileName, null);
+
+            // Cache hit validation: exists, readable, size > 0, approved extension
+            var cached = GetCachedFilePath(cacheKey);
+            if (!string.IsNullOrWhiteSpace(cached))
+            {
+                try
+                {
+                    var fi = new FileInfo(cached);
+                    if (fi.Exists && fi.Length > 0)
+                    {
+                        var cachedExt = VaultFileValidator.GetNormalizedExtension(fi.Name);
+                        if (VaultFileValidator.IsExtensionAllowed(cachedExt))
+                        {
+                            return new VaultDownloadResult
+                            {
+                                Success = true,
+                                LocalFilePath = cached,
+                                FileId = cadFileInfo.FileId,
+                                FileName = fileName,
+                                BytesWritten = fi.Length,
+                                FromCache = true,
+                                CacheKey = cacheKey
+                            };
+                        }
+                    }
+                }
+                catch
+                {
+                }
             }
 
             var tempDir = Path.Combine(Path.GetTempPath(), "IdeaCadConnector", "vault-download");
             Directory.CreateDirectory(tempDir);
-
-            var tempPath = Path.Combine(tempDir, cadFileInfo.FileName ?? $"file_{cadFileInfo.FileId}.ics");
+            var tempPath = Path.Combine(tempDir, fileName);
             try
             {
                 var downloaded = await _arasCadClient.DownloadNativeFileAsync(
@@ -89,7 +158,10 @@ namespace IdeaCadConnector.Desktop.Services
                     {
                         Success = false,
                         ErrorMessage = "Download returned no file path.",
-                        ErrorCode = ArasErrorCode.FileUploadNotFound
+                        ErrorCode = ArasErrorCode.FileUploadNotFound,
+                        FileId = cadFileInfo.FileId,
+                        FileName = fileName,
+                        CacheKey = cacheKey
                     };
                 }
 
@@ -101,7 +173,25 @@ namespace IdeaCadConnector.Desktop.Services
                     {
                         Success = false,
                         ErrorMessage = "Downloaded file is empty (zero bytes).",
-                        ErrorCode = ArasErrorCode.FileUploadNotFound
+                        ErrorCode = ArasErrorCode.FileUploadNotFound,
+                        FileId = cadFileInfo.FileId,
+                        FileName = fileName,
+                        CacheKey = cacheKey
+                    };
+                }
+
+                var downloadedExt = VaultFileValidator.GetNormalizedExtension(downloaded);
+                if (!VaultFileValidator.IsExtensionAllowed(downloadedExt))
+                {
+                    CleanTempOnFailure(downloaded);
+                    return new VaultDownloadResult
+                    {
+                        Success = false,
+                        ErrorMessage = "Downloaded file has an invalid extension.",
+                        ErrorCode = ArasErrorCode.ValidationFailed,
+                        FileId = cadFileInfo.FileId,
+                        FileName = fileName,
+                        CacheKey = cacheKey
                     };
                 }
 
@@ -109,14 +199,31 @@ namespace IdeaCadConnector.Desktop.Services
                 Directory.CreateDirectory(cacheDir);
                 var cacheFileName = cacheKey.ToCacheFileName();
                 var cachePath = Path.Combine(cacheDir, cacheFileName);
+
+                // Atomic move: copy to temp then rename
+                var tempCachePath = cachePath + ".tmp";
+                if (File.Exists(tempCachePath))
+                    File.Delete(tempCachePath);
+                File.Copy(downloaded, tempCachePath);
+
                 if (File.Exists(cachePath))
                     File.Delete(cachePath);
-                File.Move(downloaded, cachePath);
+
+                if (File.Exists(tempCachePath))
+                {
+                    File.Move(tempCachePath, cachePath);
+                    CleanTempOnFailure(downloaded);
+                }
 
                 return new VaultDownloadResult
                 {
                     Success = true,
-                    LocalFilePath = cachePath
+                    LocalFilePath = cachePath,
+                    FileId = cadFileInfo.FileId,
+                    FileName = fileName,
+                    BytesWritten = fileInfo.Length,
+                    FromCache = false,
+                    CacheKey = cacheKey
                 };
             }
             catch (OperationCanceledException)
@@ -131,7 +238,10 @@ namespace IdeaCadConnector.Desktop.Services
                 {
                     Success = false,
                     ErrorMessage = aex.Message,
-                    ErrorCode = aex.ErrorCode
+                    ErrorCode = aex.ErrorCode,
+                    FileId = cadFileInfo.FileId,
+                    FileName = fileName,
+                    CacheKey = cacheKey
                 };
             }
             catch (Exception ex)
@@ -141,7 +251,10 @@ namespace IdeaCadConnector.Desktop.Services
                 {
                     Success = false,
                     ErrorMessage = $"Download failed: {ex.Message}",
-                    ErrorCode = ArasErrorCode.UnexpectedServerError
+                    ErrorCode = ArasErrorCode.UnexpectedServerError,
+                    FileId = cadFileInfo.FileId,
+                    FileName = fileName,
+                    CacheKey = cacheKey
                 };
             }
         }
@@ -151,7 +264,7 @@ namespace IdeaCadConnector.Desktop.Services
             if (cadFileInfo == null || string.IsNullOrWhiteSpace(cadFileInfo.FileId))
                 return null;
 
-            return GetCachedFilePath(BuildCacheKey(cadFileInfo.FileId, cadFileInfo.Generation));
+            return GetCachedFilePath(BuildCacheKey(cadFileInfo.FileId, cadFileInfo.Generation, cadFileInfo.FileName, null));
         }
 
         public string GetCachedFilePath(VaultCacheKey cacheKey)
@@ -165,14 +278,18 @@ namespace IdeaCadConnector.Desktop.Services
             return File.Exists(path) ? path : null;
         }
 
-        public VaultCacheKey BuildCacheKey(string fileId, string revisionGeneration)
+        public VaultCacheKey BuildCacheKey(string fileId, string revisionGeneration, string fileName, string userName)
         {
+            var ext = !string.IsNullOrWhiteSpace(fileName) ? Path.GetExtension(fileName) : null;
             return new VaultCacheKey
             {
-                Server = "default",
-                Database = "default",
+                Server = _serverUrl,
+                Database = _database,
                 FileId = fileId,
-                RevisionGeneration = revisionGeneration ?? "0"
+                RevisionGeneration = revisionGeneration ?? "0",
+                UserName = userName,
+                FileName = fileName,
+                Extension = ext
             };
         }
 

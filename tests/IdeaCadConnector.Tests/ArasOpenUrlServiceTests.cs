@@ -1,4 +1,8 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using IdeaCadConnector.Core.Errors;
+using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Desktop.Services;
 using Xunit;
 
@@ -91,23 +95,6 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void BuildUserUrl_IncludesUserId()
-        {
-            var service = CreateService();
-            var url = service.BuildUserUrl("user-123");
-
-            Assert.Contains("user-123", url);
-            Assert.Contains("type=User", url);
-        }
-
-        [Fact]
-        public void BuildUserUrl_NullId_ReturnsNull()
-        {
-            var service = CreateService();
-            Assert.Null(service.BuildUserUrl(null));
-        }
-
-        [Fact]
         public void AllUrls_StartWithBaseUri()
         {
             var service = CreateService();
@@ -116,7 +103,6 @@ namespace IdeaCadConnector.Tests
             Assert.StartsWith(TestBaseUri.ToString().TrimEnd('/'), service.BuildCadUrl("c1"));
             Assert.StartsWith(TestBaseUri.ToString().TrimEnd('/'), service.BuildLibraryUrl("l1"));
             Assert.StartsWith(TestBaseUri.ToString().TrimEnd('/'), service.BuildEntryUrl("e1"));
-            Assert.StartsWith(TestBaseUri.ToString().TrimEnd('/'), service.BuildUserUrl("u1"));
         }
 
         [Fact]
@@ -128,7 +114,6 @@ namespace IdeaCadConnector.Tests
             Assert.Contains("/resource.aspx", service.BuildCadUrl("c1"));
             Assert.Contains("/resource.aspx", service.BuildLibraryUrl("l1"));
             Assert.Contains("/resource.aspx", service.BuildEntryUrl("e1"));
-            Assert.Contains("/resource.aspx", service.BuildUserUrl("u1"));
         }
 
         [Fact]
@@ -140,7 +125,6 @@ namespace IdeaCadConnector.Tests
             Assert.Contains("db=InnovatorSolutions", service.BuildCadUrl("c1"));
             Assert.Contains("db=InnovatorSolutions", service.BuildLibraryUrl("l1"));
             Assert.Contains("db=InnovatorSolutions", service.BuildEntryUrl("e1"));
-            Assert.Contains("db=InnovatorSolutions", service.BuildUserUrl("u1"));
         }
 
         [Fact]
@@ -163,6 +147,131 @@ namespace IdeaCadConnector.Tests
         public void Constructor_NullDatabase_Throws()
         {
             Assert.Throws<ArgumentNullException>(() => new ArasOpenUrlService(TestBaseUri, null));
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_NullRequest_ReturnsValidationFailed()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(null, CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_MissingItemType_ReturnsValidationFailed()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemId = "id-1" },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_MissingIds_ReturnsValidationFailed()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemType = "Part" },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_UnapprovedItemType_ReturnsValidationFailed()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemType = "User", ItemId = "user-1" },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
+            Assert.Contains("User", result.ErrorMessage);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_PartType_Success()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemType = "Part", ItemId = "part-1" },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Contains("part-1", result.Url);
+            Assert.Contains("type=Part", result.Url);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_CadType_Success()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemType = "CAD", ItemId = "cad-1" },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Contains("cad-1", result.Url);
+            Assert.Contains("type=CAD", result.Url);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_LibraryType_Success()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemType = "idea_PartLibrary", ItemId = "lib-1" },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Contains("lib-1", result.Url);
+            Assert.Contains("type=idea_PartLibrary", result.Url);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_EntryType_Success()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemType = "idea_PartLibraryEntry", ItemId = "entry-1" },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Contains("entry-1", result.Url);
+            Assert.Contains("type=idea_PartLibraryEntry", result.Url);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_UsesConfigIdWhenProvided()
+        {
+            var service = CreateService();
+            var result = await service.BuildUrlAsync(
+                new ArasOpenUrlRequest { ItemType = "Part", ItemId = "part-1", ConfigId = "cfg-1" },
+                CancellationToken.None);
+
+            Assert.True(result.Success);
+            Assert.Contains("cfg-1", result.Url);
+            Assert.DoesNotContain("part-1", result.Url);
+        }
+
+        [Fact]
+        public async Task BuildUrlAsync_Cancelled_Throws()
+        {
+            var service = CreateService();
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAsync<OperationCanceledException>(() =>
+                service.BuildUrlAsync(
+                    new ArasOpenUrlRequest { ItemType = "Part", ItemId = "p1" },
+                    cts.Token));
         }
 
         private static ArasOpenUrlService CreateService()

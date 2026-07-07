@@ -48,43 +48,121 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public async Task OpenCadFileAsync_NullPath_ThrowsValidationFailed()
+        public async Task OpenCadFileAsync_NullRequest_ReturnsValidationFailed()
         {
             var adapter = new StubCadAdapter();
             var service = CreateService(adapter);
 
-            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
-                service.OpenCadFileAsync(null, CadOpenMode.ReadOnly, CancellationToken.None));
+            var result = await service.OpenCadFileAsync(null, CancellationToken.None);
 
-            Assert.Equal(ArasErrorCode.ValidationFailed, ex.ErrorCode);
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
         }
 
         [Fact]
-        public async Task OpenCadFileAsync_EmptyPath_ThrowsValidationFailed()
+        public async Task OpenCadFileAsync_NullPath_ReturnsValidationFailed()
         {
             var adapter = new StubCadAdapter();
             var service = CreateService(adapter);
 
-            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
-                service.OpenCadFileAsync("", CadOpenMode.ReadOnly, CancellationToken.None));
+            var result = await service.OpenCadFileAsync(
+                new IronCadOpenRequest { FilePath = null, IsTrustedSource = true },
+                CancellationToken.None);
 
-            Assert.Equal(ArasErrorCode.ValidationFailed, ex.ErrorCode);
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
         }
 
         [Fact]
-        public async Task OpenCadFileAsync_FileNotFound_ThrowsCadNotFound()
+        public async Task OpenCadFileAsync_EmptyPath_ReturnsValidationFailed()
         {
             var adapter = new StubCadAdapter();
             var service = CreateService(adapter);
 
-            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
-                service.OpenCadFileAsync(@"C:\nonexistent\file.ics", CadOpenMode.ReadOnly, CancellationToken.None));
+            var result = await service.OpenCadFileAsync(
+                new IronCadOpenRequest { FilePath = "", IsTrustedSource = true },
+                CancellationToken.None);
 
-            Assert.Equal(ArasErrorCode.CadNotFound, ex.ErrorCode);
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
         }
 
         [Fact]
-        public async Task OpenCadFileAsync_IronCadNotAvailable_ThrowsFileUploadNotFound()
+        public async Task OpenCadFileAsync_RemoteUrl_ReturnsValidationFailed()
+        {
+            var adapter = new StubCadAdapter();
+            var service = CreateService(adapter);
+
+            var result = await service.OpenCadFileAsync(
+                new IronCadOpenRequest { FilePath = "http://evil.com/trojan.ics", IsRemoteUrl = true },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
+            Assert.Contains("Remote", result.ErrorMessage);
+        }
+
+        [Fact]
+        public async Task OpenCadFileAsync_ZeroByteFile_ReturnsFileUploadNotFound()
+        {
+            var adapter = new StubCadAdapter();
+            var service = CreateService(adapter);
+
+            var result = await service.OpenCadFileAsync(
+                new IronCadOpenRequest { FilePath = "empty.ics", FileSize = 0, IsTrustedSource = true },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.FileUploadNotFound, result.ErrorCode);
+            Assert.Contains("zero", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task OpenCadFileAsync_UnapprovedExtension_ReturnsValidationFailed()
+        {
+            var adapter = new StubCadAdapter();
+            var service = CreateService(adapter);
+
+            var result = await service.OpenCadFileAsync(
+                new IronCadOpenRequest { FilePath = "file.exe", FileSize = 100, IsTrustedSource = true },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.ValidationFailed, result.ErrorCode);
+            Assert.Contains("extension", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task OpenCadFileAsync_UntrustedSource_ReturnsPermissionDenied()
+        {
+            var adapter = new StubCadAdapter();
+            var service = CreateService(adapter);
+
+            var result = await service.OpenCadFileAsync(
+                new IronCadOpenRequest { FilePath = "test.ics", FileSize = 100, IsTrustedSource = false },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.PermissionDenied, result.ErrorCode);
+            Assert.Contains("untrusted", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task OpenCadFileAsync_FileNotFound_ReturnsCadNotFound()
+        {
+            var adapter = new StubCadAdapter();
+            var service = CreateService(adapter);
+
+            var result = await service.OpenCadFileAsync(
+                new IronCadOpenRequest { FilePath = @"C:\nonexistent\file.ics", FileSize = 100, IsTrustedSource = true },
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(ArasErrorCode.CadNotFound, result.ErrorCode);
+        }
+
+        [Fact]
+        public async Task OpenCadFileAsync_IronCadNotAvailable_ReturnsFileUploadNotFound()
         {
             var adapter = new StubCadAdapter();
             var service = new IronCadOpenService(adapter, @"C:\nonexistent\IronCAD.exe");
@@ -92,10 +170,12 @@ namespace IdeaCadConnector.Tests
             try
             {
                 File.WriteAllText(tempFile, "test");
-                var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
-                    service.OpenCadFileAsync(tempFile, CadOpenMode.ReadOnly, CancellationToken.None));
+                var result = await service.OpenCadFileAsync(
+                    new IronCadOpenRequest { FilePath = tempFile, FileSize = 4, IsTrustedSource = true },
+                    CancellationToken.None);
 
-                Assert.Equal(ArasErrorCode.FileUploadNotFound, ex.ErrorCode);
+                Assert.False(result.Success);
+                Assert.Equal(ArasErrorCode.FileUploadNotFound, result.ErrorCode);
             }
             finally
             {
@@ -116,8 +196,11 @@ namespace IdeaCadConnector.Tests
                 try
                 {
                     File.WriteAllText(tempFile, "test");
-                    await service.OpenCadFileAsync(tempFile, CadOpenMode.ReadOnly, CancellationToken.None);
+                    var result = await service.OpenCadFileAsync(
+                        new IronCadOpenRequest { FilePath = tempFile, OpenMode = CadOpenMode.ReadOnly, FileSize = 4, IsTrustedSource = true },
+                        CancellationToken.None);
 
+                    Assert.True(result.Success);
                     Assert.True(adapter.OpenCalled);
                     Assert.Equal(tempFile, adapter.LastFilePath);
                     Assert.Equal(CadOpenMode.ReadOnly, adapter.LastOpenMode);
@@ -150,7 +233,42 @@ namespace IdeaCadConnector.Tests
                     cts.Cancel();
 
                     await Assert.ThrowsAsync<OperationCanceledException>(() =>
-                        service.OpenCadFileAsync(tempFile, CadOpenMode.ReadOnly, cts.Token));
+                        service.OpenCadFileAsync(
+                            new IronCadOpenRequest { FilePath = tempFile, FileSize = 4, IsTrustedSource = true },
+                            cts.Token));
+                }
+                finally
+                {
+                    DeleteIfExists(tempFile);
+                }
+            }
+            finally
+            {
+                DeleteIfExists(path);
+            }
+        }
+
+        [Fact]
+        public async Task OpenCadFileAsync_Success_ReturnsIronCadOpenResult()
+        {
+            var adapter = new StubCadAdapter();
+            var path = GetTestExecutablePath();
+            try
+            {
+                CreateDummyFile(path);
+                var service = new IronCadOpenService(adapter, path);
+                var tempFile = Path.GetTempFileName() + ".ics";
+                try
+                {
+                    File.WriteAllText(tempFile, "test");
+                    var result = await service.OpenCadFileAsync(
+                        new IronCadOpenRequest { FilePath = tempFile, FileSize = 4, IsTrustedSource = true },
+                        CancellationToken.None);
+
+                    Assert.IsType<IronCadOpenResult>(result);
+                    Assert.True(result.Success);
+                    Assert.Null(result.ErrorMessage);
+                    Assert.Null(result.ErrorCode);
                 }
                 finally
                 {

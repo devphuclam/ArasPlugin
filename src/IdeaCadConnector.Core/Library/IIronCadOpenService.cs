@@ -1,6 +1,5 @@
 using System.Threading;
 using System.Threading.Tasks;
-using IdeaCadConnector.Core.Cad;
 
 namespace IdeaCadConnector.Core.Library
 {
@@ -8,6 +7,6 @@ namespace IdeaCadConnector.Core.Library
     {
         bool IsIronCadAvailable { get; }
 
-        Task OpenCadFileAsync(string filePath, CadOpenMode openMode, CancellationToken cancellationToken);
+        Task<IronCadOpenResult> OpenCadFileAsync(IronCadOpenRequest request, CancellationToken cancellationToken);
     }
 }

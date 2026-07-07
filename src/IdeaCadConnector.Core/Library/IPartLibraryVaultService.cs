@@ -15,7 +15,7 @@ namespace IdeaCadConnector.Core.Library
 
         string GetCachedFilePath(VaultCacheKey cacheKey);
 
-        VaultCacheKey BuildCacheKey(string fileId, string revisionGeneration);
+        VaultCacheKey BuildCacheKey(string fileId, string revisionGeneration, string fileName, string userName);
 
         void CleanTempOnFailure(string tempPath);
     }

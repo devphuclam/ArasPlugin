@@ -328,6 +328,17 @@ namespace IdeaCadConnector.Tests
             public Task<LibraryMutationResult> ArchiveLibraryAsync(string libraryId, CancellationToken cancellationToken)
                 => Task.FromResult(new LibraryMutationResult { Success = true });
 
+            public Task<LibraryEntryCadDetails> GetCadDetailsAsync(string entryId, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryEntryCadDetails());
+            public Task<LibraryEntryBomDetails> GetBomDetailsAsync(string entryId, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryEntryBomDetails());
+            public Task<LibraryEntryRevisionDetails> GetRevisionDetailsAsync(string entryId, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryEntryRevisionDetails());
+            public Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(string entryId, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryEntryWhereUsedDetails());
+            public Task<LibraryEntryDetailBundle> GetDetailBundleAsync(string entryId, CancellationToken cancellationToken)
+                => Task.FromResult(new LibraryEntryDetailBundle());
+
             public void Dispose() { }
         }
     }

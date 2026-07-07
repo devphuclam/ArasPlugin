@@ -1987,6 +1987,17 @@ namespace IdeaCadConnector.Desktop
         public Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(string libraryId, string partConfigId, CancellationToken cancellationToken)
             => Task.FromResult(new DuplicateEntryCheckResult { IsDuplicate = false });
 
+        public Task<LibraryEntryCadDetails> GetCadDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryEntryCadDetails());
+        public Task<LibraryEntryBomDetails> GetBomDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryEntryBomDetails());
+        public Task<LibraryEntryRevisionDetails> GetRevisionDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryEntryRevisionDetails());
+        public Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryEntryWhereUsedDetails());
+        public Task<LibraryEntryDetailBundle> GetDetailBundleAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromResult(new LibraryEntryDetailBundle());
+
         public void Dispose() { }
 
         private static bool Contains(string value, string keyword)
@@ -2111,6 +2122,17 @@ namespace IdeaCadConnector.Desktop
 
         public Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(string libraryId, string partConfigId, CancellationToken cancellationToken)
             => Task.FromException<DuplicateEntryCheckResult>(CreateUnavailableException());
+
+        public Task<LibraryEntryCadDetails> GetCadDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromException<LibraryEntryCadDetails>(CreateUnavailableException());
+        public Task<LibraryEntryBomDetails> GetBomDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromException<LibraryEntryBomDetails>(CreateUnavailableException());
+        public Task<LibraryEntryRevisionDetails> GetRevisionDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromException<LibraryEntryRevisionDetails>(CreateUnavailableException());
+        public Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromException<LibraryEntryWhereUsedDetails>(CreateUnavailableException());
+        public Task<LibraryEntryDetailBundle> GetDetailBundleAsync(string entryId, CancellationToken cancellationToken)
+            => Task.FromException<LibraryEntryDetailBundle>(CreateUnavailableException());
 
         public void Dispose() { }
 

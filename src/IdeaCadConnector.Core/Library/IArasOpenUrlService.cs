@@ -1,3 +1,6 @@
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace IdeaCadConnector.Core.Library
 {
     public interface IArasOpenUrlService
@@ -10,6 +13,6 @@ namespace IdeaCadConnector.Core.Library
 
         string BuildEntryUrl(string entryId);
 
-        string BuildUserUrl(string userId);
+        Task<ArasOpenUrlResult> BuildUrlAsync(ArasOpenUrlRequest request, CancellationToken cancellationToken);
     }
 }
