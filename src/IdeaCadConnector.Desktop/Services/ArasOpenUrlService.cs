@@ -14,7 +14,8 @@ namespace IdeaCadConnector.Desktop.Services
             "Part",
             "CAD",
             "idea_PartLibrary",
-            "idea_PartLibraryEntry"
+            "idea_PartLibraryEntry",
+            "idea_PartLibraryUsage"
         };
 
         private readonly Uri _baseUri;

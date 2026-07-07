@@ -61,11 +61,16 @@ namespace IdeaCadConnector.Desktop.Services
             return new PartLibraryCadFileInfo
             {
                 CadId = entry.PrimaryCadId,
+                CadNumber = entry.PartNumber,
                 CadName = entry.PrimaryCadFileName,
+                FileId = entry.PrimaryCadFileId,
                 FileName = entry.PrimaryCadFileName,
+                Revision = entry.Revision,
+                Generation = entry.Generation,
                 CadState = entry.PrimaryCadState,
                 LockedBy = entry.LockedBy,
-                HasNative = !string.IsNullOrWhiteSpace(entry.PrimaryCadId)
+                HasNative = !string.IsNullOrWhiteSpace(entry.PrimaryCadFileId) &&
+                            !string.IsNullOrWhiteSpace(entry.PrimaryCadFileName)
             };
         }
 

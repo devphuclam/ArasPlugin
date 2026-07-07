@@ -1234,29 +1234,219 @@ namespace IdeaCadConnector.Aras
             return await TryRecordUsageViaServerMethodAsync(request, cancellationToken).ConfigureAwait(false);
         }
 
-        public Task<LibraryEntryCadDetails> GetCadDetailsAsync(string entryId, CancellationToken cancellationToken)
+        public async Task<LibraryEntryCadDetails> GetCadDetailsAsync(string entryId, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+            if (string.IsNullOrWhiteSpace(entryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Entry ID is required.");
+
+            EnsureAuthenticated();
+
+            var relationship = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
+            var partId = relationship["related_id"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(partId))
+                return new LibraryEntryCadDetails { HasNative = false };
+
+            var cad = await GetPrimaryCadInfoAsync(partId, cancellationToken).ConfigureAwait(false);
+
+            return new LibraryEntryCadDetails
+            {
+                PrimaryCadId = cad.CadId,
+                PrimaryCadNumber = cad.CadNumber,
+                PrimaryCadName = cad.FileName,
+                PrimaryCadState = cad.State,
+                FileId = cad.FileId,
+                FileName = cad.FileName,
+                FileVersion = cad.FileVersion,
+                LockedBy = cad.LockedBy,
+                HasNative = !string.IsNullOrWhiteSpace(cad.FileId) &&
+                            !string.IsNullOrWhiteSpace(cad.FileName)
+            };
         }
 
-        public Task<LibraryEntryBomDetails> GetBomDetailsAsync(string entryId, CancellationToken cancellationToken)
+        public async Task<LibraryEntryBomDetails> GetBomDetailsAsync(string entryId, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+            if (string.IsNullOrWhiteSpace(entryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Entry ID is required.");
+
+            EnsureAuthenticated();
+
+            var relationship = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
+            var partId = relationship["related_id"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(partId))
+                return new LibraryEntryBomDetails { EntryId = entryId };
+
+            var part = await GetPartAsync(partId, cancellationToken).ConfigureAwait(false);
+            var configId = part["config_id"]?.Value<string>();
+
+            var bomAml =
+                "<Item type=\"Part BOM\" action=\"get\" select=\"quantity,related_id,unit\">" +
+                "<source_id>" + Escape(partId) + "</source_id>" +
+                "</Item>";
+
+            var items = new List<BomLineItem>();
+            try
+            {
+                var bomResult = await _aml.ApplyAmlAsync(
+                    bomAml, "get", "Part BOM", null, cancellationToken).ConfigureAwait(false);
+
+                foreach (var rel in EnumerateItems(bomResult))
+                {
+                    var compId = rel["related_id"]?.Value<string>();
+                    if (string.IsNullOrWhiteSpace(compId))
+                        continue;
+
+                    var comp = await GetPartAsync(compId, cancellationToken).ConfigureAwait(false);
+                    items.Add(new BomLineItem
+                    {
+                        ComponentPartId = compId,
+                        ComponentPartNumber = comp["item_number"]?.Value<string>(),
+                        ComponentName = comp["name"]?.Value<string>(),
+                        ComponentRevision = comp["major_rev"]?.Value<string>(),
+                        Quantity = ParseInt(rel["quantity"]?.Value<string>(), 1),
+                        Unit = rel["unit"]?.Value<string>()
+                    });
+                }
+            }
+            catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
+            {
+                _logger.LogWarning(ex, "Failed to query BOM for part {PartId} via entry {EntryId}.", partId, entryId);
+            }
+
+            return new LibraryEntryBomDetails
+            {
+                EntryId = entryId,
+                PartId = partId,
+                PartConfigId = configId,
+                PartNumber = part["item_number"]?.Value<string>(),
+                PartName = part["name"]?.Value<string>(),
+                Revision = part["major_rev"]?.Value<string>(),
+                BomItems = items.AsReadOnly()
+            };
         }
 
-        public Task<LibraryEntryRevisionDetails> GetRevisionDetailsAsync(string entryId, CancellationToken cancellationToken)
+        public async Task<LibraryEntryRevisionDetails> GetRevisionDetailsAsync(string entryId, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+            if (string.IsNullOrWhiteSpace(entryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Entry ID is required.");
+
+            EnsureAuthenticated();
+
+            var relationship = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
+            var partId = relationship["related_id"]?.Value<string>();
+            var configId = relationship["part_config_id"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(configId) && !string.IsNullOrWhiteSpace(partId))
+            {
+                var part = await GetPartAsync(partId, cancellationToken).ConfigureAwait(false);
+                configId = part["config_id"]?.Value<string>();
+            }
+
+            var currentPart = !string.IsNullOrWhiteSpace(partId)
+                ? await GetPartAsync(partId, cancellationToken).ConfigureAwait(false)
+                : null;
+
+            var revisionHistory = new List<RevisionHistoryItem>();
+
+            if (!string.IsNullOrWhiteSpace(configId))
+            {
+                try
+                {
+                    var request = new PartRevisionHistoryRequest
+                    {
+                        PartConfigId = configId,
+                        PageNumber = 1,
+                        PageSize = 100
+                    };
+                    var history = await SearchPartRevisionsAsync(request, cancellationToken).ConfigureAwait(false);
+                    if (history.Items != null)
+                    {
+                        revisionHistory.AddRange(history.Items.Select(h => new RevisionHistoryItem
+                        {
+                            PartId = h.PartId,
+                            Revision = h.MajorRev,
+                            LifecycleState = h.LifecycleState,
+                            Generation = h.Generation,
+                            ModifiedOn = h.ModifiedOn?.ToString("o"),
+                            IsCurrent = h.IsCurrent
+                        }));
+                    }
+                }
+                catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
+                {
+                    _logger.LogWarning(ex, "Failed to load revision history for config {ConfigId} via entry {EntryId}.", configId, entryId);
+                }
+            }
+
+            return new LibraryEntryRevisionDetails
+            {
+                EntryId = entryId,
+                PartConfigId = configId,
+                CurrentPartId = currentPart?["id"]?.Value<string>(),
+                CurrentRevision = currentPart?["major_rev"]?.Value<string>(),
+                CurrentLifecycleState = currentPart?["state"]?.Value<string>(),
+                CurrentGeneration = currentPart?["generation"]?.Value<string>(),
+                RevisionHistory = revisionHistory.AsReadOnly()
+            };
         }
 
-        public Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(string entryId, CancellationToken cancellationToken)
+        public async Task<LibraryEntryWhereUsedDetails> GetWhereUsedDetailsAsync(string entryId, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+            if (string.IsNullOrWhiteSpace(entryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Entry ID is required.");
+
+            EnsureAuthenticated();
+
+            var relationship = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
+            var partId = relationship["related_id"]?.Value<string>();
+            if (string.IsNullOrWhiteSpace(partId))
+                return new LibraryEntryWhereUsedDetails { EntryId = entryId };
+
+            var part = await GetPartAsync(partId, cancellationToken).ConfigureAwait(false);
+            var whereUsed = await GetWhereUsedAsync(partId, cancellationToken).ConfigureAwait(false);
+
+            var items = whereUsed.Select(w => new WhereUsedItemEx
+            {
+                ParentPartId = w.ParentPartId,
+                ParentPartNumber = w.ParentPartNumber,
+                ParentPartName = w.ParentPartName,
+                ParentRevision = w.ParentRevision,
+                ParentState = w.ParentState,
+                Quantity = w.Quantity,
+                Source = w.Source
+            }).ToList();
+
+            return new LibraryEntryWhereUsedDetails
+            {
+                EntryId = entryId,
+                PartId = partId,
+                PartNumber = part["item_number"]?.Value<string>(),
+                PartName = part["name"]?.Value<string>(),
+                WhereUsedItems = items.AsReadOnly()
+            };
         }
 
-        public Task<LibraryEntryDetailBundle> GetDetailBundleAsync(string entryId, CancellationToken cancellationToken)
+        public async Task<LibraryEntryDetailBundle> GetDetailBundleAsync(string entryId, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException("Detail tab backends will be implemented in Sprint 2.3 UI phase.");
+            if (string.IsNullOrWhiteSpace(entryId))
+                throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Entry ID is required.");
+
+            EnsureAuthenticated();
+
+            var entryTask = GetEntryAsync(entryId, cancellationToken);
+            var cadTask = GetCadDetailsAsync(entryId, cancellationToken);
+            var bomTask = GetBomDetailsAsync(entryId, cancellationToken);
+            var revTask = GetRevisionDetailsAsync(entryId, cancellationToken);
+            var wuTask = GetWhereUsedDetailsAsync(entryId, cancellationToken);
+
+            await Task.WhenAll(entryTask, cadTask, bomTask, revTask, wuTask).ConfigureAwait(false);
+
+            return new LibraryEntryDetailBundle
+            {
+                Entry = entryTask.Result,
+                Cad = cadTask.Result,
+                Bom = bomTask.Result,
+                Revisions = revTask.Result,
+                WhereUsed = wuTask.Result
+            };
         }
 
         private static string ComputeIdempotencyKey(LibraryUsageRequest request)
@@ -1623,6 +1813,7 @@ namespace IdeaCadConnector.Aras
                 PartName = resolvedPart["name"]?.Value<string>(),
                 PartType = resolvedPart["classification"]?.Value<string>(),
                 Revision = resolvedPart["major_rev"]?.Value<string>(),
+                Generation = resolvedPart["generation"]?.Value<string>(),
                 LifecycleState = resolvedPart["state"]?.Value<string>(),
                 EntryLifecycleState = lifecycleState ?? relationship["entry_status"]?.Value<string>(),
                 RevisionPolicy = policy,
@@ -1660,6 +1851,7 @@ namespace IdeaCadConnector.Aras
                 PartName = summary.PartName,
                 PartType = summary.PartType,
                 Revision = summary.Revision,
+                Generation = summary.Generation,
                 LifecycleState = summary.LifecycleState,
                 EntryLifecycleState = summary.EntryLifecycleState,
                 RevisionPolicy = summary.RevisionPolicy,
@@ -1668,6 +1860,7 @@ namespace IdeaCadConnector.Aras
                 PrimaryCadId = cad.CadId,
                 PrimaryCadFileName = cad.FileName,
                 PrimaryCadState = cad.State,
+                PrimaryCadFileId = cad.FileId,
                 LockedBy = cad.LockedBy,
                 UsageCount = summary.UsageCount,
                 Description = relationship["note"]?.Value<string>() ?? summary.PartName,
@@ -2214,16 +2407,20 @@ namespace IdeaCadConnector.Aras
                     "CAD",
                     cadId,
                     "get",
-                    "id,item_number,name,state,locked_by_id,native_file",
+                    "id,item_number,name,generation,state,locked_by_id,native_file",
                     ct).ConfigureAwait(false);
 
+                var nativeFileId = cad["native_file"]?.Value<string>();
                 return new PrimaryCadInfo
                 {
                     CadId = cad["id"]?.Value<string>(),
+                    CadNumber = cad["item_number"]?.Value<string>(),
                     FileName = cad["name"]?.Value<string>(),
+                    FileVersion = cad["generation"]?.Value<string>(),
                     State = cad["state"]?.Value<string>(),
                     LockedBy = cad["locked_by_id"]?.Value<string>(),
-                    Status = string.IsNullOrWhiteSpace(cad["native_file"]?.Value<string>()) ? "No CAD" : "Available"
+                    FileId = nativeFileId,
+                    Status = string.IsNullOrWhiteSpace(nativeFileId) ? "No CAD" : "Available"
                 };
             }
             catch (ArasOperationException ex) when (IsAuthOrPermissionFailure(ex))
@@ -2631,9 +2828,12 @@ namespace IdeaCadConnector.Aras
             public static readonly PrimaryCadInfo Empty = new PrimaryCadInfo { Status = "No CAD" };
 
             public string CadId { get; set; }
+            public string CadNumber { get; set; }
             public string FileName { get; set; }
+            public string FileVersion { get; set; }
             public string State { get; set; }
             public string LockedBy { get; set; }
+            public string FileId { get; set; }
             public string Status { get; set; }
         }
 

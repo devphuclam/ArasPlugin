@@ -447,6 +447,7 @@ namespace IdeaCadConnector.Tests
                 EntryId = "entry-1",
                 PrimaryCadId = "cad-123",
                 PrimaryCadFileName = "test.ics",
+                PrimaryCadFileId = "file-456",
                 PrimaryCadState = "Released",
                 LockedBy = "user1"
             };

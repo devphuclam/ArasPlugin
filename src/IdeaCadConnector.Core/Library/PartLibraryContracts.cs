@@ -240,6 +240,7 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string PartName { get; set; }
         public string PartType { get; set; }
         public string Revision { get; set; }
+        public string Generation { get; set; }
         public string LifecycleState { get; set; }
         public string EntryLifecycleState { get; set; }
         public LibraryRevisionPolicy RevisionPolicy { get; set; }
@@ -267,6 +268,7 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string PartName { get; set; }
         public string PartType { get; set; }
         public string Revision { get; set; }
+        public string Generation { get; set; }
         public string LifecycleState { get; set; }
         public string EntryLifecycleState { get; set; }
         public LibraryRevisionPolicy RevisionPolicy { get; set; }
@@ -275,6 +277,7 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string PrimaryCadId { get; set; }
         public string PrimaryCadFileName { get; set; }
         public string PrimaryCadState { get; set; }
+        public string PrimaryCadFileId { get; set; }
         public string LockedBy { get; set; }
         public int UsageCount { get; set; }
         public string Description { get; set; }
