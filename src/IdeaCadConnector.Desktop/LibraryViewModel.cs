@@ -27,10 +27,14 @@ namespace IdeaCadConnector.Desktop
         private readonly IPartLibraryClient _injectedClient;
         private readonly IPartLibraryClient _unavailableClient = new UnavailablePartLibraryClient();
         private readonly ILibraryAuthorizationService _authService;
-        private readonly IPartLibraryVaultService _vaultService;
-        private readonly IIronCadOpenService _ironCadService;
-        private readonly IArasOpenUrlService _openUrlService;
-        private readonly IBrowserLauncher _browserLauncher;
+        private readonly IPartLibraryVaultService _injectedVaultService;
+        private readonly IIronCadOpenService _injectedIronCadService;
+        private readonly IArasOpenUrlService _injectedOpenUrlService;
+        private readonly IBrowserLauncher _injectedBrowserLauncher;
+        private IPartLibraryVaultService _vaultService;
+        private IIronCadOpenService _ironCadService;
+        private IArasOpenUrlService _openUrlService;
+        private IBrowserLauncher _browserLauncher;
         private PartLibrarySummaryRow _selectedLibrary;
         private PartLibraryEntryRow _selectedEntry;
         private PartLibraryEntryDetailsView _selectedEntryDetails;
@@ -79,11 +83,10 @@ namespace IdeaCadConnector.Desktop
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _injectedClient = client;
             _authService = authService ?? new LibraryAuthorizationService(session);
-            var composedServices = LibraryServicesFactory.Create(session, client);
-            _vaultService = vaultService ?? composedServices.VaultService;
-            _ironCadService = ironCadService ?? composedServices.IronCadOpenService;
-            _openUrlService = openUrlService ?? composedServices.ArasOpenUrlService;
-            _browserLauncher = browserLauncher ?? composedServices.BrowserLauncher;
+            _injectedVaultService = vaultService;
+            _injectedIronCadService = ironCadService;
+            _injectedOpenUrlService = openUrlService;
+            _injectedBrowserLauncher = browserLauncher;
 
             Libraries = new ObservableCollection<PartLibrarySummaryRow>();
             Entries = new ObservableCollection<PartLibraryEntryRow>();
@@ -142,7 +145,18 @@ namespace IdeaCadConnector.Desktop
             RevisionBrowserDialogHandler = ShowRevisionBrowserDialog;
             ConfirmDialogHandler = (message, caption, buttons, image) => MessageBox.Show(message, caption, buttons, image);
 
+            RefreshLibraryServices();
             _ = RefreshAsync();
+        }
+
+        private void RefreshLibraryServices()
+        {
+            var composedServices = LibraryServicesFactory.Create(_session, _injectedClient);
+
+            _vaultService = _injectedVaultService ?? composedServices.VaultService;
+            _ironCadService = _injectedIronCadService ?? composedServices.IronCadOpenService;
+            _openUrlService = _injectedOpenUrlService ?? composedServices.ArasOpenUrlService;
+            _browserLauncher = _injectedBrowserLauncher ?? composedServices.BrowserLauncher;
         }
 
         private IPartLibraryClient ActiveClient =>

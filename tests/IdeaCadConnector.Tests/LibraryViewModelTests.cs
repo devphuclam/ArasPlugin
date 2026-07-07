@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto.Library;
 using IdeaCadConnector.Core.Library;
@@ -51,6 +53,33 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(1, client.GetLibrariesCallCount);
             Assert.Equal(1, client.SearchEntriesCallCount);
             Assert.False(viewModel.LibrariesOverlayMessage.Contains("No accessible Libraries were returned.", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task LibraryViewModel_RefreshesOpenInArasAfterLogin_WhenConstructedBeforeLogin()
+        {
+            var session = new FakeAppSessionContext();
+            var client = CreateReusableClient();
+
+            var viewModel = new LibraryViewModel(session, null);
+
+            session.PartLibraryClient = client;
+            session.ArasCadClient = new StubArasCadClient();
+            session.ArasServerUrl = "http://innovator-test/InnovatorServer/";
+            session.ArasDatabase = "InnovatorSolutions";
+            session.NotifyLibraryDataChanged();
+
+            var openUrlService = typeof(LibraryViewModel)
+                .GetField("_openUrlService", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.GetValue(viewModel);
+            var vaultService = typeof(LibraryViewModel)
+                .GetField("_vaultService", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.GetValue(viewModel);
+
+            Assert.NotNull(openUrlService);
+            Assert.NotNull(vaultService);
+            Assert.Contains("ArasOpenUrlService", openUrlService.GetType().Name);
+            Assert.Contains("PartLibraryVaultService", vaultService.GetType().Name);
         }
 
         [Fact]
@@ -846,6 +875,54 @@ namespace IdeaCadConnector.Tests
             public void Dispose()
             {
             }
+        }
+
+        private sealed class StubArasCadClient : IArasCadClient
+        {
+            public void Dispose()
+            {
+            }
+
+            public Task<string> DownloadNativeFileAsync(string fileId, string targetDirectory, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var path = Path.Combine(targetDirectory, $"downloaded_{fileId}.ics");
+                File.WriteAllText(path, "test-content");
+                return Task.FromResult(path);
+            }
+
+            public Task<ArasLoginResult> LoginAsync(ArasLoginRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new ArasLoginResult());
+
+            public Task<PartSearchResponse> SearchPartsAsync(PartSearchRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new PartSearchResponse(Array.Empty<PartSearchResult>(), 0));
+
+            public Task<CreateCadResult> CreateCadAsync(CreateCadRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new CreateCadResult());
+
+            public Task<CadCheckoutResult> CheckoutAsync(CadCheckoutRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new CadCheckoutResult());
+
+            public Task<CadCheckoutResult> OpenReadOnlyAsync(CadOpenReadOnlyRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new CadCheckoutResult());
+
+            public Task<FileUploadResult> UploadFileAsync(FileUploadRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new FileUploadResult());
+
+            public Task<CadCheckinResult> CheckinAsync(CadCheckinRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new CadCheckinResult());
+
+            public Task<CancelCheckoutResult> CancelCheckoutAsync(CancelCheckoutRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(new CancelCheckoutResult());
+
+            public Task<CadOperationContext> GetCadOperationContextAsync(string cadId, CancellationToken cancellationToken)
+                => Task.FromResult(MakeEmptyContext());
+
+            public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken cancellationToken)
+                => Task.FromResult(MakeEmptyContext());
+
+            private static CadOperationContext MakeEmptyContext()
+                => new CadOperationContext(null, null, null, 0, null, null, false, false, null, null, null, null);
         }
 
         private sealed class StubPartLibraryClient : IPartLibraryClient
