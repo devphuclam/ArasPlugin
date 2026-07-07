@@ -4,7 +4,9 @@
         xmlns:core="clr-namespace:IdeaCadConnector.Core.Localization;assembly=IdeaCadConnector.Core"
         Title="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MoveEntryTitle]}" Width="520" Height="600"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="#F8FAFD">
+        WindowStyle="None"
+        Background="#F8FAFD"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </Window.Resources>
