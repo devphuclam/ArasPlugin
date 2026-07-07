@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 core + UI now implemented locally)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 UAT smoke passed with follow-up)
 
 ## Objective
 
@@ -62,7 +62,6 @@ Sprint 2.2 core support now adds:
 The repository does **not** yet provide:
 
 - Library restore flows;
-- Move Entry UI workflow (`WS3`) or revision browser UI (`WS4`);
 - Vault download/open services for primary CAD (`WS5`);
 - explicit Open in Aras URL generation (`WS6`);
 - real CAD/BOM/Revisions detail tabs (`WS7`);
@@ -97,6 +96,21 @@ Sprint 2.2 UI now includes:
 - backend error handling: permission denied, validation failed, server errors displayed clearly
 - `CanPin=false` revisions disable Pin button with reason
 - duplicate active Entry in target Library blocks move
+
+## Sprint 2.2 UAT Closeout Evidence
+
+The following evidence has been recorded against the current design baseline:
+
+- **Admin** Move Entry and Revision Browser: PASS
+- **lamEngineer/NVTKC** Move Entry: FAIL (can move via `IsContributorOrHigher`; business rule says view-only) — follow-up required
+- **lamEngineer/NVTKC** Pin Revision: FAIL (can pin via `IsContributorOrHigher`; business rule says view-only) — follow-up required
+- **lamEngineer/NVTKC** Revision Browser view-only: PASS
+- **TNTKC** Move Entry and Pin Revision: PASS
+- **lamPM** Move Entry and Pin Revision: PASS
+- **viewer/unknown** Move Entry and Revision Browser: PASS (hidden/blocked)
+- **Automated verification:** Debug build passed, Release build passed, focused tests passed, full tests 261/261 passed.
+
+Known limitation: `CanExecuteMoveEntry` and `CanPin` use `IsContributorOrHigher`, which includes NVTKC/lamEngineer. A follow-up patch is needed to restrict Move Entry and Pin to `IsReviewerOrHigher` (TNTKC and lamPM only).
 
 Remaining live limitations:
 
@@ -162,4 +176,4 @@ Remaining live limitations:
 
 ## Next Implementation Packet
 
-`Sprint 2.2: Move Entry + Revision Browser UI and live integration`
+`Sprint 2.2 Follow-Up: Tighten lamEngineer/NVTKC Move Entry and Pin permission` OR `Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`

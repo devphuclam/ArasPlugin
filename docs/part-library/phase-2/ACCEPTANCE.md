@@ -2,7 +2,7 @@
 
 **State:** `IN_PROGRESS`
 
-This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted, and Sprint 2.2 core + UI is now implemented locally.
+This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted. Sprint 2.2 UAT smoke passed with follow-up (lamEngineer/NVTKC Move Entry and Pin permission must be tightened).
 
 ## Phase Transition History
 
@@ -11,6 +11,7 @@ This file records Phase 2 acceptance gates and current implementation evidence. 
 - Phase 2 moved from `IN_PROGRESS` to `LOCALLY_ACCEPTED` after Sprint 2.1 UAT smoke evidence was recorded on 2026-07-06.
 - Phase 2 returned to `IN_PROGRESS` when Sprint 2.2 core backend work started on 2026-07-06.
 - Phase 2 Sprint 2.2 core + UI implementation completed locally on 2026-07-07.
+- Phase 2 Sprint 2.2 UAT smoke evidence recorded on 2026-07-07 (`UAT_SMOKE_PASSED_WITH_FOLLOW_UP`).
 
 ## Baseline Verification Commands
 
@@ -132,7 +133,33 @@ Remaining live limitations:
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
 - full customer/external viewer UAT is still pending unless tested;
-- Sprint 2.2 is implemented locally; live Aras UAT remains pending.
+- Sprint 2.2 UAT smoke passed; live Aras UAT remains pending.
+
+## Sprint 2.2 UAT Smoke Evidence
+
+Recorded UAT evidence on 2026-07-07:
+
+1. **Admin** Move Entry and Revision Browser: PASS
+2. **lamEngineer/NVTKC** (contributor):
+   - Move Entry: FAIL (can move via `IsContributorOrHigher`; business rule says view-only) — logged as follow-up
+   - Revision Browser view: PASS
+   - Pin Selected Revision: FAIL (can pin via `IsContributorOrHigher`; business rule says view-only) — logged as follow-up
+3. **TNTKC** (reviewer):
+   - Move Entry: PASS
+   - Revision Browser view and Pin: PASS
+4. **lamPM** (manager):
+   - Move Entry: PASS
+   - Revision Browser view and Pin: PASS
+5. **Viewer/unknown**:
+   - Move Entry: PASS (hidden/blocked)
+   - Revision Browser: PASS (hidden/blocked)
+6. **Automated verification**:
+   - Debug build passed: 0 warnings, 0 errors
+   - Release build passed: 0 warnings, 0 errors
+   - Focused tests passed
+   - Full tests passed `261/261`
+
+Known limitation: `CanExecuteMoveEntry` and `CanPin` use `IsContributorOrHigher`, which includes NVTKC/lamEngineer. A follow-up patch is needed to restrict Move Entry and Pin to `IsReviewerOrHigher` (TNTKC and lamPM only).
 
 ## Sprint 2.2 Core + UI Verification
 
@@ -176,7 +203,8 @@ Current status:
 - `ME-01..06` and `RV-01..07` implemented with failure-safe behavior;
 - move rollback/block behavior evidenced;
 - revision policy changes do not mutate data on failed resolve;
-- current local implementation covers backend/core + UI; live UAT remains pending.
+- local UAT smoke passed with follow-up: lamEngineer/NVTKC Move Entry and Pin permission must be tightened;
+- live Aras UAT remains pending.
 
 ### Sprint 2.3
 
@@ -203,8 +231,8 @@ The following cannot be claimed from local automation alone:
 
 ## Current Outcome
 
-Phase 2 is `IN_PROGRESS`.
+Phase 2 is `IN_PROGRESS` (Sprint 2.2 state: `UAT_SMOKE_PASSED_WITH_FOLLOW_UP`).
 
 Recommended next packet:
 
-`Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
+`Sprint 2.2 Follow-Up: Tighten lamEngineer/NVTKC Move Entry and Pin permission` OR `Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
