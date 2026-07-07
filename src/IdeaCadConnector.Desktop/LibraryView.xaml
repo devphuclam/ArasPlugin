@@ -463,12 +463,13 @@
                                                     <ColumnDefinition Width="110"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
-                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
-                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
-                                                    <RowDefinition Height="28"/><RowDefinition Height="28"/>
-                                                </Grid.RowDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/><RowDefinition Height="28"/>
+                                                <RowDefinition Height="28"/>
+                                            </Grid.RowDefinitions>
                                                 <TextBlock Grid.Row="0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelCadNumber]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedCadDetails.PrimaryCadNumber}"/>
                                                 <TextBlock Grid.Row="1" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelCadName]}" Foreground="{StaticResource LibraryMutedBrush}"/>
@@ -485,6 +486,8 @@
                                                 <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding SelectedCadDetails.LockedBy}"/>
                                                 <TextBlock Grid.Row="7" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadLabelHasNative]}" Foreground="{StaticResource LibraryMutedBrush}"/>
                                                 <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding SelectedCadDetails.HasNative}"/>
+                                                <TextBlock Grid.Row="8" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnCadStatus]}" Foreground="{StaticResource LibraryMutedBrush}"/>
+                                                <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding SelectedCadDetails.CadStatus}"/>
                                             </Grid>
                                             <UniformGrid Columns="3" Margin="8">
                                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,4,0"
@@ -497,10 +500,10 @@
                                                         Command="{Binding OpenSelectedEntryInArasCommand}"
                                                         Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonOpenInAras]}"/>
                                             </UniformGrid>
-                                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadNoCadFound]}"
-                                                       Margin="8"
-                                                       Foreground="{StaticResource LibraryMutedBrush}"
-                                                       Visibility="{Binding HasNoCadDetails, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                            <TextBlock Text="{Binding SelectedCadDetails.CadStatus}"
+                                                        Margin="8"
+                                                        Foreground="{StaticResource LibraryMutedBrush}"
+                                                        Visibility="{Binding HasNoCadDetails, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                         </StackPanel>
                                     </ScrollViewer>
                                 </TabItem>

@@ -19,5 +19,7 @@ namespace IdeaCadConnector.Core.Dto.Library
         public string LockedBy { get; set; }
 
         public bool HasNative { get; set; }
+
+        public string CadStatus { get; set; }
     }
 }

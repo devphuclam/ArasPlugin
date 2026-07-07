@@ -310,7 +310,7 @@ namespace IdeaCadConnector.Desktop
             private set => SetField(ref _detailErrorMessage, value);
         }
 
-        public bool HasCadDetails => SelectedCadDetails != null && SelectedCadDetails.HasNative;
+        public bool HasCadDetails => SelectedCadDetails != null && !string.IsNullOrWhiteSpace(SelectedCadDetails.PrimaryCadId);
 
         public bool HasNoCadDetails => !HasCadDetails && !IsLoadingDetails;
 
@@ -703,6 +703,7 @@ namespace IdeaCadConnector.Desktop
                         FileVersion = bundle.Cad.FileVersion,
                         LockedBy = bundle.Cad.LockedBy,
                         HasNative = bundle.Cad.HasNative,
+                        CadStatus = bundle.Cad.CadStatus,
                         PartId = SelectedEntryDetails?.PartId
                     };
                 }

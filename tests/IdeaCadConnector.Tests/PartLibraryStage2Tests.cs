@@ -527,6 +527,125 @@ namespace IdeaCadConnector.Tests
         // ── CheckDuplicateEntryAsync ─────────────────────────────────────
 
         [Fact]
+        public async Task GetCadDetailsAsync_PinnedPolicy_UsesPinnedPartAndReturnsAvailable()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "Pinned", "cfg-1", "part-current", "part-pinned", "Draft", "Draft"));
+            fake.ApplyItemResults.Enqueue(Part("part-pinned", "cfg-1", "PIN-001", "A", "Released"));
+            fake.ApplyItemResults.Enqueue(Part("part-pinned", "cfg-1", "PIN-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject { ["related_id"] = "cad-1" }));
+            fake.ApplyItemResults.Enqueue(Cad("cad-1", "PIN-001-ICS", "PIN-001.ics", "Mechanical/Part", "IronCAD", "A", "Released", "file-1"));
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("PIN-001-ICS", details.PrimaryCadNumber);
+            Assert.Equal("Available", details.CadStatus);
+            Assert.Equal("file-1", details.FileId);
+            Assert.True(details.HasNative);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_RelatedCadWithoutNativeFile_ReturnsNoNativeFile()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject { ["related_id"] = "cad-1" }));
+            fake.ApplyItemResults.Enqueue(Cad("cad-1", "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "A", "Released"));
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("No native file", details.CadStatus);
+            Assert.False(details.HasNative);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_NoPartCadRel_FallsBackToExpectedCadAndMarksUnlinked()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlResults.Enqueue(Items(Cad("cad-1", "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "A", "Released", "file-1")));
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("cad-1", details.PrimaryCadId);
+            Assert.Equal("Unlinked CAD found", details.CadStatus);
+            Assert.Equal("file-1", details.FileId);
+            Assert.True(details.HasNative);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_NoPartCadRel_AndNoFallback_ReturnsNoCad()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items());
+            fake.ApplyAmlResults.Enqueue(Items());
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Null(details.PrimaryCadId);
+            Assert.Equal("No CAD", details.CadStatus);
+            Assert.False(details.HasNative);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_LookupUnavailable_ReturnsLookupUnavailable()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
+                string.Equals(itemType, "Part CAD", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.ServerUnavailable, "Down")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal("CAD lookup unavailable", details.CadStatus);
+            Assert.Null(details.PrimaryCadId);
+        }
+
+        [Fact]
+        public async Task GetCadDetailsAsync_PermissionDenied_Propagates()
+        {
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
+                string.Equals(itemType, "Part CAD", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.PermissionDenied, "Denied")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            var ex = await Assert.ThrowsAsync<ArasOperationException>(() =>
+                client.GetCadDetailsAsync("entry-1", CancellationToken.None));
+
+            Assert.Equal(ArasErrorCode.PermissionDenied, ex.ErrorCode);
+        }
+
+        [Fact]
         public async Task CheckDuplicateEntryAsync_NotDuplicate_ReturnsFalse()
         {
             var fake = new FakeArasAmlClient();
@@ -1030,6 +1149,30 @@ namespace IdeaCadConnector.Tests
                 ["major_rev"] = majorRev,
                 ["state"] = state,
                 ["generation"] = generation
+            };
+        }
+
+        private static JObject Cad(
+            string id,
+            string itemNumber,
+            string name,
+            string classification,
+            string authoringTool,
+            string generation,
+            string state,
+            string nativeFile = null)
+        {
+            return new JObject
+            {
+                ["id"] = id,
+                ["item_number"] = itemNumber,
+                ["name"] = name,
+                ["classification"] = classification,
+                ["authoring_tool"] = authoringTool,
+                ["generation"] = generation,
+                ["state"] = state,
+                ["locked_by_id"] = null,
+                ["native_file"] = nativeFile
             };
         }
     }

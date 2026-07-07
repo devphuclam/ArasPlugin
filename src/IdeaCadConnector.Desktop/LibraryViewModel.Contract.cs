@@ -138,6 +138,7 @@ namespace IdeaCadConnector.Desktop
         public string FileVersion { get; set; }
         public string LockedBy { get; set; }
         public bool HasNative { get; set; }
+        public string CadStatus { get; set; }
         public string PartId { get; set; }
     }
 

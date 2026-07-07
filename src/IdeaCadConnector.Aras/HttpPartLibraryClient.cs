@@ -14,6 +14,12 @@ namespace IdeaCadConnector.Aras
 {
     public sealed class HttpPartLibraryClient : IPartLibraryClient
     {
+        private const string CadStatusNoCad = "No CAD";
+        private const string CadStatusNoNativeFile = "No native file";
+        private const string CadStatusAvailable = "Available";
+        private const string CadStatusUnlinkedFound = "Unlinked CAD found";
+        private const string CadStatusLookupUnavailable = "CAD lookup unavailable";
+
         private readonly ArasClientOptions _options;
         private readonly ILogger<HttpPartLibraryClient> _logger;
         private ArasHttpClient _http;
@@ -1163,7 +1169,8 @@ namespace IdeaCadConnector.Aras
                 var cadInfo = await GetPrimaryCadInfoAsync(partId, cancellationToken).ConfigureAwait(false);
                 var state = part["state"]?.Value<string>();
                 var isObsolete = PartLifecyclePolicy.IsPartObsolete(state);
-                var hasCad = !string.Equals(cadInfo.Status, "No CAD", StringComparison.OrdinalIgnoreCase);
+                var hasCad = !string.Equals(cadInfo.Status, CadStatusNoCad, StringComparison.OrdinalIgnoreCase) &&
+                             !string.Equals(cadInfo.Status, CadStatusLookupUnavailable, StringComparison.OrdinalIgnoreCase);
 
                 return new PartPreview
                 {
@@ -1244,9 +1251,33 @@ namespace IdeaCadConnector.Aras
             var relationship = await GetEntryRelationshipAsync(entryId, cancellationToken).ConfigureAwait(false);
             var partId = relationship["related_id"]?.Value<string>();
             if (string.IsNullOrWhiteSpace(partId))
-                return new LibraryEntryCadDetails { HasNative = false };
+            {
+                return new LibraryEntryCadDetails
+                {
+                    HasNative = false,
+                    CadStatus = CadStatusNoCad
+                };
+            }
 
-            var cad = await GetPrimaryCadInfoAsync(partId, cancellationToken).ConfigureAwait(false);
+            var policy = ParseRevisionPolicy(relationship["revision_policy"]?.Value<string>());
+            var configId = relationship["part_config_id"]?.Value<string>();
+            var pinnedPartId = relationship["pinned_part_id"]?.Value<string>();
+
+            JObject resolvedPart;
+            if (policy == LibraryRevisionPolicy.Pinned)
+            {
+                resolvedPart = await ResolvePinnedPartAsync(pinnedPartId, configId, cancellationToken).ConfigureAwait(false);
+            }
+            else if (policy == LibraryRevisionPolicy.LatestReleased)
+            {
+                resolvedPart = await ResolveLatestReleasedPartStrictAsync(configId, partId, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                resolvedPart = await ResolveCurrentPartStrictAsync(configId, partId, cancellationToken).ConfigureAwait(false);
+            }
+
+            var cad = await GetPrimaryCadInfoAsync(resolvedPart["id"]?.Value<string>(), cancellationToken).ConfigureAwait(false);
 
             return new LibraryEntryCadDetails
             {
@@ -1259,7 +1290,8 @@ namespace IdeaCadConnector.Aras
                 FileVersion = cad.FileVersion,
                 LockedBy = cad.LockedBy,
                 HasNative = !string.IsNullOrWhiteSpace(cad.FileId) &&
-                            !string.IsNullOrWhiteSpace(cad.FileName)
+                            !string.IsNullOrWhiteSpace(cad.FileName),
+                CadStatus = cad.Status
             };
         }
 
@@ -2392,36 +2424,94 @@ namespace IdeaCadConnector.Aras
 
             try
             {
+                var part = await GetPartAsync(partId, ct).ConfigureAwait(false);
+                var partNumber = part["item_number"]?.Value<string>();
+
                 var relAml =
                     "<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
                     "<source_id>" + Escape(partId) + "</source_id>" +
                     "</Item>";
 
                 var relResult = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", null, ct).ConfigureAwait(false);
-                var rel = EnumerateItems(relResult).FirstOrDefault();
-                var cadId = rel?["related_id"]?.Value<string>();
-                if (string.IsNullOrWhiteSpace(cadId))
-                    return new PrimaryCadInfo { Status = "No CAD" };
+                var relatedCadIds = EnumerateItems(relResult)
+                    .Select(rel => rel["related_id"]?.Value<string>())
+                    .Where(cadId => !string.IsNullOrWhiteSpace(cadId))
+                    .ToList();
 
-                var cad = await _aml.ApplyItemAsync(
-                    "CAD",
-                    cadId,
-                    "get",
-                    "id,item_number,name,generation,state,locked_by_id,native_file",
-                    ct).ConfigureAwait(false);
+                  PrimaryCadInfo bestNativeAny = null;
+                  PrimaryCadInfo bestNonNativeMatch = null;
+                  PrimaryCadInfo bestNonNativeAny = null;
 
-                var nativeFileId = cad["native_file"]?.Value<string>();
-                return new PrimaryCadInfo
+                foreach (var cadId in relatedCadIds)
                 {
-                    CadId = cad["id"]?.Value<string>(),
-                    CadNumber = cad["item_number"]?.Value<string>(),
-                    FileName = cad["name"]?.Value<string>(),
-                    FileVersion = cad["generation"]?.Value<string>(),
-                    State = cad["state"]?.Value<string>(),
-                    LockedBy = cad["locked_by_id"]?.Value<string>(),
-                    FileId = nativeFileId,
-                    Status = string.IsNullOrWhiteSpace(nativeFileId) ? "No CAD" : "Available"
-                };
+                    var cad = await _aml.ApplyItemAsync(
+                        "CAD",
+                        cadId,
+                        "get",
+                        "id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file",
+                        ct).ConfigureAwait(false);
+
+                    if (cad == null || !cad.HasValues)
+                        continue;
+
+                    var info = CreatePrimaryCadInfo(cad, IsPreferredIronCad(cad) ? CadStatusAvailable : CadStatusUnlinkedFound);
+                    if (HasNativeFile(cad))
+                    {
+                        if (IsPreferredIronCad(cad))
+                            return info;
+
+                        bestNativeAny ??= info;
+                    }
+                    else
+                    {
+                        if (IsPreferredIronCad(cad))
+                            bestNonNativeMatch ??= info;
+
+                        bestNonNativeAny ??= info;
+                    }
+                }
+
+                  if (bestNativeAny != null)
+                      return bestNativeAny;
+                if (bestNonNativeMatch != null)
+                {
+                    bestNonNativeMatch.Status = CadStatusNoNativeFile;
+                    return bestNonNativeMatch;
+                }
+                if (bestNonNativeAny != null)
+                {
+                    bestNonNativeAny.Status = CadStatusNoNativeFile;
+                    return bestNonNativeAny;
+                }
+
+                if (relatedCadIds.Count > 0)
+                {
+                    return new PrimaryCadInfo
+                    {
+                        Status = CadStatusNoNativeFile,
+                        CadNumber = partNumber
+                    };
+                }
+
+                var expectedCadNumber = string.IsNullOrWhiteSpace(partNumber) ? null : partNumber + "-ICS";
+                if (!string.IsNullOrWhiteSpace(expectedCadNumber))
+                {
+                    var fallbackAml =
+                        "<Item type=\"CAD\" action=\"get\" select=\"id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file\">" +
+                        "<item_number>" + Escape(expectedCadNumber) + "</item_number>" +
+                        "<authoring_tool>IronCAD</authoring_tool>" +
+                        "</Item>";
+
+                    var fallbackResult = await _aml.ApplyAmlAsync(fallbackAml, "get", "CAD", null, ct).ConfigureAwait(false);
+                    var fallbackCad = EnumerateItems(fallbackResult).FirstOrDefault();
+                    if (fallbackCad != null)
+                    {
+                        var status = HasNativeFile(fallbackCad) ? CadStatusUnlinkedFound : CadStatusNoNativeFile;
+                        return CreatePrimaryCadInfo(fallbackCad, status);
+                    }
+                }
+
+                return new PrimaryCadInfo { Status = CadStatusNoCad };
             }
             catch (ArasOperationException ex) when (IsAuthOrPermissionFailure(ex))
             {
@@ -2430,7 +2520,7 @@ namespace IdeaCadConnector.Aras
             catch (ArasOperationException ex)
             {
                 _logger.LogDebug(ex, "Primary CAD info lookup failed for Part {PartId}.", partId);
-                return new PrimaryCadInfo { Status = "No CAD" };
+                return new PrimaryCadInfo { Status = CadStatusLookupUnavailable };
             }
             catch (Exception ex)
             {
@@ -2438,7 +2528,7 @@ namespace IdeaCadConnector.Aras
                     throw;
 
                 _logger.LogDebug(ex, "Primary CAD info lookup failed for Part {PartId}.", partId);
-                return new PrimaryCadInfo { Status = "No CAD" };
+                return new PrimaryCadInfo { Status = CadStatusLookupUnavailable };
             }
         }
 
@@ -2568,6 +2658,33 @@ namespace IdeaCadConnector.Aras
         {
             return !string.IsNullOrWhiteSpace(value) &&
                    value.IndexOf(keyword ?? string.Empty, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool HasNativeFile(JObject cad)
+        {
+            return cad != null && !string.IsNullOrWhiteSpace(cad["native_file"]?.Value<string>());
+        }
+
+        private static bool IsPreferredIronCad(JObject cad)
+        {
+            return cad != null &&
+                   string.Equals(cad["authoring_tool"]?.Value<string>(), "IronCAD", StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(cad["classification"]?.Value<string>(), "Mechanical/Part", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static PrimaryCadInfo CreatePrimaryCadInfo(JObject cad, string status)
+        {
+            return new PrimaryCadInfo
+            {
+                CadId = cad["id"]?.Value<string>(),
+                CadNumber = cad["item_number"]?.Value<string>(),
+                FileName = cad["name"]?.Value<string>(),
+                FileVersion = cad["generation"]?.Value<string>(),
+                State = cad["state"]?.Value<string>(),
+                LockedBy = cad["locked_by_id"]?.Value<string>(),
+                FileId = cad["native_file"]?.Value<string>(),
+                Status = status
+            };
         }
 
         private static bool IsAuthOrPermissionFailure(Exception ex)
@@ -2825,7 +2942,7 @@ namespace IdeaCadConnector.Aras
 
         private sealed class PrimaryCadInfo
         {
-            public static readonly PrimaryCadInfo Empty = new PrimaryCadInfo { Status = "No CAD" };
+            public static readonly PrimaryCadInfo Empty = new PrimaryCadInfo { Status = CadStatusNoCad };
 
             public string CadId { get; set; }
             public string CadNumber { get; set; }
