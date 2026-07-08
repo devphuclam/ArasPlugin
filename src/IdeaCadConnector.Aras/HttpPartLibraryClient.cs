@@ -2493,8 +2493,19 @@ namespace IdeaCadConnector.Aras
                         continue;
                     }
 
-                    var cadId = ExtractArasItemId(relatedToken);
-                    if (string.IsNullOrWhiteSpace(cadId))
+                    var rowCandidates = ExtractArasItemIdCandidates(relatedToken);
+                    // Also collect from other relationship row properties
+                    foreach (var prop in rel.Properties())
+                    {
+                        var propCandidates = ExtractArasItemIdCandidates(prop.Value);
+                        foreach (var c in propCandidates)
+                        {
+                            if (!rowCandidates.Contains(c, StringComparer.OrdinalIgnoreCase))
+                                rowCandidates.Add(c);
+                        }
+                    }
+
+                    if (rowCandidates.Count == 0)
                     {
                         var docNumber = rel["item_number"]?.Value<string>();
                         if (!string.IsNullOrWhiteSpace(docNumber))
@@ -2503,7 +2514,7 @@ namespace IdeaCadConnector.Aras
                         continue;
                     }
 
-                    relatedCadIds.Add(cadId);
+                    relatedCadIds.AddRange(rowCandidates);
                 }
 
                 if (bestNativeMatch != null)
@@ -2511,15 +2522,20 @@ namespace IdeaCadConnector.Aras
                 if (bestNativeAny != null)
                     return bestNativeAny;
 
+                var attemptedCadIds = new List<string>();
+                var allCandidatesNotFound = true;
+
                 foreach (var cadId in relatedCadIds
                     .Where(id => !string.IsNullOrWhiteSpace(id))
                     .Distinct(StringComparer.OrdinalIgnoreCase))
                 {
-                    if (cadId.Length > 32)
+                    if (!IsArasId(cadId))
                     {
-                        _logger.LogDebug("Skipping ApplyItemAsync(CAD) with non-id candidate '{CadId}'.", cadId);
+                        _logger.LogDebug("Skipping ApplyItemAsync(CAD) with non-Aras-id candidate '{CadId}'.", cadId);
                         continue;
                     }
+
+                    attemptedCadIds.Add(cadId);
 
                     JObject cad;
                     try
@@ -2531,14 +2547,21 @@ namespace IdeaCadConnector.Aras
                             cadSelect,
                             ct).ConfigureAwait(false);
                     }
-                    catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex) && (bestNonNativeMatch != null || bestNonNativeAny != null))
+                    catch (ArasOperationException ex) when (IsCadNotFoundError(ex))
                     {
-                        _logger.LogDebug(ex, "Could not refresh CAD {CadId}; using expanded Part CAD relationship data.", cadId);
+                        _logger.LogDebug(ex, "CAD candidate {CadId} not found; trying next candidate.", cadId);
+                        continue;
+                    }
+                    catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
+                    {
+                        _logger.LogDebug(ex, "Could not refresh CAD candidate {CadId}; continuing.", cadId);
                         continue;
                     }
 
                     if (cad == null || !cad.HasValues)
                         continue;
+
+                    allCandidatesNotFound = false;
 
                     var info = CreatePrimaryCadInfo(cad, HasNativeFile(cad) ? CadStatusAvailable : CadStatusNoNativeFile);
                     if (HasNativeFile(cad))
@@ -2570,9 +2593,49 @@ namespace IdeaCadConnector.Aras
                     return bestNonNativeAny;
                 }
 
-                if (relatedCadIds.Count > 0 || unparsedRelatedCount > 0)
+                var hasUnparsed = unparsedRelatedCount > 0 || unparsedDocNumbers.Count > 0;
+
+                if (attemptedCadIds.Count > 0 || hasUnparsed)
                 {
-                    if (relatedCadIds.Count == 0 && unparsedDocNumbers.Count > 0)
+                    if (attemptedCadIds.Count > 0)
+                    {
+                        // Try document-number fallback from unparsed rows
+                        if (allCandidatesNotFound && unparsedDocNumbers.Count > 0)
+                        {
+                            foreach (var docNumber in unparsedDocNumbers.Distinct(StringComparer.OrdinalIgnoreCase))
+                            {
+                                var docAml =
+                                    "<Item type=\"CAD\" action=\"get\" select=\"id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file\">" +
+                                    "<item_number>" + Escape(docNumber) + "</item_number>" +
+                                    "</Item>";
+                                try
+                                {
+                                    var docResult = await _aml.ApplyAmlAsync(docAml, "get", "CAD", null, ct).ConfigureAwait(false);
+                                    var docCad = EnumerateItems(docResult).FirstOrDefault();
+                                    if (docCad != null)
+                                    {
+                                        var status = HasNativeFile(docCad) ? CadStatusUnlinkedFound : CadStatusNoNativeFile;
+                                        return CreatePrimaryCadInfo(docCad, status);
+                                    }
+                                }
+                                catch (ArasOperationException)
+                                {
+                                    continue;
+                                }
+                            }
+                        }
+
+                        return new PrimaryCadInfo
+                        {
+                            Status = allCandidatesNotFound
+                                ? CadStatusLookupUnavailable + ": tried " + attemptedCadIds.Count + " CAD id candidates; none resolved to a CAD item"
+                                : CadStatusNoNativeFile,
+                            CadNumber = partNumber
+                        };
+                    }
+
+                    // No valid candidates at all
+                    if (unparsedDocNumbers.Count > 0)
                     {
                         foreach (var docNumber in unparsedDocNumbers.Distinct(StringComparer.OrdinalIgnoreCase))
                         {
@@ -2599,9 +2662,7 @@ namespace IdeaCadConnector.Aras
 
                     return new PrimaryCadInfo
                     {
-                        Status = relatedCadIds.Count > 0
-                            ? CadStatusNoNativeFile
-                            : CadStatusLookupUnavailable + ": Part CAD related_id could not be parsed",
+                        Status = CadStatusLookupUnavailable + ": Part CAD related_id did not contain a valid CAD id",
                         CadNumber = partNumber
                     };
                 }
@@ -2625,6 +2686,10 @@ namespace IdeaCadConnector.Aras
                 }
 
                 return new PrimaryCadInfo { Status = CadStatusNoCad };
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (ArasOperationException ex) when (IsAuthOrPermissionFailure(ex))
             {
@@ -2829,51 +2894,98 @@ namespace IdeaCadConnector.Aras
 
         internal static string ExtractArasItemId(JToken token)
         {
+            return ExtractArasItemIdCandidates(token).FirstOrDefault();
+        }
+
+        internal static List<string> ExtractArasItemIdCandidates(JToken token)
+        {
+            var results = new List<string>();
+
             if (token == null || token.Type == JTokenType.Null)
-                return null;
+                return results;
 
             if (token.Type == JTokenType.String)
             {
                 var value = token.Value<string>();
                 if (IsArasId(value))
-                    return value;
-
-                var hexMatches = Regex.Matches(value, "[0-9A-Fa-f]{32}");
-                if (hexMatches.Count > 0)
                 {
-                    // Live concatenated string order: authoring_tool + classification + CAD id (32 hex) + file_name + File id (32 hex)
-                    // Return the first 32-char hex match as the CAD id candidate.
-                    return hexMatches[0].Value;
+                    results.Add(value);
+                }
+                else
+                {
+                    var hexMatches = Regex.Matches(value, "[0-9A-Fa-f]{32}");
+                    foreach (Match match in hexMatches)
+                    {
+                        if (IsArasId(match.Value))
+                            results.Add(match.Value);
+                    }
                 }
 
-                return value;
+                return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             }
 
             if (token is JObject obj)
             {
-                var direct = obj["id"]?.Value<string>()
-                    ?? obj["@id"]?.Value<string>()
-                    ?? obj["attributes"]?["id"]?.Value<string>()
-                    ?? obj["@attributes"]?["id"]?.Value<string>()
-                    ?? obj["_attributes"]?["id"]?.Value<string>();
-                if (!string.IsNullOrWhiteSpace(direct))
-                    return direct;
+                CollectIdsFromJObject(obj, results);
+                return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
 
-                var item = obj["Item"];
-                if (item is JObject itemObject)
-                    return ExtractArasItemId(itemObject);
-                if (item is JArray itemArray)
+            if (token is JArray arr)
+            {
+                foreach (var child in arr)
+                    results.AddRange(ExtractArasItemIdCandidates(child));
+                return results.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
+
+            return results;
+        }
+
+        private static void CollectIdsFromJObject(JObject obj, List<string> results)
+        {
+            var direct = obj["id"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(direct) && IsArasId(direct))
+                results.Add(direct);
+
+            direct = obj["@id"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(direct) && IsArasId(direct))
+                results.Add(direct);
+
+            direct = obj["attributes"]?["id"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(direct) && IsArasId(direct))
+                results.Add(direct);
+
+            direct = obj["@attributes"]?["id"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(direct) && IsArasId(direct))
+                results.Add(direct);
+
+            direct = obj["_attributes"]?["id"]?.Value<string>();
+            if (!string.IsNullOrWhiteSpace(direct) && IsArasId(direct))
+                results.Add(direct);
+
+            var item = obj["Item"];
+            if (item is JObject itemObject)
+            {
+                results.AddRange(ExtractArasItemIdCandidates(itemObject));
+            }
+            else if (item is JArray itemArray)
+            {
+                foreach (var child in itemArray)
+                    results.AddRange(ExtractArasItemIdCandidates(child));
+            }
+
+            // Also scan string-valued properties for embedded hex IDs
+            foreach (var prop in obj.Properties())
+            {
+                if (prop.Value.Type == JTokenType.String)
                 {
-                    foreach (var child in itemArray)
+                    var strVal = prop.Value.Value<string>();
+                    if (!string.IsNullOrWhiteSpace(strVal))
                     {
-                        var childId = ExtractArasItemId(child);
-                        if (!string.IsNullOrWhiteSpace(childId))
-                            return childId;
+                        var embedded = ExtractArasItemIdCandidates(new JValue(strVal));
+                        results.AddRange(embedded);
                     }
                 }
             }
-
-            return null;
         }
 
         internal static PrimaryCadInfo CreatePrimaryCadInfoFromRelationshipRow(JObject rel)
@@ -3004,6 +3116,19 @@ namespace IdeaCadConnector.Aras
                     message.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     message.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     message.IndexOf("not available", StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
+        private static bool IsCadNotFoundError(ArasOperationException ex)
+        {
+            if (ex == null)
+                return false;
+
+            if (ex.ErrorCode == ArasErrorCode.CadNotFound)
+                return true;
+
+            var message = ex.Message ?? string.Empty;
+            return message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 &&
+                   message.IndexOf("CAD", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static bool IsPreferredIronCad(JObject cad)
