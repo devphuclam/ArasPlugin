@@ -187,9 +187,47 @@
       </Setter>
     </Style>
 
+    <Style x:Key="ComboBoxToggleButtonStyle" TargetType="ToggleButton">
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="ClickMode" Value="Press" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="Chrome"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    CornerRadius="14">
+              <Grid>
+                <TextBlock HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           Margin="0,0,13,0"
+                           FontFamily="Segoe Fluent Icons"
+                           FontSize="11"
+                           Foreground="#FF6D7C96"
+                           Text="&#xE70D;" />
+              </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="Background" Value="#FFF7FAFF" />
+                <Setter TargetName="Chrome" Property="BorderBrush" Value="#FF9FB9EA" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="Chrome" Property="BorderBrush" Value="#FF4E87FF" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Chrome" Property="Opacity" Value="0.65" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
       <Setter Property="Height" Value="42" />
-      <Setter Property="Padding" Value="12,6,34,6" />
+      <Setter Property="Padding" Value="14,0,36,0" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="Background" Value="#FFFCFDFF" />
       <Setter Property="BorderBrush" Value="#C5D5E8" />
@@ -197,8 +235,61 @@
       <Setter Property="FontSize" Value="14" />
       <Setter Property="Foreground" Value="#FF1F2D57" />
       <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="MaxDropDownHeight" Value="280" />
       <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
       <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton x:Name="DropDownToggle"
+                            Style="{StaticResource ComboBoxToggleButtonStyle}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" />
+              <ContentPresenter x:Name="ContentSite"
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Content="{TemplateBinding SelectionBoxItem}"
+                                ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                IsHitTestVisible="False"
+                                RecognizesAccessKey="True" />
+              <Popup x:Name="PART_Popup"
+                     AllowsTransparency="True"
+                     Focusable="False"
+                     IsOpen="{TemplateBinding IsDropDownOpen}"
+                     Placement="Bottom"
+                     PopupAnimation="Slide">
+                <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                        Margin="0,6,0,0"
+                        Background="#FEFFFFFF"
+                        BorderBrush="#FFD8E2F0"
+                        BorderThickness="1"
+                        CornerRadius="14"
+                        Effect="{DynamicResource ComboBoxDropShadow}">
+                  <ScrollViewer Margin="4"
+                                CanContentScroll="True"
+                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter TargetName="DropDownToggle" Property="BorderBrush" Value="#FF4E87FF" />
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.65" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
 
     <Style TargetType="ComboBoxItem">
