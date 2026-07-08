@@ -1,0 +1,16 @@
+{
+  "arasBaseUrl": "https://aras.example.local/InnovatorServer",
+  "database": "InnovatorSolutions",
+  "authenticationMode": "InteractiveLogin",
+  "vaultCacheRoot": "%LOCALAPPDATA%\\IdeaCadConnector\\VaultCache",
+  "ironCadPath": "",
+  "openInArasMode": "DefaultBrowser",
+  "roles": {
+    "TPTKC": "Truong phong thiet ke co",
+    "TNTKC": "Truong nhom thiet ke co",
+    "NVTKC": "Nhan vien thiet ke co",
+    "NVLCR": "Nhan vien lap rap co",
+    "PM": "Quan ly du an",
+    "Customer": "Khach hang"
+  }
+}
