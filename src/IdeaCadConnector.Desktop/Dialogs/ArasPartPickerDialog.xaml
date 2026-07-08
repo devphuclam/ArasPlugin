@@ -207,8 +207,8 @@
                                        Foreground="{StaticResource DialogTextBrush}"
                                        VerticalAlignment="Center"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <Button Width="32" Height="32" Content="&#xE76B;" FontFamily="Segoe Fluent Icons" Command="{Binding PreviousPageCommand}" Style="{StaticResource DialogButtonStyle}" Padding="0"/>
-                                <Button Width="32" Height="32" Margin="6,0,0,0" Content="&#xE76C;" FontFamily="Segoe Fluent Icons" Command="{Binding NextPageCommand}" Style="{StaticResource DialogButtonStyle}" Padding="0"/>
+                                <Button Width="32" Height="32" Content="&#xE76B;" FontFamily="Segoe MDL2 Assets" Command="{Binding PreviousPageCommand}" Style="{StaticResource DialogButtonStyle}" Padding="0"/>
+                                <Button Width="32" Height="32" Margin="6,0,0,0" Content="&#xE76C;" FontFamily="Segoe MDL2 Assets" Command="{Binding NextPageCommand}" Style="{StaticResource DialogButtonStyle}" Padding="0"/>
                             </StackPanel>
                         </Grid>
 

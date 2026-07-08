@@ -202,7 +202,7 @@
                 <TextBlock HorizontalAlignment="Right"
                            VerticalAlignment="Center"
                            Margin="0,0,13,0"
-                           FontFamily="Segoe Fluent Icons"
+                           FontFamily="Segoe MDL2 Assets"
                            FontSize="11"
                            Foreground="#FF6D7C96"
                            Text="&#xE70D;" />
@@ -490,7 +490,7 @@
                   <ColumnDefinition Width="32" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8B7;" />
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8A5;" />
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="PDM Projects" />
               </Grid>
             </Button>
@@ -503,7 +503,7 @@
                   <ColumnDefinition Width="32" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8B7;" />
+                <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8F1;" />
                 <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Library" />
               </Grid>
             </Button>
@@ -592,7 +592,7 @@
                   <TextBlock FontFamily="Segoe MDL2 Assets"
                              VerticalAlignment="Center"
                              Foreground="#FF3E6FD9"
-                             Text="&#xE717;" />
+                             Text="&#xF2B7;" />
                   <ComboBox Grid.Column="1"
                             Margin="10,0,0,0"
                             VerticalAlignment="Center"

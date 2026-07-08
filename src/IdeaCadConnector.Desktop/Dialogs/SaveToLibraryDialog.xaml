@@ -137,7 +137,7 @@
                                     CornerRadius="10"
                                     Background="#7C3AED">
                                 <TextBlock Text="&#xE8A5;"
-                                           FontFamily="Segoe Fluent Icons"
+                                           FontFamily="Segoe MDL2 Assets"
                                            FontSize="22"
                                            Foreground="White"
                                            HorizontalAlignment="Center"

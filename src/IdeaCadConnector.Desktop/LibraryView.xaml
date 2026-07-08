@@ -100,7 +100,7 @@
                             <TextBlock HorizontalAlignment="Right"
                                        VerticalAlignment="Center"
                                        Margin="0,0,13,0"
-                                       FontFamily="Segoe Fluent Icons"
+                                       FontFamily="Segoe MDL2 Assets"
                                        FontSize="11"
                                        Foreground="#6D7C96"
                                        Text="&#xE70D;"/>
@@ -387,7 +387,7 @@
             <Border Grid.Column="1" Style="{StaticResource LibraryCardStyle}" Padding="16,10" MinWidth="270">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Width="38" Height="38" CornerRadius="19" Background="#16A34A">
-                        <TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons"
+                        <TextBlock Text="&#xE73E;" FontFamily="Segoe MDL2 Assets"
                                    Foreground="White" FontSize="19"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
@@ -424,7 +424,7 @@
                     <TextBox Style="{StaticResource LibraryTextBoxStyle}"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SearchHint]}"/>
-                    <TextBlock Text="&#xE721;" FontFamily="Segoe Fluent Icons" FontSize="17"
+                    <TextBlock Text="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="17"
                                Foreground="#275BB5" Margin="12,0,0,0"
                                VerticalAlignment="Center" HorizontalAlignment="Left"
                                IsHitTestVisible="False"/>
@@ -438,28 +438,28 @@
                 <Button Grid.Column="8" Style="{StaticResource LibraryButtonStyle}"
                         Command="{Binding SearchCommand}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE71C;" FontFamily="Segoe Fluent Icons" Margin="0,0,8,0"/>
+                        <TextBlock Text="&#xE71C;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonFilters]}"/>
                     </StackPanel>
                 </Button>
                 <Button Grid.Column="10" Style="{StaticResource LibraryButtonStyle}"
                         Command="{Binding CreateLibraryCommand}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons" Margin="0,0,8,0"/>
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonCreateLibrary]}"/>
                     </StackPanel>
                 </Button>
                 <Button Grid.Column="12" Style="{StaticResource LibraryPrimaryButtonStyle}"
                         Command="{Binding AddPartCommand}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons" Margin="0,0,8,0"/>
+                        <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonAddPart]}"/>
                     </StackPanel>
                 </Button>
                 <Button Grid.Column="14" Style="{StaticResource LibraryButtonStyle}"
                         Command="{Binding ShowPartPickerCommand}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons" Margin="0,0,8,0"/>
+                        <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonPartPicker]}"/>
                     </StackPanel>
                 </Button>
@@ -526,7 +526,7 @@
                                         </Grid.ColumnDefinitions>
                                         <Border Width="18" Height="18" CornerRadius="5" Background="{StaticResource LibraryPrimarySoftBrush}"
                                                 VerticalAlignment="Center" HorizontalAlignment="Left">
-                                            <TextBlock Text="&#xE8B7;" FontFamily="Segoe Fluent Icons"
+                                            <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets"
                                                        FontSize="11" Foreground="{StaticResource LibraryPrimaryBrush}"
                                                        HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         </Border>
@@ -536,7 +536,7 @@
                                             <TextBlock Text="{Binding ItemCount, StringFormat={}{0} items}"
                                                        FontSize="11" Foreground="{StaticResource LibraryMutedBrush}"/>
                                         </StackPanel>
-                                        <TextBlock Grid.Column="2" Text="&#xE712;" FontFamily="Segoe Fluent Icons"
+                                        <TextBlock Grid.Column="2" Text="&#xE712;" FontFamily="Segoe MDL2 Assets"
                                                    Foreground="{StaticResource LibraryMutedBrush}"
                                                    VerticalAlignment="Center"/>
                                     </Grid>
@@ -611,7 +611,7 @@
                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
                                                            Visibility="{Binding ResolutionFailed, Converter={StaticResource BoolToVisibilityConverter}}"
                                                         ToolTip="{Binding ResolutionError}">
-                                                    <TextBlock Text="&#xE814;" FontFamily="Segoe Fluent Icons"
+                                                    <TextBlock Text="&#xE814;" FontFamily="Segoe MDL2 Assets"
                                                                FontSize="13" Foreground="{StaticResource StatusErrorBrush}"
                                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
@@ -629,7 +629,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <Border Width="24" Height="24" CornerRadius="7" Background="#14B86A"
                                                         VerticalAlignment="Center" HorizontalAlignment="Left">
-                                                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons"
+                                                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets"
                                                                FontSize="12" Foreground="White"
                                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 </Border>
@@ -716,7 +716,7 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Width="58" Height="58" CornerRadius="12" Background="#7C3AED">
-                                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons" FontSize="24"
+                                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="24"
                                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
                                 <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
@@ -936,7 +936,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Border Width="26" Height="26" CornerRadius="7" Background="#EAF2FF"
                                             VerticalAlignment="Center" HorizontalAlignment="Left">
-                                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons" FontSize="13"
+                                        <TextBlock Text="&#xE8A5;" FontFamily="Segoe MDL2 Assets" FontSize="13"
                                                    Foreground="{StaticResource LibraryPrimaryBrush}"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
@@ -949,14 +949,14 @@
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,5,0"
                                         Command="{Binding OpenInIronCadCommand}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE8A7;" FontFamily="Segoe Fluent Icons" Margin="0,0,7,0"/>
+                                        <TextBlock Text="&#xE8A7;" FontFamily="Segoe MDL2 Assets" Margin="0,0,7,0"/>
                                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryOpenInIronCad]}"/>
                                     </StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource LibraryButtonStyle}" Margin="5,0,0,0"
                                         Command="{Binding OpenSelectedCadInArasCommand}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="&#xE774;" FontFamily="Segoe Fluent Icons" Margin="0,0,7,0"/>
+                                        <TextBlock Text="&#xE774;" FontFamily="Segoe MDL2 Assets" Margin="0,0,7,0"/>
                                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryCadButtonOpenInAras]}"/>
                                     </StackPanel>
                                 </Button>
@@ -964,14 +964,14 @@
                             <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,10,0,0"
                                     Command="{Binding DownloadCadCommand}">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE896;" FontFamily="Segoe Fluent Icons" Margin="0,0,7,0"/>
+                                    <TextBlock Text="&#xE896;" FontFamily="Segoe MDL2 Assets" Margin="0,0,7,0"/>
                                     <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryDownloadCad]}"/>
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource LibraryPrimaryButtonStyle}" Margin="0,10,0,0" Height="44"
                                     Command="{Binding AddToCurrentProjectCommand}">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons" Margin="0,0,7,0"/>
+                                    <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" Margin="0,0,7,0"/>
                                     <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryAddToProject]}"/>
                                 </StackPanel>
                             </Button>
