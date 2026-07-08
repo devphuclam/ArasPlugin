@@ -1838,6 +1838,72 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task GetPrimaryCadInfoAsync_AllCandidatesNotFound_FallsBackToCadDocumentNumber()
+        {
+            const string relId = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+            const string partConfigId = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+            const string fileId = "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+            const string cadId = "D1D2D3D4D5D6A7B8C9D0E1F2A3B4C5D6";
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "IRONCASE-03-02", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "IRONCASE-03-02", "A", "Released"));
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["related_id"] = relId + partConfigId + fileId,
+                ["item_number"] = "IRONCASE-03-02-ICS",
+                ["keyed_name"] = "IRONCASE-03-02-ICS"
+            }));
+            fake.ApplyItemExceptionFactory = (itemType, itemId, action, select) =>
+                string.Equals(itemType, "CAD", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.CadNotFound, "CAD not found")
+                    : null;
+            fake.ApplyAmlResults.Enqueue(Items(Cad(cadId, "IRONCASE-03-02-ICS", "IRONCASE_Ver1.0_006.ics", "Mechanical/Part", "IronCAD", "1", "Released", fileId)));
+            fake.ApplyAmlResults.Enqueue(new JObject());
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.True(
+                fake.AnyAmlContains("<item_number>IRONCASE-03-02-ICS</item_number>"),
+                string.Join("\n---\n", fake.Calls.Select(c => c.MethodKind + " " + c.ItemType + " " + c.ItemId + "\n" + c.AmlBody)));
+            Assert.Equal(cadId, details.PrimaryCadId);
+            Assert.Equal("Available", details.CadStatus);
+            Assert.Equal(fileId, details.FileId);
+        }
+
+        [Fact]
+        public async Task GetPrimaryCadInfoAsync_ServerMethodResult_WinsBeforeClientRelationshipParsing()
+        {
+            const string cadId = "D1D2D3D4D5D6A7B8C9D0E1F2A3B4C5D6";
+            const string fileId = "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+            var fake = new FakeArasAmlClient();
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "IRONCASE-02-01", "A", "Released")));
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "IRONCASE-02-01", "A", "Released"));
+            fake.ApplyMethodResults.Enqueue(Cad(cadId, "IRONCASE-02-01-ICS", "IRONCASE_Ver1.0_003.ics", "Mechanical/Part", "IronCAD", "1", "Released", fileId));
+            fake.ApplyAmlExceptionFactory = (aml, action, itemType, itemId) =>
+                string.Equals(itemType, "Part CAD", StringComparison.OrdinalIgnoreCase)
+                    ? new ArasOperationException(ArasErrorCode.UnexpectedServerError, "Client-side Part CAD lookup should not run")
+                    : null;
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            Assert.Equal(cadId, details.PrimaryCadId);
+            Assert.Equal("Available", details.CadStatus);
+            Assert.Equal(fileId, details.FileId);
+            Assert.Contains(fake.Calls, call =>
+                call.MethodKind == "ApplyMethod" &&
+                call.MethodName == PartLibrarySchemaNames.GetPrimaryIronCadForPartMethodName);
+            Assert.DoesNotContain(fake.Calls, call =>
+                call.MethodKind == "ApplyAml" &&
+                string.Equals(call.ItemType, "Part CAD", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
         public async Task GetPrimaryCadInfoAsync_AuthFailure_Propagates()
         {
             var fake = new FakeArasAmlClient();

@@ -2429,6 +2429,10 @@ namespace IdeaCadConnector.Aras
                 var partNumber = part["item_number"]?.Value<string>();
 
                 var cadSelect = "id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file";
+                var serverCadInfo = await TryGetPrimaryCadViaServerMethodAsync(partId, ct).ConfigureAwait(false);
+                if (serverCadInfo != null)
+                    return serverCadInfo;
+
                 var relResult = await GetPartCadRelationshipResultAsync(partId, cadSelect, ct).ConfigureAwait(false);
                 var relationshipItems = EnumerateItems(relResult).ToList();
 
@@ -2437,12 +2441,16 @@ namespace IdeaCadConnector.Aras
                 PrimaryCadInfo bestNonNativeMatch = null;
                 PrimaryCadInfo bestNonNativeAny = null;
                 var relatedCadIds = new List<string>();
+                var cadDocumentNumbers = new List<string>();
+                var cadNames = new List<string>();
                 var unparsedRelatedCount = 0;
-                var unparsedDocNumbers = new List<string>();
 
                 foreach (var rel in relationshipItems)
                 {
                     var relatedToken = rel["related_id"];
+                    CollectCadLookupValues(rel, cadDocumentNumbers, cadNames);
+                    CollectCadLookupValues(relatedToken, cadDocumentNumbers, cadNames);
+
                     var nestedCad = ExtractRelatedCadObject(relatedToken) ?? ExtractRelatedCadObject(rel);
                     if (nestedCad != null && nestedCad.HasValues)
                     {
@@ -2450,25 +2458,28 @@ namespace IdeaCadConnector.Aras
                             nestedCad,
                             HasNativeFile(nestedCad) ? CadStatusAvailable : CadStatusNoNativeFile);
 
-                        if (HasNativeFile(nestedCad))
+                        if (!string.IsNullOrWhiteSpace(info.CadId) || !string.IsNullOrWhiteSpace(info.FileId))
                         {
-                            if (IsPreferredIronCad(nestedCad))
-                                bestNativeMatch ??= info;
+                            if (HasNativeFile(nestedCad))
+                            {
+                                if (IsPreferredIronCad(nestedCad))
+                                    bestNativeMatch ??= info;
 
-                            bestNativeAny ??= info;
+                                bestNativeAny ??= info;
+                            }
+                            else
+                            {
+                                if (IsPreferredIronCad(nestedCad))
+                                    bestNonNativeMatch ??= info;
+
+                                bestNonNativeAny ??= info;
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(info.CadId))
+                                relatedCadIds.Add(info.CadId);
+
+                            continue;
                         }
-                        else
-                        {
-                            if (IsPreferredIronCad(nestedCad))
-                                bestNonNativeMatch ??= info;
-
-                            bestNonNativeAny ??= info;
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(info.CadId))
-                            relatedCadIds.Add(info.CadId);
-
-                        continue;
                     }
 
                     var rowInfo = CreatePrimaryCadInfoFromRelationshipRow(rel);
@@ -2507,9 +2518,6 @@ namespace IdeaCadConnector.Aras
 
                     if (rowCandidates.Count == 0)
                     {
-                        var docNumber = rel["item_number"]?.Value<string>();
-                        if (!string.IsNullOrWhiteSpace(docNumber))
-                            unparsedDocNumbers.Add(docNumber);
                         unparsedRelatedCount++;
                         continue;
                     }
@@ -2593,36 +2601,18 @@ namespace IdeaCadConnector.Aras
                     return bestNonNativeAny;
                 }
 
-                var hasUnparsed = unparsedRelatedCount > 0 || unparsedDocNumbers.Count > 0;
+                var hasDocumentLookupValues = cadDocumentNumbers.Count > 0 || cadNames.Count > 0;
+                var hasUnparsed = unparsedRelatedCount > 0 || hasDocumentLookupValues;
 
                 if (attemptedCadIds.Count > 0 || hasUnparsed)
                 {
                     if (attemptedCadIds.Count > 0)
                     {
-                        // Try document-number fallback from unparsed rows
-                        if (allCandidatesNotFound && unparsedDocNumbers.Count > 0)
+                        if (allCandidatesNotFound && hasDocumentLookupValues)
                         {
-                            foreach (var docNumber in unparsedDocNumbers.Distinct(StringComparer.OrdinalIgnoreCase))
-                            {
-                                var docAml =
-                                    "<Item type=\"CAD\" action=\"get\" select=\"id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file\">" +
-                                    "<item_number>" + Escape(docNumber) + "</item_number>" +
-                                    "</Item>";
-                                try
-                                {
-                                    var docResult = await _aml.ApplyAmlAsync(docAml, "get", "CAD", null, ct).ConfigureAwait(false);
-                                    var docCad = EnumerateItems(docResult).FirstOrDefault();
-                                    if (docCad != null)
-                                    {
-                                        var status = HasNativeFile(docCad) ? CadStatusUnlinkedFound : CadStatusNoNativeFile;
-                                        return CreatePrimaryCadInfo(docCad, status);
-                                    }
-                                }
-                                catch (ArasOperationException)
-                                {
-                                    continue;
-                                }
-                            }
+                            var lookupInfo = await FindCadByDocumentLookupAsync(cadDocumentNumbers, cadNames, cadSelect, ct).ConfigureAwait(false);
+                            if (lookupInfo != null)
+                                return lookupInfo;
                         }
 
                         return new PrimaryCadInfo
@@ -2634,30 +2624,13 @@ namespace IdeaCadConnector.Aras
                         };
                     }
 
-                    // No valid candidates at all
-                    if (unparsedDocNumbers.Count > 0)
+                    // No valid ID candidates at all, but relationship rows can still expose
+                    // CAD item_number/keyed_name values on live Aras.
+                    if (hasDocumentLookupValues)
                     {
-                        foreach (var docNumber in unparsedDocNumbers.Distinct(StringComparer.OrdinalIgnoreCase))
-                        {
-                            var docAml =
-                                "<Item type=\"CAD\" action=\"get\" select=\"id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file\">" +
-                                "<item_number>" + Escape(docNumber) + "</item_number>" +
-                                "</Item>";
-                            try
-                            {
-                                var docResult = await _aml.ApplyAmlAsync(docAml, "get", "CAD", null, ct).ConfigureAwait(false);
-                                var docCad = EnumerateItems(docResult).FirstOrDefault();
-                                if (docCad != null)
-                                {
-                                    var status = HasNativeFile(docCad) ? CadStatusUnlinkedFound : CadStatusNoNativeFile;
-                                    return CreatePrimaryCadInfo(docCad, status);
-                                }
-                            }
-                            catch (ArasOperationException)
-                            {
-                                continue;
-                            }
-                        }
+                        var lookupInfo = await FindCadByDocumentLookupAsync(cadDocumentNumbers, cadNames, cadSelect, ct).ConfigureAwait(false);
+                        if (lookupInfo != null)
+                            return lookupInfo;
                     }
 
                     return new PrimaryCadInfo
@@ -2710,6 +2683,42 @@ namespace IdeaCadConnector.Aras
             }
         }
 
+        private async Task<PrimaryCadInfo> TryGetPrimaryCadViaServerMethodAsync(string partId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(partId))
+                return null;
+
+            var parameters = new Dictionary<string, string>
+            {
+                ["part_id"] = partId
+            };
+
+            try
+            {
+                var cad = await _aml.ApplyMethodAsync(
+                    PartLibrarySchemaNames.GetPrimaryIronCadForPartMethodName,
+                    parameters,
+                    ct).ConfigureAwait(false);
+
+                if (cad == null || !cad.HasValues)
+                    return null;
+
+                var info = CreatePrimaryCadInfo(cad, HasNativeFile(cad) ? CadStatusAvailable : CadStatusNoNativeFile);
+                return !string.IsNullOrWhiteSpace(info.CadId) || !string.IsNullOrWhiteSpace(info.CadNumber)
+                    ? info
+                    : null;
+            }
+            catch (ArasOperationException ex) when (CanFallbackToDirectAdd(ex, PartLibrarySchemaNames.GetPrimaryIronCadForPartMethodName))
+            {
+                _logger.LogInformation(ex, "Server method {MethodName} is not available. Falling back to client-side CAD lookup.", PartLibrarySchemaNames.GetPrimaryIronCadForPartMethodName);
+                return null;
+            }
+            catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex) && IsServerNoCadResult(ex))
+            {
+                return PrimaryCadInfo.Empty;
+            }
+        }
+
         private async Task<JObject> GetPartCadRelationshipResultAsync(string partId, string cadSelect, CancellationToken ct)
         {
             var relationshipTypes = new[] { "Part CAD", "CAD Documents" };
@@ -2742,6 +2751,121 @@ namespace IdeaCadConnector.Aras
             throw lastUnavailable ?? new ArasOperationException(
                 ArasErrorCode.ValidationFailed,
                 "CAD relationship type is not readable.");
+        }
+
+        private async Task<PrimaryCadInfo> FindCadByDocumentLookupAsync(
+            IEnumerable<string> cadDocumentNumbers,
+            IEnumerable<string> cadNames,
+            string cadSelect,
+            CancellationToken ct)
+        {
+            foreach (var docNumber in NormalizeCadLookupValues(cadDocumentNumbers))
+            {
+                var info = await FindCadByPropertyAsync("item_number", docNumber, cadSelect, ct).ConfigureAwait(false);
+                if (info != null)
+                    return info;
+            }
+
+            foreach (var name in NormalizeCadLookupValues(cadNames))
+            {
+                var info = await FindCadByPropertyAsync("name", name, cadSelect, ct).ConfigureAwait(false);
+                if (info != null)
+                    return info;
+            }
+
+            return null;
+        }
+
+        private async Task<PrimaryCadInfo> FindCadByPropertyAsync(
+            string propertyName,
+            string propertyValue,
+            string cadSelect,
+            CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName) || string.IsNullOrWhiteSpace(propertyValue))
+                return null;
+
+            var aml =
+                "<Item type=\"CAD\" action=\"get\" select=\"" + cadSelect + "\">" +
+                "<" + propertyName + ">" + Escape(propertyValue) + "</" + propertyName + ">" +
+                "</Item>";
+
+            try
+            {
+                var result = await _aml.ApplyAmlAsync(aml, "get", "CAD", null, ct).ConfigureAwait(false);
+                foreach (var cad in EnumerateItems(result))
+                {
+                    if (cad == null)
+                        continue;
+
+                    var status = HasNativeFile(cad) ? CadStatusAvailable : CadStatusNoNativeFile;
+                    return CreatePrimaryCadInfo(cad, status);
+                }
+            }
+            catch (ArasOperationException ex) when (!IsAuthOrPermissionFailure(ex))
+            {
+                _logger.LogDebug(ex, "CAD lookup by {PropertyName}='{PropertyValue}' did not resolve.", propertyName, propertyValue);
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string> NormalizeCadLookupValues(IEnumerable<string> values)
+        {
+            if (values == null)
+                yield break;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var value in values)
+            {
+                var normalized = value?.Trim();
+                if (string.IsNullOrWhiteSpace(normalized))
+                    continue;
+
+                if (normalized.Length > 128 || IsArasId(normalized))
+                    continue;
+
+                if (normalized.IndexOfAny(new[] { '<', '>', '\r', '\n' }) >= 0)
+                    continue;
+
+                if (seen.Add(normalized))
+                    yield return normalized;
+            }
+        }
+
+        private static void CollectCadLookupValues(JToken token, List<string> cadDocumentNumbers, List<string> cadNames)
+        {
+            if (token == null)
+                return;
+
+            if (token is JObject obj)
+            {
+                AddCadLookupValue(cadDocumentNumbers, obj["item_number"]?.Value<string>());
+                AddCadLookupValue(cadDocumentNumbers, obj["keyed_name"]?.Value<string>());
+                AddCadLookupValue(cadNames, obj["name"]?.Value<string>());
+
+                if (obj["related_id"] != null)
+                    CollectCadLookupValues(obj["related_id"], cadDocumentNumbers, cadNames);
+
+                if (obj["Item"] != null)
+                    CollectCadLookupValues(obj["Item"], cadDocumentNumbers, cadNames);
+
+                return;
+            }
+
+            if (token is JArray array)
+            {
+                foreach (var child in array)
+                    CollectCadLookupValues(child, cadDocumentNumbers, cadNames);
+            }
+        }
+
+        private static void AddCadLookupValue(List<string> values, string value)
+        {
+            if (values == null || string.IsNullOrWhiteSpace(value))
+                return;
+
+            values.Add(value.Trim());
         }
 
         private static IEnumerable<JObject> EnumerateItems(JObject result)
@@ -3129,6 +3253,17 @@ namespace IdeaCadConnector.Aras
             var message = ex.Message ?? string.Empty;
             return message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 &&
                    message.IndexOf("CAD", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsServerNoCadResult(ArasOperationException ex)
+        {
+            if (ex == null)
+                return false;
+
+            var message = ex.Message ?? string.Empty;
+            return message.IndexOf("CAD_NOT_FOUND", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("PART_CAD_NOT_FOUND", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   message.IndexOf("NO_CAD", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static bool IsPreferredIronCad(JObject cad)
