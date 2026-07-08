@@ -1322,5 +1322,244 @@ namespace IdeaCadConnector.Tests
                 ["native_file"] = nativeFile
             };
         }
+
+        // ── IsArasId ─────────────────────────────────────────────────────
+
+        [Fact]
+        public void IsArasId_Valid32Hex_ReturnsTrue()
+        {
+            Assert.True(HttpPartLibraryClient.IsArasId("A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6"));
+            Assert.True(HttpPartLibraryClient.IsArasId("117886DD56B674D969D9B8910A891FF3"));
+            Assert.True(HttpPartLibraryClient.IsArasId("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"));
+        }
+
+        [Fact]
+        public void IsArasId_InvalidLength_ReturnsFalse()
+        {
+            Assert.False(HttpPartLibraryClient.IsArasId(null));
+            Assert.False(HttpPartLibraryClient.IsArasId(""));
+            Assert.False(HttpPartLibraryClient.IsArasId("ABC123"));
+            Assert.False(HttpPartLibraryClient.IsArasId("A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6!")); // 33 chars
+            Assert.False(HttpPartLibraryClient.IsArasId("A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D")); // 31 chars
+        }
+
+        [Fact]
+        public void IsArasId_NonHexChars_ReturnsFalse()
+        {
+            Assert.False(HttpPartLibraryClient.IsArasId("Z1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6")); // 'Z' not hex
+            Assert.False(HttpPartLibraryClient.IsArasId("G1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6")); // 'G' not hex
+        }
+
+        // ── ExtractArasItemId ───────────────────────────────────────────
+
+        [Fact]
+        public void ExtractArasItemId_ReturnsRawId_WhenTokenIsString()
+        {
+            const string expected = "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+            var token = new JValue(expected);
+            var result = HttpPartLibraryClient.ExtractArasItemId(token);
+            Assert.Equal(expected, result);
+        }
+
+        [Fact]
+        public void ExtractArasItemId_ExtractsCadId_FromConcatenatedLiveString()
+        {
+            const string cadId = "117886DD56B674D969D9B8910A891FF3";
+            const string fileId = "F1E2D3C4B5A6F7E8D9C0B1A2F3E4D5C6";
+            var concatenated = "IronCADMechanical/Part" + cadId + "IRONCASE_Ver1.0_001.ics" + fileId;
+            var token = new JValue(concatenated);
+            var result = HttpPartLibraryClient.ExtractArasItemId(token);
+            Assert.Equal(cadId, result);
+        }
+
+        [Fact]
+        public void ExtractArasItemId_NeverReturnsFullConcatenatedString()
+        {
+            const string cadId = "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+            var concatenated = "IronCADMechanical/Part" + cadId + "IRONCASE_Ver1.0_001.ics";
+            var token = new JValue(concatenated);
+            var result = HttpPartLibraryClient.ExtractArasItemId(token);
+            Assert.NotEqual(concatenated, result);
+            Assert.True(result == null || result.Length == 32);
+        }
+
+        [Fact]
+        public void ExtractArasItemId_MultipleHexIds_ReturnsFirstAsCadId()
+        {
+            const string expectedCadId = "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+            const string fileId = "F1E2D3C4B5A6F7E8D9C0B1A2F3E4D5C6";
+            var concatenated = "IronCADMechanical/Part" + expectedCadId + "File" + fileId;
+            var token = new JValue(concatenated);
+            var result = HttpPartLibraryClient.ExtractArasItemId(token);
+            Assert.Equal(expectedCadId, result);
+        }
+
+        [Fact]
+        public void ExtractArasItemId_ReturnsOriginalString_WhenNoHexIdFound()
+        {
+            var input = "IronCADMechanical/PartSomeRandomTextNoHexIdHere";
+            var token = new JValue(input);
+            var result = HttpPartLibraryClient.ExtractArasItemId(token);
+            Assert.Equal(input, result);
+        }
+
+        [Fact]
+        public void ExtractArasItemId_ReturnsNull_ForNullToken()
+        {
+            var result = HttpPartLibraryClient.ExtractArasItemId(null);
+            Assert.Null(result);
+        }
+
+        // ── GetPrimaryCadInfoAsync: no ApplyItemAsync with invalid id ───
+
+        [Fact]
+        public async Task GetPrimaryCadInfoAsync_DoesNotCallApplyItemWithInvalidCadId()
+        {
+            var fake = new FakeArasAmlClient();
+            // Entry for GetEntryRelationshipAsync
+            fake.ApplyItemResults.Enqueue(Entry("entry-1", "LatestCurrent", "cfg-1", "part-1"));
+            // ResolveCurrentPartStrictAsync → ApplyAml for current part
+            fake.ApplyAmlResults.Enqueue(Items(Part("part-1", "cfg-1", "ABC-001", "A", "Released")));
+            // GetPartAsync inside GetPrimaryCadInfoAsync
+            fake.ApplyItemResults.Enqueue(Part("part-1", "cfg-1", "ABC-001", "A", "Released"));
+            // GetPartCadRelationshipResultAsync → row with concatenated related_id
+            const string hexCadId = "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+            const string hexFileId = "F1E2D3C4B5A6F7E8D9C0B1A2F3E4D5C6";
+            var concatId = "IronCADMechanical/Part" + hexCadId + "IRONCASE.ics" + hexFileId;
+            fake.ApplyAmlResults.Enqueue(Items(new JObject
+            {
+                ["id"] = "rel-1",
+                ["related_id"] = concatId
+            }));
+            // ApplyItemAsync("CAD", hexCadId, "get", ...) → return a valid CAD with native file
+            var hexCadIdUpper = hexCadId.ToUpperInvariant();
+            fake.ApplyItemResults.Enqueue(Cad(hexCadId, "ABC-001-ICS", "ABC-001.ics", "Mechanical/Part", "IronCAD", "1", "Released", hexFileId));
+            // GetLatestReleasedPartAsync → empty
+            fake.ApplyAmlResults.Enqueue(new JObject());
+
+            var client = CreateClient(fake);
+
+            var details = await client.GetCadDetailsAsync("entry-1", CancellationToken.None);
+
+            // The extracted hex ID should be used, not the concatenated string
+            Assert.Equal(hexCadId, details.PrimaryCadId);
+            // No ApplyItemAsync("CAD", ...) call should have the concatenated string as ItemId
+            var cadCalls = fake.Calls.Where(c =>
+                string.Equals(c.ItemType, "CAD", StringComparison.OrdinalIgnoreCase) &&
+                c.MethodKind == "ApplyItem");
+            Assert.DoesNotContain(cadCalls, c => c.ItemId == concatId);
+            Assert.Contains(cadCalls, c => string.Equals(c.ItemId, hexCadId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // ── CreatePrimaryCadInfoFromRelationshipRow ─────────────────────
+
+        [Fact]
+        public void CreatePrimaryCadInfoFromRelationshipRow_ExpandedFields_ReturnsAvailable()
+        {
+            const string cadId = "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+            const string fileId = "F1E2D3C4B5A6F7E8D9C0B1A2F3E4D5C6";
+            var rel = new JObject
+            {
+                ["id"] = cadId,
+                ["item_number"] = "IRONCASE-02-01",
+                ["name"] = "IRONCASE_Ver1.0",
+                ["classification"] = "Mechanical/Part",
+                ["authoring_tool"] = "IronCAD",
+                ["generation"] = "1",
+                ["state"] = "Released",
+                ["native_file"] = fileId
+            };
+
+            var info = HttpPartLibraryClient.CreatePrimaryCadInfoFromRelationshipRow(rel);
+
+            Assert.NotNull(info);
+            Assert.Equal("Available", info.Status);
+            Assert.Equal(cadId, info.CadId);
+            Assert.Equal("IRONCASE-02-01", info.CadNumber);
+            Assert.Equal(fileId, info.FileId);
+            Assert.Equal("IRONCASE_Ver1.0", info.FileName);
+        }
+
+        [Fact]
+        public void CreatePrimaryCadInfoFromRelationshipRow_NativeFileObject_ReturnsFileId()
+        {
+            const string cadId = "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+            const string fileId = "F1E2D3C4B5A6F7E8D9C0B1A2F3E4D5C6";
+            var rel = new JObject
+            {
+                ["id"] = cadId,
+                ["item_number"] = "IRONCASE-02-01",
+                ["classification"] = "Mechanical/Part",
+                ["authoring_tool"] = "IronCAD",
+                ["native_file"] = new JObject
+                {
+                    ["id"] = fileId,
+                    ["name"] = "IRONCASE_Ver1.0_001.ics"
+                }
+            };
+
+            var info = HttpPartLibraryClient.CreatePrimaryCadInfoFromRelationshipRow(rel);
+
+            Assert.NotNull(info);
+            Assert.Equal("Available", info.Status);
+            Assert.Equal(fileId, info.FileId);
+            Assert.Equal("IRONCASE_Ver1.0_001.ics", info.FileName);
+        }
+
+        [Fact]
+        public void CreatePrimaryCadInfoFromRelationshipRow_NativeFileString_ReturnsFileId()
+        {
+            const string cadId = "A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6";
+            const string fileId = "F1E2D3C4B5A6F7E8D9C0B1A2F3E4D5C6";
+            var rel = new JObject
+            {
+                ["id"] = cadId,
+                ["item_number"] = "IRONCASE-02-01",
+                ["classification"] = "Mechanical/Part",
+                ["authoring_tool"] = "IronCAD",
+                ["native_file"] = fileId
+            };
+
+            var info = HttpPartLibraryClient.CreatePrimaryCadInfoFromRelationshipRow(rel);
+
+            Assert.NotNull(info);
+            Assert.Equal("Available", info.Status);
+            Assert.Equal(fileId, info.FileId);
+        }
+
+        [Fact]
+        public void CreatePrimaryCadInfoFromRelationshipRow_NoCadFields_ReturnsNull()
+        {
+            var rel = new JObject
+            {
+                ["id"] = "rel-1",
+                ["source_id"] = "lib-1",
+                ["related_id"] = "part-1"
+            };
+
+            var info = HttpPartLibraryClient.CreatePrimaryCadInfoFromRelationshipRow(rel);
+
+            Assert.Null(info);
+        }
+
+        [Fact]
+        public void CreatePrimaryCadInfoFromRelationshipRow_OnlyFileId_ReturnsAvailable()
+        {
+            const string fileId = "F1E2D3C4B5A6F7E8D9C0B1A2F3E4D5C6";
+            var rel = new JObject
+            {
+                ["item_number"] = "SOME-DOC-01",
+                ["authoring_tool"] = "IronCAD",
+                ["classification"] = "Mechanical/Part",
+                ["native_file"] = fileId
+            };
+
+            var info = HttpPartLibraryClient.CreatePrimaryCadInfoFromRelationshipRow(rel);
+
+            Assert.NotNull(info);
+            Assert.Equal("Available", info.Status);
+            Assert.Null(info.CadId);
+            Assert.Equal(fileId, info.FileId);
+        }
     }
 }

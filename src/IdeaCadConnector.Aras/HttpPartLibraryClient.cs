@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Core.Contracts;
@@ -2437,6 +2438,7 @@ namespace IdeaCadConnector.Aras
                 PrimaryCadInfo bestNonNativeAny = null;
                 var relatedCadIds = new List<string>();
                 var unparsedRelatedCount = 0;
+                var unparsedDocNumbers = new List<string>();
 
                 foreach (var rel in relationshipItems)
                 {
@@ -2469,9 +2471,34 @@ namespace IdeaCadConnector.Aras
                         continue;
                     }
 
+                    var rowInfo = CreatePrimaryCadInfoFromRelationshipRow(rel);
+                    if (rowInfo != null)
+                    {
+                        if (rowInfo.Status == CadStatusAvailable)
+                        {
+                            if (IsPreferredIronCad(rel))
+                                bestNativeMatch ??= rowInfo;
+                            else
+                                bestNativeAny ??= rowInfo;
+                        }
+                        else
+                        {
+                            if (IsPreferredIronCad(rel))
+                                bestNonNativeMatch ??= rowInfo;
+                            else
+                                bestNonNativeAny ??= rowInfo;
+                        }
+                        if (!string.IsNullOrWhiteSpace(rowInfo.CadId))
+                            relatedCadIds.Add(rowInfo.CadId);
+                        continue;
+                    }
+
                     var cadId = ExtractArasItemId(relatedToken);
                     if (string.IsNullOrWhiteSpace(cadId))
                     {
+                        var docNumber = rel["item_number"]?.Value<string>();
+                        if (!string.IsNullOrWhiteSpace(docNumber))
+                            unparsedDocNumbers.Add(docNumber);
                         unparsedRelatedCount++;
                         continue;
                     }
@@ -2484,8 +2511,16 @@ namespace IdeaCadConnector.Aras
                 if (bestNativeAny != null)
                     return bestNativeAny;
 
-                foreach (var cadId in relatedCadIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase))
+                foreach (var cadId in relatedCadIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.OrdinalIgnoreCase))
                 {
+                    if (cadId.Length > 32)
+                    {
+                        _logger.LogDebug("Skipping ApplyItemAsync(CAD) with non-id candidate '{CadId}'.", cadId);
+                        continue;
+                    }
+
                     JObject cad;
                     try
                     {
@@ -2537,6 +2572,31 @@ namespace IdeaCadConnector.Aras
 
                 if (relatedCadIds.Count > 0 || unparsedRelatedCount > 0)
                 {
+                    if (relatedCadIds.Count == 0 && unparsedDocNumbers.Count > 0)
+                    {
+                        foreach (var docNumber in unparsedDocNumbers.Distinct(StringComparer.OrdinalIgnoreCase))
+                        {
+                            var docAml =
+                                "<Item type=\"CAD\" action=\"get\" select=\"id,item_number,name,classification,authoring_tool,generation,state,locked_by_id,native_file\">" +
+                                "<item_number>" + Escape(docNumber) + "</item_number>" +
+                                "</Item>";
+                            try
+                            {
+                                var docResult = await _aml.ApplyAmlAsync(docAml, "get", "CAD", null, ct).ConfigureAwait(false);
+                                var docCad = EnumerateItems(docResult).FirstOrDefault();
+                                if (docCad != null)
+                                {
+                                    var status = HasNativeFile(docCad) ? CadStatusUnlinkedFound : CadStatusNoNativeFile;
+                                    return CreatePrimaryCadInfo(docCad, status);
+                                }
+                            }
+                            catch (ArasOperationException)
+                            {
+                                continue;
+                            }
+                        }
+                    }
+
                     return new PrimaryCadInfo
                     {
                         Status = relatedCadIds.Count > 0
@@ -2752,13 +2812,42 @@ namespace IdeaCadConnector.Aras
             return cad != null && !string.IsNullOrWhiteSpace(cad["native_file"]?.Value<string>());
         }
 
-        private static string ExtractArasItemId(JToken token)
+        internal static bool IsArasId(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length != 32)
+                return false;
+            for (var i = 0; i < value.Length; i++)
+            {
+                var c = value[i];
+                if (!((c >= '0' && c <= '9') ||
+                      (c >= 'A' && c <= 'F') ||
+                      (c >= 'a' && c <= 'f')))
+                    return false;
+            }
+            return true;
+        }
+
+        internal static string ExtractArasItemId(JToken token)
         {
             if (token == null || token.Type == JTokenType.Null)
                 return null;
 
             if (token.Type == JTokenType.String)
-                return token.Value<string>();
+            {
+                var value = token.Value<string>();
+                if (IsArasId(value))
+                    return value;
+
+                var hexMatches = Regex.Matches(value, "[0-9A-Fa-f]{32}");
+                if (hexMatches.Count > 0)
+                {
+                    // Live concatenated string order: authoring_tool + classification + CAD id (32 hex) + file_name + File id (32 hex)
+                    // Return the first 32-char hex match as the CAD id candidate.
+                    return hexMatches[0].Value;
+                }
+
+                return value;
+            }
 
             if (token is JObject obj)
             {
@@ -2785,6 +2874,68 @@ namespace IdeaCadConnector.Aras
             }
 
             return null;
+        }
+
+        internal static PrimaryCadInfo CreatePrimaryCadInfoFromRelationshipRow(JObject rel)
+        {
+            if (rel == null)
+                return null;
+
+            var hasCadField = rel["item_number"] != null ||
+                              rel["classification"] != null ||
+                              rel["authoring_tool"] != null ||
+                              rel["generation"] != null ||
+                              rel["state"] != null;
+            if (!hasCadField)
+                return null;
+
+            var nativeToken = rel["native_file"];
+            string fileId = null;
+            string fileName = null;
+            if (nativeToken != null && nativeToken.Type != JTokenType.Null)
+            {
+                if (nativeToken.Type == JTokenType.String)
+                {
+                    var nativeValue = nativeToken.Value<string>();
+                    if (IsArasId(nativeValue))
+                        fileId = nativeValue;
+                }
+                else if (nativeToken is JObject nativeObj)
+                {
+                    fileId = ExtractArasItemId(nativeObj);
+                    fileName = nativeObj["name"]?.Value<string>()
+                               ?? nativeObj["keyed_name"]?.Value<string>();
+                }
+            }
+
+            var cadIdToken = rel["id"];
+            string cadId = null;
+            if (cadIdToken != null)
+            {
+                cadId = cadIdToken.Value<string>();
+                if (!IsArasId(cadId))
+                    cadId = null;
+            }
+
+            if (string.IsNullOrWhiteSpace(cadId) && string.IsNullOrWhiteSpace(fileId))
+                return null;
+
+            if (string.IsNullOrWhiteSpace(fileName))
+                fileName = rel["name"]?.Value<string>();
+
+            var status = !string.IsNullOrWhiteSpace(fileId) ? CadStatusAvailable : CadStatusNoNativeFile;
+
+            return new PrimaryCadInfo
+            {
+                CadId = cadId,
+                CadNumber = rel["item_number"]?.Value<string>(),
+                FileName = fileName,
+                FileVersion = rel["generation"]?.Value<string>(),
+                State = rel["state"]?.Value<string>(),
+                LockedBy = rel["locked_by_id"]?.Value<string>(),
+                FileId = fileId,
+                Status = status
+            };
         }
 
         private static JObject ExtractRelatedCadObject(JToken token)
@@ -3130,7 +3281,7 @@ namespace IdeaCadConnector.Aras
             return System.Security.SecurityElement.Escape(value ?? string.Empty);
         }
 
-        private sealed class PrimaryCadInfo
+        internal sealed class PrimaryCadInfo
         {
             public static readonly PrimaryCadInfo Empty = new PrimaryCadInfo { Status = CadStatusNoCad };
 
