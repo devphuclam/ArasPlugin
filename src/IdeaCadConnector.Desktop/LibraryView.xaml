@@ -87,12 +87,49 @@
         </Style>
 
         <Style x:Key="LibraryComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="10,0"/>
-            <Setter Property="BorderBrush" Value="#CCD8E8"/>
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="12,6,34,6"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="BorderBrush" Value="#C5D5E8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="#FFFCFDFF"/>
             <Setter Property="Foreground" Value="{StaticResource LibraryTextBrush}"/>
             <Setter Property="FontSize" Value="13"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.65"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Padding" Value="12,9"/>
+            <Setter Property="Foreground" Value="{StaticResource LibraryTextBrush}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemChrome"
+                                Margin="4,2"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="10"
+                                Background="Transparent">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemChrome" Property="Background" Value="{StaticResource LibraryPrimarySoftBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#DDEBFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="LibraryTextBoxStyle" TargetType="TextBox">
@@ -213,14 +250,17 @@
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0,0,18,0"/>
+            <Setter Property="Margin" Value="0,0,16,0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
                         <Grid>
                             <Border x:Name="Underline" Height="2" VerticalAlignment="Bottom" Background="Transparent"/>
-                            <ContentPresenter ContentSource="Header" Margin="0,0,0,9"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ContentPresenter ContentSource="Header"
+                                              Margin="0,0,0,9"
+                                              MinWidth="52"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
@@ -278,23 +318,23 @@
             </Border>
         </Grid>
 
-        <Border Grid.Row="1" Margin="24,0,24,16" Style="{StaticResource LibraryCardStyle}" Padding="12">
+        <Border Grid.Row="1" Margin="24,0,24,16" Style="{StaticResource LibraryCardStyle}" Padding="14">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2.2*"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="150"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="150"/>
-                    <ColumnDefinition Width="10"/>
-                    <ColumnDefinition Width="150"/>
-                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="2.4*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="152"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="152"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="152"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="0">
@@ -343,13 +383,13 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2" Margin="24,0,24,12">
+            <Grid Grid.Row="2" Margin="24,0,24,12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="236"/>
+                <ColumnDefinition Width="238"/>
                 <ColumnDefinition Width="16"/>
                 <ColumnDefinition Width="*" MinWidth="520"/>
                 <ColumnDefinition Width="16"/>
-                <ColumnDefinition Width="360"/>
+                <ColumnDefinition Width="372"/>
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Style="{StaticResource LibraryCardStyle}">
@@ -382,7 +422,8 @@
                                         Background="Transparent" BorderThickness="0" FontWeight="SemiBold" FontSize="12"/>
                             </StackPanel>
                         </Grid>
-                        <ComboBox Grid.Row="1" Margin="0,6,0,0" Height="32"
+                        <ComboBox Grid.Row="1" Margin="0,8,0,0" Height="36"
+                                  Style="{StaticResource LibraryComboBoxStyle}"
                                   ItemsSource="{Binding VisibilityFilters}"
                                   SelectedItem="{Binding SelectedVisibilityFilter}"
                                   FontSize="12"/>
@@ -495,7 +536,7 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnPart]}" Width="1.65*">
+                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnPart]}" Width="2.2*" MinWidth="220">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Grid ToolTip="{Binding ResolutionError}">
@@ -520,19 +561,8 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnType]}" Width="0.85*">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Border CornerRadius="8" Background="#EAFBF1" Padding="8,3"
-                                                    HorizontalAlignment="Left" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding PartType}" Foreground="#087A3C"
-                                                           FontSize="11" FontWeight="SemiBold"/>
-                                            </Border>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevision]}" Binding="{Binding Revision}" Width="55"/>
-                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnLifecycle]}" Width="0.95*">
+                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnLifecycle]}" Width="110">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Border CornerRadius="8" Background="#ECFDF3" Padding="8,3"
@@ -547,7 +577,7 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnStatus]}" Width="0.9*">
+                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnStatus]}" Width="100">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Border CornerRadius="8" Background="#EFF6FF" Padding="8,3"
@@ -557,19 +587,21 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnRevisionPolicy]}" Binding="{Binding RevisionPolicy}" Width="1*"/>
-                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnCadStatus]}" Width="0.9*">
+                                <DataGridTextColumn Header="Policy" Binding="{Binding RevisionPolicy}" Width="120"/>
+                                <DataGridTemplateColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnCadStatus]}" Width="1.7*" MinWidth="180">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <Border CornerRadius="8" Background="#E6FAF5" Padding="8,3"
                                                     HorizontalAlignment="Left" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding CadStatus}" Foreground="#0F8F86"
-                                                           FontSize="11" FontWeight="SemiBold"/>
+                                                           FontSize="11" FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding CadStatus}"/>
                                             </Border>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnUsage]}" Binding="{Binding UsageCount}" Width="60"/>
+                                <DataGridTextColumn Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryColumnUsage]}" Binding="{Binding UsageCount}" Width="55"/>
                             </DataGrid.Columns>
                         </DataGrid>
                         <Border Background="#F7F9FD"
@@ -592,24 +624,25 @@
 
             <ScrollViewer Grid.Column="4" VerticalScrollBarVisibility="Auto">
                 <StackPanel>
-                    <Border Style="{StaticResource LibraryCardStyle}" Padding="16">
+                    <Border Style="{StaticResource LibraryCardStyle}" Padding="18">
                         <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58"/>
+                                    <ColumnDefinition Width="64"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Width="54" Height="54" CornerRadius="8" Background="#7C3AED">
-                                    <TextBlock Text="&#xE7B8;" FontFamily="Segoe Fluent Icons" FontSize="24"
+                                <Border Width="58" Height="58" CornerRadius="12" Background="#7C3AED">
+                                    <TextBlock Text="&#xE8A5;" FontFamily="Segoe Fluent Icons" FontSize="24"
                                                Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
-                                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding SelectedEntryDetails.PartNumber}"
                                                FontSize="22" FontWeight="Bold" Foreground="{StaticResource LibraryTextBrush}"
                                                TextTrimming="CharacterEllipsis"/>
                                     <TextBlock Text="{Binding SelectedEntryDetails.PartName}"
-                                                FontSize="12" Foreground="{StaticResource LibraryMutedBrush}"
+                                               Margin="0,4,0,0"
+                                               FontSize="13" Foreground="{StaticResource LibraryMutedBrush}"
                                                TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                             </Grid>
@@ -646,7 +679,10 @@
                             </Border>
                             <TabControl Margin="0,16,0,0" BorderThickness="0" Background="Transparent"
                                         ItemContainerStyle="{StaticResource LibraryTabItemStyle}">
-                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabOverview]}">
+                                <TabItem>
+                                    <TabItem.Header>
+                                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabOverview]}"/>
+                                    </TabItem.Header>
                                     <Grid Margin="0,14,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="110"/>
@@ -750,7 +786,12 @@
                                                    Visibility="{Binding HasNoBomItems, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                     </Grid>
                                 </TabItem>
-                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabRevisions]}">
+                                <TabItem>
+                                    <TabItem.Header>
+                                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabRevisions]}"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"/>
+                                    </TabItem.Header>
                                     <Grid Margin="0,8,0,0">
                                         <DataGrid Style="{StaticResource LibraryDataGridStyle}"
                                                   ItemsSource="{Binding SelectedRevisionDetails.Items}"
@@ -770,7 +811,12 @@
                                                    Visibility="{Binding HasNoRevisionItems, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                     </Grid>
                                 </TabItem>
-                                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabWhereUsed]}">
+                                <TabItem>
+                                    <TabItem.Header>
+                                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTabWhereUsed]}"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"/>
+                                    </TabItem.Header>
                                     <Grid Margin="0,8,0,0">
                                         <DataGrid Style="{StaticResource LibraryDataGridStyle}"
                                                   ItemsSource="{Binding SelectedWhereUsedDetails.Items}"
@@ -794,7 +840,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource LibraryCardStyle}" Padding="16" Margin="0,12,0,0">
+                    <Border Style="{StaticResource LibraryCardStyle}" Padding="18" Margin="0,12,0,0">
                         <StackPanel>
                             <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryPrimaryCadTitle]}" FontSize="15" FontWeight="Bold"
                                        Foreground="{StaticResource LibraryTextBrush}"/>
@@ -839,7 +885,7 @@
                                     <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryDownloadCad]}"/>
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource LibraryPrimaryButtonStyle}" Margin="0,10,0,0"
+                            <Button Style="{StaticResource LibraryPrimaryButtonStyle}" Margin="0,10,0,0" Height="44"
                                     Command="{Binding AddToCurrentProjectCommand}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons" Margin="0,0,7,0"/>
@@ -854,26 +900,26 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource LibraryCardStyle}" Padding="16" Margin="0,12,0,0">
+                    <Border Style="{StaticResource LibraryCardStyle}" Padding="18" Margin="0,12,0,0">
                         <StackPanel>
                             <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryQuickActionsTitle]}" FontSize="15" FontWeight="Bold"
                                        Foreground="{StaticResource LibraryTextBrush}"/>
-                            <UniformGrid Columns="2" Margin="0,10,0,0">
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,8,8" Height="38"
+                            <UniformGrid Columns="1" Margin="0,10,0,0">
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,0,8" Height="38"
                                         Command="{Binding ViewWhereUsedCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryViewWhereUsed]}"/>
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="8,0,0,8" Height="38"
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,0,8" Height="38"
                                         Command="{Binding ShowRevisionBrowserCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonRevisionBrowser]}"/>
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,8,8" Height="38"
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,0,8" Height="38"
                                         Command="{Binding MoveEntryCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonMoveEntry]}"/>
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="8,0,0,8" Height="38"
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,0,8" Height="38"
                                         Command="{Binding PinRevisionCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryPinCurrentRevision]}"/>
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,8,8" Height="38"
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,0,8" Height="38"
                                         Command="{Binding UseLatestReleasedCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryUseLatestReleased]}"/>
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="8,0,0,8" Height="38"
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,0,8" Height="38"
                                         Command="{Binding PublishCommand}" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryPublishEntry]}"/>
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,8,0" Height="38"
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0,0,0,8" Height="38"
                                         Command="{Binding DeprecateCommand}" Foreground="#B91C1C" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryDeprecateEntry]}"/>
-                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="8,0,0,0" Height="38"
+                                <Button Style="{StaticResource LibraryButtonStyle}" Margin="0" Height="38"
                                         Command="{Binding RemoveEntryCommand}" Foreground="#B91C1C" Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryRemoveEntry]}"/>
                             </UniformGrid>
                         </StackPanel>

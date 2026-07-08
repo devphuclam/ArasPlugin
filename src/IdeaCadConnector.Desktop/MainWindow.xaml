@@ -148,6 +148,17 @@
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <Style x:Key="SidebarFooterCardStyle" TargetType="Border" BasedOn="{StaticResource AppCardStyle}">
+      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
+
+    <Style x:Key="SidebarFooterLabelStyle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#FF6A7894" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
     <Style x:Key="TextInputStyle" TargetType="TextBox">
       <Setter Property="Height" Value="40" />
       <Setter Property="Padding" Value="14,0" />
@@ -177,64 +188,40 @@
     </Style>
 
     <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
-      <Setter Property="Height" Value="40" />
-      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="Height" Value="42" />
+      <Setter Property="Padding" Value="12,6,34,6" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="Background" Value="#FFFFFFFF" />
-      <Setter Property="BorderBrush" Value="#66A2B7DC" />
+      <Setter Property="Background" Value="#FFFCFDFF" />
+      <Setter Property="BorderBrush" Value="#C5D5E8" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="FontSize" Value="14" />
       <Setter Property="Foreground" Value="#FF1F2D57" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    </Style>
+
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="Foreground" Value="#FF1F2D57" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="Template">
         <Setter.Value>
-          <ControlTemplate TargetType="ComboBox">
-            <Grid>
-              <Border x:Name="Border"
-                      Background="{TemplateBinding Background}"
-                      BorderBrush="{TemplateBinding BorderBrush}"
-                      BorderThickness="{TemplateBinding BorderThickness}"
-                      CornerRadius="12">
-                <Grid>
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
-                  <ContentPresenter Margin="{TemplateBinding Padding}"
-                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                    IsHitTestVisible="False" />
-                  <TextBlock Grid.Column="1"
-                             Margin="0,0,10,0"
-                             VerticalAlignment="Center"
-                             FontFamily="Segoe MDL2 Assets"
-                             FontSize="12"
-                             Foreground="#FF7A879F"
-                             Text="&#xE70D;" />
-                </Grid>
-              </Border>
-              <Popup x:Name="Popup"
-                     IsOpen="{TemplateBinding IsDropDownOpen}"
-                     Placement="Bottom"
-                     Focusable="False"
-                     AllowsTransparency="True"
-                     PopupAnimation="Slide">
-                <Border MaxHeight="300"
-                        Background="#FEFFFFFF"
-                        BorderBrush="#1A9AB3D5"
-                        BorderThickness="1"
-                        CornerRadius="12"
-                        Effect="{DynamicResource ComboBoxDropShadow}">
-                  <ScrollViewer>
-                    <ItemsPresenter />
-                  </ScrollViewer>
-                </Border>
-              </Popup>
-            </Grid>
+          <ControlTemplate TargetType="ComboBoxItem">
+            <Border x:Name="ItemChrome"
+                    Margin="4,2"
+                    Padding="{TemplateBinding Padding}"
+                    CornerRadius="10"
+                    Background="{TemplateBinding Background}">
+              <ContentPresenter />
+            </Border>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter TargetName="Border" Property="BorderBrush" Value="#FF4E87FF" />
+              <Trigger Property="IsHighlighted" Value="True">
+                <Setter TargetName="ItemChrome" Property="Background" Value="#FFEAF2FF" />
               </Trigger>
-              <Trigger Property="IsDropDownOpen" Value="True">
-                <Setter TargetName="Border" Property="BorderBrush" Value="#FF4E87FF" />
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="ItemChrome" Property="Background" Value="#FFDDEBFF" />
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -476,60 +463,63 @@
           </StackPanel>
 
           <StackPanel Grid.Row="2">
-            <Border Style="{StaticResource AppCardStyle}"
-                    Padding="14,10"
+            <Border Style="{StaticResource SidebarFooterCardStyle}"
                     Margin="0,0,0,12"
                     CornerRadius="14">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="24" />
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="20" />
-                </Grid.ColumnDefinitions>
-                <TextBlock FontFamily="Segoe MDL2 Assets"
-                           VerticalAlignment="Center"
-                           Foreground="#FF3E6FD9"
-                           Text="&#xE706;" />
-                <TextBlock Grid.Column="1"
-                           VerticalAlignment="Center"
-                           Foreground="#FF1D2B53"
+              <StackPanel>
+                <TextBlock Style="{StaticResource SidebarFooterLabelStyle}"
                            Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarTheme]}" />
-                <TextBlock Grid.Column="2"
-                           FontFamily="Segoe MDL2 Assets"
-                           VerticalAlignment="Center"
-                           Foreground="#FF1D2B53"
-                           Text="&#xE70D;" />
-              </Grid>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock FontFamily="Segoe MDL2 Assets"
+                             VerticalAlignment="Center"
+                             Foreground="#FF3E6FD9"
+                             Text="&#xE706;" />
+                  <TextBlock Grid.Column="1"
+                             VerticalAlignment="Center"
+                             Foreground="#FF1D2B53"
+                             FontWeight="SemiBold"
+                             Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarTheme]}" />
+                </Grid>
+              </StackPanel>
             </Border>
 
-            <Border Style="{StaticResource AppCardStyle}"
-                    Padding="14,10"
+            <Border Style="{StaticResource SidebarFooterCardStyle}"
                     Margin="0,0,0,12"
                     CornerRadius="14">
-              <Grid>
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="24" />
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="20" />
-                </Grid.ColumnDefinitions>
-                <TextBlock FontFamily="Segoe MDL2 Assets"
-                           VerticalAlignment="Center"
-                           Foreground="#FF3E6FD9"
-                           Text="&#xE717;" />
-                <ComboBox Grid.Column="1"
-                          Margin="8,0,0,0"
-                          VerticalAlignment="Center"
-                          FontSize="13"
-                          ItemsSource="{Binding LanguageOptions}"
-                          DisplayMemberPath="DisplayName"
-                          SelectedValuePath="CultureName"
-                          SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}" />
-                <TextBlock Grid.Column="2"
-                           FontFamily="Segoe MDL2 Assets"
-                           VerticalAlignment="Center"
-                           Foreground="#FF1D2B53"
-                           Text="&#xE70D;" />
-              </Grid>
+              <StackPanel>
+                <TextBlock Style="{StaticResource SidebarFooterLabelStyle}"
+                           Text="Language" />
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="26" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock FontFamily="Segoe MDL2 Assets"
+                             VerticalAlignment="Center"
+                             Foreground="#FF3E6FD9"
+                             Text="&#xE717;" />
+                  <ComboBox Grid.Column="1"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Height="38"
+                            FontSize="13"
+                            Style="{StaticResource ComboBoxStyle}"
+                            ItemsSource="{Binding LanguageOptions}"
+                            SelectedValuePath="CultureName"
+                            SelectedValue="{Binding SelectedLanguage, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding DisplayName}"
+                                   TextTrimming="CharacterEllipsis" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </Grid>
+              </StackPanel>
             </Border>
 
             <Button x:Name="SidebarCollapseButton"

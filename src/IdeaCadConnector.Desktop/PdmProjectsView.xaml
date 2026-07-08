@@ -60,6 +60,20 @@
       <Setter Property="Margin" Value="0,0,18,0" />
     </Style>
 
+    <Style x:Key="TextInputComboStyle" TargetType="ComboBox">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="14,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="#FFFCFDFF" />
+      <Setter Property="BorderBrush" Value="#C5D5E8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Foreground" Value="#FF1F2D57" />
+      <Setter Property="SnapsToDevicePixels" Value="True" />
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+    </Style>
+
     <HierarchicalDataTemplate DataType="{x:Type local:PdmStructureNode}"
                               ItemsSource="{Binding Children}">
       <Grid Height="44" MinWidth="340">
@@ -231,7 +245,7 @@
     <Border Grid.Row="1"
             Style="{DynamicResource AppCardStyle}"
             Margin="0,0,0,16"
-            Padding="18">
+            Padding="20">
       <Grid>
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto" />
@@ -239,18 +253,14 @@
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="2*" />
-          <ColumnDefinition Width="1.4*" />
-          <ColumnDefinition Width="2*" />
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="2.2*" />
+          <ColumnDefinition Width="1.45*" />
+          <ColumnDefinition Width="1.95*" />
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column="0" Margin="0,0,12,0">
-           <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ComboRepository]}" />
+          <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ComboRepository]}" />
           <ComboBox Height="40"
                     ItemsSource="{Binding Repositories}"
                     IsEditable="True"
@@ -260,38 +270,44 @@
         </StackPanel>
 
         <StackPanel Grid.Column="1" Margin="0,0,12,0">
-           <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ComboWorkspaceBranch]}" />
-          <DockPanel>
+          <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ComboWorkspaceBranch]}" />
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="42" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <ComboBox Height="40"
-                      Width="130"
                       ItemsSource="{Binding Branches}"
                       SelectedItem="{Binding SelectedBranch}"
                       Style="{DynamicResource TextInputComboStyle}" />
-            <Button Width="36"
+            <Button Grid.Column="1"
+                    Width="36"
                     Height="36"
-                    Margin="6,0,0,0"
+                    Margin="6,2,0,0"
                     VerticalAlignment="Center"
-                    Background="#FFE8EEF6"
-                    BorderThickness="0"
-                    FontSize="18"
+                    Style="{DynamicResource SecondaryButtonStyle}"
+                    Padding="0"
+                    FontSize="17"
                     FontWeight="Bold"
-                    Foreground="#FF405173"
                     Command="{Binding NewBranchCommand}"
                     Content="+"
                     ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[TooltipNewBranch]}" />
-            <Border Margin="6,0,0,0"
-                    Padding="10,0"
+            <Border Grid.Column="2"
+                    Margin="8,6,0,0"
+                    Padding="12,0"
+                    MinWidth="108"
                     Height="28"
                     VerticalAlignment="Center"
-                    CornerRadius="8"
+                    CornerRadius="10"
                     Background="#FFF0F5FF">
               <TextBlock Style="{StaticResource BadgeTextStyle}" Text="{Binding BranchStatusText}" />
             </Border>
-          </DockPanel>
+          </Grid>
         </StackPanel>
 
         <StackPanel Grid.Column="2" Margin="0,0,12,0">
-           <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ComboLocalCommit]}" />
+          <TextBlock Margin="4,0,0,6" FontSize="12" Foreground="#FF60708E" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ComboLocalCommit]}" />
           <ComboBox Height="40"
                     ItemsSource="{Binding WorkspaceCommits}"
                     SelectedItem="{Binding SelectedCommit}"
@@ -299,85 +315,83 @@
                     Style="{DynamicResource TextInputComboStyle}" />
         </StackPanel>
 
-        <Button Grid.Column="3"
-                Margin="0,20,10,0"
-                Height="40"
-                MinWidth="92"
-                Style="{DynamicResource SecondaryButtonStyle}"
-                Command="{Binding BrowseFolderCommand}"
-                Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonBrowse]}" />
-        <Button Grid.Column="4"
-                Margin="0,20,10,0"
-                Height="40"
-                MinWidth="92"
-                Style="{DynamicResource SecondaryButtonStyle}"
-                Command="{Binding CloneCommand}"
-                Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonClone]}" />
-        <Button Grid.Column="5"
-                Margin="0,20,10,0"
-                Height="40"
-                MinWidth="92"
-                Style="{DynamicResource SecondaryButtonStyle}"
-                Command="{Binding AnalyzeFolderCommand}"
-                Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonAnalyze]}" />
-        <Button Grid.Column="6"
-                Margin="0,20,10,0"
-                Height="40"
-                MinWidth="92"
-                Style="{DynamicResource PrimaryButtonStyle}"
-                Command="{Binding PushCommand}"
-                Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonPush]}" />
-        <Button Grid.Column="7"
-                Margin="0,20,0,0"
-                Height="40"
-                MinWidth="92"
-                Style="{DynamicResource PrimaryButtonStyle}"
-                Command="{Binding CommitCommand}"
-                ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[TooltipCommit]}"
-                Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonCommit]}" />
+        <StackPanel Grid.Column="3"
+                    Orientation="Horizontal"
+                    Margin="6,20,0,0"
+                    HorizontalAlignment="Right">
+          <Button Height="40"
+                  MinWidth="90"
+                  Margin="0,0,10,0"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  Command="{Binding BrowseFolderCommand}"
+                  Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonBrowse]}" />
+          <Button Height="40"
+                  MinWidth="90"
+                  Margin="0,0,10,0"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  Command="{Binding CloneCommand}"
+                  Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonClone]}" />
+          <Button Height="40"
+                  MinWidth="90"
+                  Margin="0,0,10,0"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  Command="{Binding AnalyzeFolderCommand}"
+                  Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonAnalyze]}" />
+          <Button Height="40"
+                  MinWidth="90"
+                  Margin="0,0,10,0"
+                  Style="{DynamicResource PrimaryButtonStyle}"
+                  Command="{Binding PushCommand}"
+                  Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonPush]}" />
+          <Button Height="40"
+                  MinWidth="96"
+                  Style="{DynamicResource PrimaryButtonStyle}"
+                  Command="{Binding CommitCommand}"
+                  ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[TooltipCommit]}"
+                  Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonCommit]}" />
+        </StackPanel>
 
         <TextBlock Grid.Row="1"
                    Grid.Column="0"
                    VerticalAlignment="Center"
-                   Margin="4,14,0,0"
+                   Margin="4,16,0,0"
                    FontSize="12"
                    Foreground="#FF60708E"
                    Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ButtonBrowse]}" />
         <TextBox Grid.Row="1"
                  Grid.Column="0"
                  Grid.ColumnSpan="3"
-                 Margin="92,12,0,0"
-                 Height="38"
+                 Margin="92,14,12,0"
+                 Height="40"
                  Style="{DynamicResource TextInputStyle}"
                  Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged}" />
         <TextBox Grid.Row="1"
                  Grid.Column="3"
-                 Grid.ColumnSpan="2"
-                 Margin="10,12,10,0"
-                 Height="38"
+                 Margin="6,14,0,0"
+                 Width="250"
+                 Height="40"
                  Style="{DynamicResource TextInputStyle}"
                  Text="{Binding CommitMessage, UpdateSourceTrigger=PropertyChanged}"
                  ToolTip="Enter a message for the local workspace commit (does not affect Aras revision history)" />
         <TextBlock Grid.Row="2"
+                   Grid.Column="0"
                    Grid.ColumnSpan="3"
-                   Margin="0,14,0,0"
+                   Margin="0,14,12,0"
                    FontSize="13"
                    Foreground="#FF60708E"
                    TextWrapping="Wrap"
                    Text="{Binding AnalysisSummary}" />
         <TextBlock Grid.Row="2"
                    Grid.Column="3"
-                   Grid.ColumnSpan="2"
-                   Margin="10,14,0,0"
-                   FontSize="13"
+                   Margin="6,14,0,0"
+                   FontSize="12"
                    Foreground="#FF60708E"
                    TextWrapping="Wrap"
                    Text="{Binding LatestCommitSummary}" />
         <TextBlock Grid.Row="2"
-                   Grid.Column="5"
-                   Grid.ColumnSpan="2"
-                   Margin="10,14,0,0"
-                   FontSize="13"
+                   Grid.Column="3"
+                   Margin="6,34,0,0"
+                   FontSize="12"
                    Foreground="#FFA500"
                    TextWrapping="Wrap"
                    Visibility="{Binding HasUncommittedChanges, Converter={StaticResource BoolToVisibilityConverter}}"
@@ -991,7 +1005,7 @@
                     <TextBlock Grid.Row="6" Style="{StaticResource MetricLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetricLockedBy]}" />
                     <TextBlock Grid.Row="6" Grid.Column="1" FontSize="13" Foreground="#FF172B57" Text="{Binding LockedByText, TargetNullValue=-}" />
                     <TextBlock Grid.Row="7" Style="{StaticResource MetricLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetricEditRule]}" />
-                    <TextBlock Grid.Row="7" Grid.Column="1" FontSize="13" Foreground="#FF172B57" TextWrapping="Wrap" Text="{Binding CadEditPolicyText, TargetNullValue=-}" />
+                    <TextBlock Grid.Row="7" Grid.Column="1" FontSize="13" Foreground="#FF172B57" TextTrimming="CharacterEllipsis" ToolTip="{Binding CadEditPolicyText}" Text="{Binding CadEditPolicyText, TargetNullValue=-}" />
                   </Grid>
 
                   <Grid Margin="0,16,0,0">

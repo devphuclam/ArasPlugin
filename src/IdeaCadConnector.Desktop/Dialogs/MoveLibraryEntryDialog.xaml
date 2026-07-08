@@ -9,6 +9,51 @@
         MouseLeftButtonDown="Window_MouseLeftButtonDown">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <SolidColorBrush x:Key="DialogTextBrush" Color="#172B55"/>
+        <SolidColorBrush x:Key="DialogMutedBrush" Color="#61708E"/>
+        <SolidColorBrush x:Key="DialogLineBrush" Color="#D9E3F0"/>
+        <SolidColorBrush x:Key="DialogPrimaryBrush" Color="#1E5AF7"/>
+
+        <Style x:Key="DialogComboBoxStyle" TargetType="{x:Type ComboBox}">
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource DialogTextBrush}"/>
+            <Setter Property="Background" Value="#FFFCFDFF"/>
+            <Setter Property="BorderBrush" Value="#C5D5E8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+        </Style>
+
+        <Style TargetType="{x:Type ComboBoxItem}">
+            <Setter Property="Padding" Value="12,9"/>
+            <Setter Property="Foreground" Value="{StaticResource DialogTextBrush}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                        <Border x:Name="ItemChrome"
+                                Margin="4,2"
+                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="10"
+                                Background="Transparent">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#FFEAF2FF"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemChrome" Property="Background" Value="#FFDDEBFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
@@ -57,7 +102,7 @@
 
                 <StackPanel Margin="0,20,0,0">
                     <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MoveEntryTargetLibraryLabel]}" FontWeight="SemiBold" Foreground="#334B76"/>
-                    <ComboBox Height="42" Margin="0,7,0,0"
+                    <ComboBox Height="42" Margin="0,7,0,0" Style="{StaticResource DialogComboBoxStyle}"
                               ItemsSource="{Binding TargetLibraries}"
                               SelectedItem="{Binding SelectedTargetLibrary}"
                               DisplayMemberPath="Name"

@@ -36,14 +36,17 @@
         </Style>
 
         <Style x:Key="DialogComboBoxStyle" TargetType="{x:Type ComboBox}">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="14,0"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Foreground" Value="{StaticResource DialogTextBrush}"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#C9D6EA"/>
+            <Setter Property="Background" Value="#FFFCFDFF"/>
+            <Setter Property="BorderBrush" Value="#C5D5E8"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontSize" Value="13"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
         </Style>
 
         <Style x:Key="DialogButtonStyle" TargetType="{x:Type Button}">

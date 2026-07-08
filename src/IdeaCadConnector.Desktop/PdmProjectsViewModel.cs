@@ -260,8 +260,8 @@ namespace IdeaCadConnector.Desktop
         public bool IsMainBranch => string.Equals(SelectedBranch, "main", StringComparison.OrdinalIgnoreCase);
         public bool BranchPushAllowed => IsMainBranch;
         public string BranchStatusText => IsMainBranch
-            ? "Live branch (push allowed)"
-            : "Preview branch (no live push)";
+            ? "Live push"
+            : "Preview only";
 
         public bool HasBlockingIssues => BlockingIssueCount > 0;
 
@@ -2553,7 +2553,7 @@ namespace IdeaCadConnector.Desktop
                 CadRevisionText = SelectedNode?.Revision ?? "-";
                 CadGenerationText = "-";
                 CadLifecycleText = "-";
-                CadEditPolicyText = CadNodeHelper.GetRootAssemblyCadHint();
+                CadEditPolicyText = "Root assembly managed by push flow.";
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = false;
                 IsAvailable = false;
@@ -3948,7 +3948,7 @@ namespace IdeaCadConnector.Desktop
         {
             var isConnected = MainViewModel.SharedPdmClient != null;
             ConnectionDisplayName = isConnected ? "Connected to Aras" : "Preview mode";
-            ConnectionDatabase = isConnected ? "Aras session active" : "Local analysis — not connected to Aras";
+            ConnectionDatabase = isConnected ? "Aras connected" : "Local preview";
         }
 
         private static string FormatBusinessNodeName(string rawName)
