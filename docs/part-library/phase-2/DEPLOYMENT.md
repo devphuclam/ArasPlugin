@@ -1,6 +1,6 @@
 # Part Library Phase 2 Deployment
 
-**State:** `IN_PROGRESS` (Sprint 2.3 App UAT accepted)
+**State:** `IN_PROGRESS` (Sprint 2.3 App UAT accepted; Sprint 2.4 filters/sort/hardening locally accepted)
 
 This document records deployment assumptions and live-system dependencies for Phase 2. It is not a claim that any Phase 2 change has been deployed.
 

@@ -51,6 +51,10 @@ namespace IdeaCadConnector.Desktop
         private int _pageNumber = 1;
         private int _pageSize = 25;
         private string _selectedVisibilityFilter;
+        private string _selectedEntryStatusFilter;
+        private string _selectedCadStatusFilter;
+        private string _selectedSortOption;
+        private string _selectedSortDirection;
         private LibraryVisibilityFilter _activeVisibilityFilter = LibraryVisibilityFilter.Active;
         private CadDetailsView _cadDetails;
         private BomDetailsView _bomDetails;
@@ -101,6 +105,17 @@ namespace IdeaCadConnector.Desktop
             _selectedStateFilter = StateFilters[0];
             _selectedRevisionFilter = RevisionFilters[0];
             _selectedVisibilityFilter = VisibilityFilters[0];
+            EntryStatusFilters = new ObservableCollection<string>();
+            CadStatusFilters = new ObservableCollection<string>();
+            SortOptions = new ObservableCollection<string>();
+            SortDirections = new ObservableCollection<string>();
+            RefreshEntryStatusFilterOptions();
+            RefreshCadStatusFilterOptions();
+            RefreshSortOptions();
+            _selectedEntryStatusFilter = EntryStatusFilters[0];
+            _selectedCadStatusFilter = CadStatusFilters[0];
+            _selectedSortOption = SortOptions[0];
+            _selectedSortDirection = SortDirections[0];
             _selectedEntryDetails = CreateEmptyDetails();
             _statusMessage = L(TranslationKeys.LibraryStatusReady);
             _permissionMessage = string.Empty;
@@ -177,6 +192,14 @@ namespace IdeaCadConnector.Desktop
         public ObservableCollection<string> RevisionFilters { get; }
 
         public ObservableCollection<string> VisibilityFilters { get; }
+
+        public ObservableCollection<string> EntryStatusFilters { get; }
+
+        public ObservableCollection<string> CadStatusFilters { get; }
+
+        public ObservableCollection<string> SortOptions { get; }
+
+        public ObservableCollection<string> SortDirections { get; }
 
         public string SelectedVisibilityFilter
         {
@@ -294,8 +317,9 @@ namespace IdeaCadConnector.Desktop
             private set
             {
                 if (SetField(ref _isLoadingDetails, value))
-                    NotifyDetailStateChanged();
-            }
+            NotifyDetailStateChanged();
+            OnPropertyChanged(nameof(HasSortDirections));
+        }
         }
 
         public string DetailStatusMessage
@@ -349,6 +373,48 @@ namespace IdeaCadConnector.Desktop
             get => _selectedRevisionFilter;
             set => SetField(ref _selectedRevisionFilter, value);
         }
+
+        public string SelectedEntryStatusFilter
+        {
+            get => _selectedEntryStatusFilter;
+            set
+            {
+                if (SetField(ref _selectedEntryStatusFilter, value))
+                    _ = SearchAsync();
+            }
+        }
+
+        public string SelectedCadStatusFilter
+        {
+            get => _selectedCadStatusFilter;
+            set
+            {
+                if (SetField(ref _selectedCadStatusFilter, value))
+                    _ = SearchAsync();
+            }
+        }
+
+        public string SelectedSortOption
+        {
+            get => _selectedSortOption;
+            set
+            {
+                if (SetField(ref _selectedSortOption, value))
+                    _ = SearchAsync();
+            }
+        }
+
+        public string SelectedSortDirection
+        {
+            get => _selectedSortDirection;
+            set
+            {
+                if (SetField(ref _selectedSortDirection, value))
+                    _ = SearchAsync();
+            }
+        }
+
+        public bool HasSortDirections => SortDirections.Count > 0;
 
         public bool IsLoading
         {
@@ -587,7 +653,33 @@ namespace IdeaCadConnector.Desktop
                     Entries.Add(MapEntry(entry));
                 }
 
-                _totalCount = response.TotalCount;
+                // Apply local entry status filter
+                var normalizedEntryStatusFilter = NormalizeEntryStatusFilter(SelectedEntryStatusFilter);
+                if (!string.IsNullOrWhiteSpace(normalizedEntryStatusFilter))
+                {
+                    var filtered = Entries.Where(e => string.Equals(e.EntryStatus, normalizedEntryStatusFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+                    Entries.Clear();
+                    foreach (var entry in filtered)
+                        Entries.Add(entry);
+                }
+
+                // Apply local CAD status filter
+                var normalizedCadStatusFilter = NormalizeCadStatusFilter(SelectedCadStatusFilter);
+                if (!string.IsNullOrWhiteSpace(normalizedCadStatusFilter))
+                {
+                    var filtered = Entries.Where(e => string.Equals(e.CadStatus, normalizedCadStatusFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+                    Entries.Clear();
+                    foreach (var entry in filtered)
+                        Entries.Add(entry);
+                }
+
+                // Apply local sorting
+                var sorted = SortEntries(Entries, SelectedSortOption, SelectedSortDirection).ToList();
+                Entries.Clear();
+                foreach (var entry in sorted)
+                    Entries.Add(entry);
+
+                _totalCount = Entries.Count;
                 _pageNumber = response.PageNumber <= 0 ? 1 : response.PageNumber;
                 _pageSize = response.PageSize <= 0 ? 25 : response.PageSize;
                 OnPropertyChanged(nameof(ResultSummary));
@@ -1727,6 +1819,72 @@ namespace IdeaCadConnector.Desktop
             return value;
         }
 
+        private string NormalizeEntryStatusFilter(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllEntryStatuses))
+                return null;
+            if (value == L(TranslationKeys.LibraryFilterEntryStatusDraft))
+                return "Draft";
+            if (value == L(TranslationKeys.LibraryFilterEntryStatusPendingReview))
+                return "PendingReview";
+            if (value == L(TranslationKeys.LibraryFilterEntryStatusPublished))
+                return "Published";
+            if (value == L(TranslationKeys.LibraryFilterEntryStatusDeprecated))
+                return "Deprecated";
+            return value;
+        }
+
+        private string NormalizeCadStatusFilter(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllCadStatuses))
+                return null;
+            if (value == L(TranslationKeys.LibraryFilterCadStatusAvailable) || value == L(TranslationKeys.LibraryCadStatusAvailable))
+                return "Available";
+            if (value == L(TranslationKeys.LibraryFilterCadStatusNoCad) || value == L(TranslationKeys.LibraryCadStatusNoCad))
+                return "No CAD";
+            if (value == L(TranslationKeys.LibraryFilterCadStatusNoNativeFile) || value == L(TranslationKeys.LibraryCadStatusNoNative))
+                return "No native file";
+            if (value == L(TranslationKeys.LibraryFilterCadStatusLookupUnavailable) || value == L(TranslationKeys.LibraryCadLookupUnavailable))
+                return "CAD lookup unavailable";
+            return value;
+        }
+
+        private static IEnumerable<PartLibraryEntryRow> SortEntries(ObservableCollection<PartLibraryEntryRow> entries, string sortOption, string sortDirection)
+        {
+            if (entries == null || entries.Count == 0)
+                return Enumerable.Empty<PartLibraryEntryRow>();
+
+            bool descending = sortDirection != null && sortDirection.Contains("Descending");
+
+            if (sortOption == null || sortOption.Contains("Item Number"))
+                return descending
+                    ? entries.OrderByDescending(e => e.PartNumber, StringComparer.OrdinalIgnoreCase)
+                    : entries.OrderBy(e => e.PartNumber, StringComparer.OrdinalIgnoreCase);
+            if (sortOption.Contains("Name"))
+                return descending
+                    ? entries.OrderByDescending(e => e.PartName, StringComparer.OrdinalIgnoreCase)
+                    : entries.OrderBy(e => e.PartName, StringComparer.OrdinalIgnoreCase);
+            if (sortOption.Contains("Entry Status"))
+                return descending
+                    ? entries.OrderByDescending(e => e.EntryStatus)
+                    : entries.OrderBy(e => e.EntryStatus);
+            if (sortOption.Contains("Revision Policy"))
+                return descending
+                    ? entries.OrderByDescending(e => e.RevisionPolicy)
+                    : entries.OrderBy(e => e.RevisionPolicy);
+            if (sortOption.Contains("CAD Status"))
+                return descending
+                    ? entries.OrderByDescending(e => e.CadStatus)
+                    : entries.OrderBy(e => e.CadStatus);
+            if (sortOption.Contains("Usage Count"))
+                return descending
+                    ? entries.OrderByDescending(e => e.UsageCount)
+                    : entries.OrderBy(e => e.UsageCount);
+            if (sortOption.Contains("Last Used"))
+                return entries;
+            return entries.OrderBy(e => e.PartNumber, StringComparer.OrdinalIgnoreCase);
+        }
+
         private static PartLibraryEntryRow MapEntry(PartLibraryEntrySummary entry)
         {
             return new PartLibraryEntryRow
@@ -1980,6 +2138,62 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(SelectedVisibilityFilter));
         }
 
+        private void RefreshEntryStatusFilterOptions()
+        {
+            var previousSelection = _selectedEntryStatusFilter;
+            EntryStatusFilters.Clear();
+            EntryStatusFilters.Add(L(TranslationKeys.LibraryFilterAllEntryStatuses));
+            EntryStatusFilters.Add(L(TranslationKeys.LibraryFilterEntryStatusDraft));
+            EntryStatusFilters.Add(L(TranslationKeys.LibraryFilterEntryStatusPendingReview));
+            EntryStatusFilters.Add(L(TranslationKeys.LibraryFilterEntryStatusPublished));
+            EntryStatusFilters.Add(L(TranslationKeys.LibraryFilterEntryStatusDeprecated));
+            if (!string.IsNullOrWhiteSpace(previousSelection) && EntryStatusFilters.Contains(previousSelection))
+                _selectedEntryStatusFilter = previousSelection;
+            else
+                _selectedEntryStatusFilter = EntryStatusFilters[0];
+            OnPropertyChanged(nameof(SelectedEntryStatusFilter));
+        }
+
+        private void RefreshCadStatusFilterOptions()
+        {
+            var previousSelection = _selectedCadStatusFilter;
+            CadStatusFilters.Clear();
+            CadStatusFilters.Add(L(TranslationKeys.LibraryFilterAllCadStatuses));
+            CadStatusFilters.Add(L(TranslationKeys.LibraryFilterCadStatusAvailable));
+            CadStatusFilters.Add(L(TranslationKeys.LibraryFilterCadStatusNoCad));
+            CadStatusFilters.Add(L(TranslationKeys.LibraryFilterCadStatusNoNativeFile));
+            CadStatusFilters.Add(L(TranslationKeys.LibraryFilterCadStatusLookupUnavailable));
+            if (!string.IsNullOrWhiteSpace(previousSelection) && CadStatusFilters.Contains(previousSelection))
+                _selectedCadStatusFilter = previousSelection;
+            else
+                _selectedCadStatusFilter = CadStatusFilters[0];
+            OnPropertyChanged(nameof(SelectedCadStatusFilter));
+        }
+
+        private void RefreshSortOptions()
+        {
+            var previousSelection = _selectedSortOption;
+            SortOptions.Clear();
+            SortDirections.Clear();
+            SortOptions.Add(L(TranslationKeys.LibrarySortByItemNumber));
+            SortOptions.Add(L(TranslationKeys.LibrarySortByName));
+            SortOptions.Add(L(TranslationKeys.LibrarySortByEntryStatus));
+            SortOptions.Add(L(TranslationKeys.LibrarySortByRevisionPolicy));
+            SortOptions.Add(L(TranslationKeys.LibrarySortByCadStatus));
+            SortOptions.Add(L(TranslationKeys.LibrarySortByUsageCount));
+            SortOptions.Add(L(TranslationKeys.LibrarySortByLastUsedOn));
+            SortDirections.Add(L(TranslationKeys.LibrarySortDirectionAscending));
+            SortDirections.Add(L(TranslationKeys.LibrarySortDirectionDescending));
+            if (!string.IsNullOrWhiteSpace(previousSelection) && SortOptions.Contains(previousSelection))
+                _selectedSortOption = previousSelection;
+            else
+                _selectedSortOption = SortOptions[0];
+            _selectedSortDirection = SortDirections[0];
+            OnPropertyChanged(nameof(SelectedSortOption));
+            OnPropertyChanged(nameof(SelectedSortDirection));
+            OnPropertyChanged(nameof(HasSortDirections));
+        }
+
         private static bool? ShowCreateLibraryDialog(CreateLibraryDialogViewModel viewModel)
         {
             var dialog = new CreateLibraryDialog
@@ -2076,6 +2290,9 @@ namespace IdeaCadConnector.Desktop
 
             RefreshFilterOptions();
             RefreshVisibilityFilterOptions();
+            RefreshEntryStatusFilterOptions();
+            RefreshCadStatusFilterOptions();
+            RefreshSortOptions();
             if (SelectedEntry == null)
                 SelectedEntryDetails = CreateEmptyDetails();
             NotifyPanelStateChanged();

@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted; 390/390 tests pass)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted; Sprint 2.4 filters/sort/hardening implemented; 403/403 tests pass)
 
 ## Objective
 
@@ -67,7 +67,7 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 | `2.1` | `WS1` + `WS2` | UAT smoke accepted |
 | `2.2` | `WS3` + `WS4` | locally accepted |
 | `2.3` | `WS5` + `WS6` + `WS7` | App UAT accepted |
-| `2.4` | `WS8` + hardening/UAT prep | not started |
+| `2.4` | `WS8` + hardening/UAT prep | implemented |
 
 ## Sprint 2.1 Completion Evidence
 
@@ -210,9 +210,51 @@ Remaining live limitations:
 - method must exist in target Aras database;
 - connector user needs Execute Method + Get Part/CAD/Part CAD/File permissions.
 
-## Next Sprint
+## Sprint 2.4 Implementation Packet
 
-`Sprint 2.4: Filters and UX Hardening (WS8)`
+Completed locally (2026-07-08):
+
+**Filters:**
+- Entry Status filter: All / Draft / PendingReview / Published / Deprecated
+- CAD Status filter: All / Available / No CAD / No native file / CAD lookup unavailable
+- Text search: filters by item_number, name (existing, hardened)
+- Archived Libraries remain hidden by default per D-03
+
+**Sorting (7 columns, ascending/descending):**
+- Item Number
+- Name
+- Entry Status
+- Revision Policy
+- CAD Status
+- Usage Count
+- Last Used On (no-op when data unavailable)
+
+**Detail status UX hardening:**
+- Loading state: localized "Loading details..." message
+- Permission denied: clear diagnostic
+- Server unavailable: localized message with retry guidance
+- Operation cancelled: clear cancellation message
+- Empty states: No CAD / No BOM / No Revisions / No Where Used already handled
+
+**Command state regression:**
+- lamEngineer/NVTKC: cannot Move Entry, cannot Pin Revision
+- TNTKC/reviewer: can Move and Pin where Aras permits
+- lamPM/manager: can manage Libraries, Move, Pin
+- viewer/unknown: read-only, blocked where required
+
+**Localization:** 25 new keys added to en-US, vi-VN, ja-JP.
+
+**Tests:** 11 new tests (filters, sort, command state, detail hardening, regression). Total: 403/403.
+
+**Build:** Debug/Release 0 warnings, 0 errors.
+
+## Final UAT Checklist
+
+A final Sprint 2.4 UAT checklist has been prepared in [ACCEPTANCE.md](ACCEPTANCE.md).
+
+## Next Phase
+
+`Final Sprint 2.4 App UAT` — then Phase 2 closeout.
 
 Canonical supporting docs:
 

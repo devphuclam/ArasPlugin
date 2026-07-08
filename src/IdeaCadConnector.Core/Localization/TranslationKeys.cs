@@ -681,5 +681,32 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryStatusOpenInArasFailed = "LibraryStatusOpenInArasFailed";
         public const string LibraryStatusLoadingDetails = "LibraryStatusLoadingDetails";
         public const string LibraryStatusDetailLoadFailed = "LibraryStatusDetailLoadFailed";
+
+        // Sprint 2.4 - Filter and Sort
+        public const string LibraryFilterAllEntryStatuses = "LibraryFilterAllEntryStatuses";
+        public const string LibraryFilterEntryStatusDraft = "LibraryFilterEntryStatusDraft";
+        public const string LibraryFilterEntryStatusPendingReview = "LibraryFilterEntryStatusPendingReview";
+        public const string LibraryFilterEntryStatusPublished = "LibraryFilterEntryStatusPublished";
+        public const string LibraryFilterEntryStatusDeprecated = "LibraryFilterEntryStatusDeprecated";
+        public const string LibraryFilterAllCadStatuses = "LibraryFilterAllCadStatuses";
+        public const string LibraryFilterCadStatusAvailable = "LibraryFilterCadStatusAvailable";
+        public const string LibraryFilterCadStatusNoCad = "LibraryFilterCadStatusNoCad";
+        public const string LibraryFilterCadStatusNoNativeFile = "LibraryFilterCadStatusNoNativeFile";
+        public const string LibraryFilterCadStatusLookupUnavailable = "LibraryFilterCadStatusLookupUnavailable";
+        public const string LibrarySortByItemNumber = "LibrarySortByItemNumber";
+        public const string LibrarySortByName = "LibrarySortByName";
+        public const string LibrarySortByEntryStatus = "LibrarySortByEntryStatus";
+        public const string LibrarySortByRevisionPolicy = "LibrarySortByRevisionPolicy";
+        public const string LibrarySortByCadStatus = "LibrarySortByCadStatus";
+        public const string LibrarySortByUsageCount = "LibrarySortByUsageCount";
+        public const string LibrarySortByLastUsedOn = "LibrarySortByLastUsedOn";
+        public const string LibrarySortDirectionAscending = "LibrarySortDirectionAscending";
+        public const string LibrarySortDirectionDescending = "LibrarySortDirectionDescending";
+        public const string LibraryCadStatusNoCad = "LibraryCadStatusNoCad";
+        public const string LibraryCadStatusAvailable = "LibraryCadStatusAvailable";
+        public const string LibraryCadStatusNoNative = "LibraryCadStatusNoNative";
+        public const string LibraryCadLookupUnavailable = "LibraryCadLookupUnavailable";
+        public const string LibraryStatusServerUnavailable = "LibraryStatusServerUnavailable";
+        public const string LibraryStatusOperationCancelled = "LibraryStatusOperationCancelled";
     }
 }

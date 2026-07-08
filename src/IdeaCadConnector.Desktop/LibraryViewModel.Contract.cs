@@ -56,6 +56,16 @@ namespace IdeaCadConnector.Desktop
         bool CanArchiveSelectedLibrary { get; }
         bool CanAddEntryToSelectedLibrary { get; }
         bool CanUsePartPicker { get; }
+
+        ObservableCollection<string> EntryStatusFilters { get; }
+        ObservableCollection<string> CadStatusFilters { get; }
+        ObservableCollection<string> SortOptions { get; }
+        string SelectedEntryStatusFilter { get; set; }
+        string SelectedCadStatusFilter { get; set; }
+        string SelectedSortOption { get; set; }
+        string SelectedSortDirection { get; set; }
+        ObservableCollection<string> SortDirections { get; }
+        bool HasSortDirections { get; }
     }
 
     public sealed class PartLibrarySummaryRow

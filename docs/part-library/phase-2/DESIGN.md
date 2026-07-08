@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted; Sprint 2.4 filters/sort/hardening implemented)
 
 ## Objective
 
@@ -79,8 +79,18 @@ Sprint 2.3 UI wiring now adds:
 The repository still does **not** yet provide:
 
 - Library restore flows;
-- real CAD/BOM/Revisions detail tabs (`WS7`);
-- advanced entry filters and hardening beyond Sprint 2.1 (`WS8`).
+- real CAD/BOM/Revisions detail tabs against live Aras data (`WS7`).
+
+The repository now **adds** in Sprint 2.4:
+
+- Entry Status filter: All / Draft / PendingReview / Published / Deprecated
+- CAD Status filter: All / Available / No CAD / No native file / CAD lookup unavailable
+- Text search hardening (existing)
+- Sorting: 7 columns with Ascending/Descending
+- Detail status UX hardening (loading, permission denied, server unavailable, cancelled)
+- Command state regression verification
+- 25 new localization keys (en-US, vi-VN, ja-JP)
+- 11 new focused tests
 
 ## Sprint 2.1 UAT Closeout Evidence
 

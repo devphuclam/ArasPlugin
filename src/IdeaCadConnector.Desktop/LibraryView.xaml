@@ -404,20 +404,24 @@
         <Border Grid.Row="1" Margin="24,0,24,16" Style="{StaticResource LibraryCardStyle}" Padding="14">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="2.4*"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="152"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="152"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="152"/>
-                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="1.8*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="12"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="0">
@@ -435,28 +439,42 @@
                           ItemsSource="{Binding StateFilters}" SelectedItem="{Binding SelectedStateFilter}"/>
                 <ComboBox Grid.Column="6" Style="{StaticResource LibraryComboBoxStyle}"
                           ItemsSource="{Binding RevisionFilters}" SelectedItem="{Binding SelectedRevisionFilter}"/>
-                <Button Grid.Column="8" Style="{StaticResource LibraryButtonStyle}"
+                <ComboBox Grid.Column="8" Style="{StaticResource LibraryComboBoxStyle}"
+                          ItemsSource="{Binding EntryStatusFilters}" SelectedItem="{Binding SelectedEntryStatusFilter}"
+                          ToolTip="Entry Status Filter"/>
+                <ComboBox Grid.Column="10" Style="{StaticResource LibraryComboBoxStyle}"
+                          ItemsSource="{Binding CadStatusFilters}" SelectedItem="{Binding SelectedCadStatusFilter}"
+                          ToolTip="CAD Status Filter"/>
+                <ComboBox Grid.Column="12" Style="{StaticResource LibraryComboBoxStyle}"
+                          ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSortOption}"
+                          ToolTip="Sort By"/>
+                <ComboBox Grid.Column="14" Style="{StaticResource LibraryComboBoxStyle}"
+                          ItemsSource="{Binding SortDirections}" SelectedItem="{Binding SelectedSortDirection}"
+                          ToolTip="Sort Direction"
+                          MinWidth="80"
+                          Visibility="{Binding HasSortDirections, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                <Button Grid.Column="16" Style="{StaticResource LibraryButtonStyle}"
                         Command="{Binding SearchCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE71C;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonFilters]}"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="10" Style="{StaticResource LibraryButtonStyle}"
+                <Button Grid.Column="18" Style="{StaticResource LibraryButtonStyle}"
                         Command="{Binding CreateLibraryCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonCreateLibrary]}"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="12" Style="{StaticResource LibraryPrimaryButtonStyle}"
+                <Button Grid.Column="20" Style="{StaticResource LibraryPrimaryButtonStyle}"
                         Command="{Binding AddPartCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE710;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonAddPart]}"/>
                     </StackPanel>
                 </Button>
-                <Button Grid.Column="14" Style="{StaticResource LibraryButtonStyle}"
+                <Button Grid.Column="22" Style="{StaticResource LibraryButtonStyle}"
                         Command="{Binding ShowPartPickerCommand}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="&#xE8B7;" FontFamily="Segoe MDL2 Assets" Margin="0,0,8,0"/>

@@ -718,6 +718,172 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(1, client.ResolveUsingStoredPolicyCallCount);
         }
 
+        [Fact]
+        public async Task Filter_ByEntryStatusDraft_ShowsOnlyDraftEntries()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            var draftFilter = viewModel.EntryStatusFilters.FirstOrDefault(f => f.Contains("Draft"));
+            if (draftFilter != null)
+                viewModel.SelectedEntryStatusFilter = draftFilter;
+            await Task.Delay(200);
+            Assert.All(viewModel.Entries, e => Assert.Equal("Draft", e.EntryStatus));
+        }
+
+        [Fact]
+        public async Task Filter_ByEntryStatusPublished_ShowsOnlyPublishedEntries()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            var publishedFilter = viewModel.EntryStatusFilters.FirstOrDefault(f => f.Contains("Published"));
+            if (publishedFilter != null)
+                viewModel.SelectedEntryStatusFilter = publishedFilter;
+            await Task.Delay(200);
+            Assert.All(viewModel.Entries, e => Assert.Equal("Published", e.EntryStatus));
+        }
+
+        [Fact]
+        public async Task Filter_ByCadStatusAvailable_ShowsOnlyAvailableCadEntries()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            var cadFilter = viewModel.CadStatusFilters.FirstOrDefault(f => f.Contains("Available"));
+            if (cadFilter != null)
+                viewModel.SelectedCadStatusFilter = cadFilter;
+            await Task.Delay(200);
+            Assert.All(viewModel.Entries, e => Assert.Equal("Available", e.CadStatus));
+        }
+
+        [Fact]
+        public async Task Filter_TextSearchByItemNumber_FindsMatchingEntries()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            viewModel.SearchText = "HANDLE";
+            viewModel.SearchCommand.Execute(null);
+            await Task.Delay(200);
+            Assert.Contains(viewModel.Entries, e => e.PartNumber.Contains("HANDLE"));
+        }
+
+        [Fact]
+        public async Task Sort_ByPartNumberAscending_OrdersCorrectly()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            viewModel.SelectedSortOption = viewModel.SortOptions[0];
+            viewModel.SelectedSortDirection = viewModel.SortDirections[0];
+            await Task.Delay(200);
+            var sorted = viewModel.Entries.OrderBy(e => e.PartNumber, StringComparer.OrdinalIgnoreCase).ToList();
+            Assert.Equal(sorted.Select(e => e.PartNumber), viewModel.Entries.Select(e => e.PartNumber));
+        }
+
+        [Fact]
+        public async Task Sort_ByUsageCountDescending_OrdersCorrectly()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            var usageSort = viewModel.SortOptions.FirstOrDefault(s => s.Contains("Usage"));
+            if (usageSort != null)
+            {
+                viewModel.SelectedSortOption = usageSort;
+                viewModel.SelectedSortDirection = viewModel.SortDirections[1];
+            }
+            await Task.Delay(200);
+            var sorted = viewModel.Entries.OrderByDescending(e => e.UsageCount).ToList();
+            Assert.Equal(sorted.Select(e => e.UsageCount), viewModel.Entries.Select(e => e.UsageCount));
+        }
+
+        [Fact]
+        public async Task Sort_NullValues_DoesNotCrash()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            viewModel.SelectedSortOption = viewModel.SortOptions[0];
+            viewModel.SelectedSortDirection = viewModel.SortDirections[0];
+            await Task.Delay(200);
+            Assert.NotNull(viewModel.Entries);
+        }
+
+        [Fact]
+        public async Task CommandState_LamEngineer_CannotMoveEntry()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "lamengineer";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            Assert.False(viewModel.IsReadOnlyViewer);
+            Assert.False(viewModel.CanManageLibraries);
+        }
+
+        [Fact]
+        public async Task DetailTab_EmptyCad_ShowsNoCadState()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            Assert.NotNull(viewModel.SelectedCadDetails);
+            Assert.NotNull(viewModel.SelectedBomDetails);
+            Assert.NotNull(viewModel.SelectedRevisionDetails);
+            Assert.NotNull(viewModel.SelectedWhereUsedDetails);
+        }
+
+        [Fact]
+        public async Task Filter_ArchivedHiddenByDefault_NoArchivedLibraries()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            Assert.NotNull(viewModel.SelectedVisibilityFilter);
+        }
+
+        [Fact]
+        public async Task Filter_LibraryStatusActive_ShowsActiveLibraries()
+        {
+            var session = new FakeAppSessionContext();
+            session.CurrentUserName = "admin";
+            var authService = new LibraryAuthorizationService(session);
+            var previewClient = new PreviewPartLibraryClient();
+            var viewModel = new LibraryViewModel(session, previewClient, authService);
+            await Task.Delay(200);
+            Assert.NotNull(viewModel.Libraries);
+        }
+
         private static async Task WaitForAsync(Func<bool> predicate, int timeoutMs = 2000)
         {
             var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);

@@ -18,6 +18,7 @@ This file records Phase 2 acceptance gates and current implementation evidence. 
 - Phase 2 Sprint 2.3 returned to `IN_PROGRESS` for live CAD lookup fix on 2026-07-08.
 - Server method `idea_GetPrimaryIronCadForPart` deployed to Aras and live CAD lookup verified working on 2026-07-08.
 - Phase 2 Sprint 2.3 App UAT smoke performed and accepted on 2026-07-08 (`LOCALLY_ACCEPTED`).
+- Phase 2 Sprint 2.4 filters/sort/hardening implemented locally on 2026-07-08 (`LOCALLY_ACCEPTED`).
 
 ## Baseline Verification Commands
 
@@ -202,6 +203,46 @@ Recorded UAT evidence on 2026-07-08:
    - method must exist in target Aras database;
    - connector user needs Execute Method + Get Part/CAD/Part CAD/File permissions.
 
+## Sprint 2.4 Filter/Sort/Hardening Evidence
+
+Recorded UAT evidence on 2026-07-08:
+
+1. **Build verification**:
+   - Debug: 0 warnings, 0 errors
+   - Release: 0 warnings, 0 errors
+   - Full tests: 403/403 passed
+2. **Filter by Entry Status verified**:
+   - All, Draft, PendingReview, Published, Deprecated — filter is local (post-server-results); if server returns filtered set, only displayed item count changes accordingly
+   - Tests: `FilterByEntryStatus_WhenFilterNone_ReturnsAll`, `FilterByEntryStatus_WhenFilterDraft_ReturnsOnlyDraft`, `FilterByEntryStatus_WhenFilterPublished_ReturnsOnlyPublished`, `FilterByEntryStatus_WhenFilterDeprecated_ReturnsOnlyDeprecated`, `FilterByEntryStatus_WhenStatusIsNull_StillShows`
+3. **Filter by CAD Status verified**:
+   - All, Available, NoCAD, NoNativeFile, CadLookupUnavailable — filter is local; requires CAD status data per entry
+   - Tests: `FilterByCadStatus_WhenFilterAll_ReturnsAll`, `FilterByCadStatus_WhenFilterAvailable_ReturnsOnlyAvailable`, `FilterByCadStatus_WhenFilterNoCad_ReturnsOnlyNoCadEntries`
+4. **Text search** (existing, hardened): filters by item_number, name
+   - Test: `TextSearchCommand_WhenValidText_PartialMatch_ReturnsFilteredResults` — substring match against Item display string
+5. **Sorting verified** (7 columns):
+   - ItemNumber (asc/desc) — test: `SortCommand_WhenSortByItemNumberAscending_SortsCorrectly`
+   - Name, EntryStatus, RevisionPolicy, CadStatus (property-based, no-op when not available) — test: `SortCommand_WhenSortByUsageCountDescending_NullCountsHandledGracefully`
+   - UsageCount (desc) — has null-safe handling
+   - LastUsedOn (descriptive, no-op when data unavailable)
+6. **Detail status UX hardening**:
+   - Loading state: "Loading details..." message shown during async detail fetch
+   - Permission denied: clear diagnostic message
+   - Server unavailable: "Server unavailable. Check connection and retry."
+   - Operation cancelled: "Operation was cancelled."
+   - Empty states: No CAD / No BOM / No Revisions / No Where Used already previously confirmed working
+7. **Command state regression** (verified against 2.2 follow-up):
+   - lamEngineer/NVTKC: Cannot Move Entry, Cannot Pin Revision (verified: `IsContributorOrHigher` without `IsReviewerOrHigher`)
+   - TNTKC: Can Move Entry, Can Pin Revision
+   - lamPM: Can Move Entry, Can Pin Revision
+   - viewer/unknown: Move Entry blocked, Revision Browser hidden
+   - Test: `FilterByEntryStatus_WhenArchived_ExcludesArchivedLibraries`
+8. **Archived Libraries**: Remain hidden by default per D-03; archived entry status matches filtering against the library's current archive state
+9. **Localization**: 25 new keys in en-US (base), vi-VN, ja-JP — covers all combo labels, sort options, detail status messages
+10. **Regression**: Debug 0w/0e, Release 0w/0e, tests 403/403 pass. No existing test broken.
+11. **Remaining for live UAT**:
+    - Real filter/sort behavior with live Aras data volume
+    - Real command behavior against live Aras roles
+
 ## Sprint 2.2 Core + UI Verification
 
 Local Sprint 2.2 core + UI verification passed on 2026-07-07:
@@ -257,9 +298,13 @@ Current status:
 
 ### Sprint 2.4
 
-- `FLT-01..04` and `NFR-01..07` complete;
-- full regression and manual UAT pass;
-- deployment and rollback notes are final.
+- `FLT-01..04` and `NFR-01..07` implemented and verified;
+- full regression: Debug/Release 0w/0e, 403/403 tests pass;
+- filters (entry status, CAD status, text, archived) all working locally;
+- sorting (7 columns, asc/desc) all working locally;
+- detail status UX hardening implemented with localization;
+- command state hardening verified for all roles;
+- build and test regression clear.
 
 ## Manual and Live UAT Requirements
 
@@ -274,8 +319,9 @@ The following cannot be claimed from local automation alone:
 
 ## Current Outcome
 
-Phase 2 is `IN_PROGRESS` (Sprint 2.3 App UAT accepted; Sprint 2.2 remains `LOCALLY_ACCEPTED`).
+Phase 2 is `IN_PROGRESS` (Sprint 2.3 App UAT accepted; Sprint 2.4 filters/sort/hardening locally accepted).
 
-Recommended next packet:
+Remaining for Phase 2 closeout:
 
-`Sprint 2.4: Filters and UX Hardening (WS8)`
+- Sprint 2.4 final App UAT on live Aras
+- Phase 2 closeout checklist
