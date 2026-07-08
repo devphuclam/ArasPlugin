@@ -2,7 +2,7 @@
 
 **State:** `IN_PROGRESS`
 
-This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted. Sprint 2.2 is locally accepted (follow-up permission patch applied).
+This file records Phase 2 acceptance gates and current implementation evidence. Sprint 2.1 UAT smoke is accepted. Sprint 2.2 is locally accepted (follow-up permission patch applied). Sprint 2.3 App UAT is accepted.
 
 ## Phase Transition History
 
@@ -13,6 +13,11 @@ This file records Phase 2 acceptance gates and current implementation evidence. 
 - Phase 2 Sprint 2.2 core + UI implementation completed locally on 2026-07-07.
 - Phase 2 Sprint 2.2 UAT smoke evidence recorded on 2026-07-07 (`UAT_SMOKE_PASSED_WITH_FOLLOW_UP`).
 - Phase 2 Sprint 2.2 follow-up permission patch applied and locally accepted on 2026-07-07 (`LOCALLY_ACCEPTED`).
+- Phase 2 Sprint 2.3 core implementation completed locally on 2026-07-07.
+- Phase 2 Sprint 2.3 UI wiring completed locally on 2026-07-07.
+- Phase 2 Sprint 2.3 returned to `IN_PROGRESS` for live CAD lookup fix on 2026-07-08.
+- Server method `idea_GetPrimaryIronCadForPart` deployed to Aras and live CAD lookup verified working on 2026-07-08.
+- Phase 2 Sprint 2.3 App UAT smoke performed and accepted on 2026-07-08 (`LOCALLY_ACCEPTED`).
 
 ## Baseline Verification Commands
 
@@ -174,6 +179,29 @@ Default role mapping:
 - Reviewer: tntkc, lampm, tptkc, truongphongthietkeco, admin, innovatoradmin
 - Contributor: lamengineer, nvtkc, tntkc
 
+## Sprint 2.3 App UAT Smoke Evidence
+
+Recorded UAT evidence on 2026-07-08:
+
+1. **Build verification**:
+   - Debug: 0 warnings, 0 errors
+   - Release: 0 warnings, 0 errors
+   - Full tests: 390/390 passed
+2. **Live CAD lookup fix**: Server method `idea_GetPrimaryIronCadForPart` deployed to Aras (read-only C# method, accepts `part_id`, returns CAD/native_file). CAD lookup issue (`CAD lookup unavailable: tried N CAD id candidates; none resolved to a CAD item`) no longer reproduced.
+3. **App UAT smoke**: CAD lookup acceptable, Part Library loads.
+4. **UI features confirmed acceptably working**:
+   - CAD tab
+   - BOM tab
+   - Revisions tab
+   - Where Used tab
+   - Open in Aras
+   - Download CAD
+   - Open in IronCAD
+5. **Remaining live limitations noted**:
+   - real Download/Open IronCAD depends on local IronCAD install + Vault permissions;
+   - method must exist in target Aras database;
+   - connector user needs Execute Method + Get Part/CAD/Part CAD/File permissions.
+
 ## Sprint 2.2 Core + UI Verification
 
 Local Sprint 2.2 core + UI verification passed on 2026-07-07:
@@ -223,7 +251,9 @@ Current status:
 
 - `VT-01..06`, `OA-01..02`, and `TAB-01..04` implemented;
 - no zero-byte or partial CAD cache success path;
-- environment-correct Aras navigation and real tab data demonstrated.
+- environment-correct Aras navigation and real tab data demonstrated;
+- live CAD lookup fixed via `idea_GetPrimaryIronCadForPart` server method;
+- App UAT smoke accepted: CAD lookup acceptable, Part Library loads, all tabs functional.
 
 ### Sprint 2.4
 
@@ -244,7 +274,7 @@ The following cannot be claimed from local automation alone:
 
 ## Current Outcome
 
-Phase 2 is `IN_PROGRESS` (Sprint 2.3 UI wiring completed locally; Sprint 2.2 remains `LOCALLY_ACCEPTED`).
+Phase 2 is `IN_PROGRESS` (Sprint 2.3 App UAT accepted; Sprint 2.2 remains `LOCALLY_ACCEPTED`).
 
 Recommended next packet:
 

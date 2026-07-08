@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 UI wiring completed locally; 346/346 tests pass)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted; 390/390 tests pass)
 
 ## Objective
 
@@ -66,7 +66,7 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 |---|---|---|---|
 | `2.1` | `WS1` + `WS2` | UAT smoke accepted |
 | `2.2` | `WS3` + `WS4` | locally accepted |
-| `2.3` | `WS5` + `WS6` + `WS7` | core implemented |
+| `2.3` | `WS5` + `WS6` + `WS7` | App UAT accepted |
 | `2.4` | `WS8` + hardening/UAT prep | not started |
 
 ## Sprint 2.1 Completion Evidence
@@ -193,6 +193,22 @@ Completed locally:
 - localization keys were added for English, Vietnamese, and Japanese.
 - focused unit tests cover routing, safe launch behavior, and empty-state refresh behavior.
 
+## Sprint 2.3 App UAT Smoke Evidence
+
+Recorded closeout evidence:
+
+- Build: Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors.
+- Full tests: 390/390 passed.
+- Server method `idea_GetPrimaryIronCadForPart` deployed to Aras (read-only C# method, accepts `part_id`, returns CAD/native_file — no mutation).
+- Live CAD lookup issue (`CAD lookup unavailable: tried N CAD id candidates; none resolved to a CAD item`) no longer reproduced after method deployment.
+- App UAT smoke performed: CAD lookup acceptable, Part Library loads.
+- Sprint 2.3 UI features confirmed: CAD tab, BOM tab, Revisions tab, Where Used tab, Open in Aras, Download CAD, Open in IronCAD.
+
+Remaining live limitations:
+
+- real Download/Open IronCAD depends on local IronCAD install + Vault permissions;
+- method must exist in target Aras database;
+- connector user needs Execute Method + Get Part/CAD/Part CAD/File permissions.
 
 ## Next Sprint
 

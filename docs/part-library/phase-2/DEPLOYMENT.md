@@ -1,6 +1,6 @@
 # Part Library Phase 2 Deployment
 
-**State:** `IN_PROGRESS`
+**State:** `IN_PROGRESS` (Sprint 2.3 App UAT accepted)
 
 This document records deployment assumptions and live-system dependencies for Phase 2. It is not a claim that any Phase 2 change has been deployed.
 
@@ -23,6 +23,8 @@ This document records deployment assumptions and live-system dependencies for Ph
   - `idea_SyncPartLibraryEntryStatus`
 - Lifecycle event:
   - `idea_PartLibraryEntry` `OnAfterPromote` -> `idea_SyncPartLibraryEntryStatus`
+- Server Methods (Sprint 2.3 addition):
+  - `idea_GetPrimaryIronCadForPart` — read-only C# method deployed 2026-07-08; accepts `part_id` (string), returns CAD item with native file; resolves primary CAD for a given Part ID; no mutation.
 
 Phase 2 must not rename or rebuild these artifacts just to match the package wording.
 
@@ -100,4 +102,4 @@ All decisions D-01 through D-06 are APPROVED as of 2026-07-06. No unresolved dec
 
 ## Current Planning Outcome
 
-Phase 2 is `IN_PROGRESS`. Sprint 2.3 UI wiring is application-side only. Deployment remains a design-time topic for the current packet. No additional Aras ItemType, Method, permission, lifecycle, or Vault configuration change is approved by this document.
+Phase 2 is `IN_PROGRESS`. Sprint 2.3 App UAT accepted. Server method `idea_GetPrimaryIronCadForPart` deployed to Aras for live CAD lookup. No additional Aras ItemType, permission, lifecycle, or Vault configuration change is approved by this document.

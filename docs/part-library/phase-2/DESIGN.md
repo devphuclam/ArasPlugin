@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 UI wiring completed locally)
+**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted)
 
 ## Objective
 
@@ -133,7 +133,7 @@ Remaining live limitations:
 - role mapping is username/config based for UAT;
 - future hardening should use Aras Identity membership;
 - full customer/external viewer UAT remains pending unless tested;
-- Sprint 2.3 has completed locally, but live UAT remains pending.
+- Sprint 2.3 App UAT accepted: CAD lookup acceptable, Part Library loads, all tabs functional.
 
 ## Approved Decisions
 
