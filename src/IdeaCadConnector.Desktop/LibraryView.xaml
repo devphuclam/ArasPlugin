@@ -486,7 +486,7 @@
 
             <Grid Grid.Row="2" Margin="24,0,24,12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="238"/>
+                <ColumnDefinition Width="280"/>
                 <ColumnDefinition Width="16"/>
                 <ColumnDefinition Width="*" MinWidth="520"/>
                 <ColumnDefinition Width="16"/>
@@ -496,26 +496,30 @@
             <Border Grid.Column="0" Style="{StaticResource LibraryCardStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="58"/>
+                        <RowDefinition Height="86"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Margin="16,0">
+                    <Grid Grid.Row="0" Margin="16,12,16,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
                             <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryLibrariesHeader]}" FontSize="16" FontWeight="Bold"
                                        VerticalAlignment="Center" Foreground="{StaticResource LibraryTextBrush}"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonEditLibrary]}"
                                         Command="{Binding EditLibraryCommand}"
-                                        Margin="0,0,4,0"
+                                        Margin="0,0,8,0"
                                         Foreground="{StaticResource LibraryPrimaryBrush}"
                                         Background="Transparent" BorderThickness="0" FontWeight="SemiBold" FontSize="12"/>
                                 <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonArchiveLibrary]}"
                                         Command="{Binding ArchiveLibraryCommand}"
-                                        Margin="0,0,4,0"
+                                        Margin="0,0,8,0"
                                         Foreground="#B91C1C"
                                         Background="Transparent" BorderThickness="0" FontWeight="SemiBold" FontSize="12"/>
                                 <Button Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryButtonNew]}" Command="{Binding CreateLibraryCommand}"
@@ -523,13 +527,13 @@
                                         Background="Transparent" BorderThickness="0" FontWeight="SemiBold" FontSize="12"/>
                             </StackPanel>
                         </Grid>
-                        <ComboBox Grid.Row="1" Margin="0,8,0,0" Height="36"
+                        <ComboBox Grid.Row="1" Margin="0,12,0,0" Height="38"
                                   Style="{StaticResource LibraryComboBoxStyle}"
                                   ItemsSource="{Binding VisibilityFilters}"
                                   SelectedItem="{Binding SelectedVisibilityFilter}"
                                   FontSize="12"/>
                     </Grid>
-                    <Grid Grid.Row="1" Margin="8">
+                    <Grid Grid.Row="1" Margin="10,0,10,10">
                         <ListBox ItemsSource="{Binding Libraries}"
                                  SelectedItem="{Binding SelectedLibrary}"
                                  BorderThickness="0" Background="Transparent"
@@ -561,15 +565,39 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <Border Background="#F7F9FD"
+                        <Border Background="#00FFFFFF"
                                 Visibility="{Binding ShowLibrariesOverlay, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <TextBlock Text="{Binding LibrariesOverlayMessage}"
-                                       Margin="16"
-                                       TextWrapping="Wrap"
-                                       Foreground="{StaticResource LibraryMutedBrush}"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Center"
-                                       TextAlignment="Center"/>
+                            <Border Width="210"
+                                    Padding="18"
+                                    CornerRadius="10"
+                                    Background="#F7F9FD"
+                                    BorderBrush="#E3EAF5"
+                                    BorderThickness="1"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center">
+                                <StackPanel>
+                                    <Border Width="38"
+                                            Height="38"
+                                            CornerRadius="19"
+                                            Background="{StaticResource LibraryPrimarySoftBrush}"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,0,0,12">
+                                        <TextBlock Text="&#xE72E;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="17"
+                                                   Foreground="{StaticResource LibraryPrimaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding LibrariesOverlayMessage}"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource LibraryMutedBrush}"
+                                               FontSize="12"
+                                               LineHeight="17"
+                                               HorizontalAlignment="Center"
+                                               TextAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
                         </Border>
                     </Grid>
                 </Grid>
