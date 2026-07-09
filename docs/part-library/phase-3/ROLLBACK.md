@@ -18,7 +18,7 @@ Sprint 3.1 does not change live Aras. If the required method is newly deployed f
 2. Confirm Part Library CAD lookup returns the expected missing-method error.
 3. Restore the previous app package if needed.
 
-No ItemType, lifecycle, workflow, relationship, CAD, Part, File, or Vault data is changed by Sprint 3.1, Sprint 3.2, or Sprint 3.3.
+No ItemType, lifecycle, workflow, relationship, CAD, Part, File, or Vault data is changed by Sprint 3.1, Sprint 3.2, Sprint 3.3, or Sprint 3.4.
 
 ## Package Validation
 

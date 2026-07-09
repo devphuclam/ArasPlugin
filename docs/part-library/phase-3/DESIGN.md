@@ -100,6 +100,20 @@ Sprint 3.3 adds practical handoff docs and a validation script:
 - **Package validation script**: `tools/release/validate-release-package.ps1` — validates structure, files, config, forbidden content, secrets; returns exit code
 - **Packaging**: all Sprint 3.3 docs included in release zip under `docs/`; validation script under `tools/`
 
+## Production Release Readiness (Sprint 3.4)
+
+Sprint 3.4 adds final release-readiness documentation and a verification script. No source code changes.
+
+- **Production readiness doc**: summarizes all prerequisites, package contents, security policy, escalation path, and final decision form
+- **Go/No-Go checklist**: 10-section checklist covering build/test, package, Aras, roles, machine, security, rollback, limitations, and sign-offs
+- **Release sign-off template**: fillable form for tracking sign-off decisions
+- **Release manifest**: authoritative list of all package contents, exclusions, and sprint acceptance history
+- **Known limitations doc**: centralized list of accepted limitations
+- **Phase 3 closeout plan**: remaining steps before marking Phase 3 COMPLETE
+- **Release verification script**: `tools/release/verify-release-readiness.ps1` — runs build, test, package, validate in sequence
+- **Packaging**: Sprint 3.4 docs included in release zip under `docs/`; verification script under `tools/`
+- **Validation**: Sprint 3.4 docs and scripts verified by updated validation script
+
 ## Risks
 
 - The package is a zip, not an installer; users need manual extraction guidance.

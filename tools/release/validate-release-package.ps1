@@ -129,7 +129,13 @@ try {
         "docs\MACHINE-READINESS.md",
         "docs\TROUBLESHOOTING.md",
         "docs\INTERNAL-UAT-RESULT-TEMPLATE.md",
-        "docs\IT-HANDOFF.md"
+        "docs\IT-HANDOFF.md",
+        "docs\PRODUCTION-READINESS.md",
+        "docs\GO-NO-GO-CHECKLIST.md",
+        "docs\RELEASE-SIGNOFF-TEMPLATE.md",
+        "docs\RELEASE-MANIFEST-v0.3.0-rc1.md",
+        "docs\KNOWN-LIMITATIONS.md",
+        "docs\PHASE-3-CLOSEOUT-PLAN.md"
     )
     foreach ($doc in $requiredDocs) {
         $path = Join-Path $packageRoot $doc
@@ -146,6 +152,14 @@ try {
         Write-Result "tools\validate-release-package.ps1" "PASS" "Exists"
     } else {
         Write-Result "tools\validate-release-package.ps1" "FAIL" "Not found"
+    }
+
+    # --- Verification script in package ---
+    $verificationScriptPath = Join-Path $packageRoot "tools\verify-release-readiness.ps1"
+    if (Test-Path -LiteralPath $verificationScriptPath) {
+        Write-Result "tools\verify-release-readiness.ps1" "PASS" "Exists"
+    } else {
+        Write-Result "tools\verify-release-readiness.ps1" "FAIL" "Not found"
     }
 
     # --- Checksums ---

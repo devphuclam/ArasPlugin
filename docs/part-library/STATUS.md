@@ -205,8 +205,26 @@ Sprint 3.3 adds installation hardening docs, a package validation script, a trou
 
 **Sprint 3.3 accepted** on 2026-07-09.
 
-### Sprint 3.4
+### Sprint 3.4 — Production Release Readiness
 
-**Status:** `NOT STARTED`
+**Status:** `IMPLEMENTED_LOCALLY`
 
-Production Release Readiness.
+Sprint 3.4 adds final release-readiness documentation, checklists, and a release verification script.
+
+**Implemented:**
+
+- **PRODUCTION-READINESS.md**: Package identity, build/test baseline, Aras/machine prerequisites, package contents, no-secrets policy, rollback, escalation, final decision form
+- **GO-NO-GO-CHECKLIST.md**: 10-section checklist (build/test, package integrity, Aras readiness, role readiness, machine readiness, security, rollback, known limitations, business sign-off, IT sign-off)
+- **RELEASE-SIGNOFF-TEMPLATE.md**: Fillable sign-off form with release info, tester info, decision, accepted limitations, required follow-up, sign-off table
+- **RELEASE-MANIFEST-v0.3.0-rc1.md**: Complete manifest of version, package, source commit, checksums, app, Aras method, docs, scripts, exclusions, build/test baseline, sprint acceptance summary
+- **KNOWN-LIMITATIONS.md**: Installer, config wiring, IronCAD, CAD download, permissions, restore flow, production rollout, role mapping
+- **PHASE-3-CLOSEOUT-PLAN.md**: Remaining steps before Phase 3 COMPLETE (UAT, validation, go/no-go, closeout, optional tag)
+- **verify-release-readiness.ps1**: Runs build, test, package, validate in sequence; prints PASS/FAIL summary; returns exit code
+- **Package script updated**: Includes all Sprint 3.4 docs and verification script
+- **Validation script updated**: Checks for Sprint 3.4 docs and verification script
+
+**Build:** Pending verification
+
+**Tests:** Pending verification
+
+**UAT:** Not yet accepted

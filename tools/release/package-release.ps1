@@ -103,12 +103,28 @@ Copy-RequiredFile (Join-Path $phase3Docs "TROUBLESHOOTING.md") (Join-Path $docsD
 Copy-RequiredFile (Join-Path $phase3Docs "INTERNAL-UAT-RESULT-TEMPLATE.md") (Join-Path $docsDir "INTERNAL-UAT-RESULT-TEMPLATE.md")
 Copy-RequiredFile (Join-Path $phase3Docs "IT-HANDOFF.md") (Join-Path $docsDir "IT-HANDOFF.md")
 
+# Sprint 3.4 — Production readiness docs
+Copy-RequiredFile (Join-Path $phase3Docs "PRODUCTION-READINESS.md") (Join-Path $docsDir "PRODUCTION-READINESS.md")
+Copy-RequiredFile (Join-Path $phase3Docs "GO-NO-GO-CHECKLIST.md") (Join-Path $docsDir "GO-NO-GO-CHECKLIST.md")
+Copy-RequiredFile (Join-Path $phase3Docs "RELEASE-SIGNOFF-TEMPLATE.md") (Join-Path $docsDir "RELEASE-SIGNOFF-TEMPLATE.md")
+Copy-RequiredFile (Join-Path $phase3Docs "RELEASE-MANIFEST-v0.3.0-rc1.md") (Join-Path $docsDir "RELEASE-MANIFEST-v0.3.0-rc1.md")
+Copy-RequiredFile (Join-Path $phase3Docs "KNOWN-LIMITATIONS.md") (Join-Path $docsDir "KNOWN-LIMITATIONS.md")
+Copy-RequiredFile (Join-Path $phase3Docs "PHASE-3-CLOSEOUT-PLAN.md") (Join-Path $docsDir "PHASE-3-CLOSEOUT-PLAN.md")
+
 # Validation script
 $validationScript = Join-Path $repoRoot "tools\release\validate-release-package.ps1"
 if (Test-Path -LiteralPath $validationScript) {
     Copy-Item -LiteralPath $validationScript -Destination (Join-Path $toolsDir "validate-release-package.ps1") -Force
 } else {
     Write-Host "[WARNING] Validation script not found at $validationScript - will not be included in package"
+}
+
+# Verification script
+$verificationScript = Join-Path $repoRoot "tools\release\verify-release-readiness.ps1"
+if (Test-Path -LiteralPath $verificationScript) {
+    Copy-Item -LiteralPath $verificationScript -Destination (Join-Path $toolsDir "verify-release-readiness.ps1") -Force
+} else {
+    Write-Host "[WARNING] Verification script not found at $verificationScript - will not be included in package"
 }
 
 $commit = (git -C $repoRoot rev-parse HEAD).Trim()

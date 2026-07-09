@@ -72,6 +72,7 @@ After the tester extracts the zip, ask them to:
    powershell -ExecutionPolicy Bypass -File tools\validate-release-package.ps1 -PackagePath .\IdeaCadConnector-v0.3.0-rc1
    ```
 8. Fill in the UAT result template (INTERNAL-UAT-RESULT-TEMPLATE.md).
+9. Review the production readiness docs (PRODUCTION-READINESS.md, GO-NO-GO-CHECKLIST.md, KNOWN-LIMITATIONS.md).
 
 ## Rollback Steps
 

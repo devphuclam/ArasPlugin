@@ -48,6 +48,20 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 - Template: `docs/templates/IdeaCadConnector.environment.template.json` included in release package
 - Active config excluded from package by script validation
 
+## Sprint 3.4 Workstreams
+
+| ID | Workstream | Status |
+|---|---|---|
+| `WS3.4-A` | Production readiness doc | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-B` | Go/No-Go checklist | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-C` | Release sign-off template | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-D` | Release manifest | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-E` | Known limitations doc | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-F` | Phase 3 closeout plan | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-G` | Release verification script | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-H` | Packaging: include Sprint 3.4 docs/scripts | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-I` | Validation: check Sprint 3.4 docs/scripts | `IMPLEMENTED_LOCALLY` |
+
 ## Sprint 3.3 Workstreams
 
 | ID | Workstream | Status |
@@ -85,7 +99,7 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 | `3.1` | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
 | `3.2` | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
 | `3.3` | Internal Installation/UAT Hardening | `INTERNAL_INSTALLATION_PACKAGE_UAT_ACCEPTED` |
-| `3.4` | Production Release Readiness | `NOT STARTED` |
+| `3.4` | Production Release Readiness | `IMPLEMENTED_LOCALLY` |
 
 ## Sprint 3.1 Package UAT Result
 
@@ -202,3 +216,9 @@ Aras rollback is limited to disabling/removing the read-only method if it was ne
 - [Rollback](ROLLBACK.md)
 - [UAT Checklist](UAT-CHECKLIST.md)
 - [Release Notes v0.3.0-rc1](RELEASE-NOTES-v0.3.0-rc1.md)
+- [Production Readiness](PRODUCTION-READINESS.md)
+- [Go/No-Go Checklist](GO-NO-GO-CHECKLIST.md)
+- [Release Sign-Off Template](RELEASE-SIGNOFF-TEMPLATE.md)
+- [Release Manifest v0.3.0-rc1](RELEASE-MANIFEST-v0.3.0-rc1.md)
+- [Known Limitations](KNOWN-LIMITATIONS.md)
+- [Phase 3 Closeout Plan](PHASE-3-CLOSEOUT-PLAN.md)

@@ -1,0 +1,44 @@
+# Known Limitations and Accepted Risks
+
+## Installer
+
+- No MSI, ClickOnce, or auto-update system.
+- Manual zip extraction required.
+- User must manually create shortcuts.
+
+## Environment Configuration
+
+- Active config file is optional and non-secret only.
+- Config model is not fully wired to all runtime services.
+- See [ENVIRONMENT-CONFIGURATION.md](ENVIRONMENT-CONFIGURATION.md) for wiring status.
+
+## Open in IronCAD
+
+- Requires local IronCAD installation.
+- Requires IronCAD file association or configured executable path.
+- If IronCAD is not installed, Open in IronCAD is unavailable.
+
+## CAD Download
+
+- Depends on Aras Vault/File permissions.
+- Depends on network access to Vault server.
+- If user lacks Vault read permission, download fails.
+
+## Customer Visibility
+
+- Depends on Aras permissions on Part, CAD, Part CAD, File, and Library ItemTypes.
+- If permissions are insufficient, the customer sees empty or error states.
+
+## Library Restore
+
+- Library restore flows are not in scope.
+
+## Production Rollout
+
+- Production deployment has not been executed.
+- Phase 3 does not include production rollout unless explicitly decided later.
+
+## Role Mapping
+
+- Role matching is username/config-based.
+- Future hardening could use Aras Identity membership for more robust mapping.

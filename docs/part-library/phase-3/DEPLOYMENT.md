@@ -75,6 +75,20 @@ The method must not add, edit, promote, create relationships, upload files, or m
 
 Sprint 3.2 Config Package UAT accepted. Template `IdeaCadConnector.environment.template.json` included in package at `docs/templates/`. Active config excluded by script validation. No secrets in template. Role defaults correct. App launches without config and does not crash with config.
 
+## Sprint 3.4 Production Release Readiness
+
+Sprint 3.4 adds production readiness docs, checklists, and a release verification script. The release package now includes:
+
+- `docs/PRODUCTION-READINESS.md` — package identity, prerequisites, package contents, security policy, escalation, decision form
+- `docs/GO-NO-GO-CHECKLIST.md` — 10-section go/no-go decision checklist
+- `docs/RELEASE-SIGNOFF-TEMPLATE.md` — fillable release sign-off form
+- `docs/RELEASE-MANIFEST-v0.3.0-rc1.md` — authoritative release manifest
+- `docs/KNOWN-LIMITATIONS.md` — centralized known limitations and accepted risks
+- `docs/PHASE-3-CLOSEOUT-PLAN.md` — remaining steps before Phase 3 COMPLETE
+- `tools/verify-release-readiness.ps1` — release readiness verification script
+
+Phase 3 remains `IN_PROGRESS`. Sprint 3.4 UAT not yet accepted.
+
 ## Sprint 3.3 Internal Installation Package UAT
 
 **Sprint 3.3 Internal Installation Package UAT accepted** on 2026-07-09.

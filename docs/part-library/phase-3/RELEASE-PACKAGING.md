@@ -4,6 +4,8 @@ Sprint 3.2 Config Package UAT accepted. Template `IdeaCadConnector.environment.t
 
 Sprint 3.3 Internal Installation Package UAT accepted on 2026-07-09. Package `IdeaCadConnector-v0.3.0-rc1.zip` includes 5 new hardening docs, package validation script, and all prior content. See [ACCEPTANCE.md](ACCEPTANCE.md).
 
+Sprint 3.4 adds production readiness docs (PRODUCTION-READINESS, GO-NO-GO-CHECKLIST, RELEASE-SIGNOFF-TEMPLATE, RELEASE-MANIFEST, KNOWN-LIMITATIONS, PHASE-3-CLOSEOUT-PLAN) and a release verification script (verify-release-readiness.ps1). See [ACCEPTANCE.md](ACCEPTANCE.md).
+
 ## Script
 
 ```powershell
@@ -47,10 +49,17 @@ IdeaCadConnector-v0.3.0-rc1/
     TROUBLESHOOTING.md
     INTERNAL-UAT-RESULT-TEMPLATE.md
     IT-HANDOFF.md
+    PRODUCTION-READINESS.md
+    GO-NO-GO-CHECKLIST.md
+    RELEASE-SIGNOFF-TEMPLATE.md
+    RELEASE-MANIFEST-v0.3.0-rc1.md
+    KNOWN-LIMITATIONS.md
+    PHASE-3-CLOSEOUT-PLAN.md
     templates/
       IdeaCadConnector.environment.template.json
   tools/
     validate-release-package.ps1
+    verify-release-readiness.ps1
   checksums/
     SHA256SUMS.txt
   VERSION.txt
