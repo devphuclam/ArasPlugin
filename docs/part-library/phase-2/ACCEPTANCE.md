@@ -317,11 +317,64 @@ The following cannot be claimed from local automation alone:
 5. move/revision/CAD-detail behavior against real Aras data volume;
 6. no regression of Phase 1 live reuse and usage tracking.
 
+## Phase 2 Closeout Evidence
+
+### Final App UAT
+
+Performed on 2026-07-08 on actual organization Aras environment.
+
+| Area | Result | Evidence |
+|---|---|---|
+| Login/load Part Library | PASS | App login succeeded; Part Library screen opened |
+| Engineering Part Library loads | PASS | Library list loaded for authorized user |
+| Entry Status filter | PASS | All/Draft/PendingReview/Published/Deprecated filters work |
+| CAD Status filter | PASS | All/Available/No CAD/No native file/CAD lookup unavailable filters work |
+| Text search | PASS | Substring match by item_number and name |
+| Sorting | PASS | 7 columns with Asc/Desc all work |
+| CAD tab | PASS | CAD details load for entries with CAD |
+| BOM tab | PASS | BOM children load for entry's Part |
+| Revisions tab | PASS | Revision history loads |
+| Where Used tab | PASS | Where-used list loads |
+| CAD lookup via `idea_GetPrimaryIronCadForPart` | PASS | Read-only server method deployed and working |
+| Open Part/Entry/Library/CAD in Aras | PASS | Browser opens correct Innovator URL |
+| Download/Open CAD | ACCEPTED_ENV_DEPENDENT | Behavior depends on local IronCAD install + Vault permissions |
+| TPTKC permissions | PASS | Can manage Libraries, Move Entry, Pin Revision |
+| TNTKC permissions | PASS | Can Move Entry, Pin Revision |
+| NVTKC permissions | PASS | Cannot Move/Pin, can view/use Library |
+| NVLCR permissions | PASS | View-only |
+| PM permissions | PASS | View-only |
+| Khách hàng permissions | N/A | No live account available for this UAT session |
+| Negative states | PASS | Loading, permission denied, server unavailable, cancelled — all show correct messages |
+
+No screenshots committed to repository; retained externally by tester.
+
+### Final Role Matrix
+
+| ID | Official Title | Capability | Move Entry | Pin Revision | Library Admin |
+|---|---|---|---|---|---|
+| `TPTKC` | Trưởng phòng thiết kế cơ | Manager | Yes | Yes | Yes |
+| `TNTKC` | Trưởng nhóm thiết kế cơ | Reviewer | Yes | Yes | No |
+| `NVTKC` | Nhân viên thiết kế cơ | Contributor | No | No | No |
+| `NVLCR` | Nhân viên lắp ráp cơ | Assembly viewer | No | No | No |
+| `PM` | Quản lý dự án | Project viewer | No | No | No |
+| `Khách hàng` | Customer | External viewer | No | No | No |
+
+### Final Deployment Requirements
+
+- Server method: `idea_GetPrimaryIronCadForPart` (read-only C#)
+- Method behavior: accepts `part_id`, returns primary CAD/native_file — no mutation
+- Required permissions: Execute Method, Get Part, Get CAD, Get Part CAD relationship, Get File/native_file
+- Target Aras must have role identities: TPTKC, TNTKC, NVTKC, NVLCR, PM, Khách hàng
+
+### Summary
+
+- **Phase 2:** COMPLETE
+- **Closeout SHA:** `09688754cf0db4a0ef350d84409371b51765ea5c` (after Sprint 2.4 final live App UAT)
+- **Build:** Debug 0w/0e, Release 0w/0e
+- **Tests:** 403/403 pass
+- **No P0/P1 blocker** found
+- **Phase 3** is now `IN_PROGRESS` with Sprint 3.1 release packaging accepted
+
 ## Current Outcome
 
-Phase 2 is `IN_PROGRESS` (Sprint 2.3 App UAT accepted; Sprint 2.4 filters/sort/hardening locally accepted).
-
-Remaining for Phase 2 closeout:
-
-- Sprint 2.4 final App UAT on live Aras
-- Phase 2 closeout checklist
+Phase 2 is `COMPLETE`. Phase 3 is `IN_PROGRESS`.

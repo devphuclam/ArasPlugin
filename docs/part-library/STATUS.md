@@ -1,0 +1,174 @@
+# Part Library — Status
+
+## Phase 1 (Complete)
+
+Phase 1 shipped in commits including `b7f6cf67d0d191ddb71b3e3926064d928ded2c8c`. See `docs/part-library/phase-1/FINAL-STATUS.md`.
+
+## Phase 2
+
+| Phase | State | Baseline | Sprint |
+|---|---|---|---|
+| Planning | `COMPLETED` | `956af6841392b609d9c06df60d484fe5244500c1` | Readiness Gate |
+| Sprint 2.1 — Core/Backend | `COMPLETED` | `db8f2c167dd6336c4a522a0d0ec29d16a402a57b` | LM-01..08, PP-01..09 |
+| Sprint 2.1 — Closeout | `COMPLETED` | `0c78e73d8bff2ff610237d65daeb04286a98da7e` | Fixes F1–F10 |
+| Sprint 2.1 — UI | `COMPLETED` | (HEAD) | UI-01..UI-11 |
+| Sprint 2.2 — Core/Backend | `COMPLETED` | `f0db0348e4a6a9a70ff6232d5031304b1ed9c211` | ME-01..06, RV-01..07 |
+| Sprint 2.2 — UI | `COMPLETED` | (HEAD) | Move Entry + Revision Browser |
+| Sprint 2.3 — Core | `COMPLETED` | (HEAD) | VT-01..06, OA-01..02, TAB-01..04 |
+| Sprint 2.3 — UI | `COMPLETED` | (HEAD) | CAD/BOM/Rev/WhereUsed tabs, Open in Aras, Download CAD, Open in IronCAD |
+| Sprint 2.3 — App UAT | `ACCEPTED` | `idea_GetPrimaryIronCadForPart deployed` | Live CAD lookup fixed; App UAT smoke accepted |
+| Sprint 2.4 — Filter/Sort/Hardening | `ACCEPTED` | (current HEAD) | Entry status/CAD status/text filters, 7-column sort, detail status UX hardening, command state regression, 11 new tests |
+
+### Sprint 2.4 — Filter/Sort/Hardening (accepted)
+
+**Build:** Debug — 0 warnings, 0 errors
+
+**Tests:** 403 total — 0 failed, 0 skipped
+
+**New tests:** 44 (PartLibraryVaultServiceTests: 17, IronCadOpenServiceTests: 12, ArasOpenUrlServiceTests: 15)
+
+#### Implemented
+
+**Core Contracts (`IdeaCadConnector.Core.Library`):**
+- `IPartLibraryVaultService` — vault download/cache/open interface
+- `IIronCadOpenService` — IronCAD launch interface
+- `IArasOpenUrlService` — Open-in-Aras URL builder interface
+
+**Core DTOs (`IdeaCadConnector.Core.Library`):**
+- `PartLibraryCadFileInfo` — resolved primary CAD file metadata (now includes `CadNumber`, `Revision`, `Generation`, `FileId`)
+- `VaultCacheKey` — collision-safe cache key (server/database/FileId/revision)
+- `VaultDownloadResult` — download outcome (success, path, error)
+- `PartLibraryEntrySummary`/`PartLibraryEntryDetails` — added `Generation` property
+- `PartLibraryCadFileInfo` — added `FileId` mapping from `PrimaryCadFileId`
+
+**Desktop Services (`IdeaCadConnector.Desktop.Services`):**
+- `PartLibraryVaultService` — `GetPrimaryCadFileInfoAsync` now maps `FileId`, `CadNumber`, `Revision`, `Generation` from entry; `HasNative` checks both `FileId` and `FileName`
+- `ArasOpenUrlService` — added `idea_PartLibraryUsage` to approved item types
+- `IronCadOpenService` — (unchanged)
+
+**Aras Client (`IdeaCadConnector.Aras.HttpPartLibraryClient`):**
+- `GetPrimaryCadInfoAsync` — now returns `CadNumber` and `FileVersion` (from CAD `generation`)
+- Detail tab methods implemented:
+  - `GetCadDetailsAsync` — resolves entry CAD through `GetPrimaryCadInfoAsync`
+  - `GetBomDetailsAsync` — queries Part BOM children for the entry's part
+  - `GetRevisionDetailsAsync` — queries revision history via `SearchPartRevisionsAsync`
+  - `GetWhereUsedDetailsAsync` — delegates to existing `GetWhereUsedAsync`
+  - `GetDetailBundleAsync` — parallel composition of all four + `GetEntryAsync`
+
+**Test Coverage (44 new, existing updated):**
+- Vault: cache key equality/name generation, null/empty guard, temp deletion, zero-byte rejection, permission propagation, cancellation, cache-hit shortcut
+- IronCAD: executable detection, missing/null path, file not found, not available, adapter invocation, cancellation
+- URL: all item types (now includes `idea_PartLibraryUsage`), null/empty guards, encoding, base URI, resource.aspx pattern, database param
+- Existing vault test updated: `PrimaryCadFileId` added to stub entry for `HasNative`
+
+#### Not Tested (requires live Aras or IronCAD)
+
+- Real vault download through `IArasCadClient.DownloadNativeFileAsync`
+- Real IronCAD process launch
+- Real Aras Innovator client URL resolution
+- Detail tab methods against live Aras data (CAD/BOM/Revisions/WhereUsed)
+
+#### Completed (Sprint 2.3 — App UAT accepted)
+
+All Sprint 2.3 workstreams completed and UAT accepted:
+- `IPartLibraryVaultService` contract and `PartLibraryVaultService` implementation
+- `IIronCadOpenService` contract and `IronCadOpenService` implementation
+- `IArasOpenUrlService` contract and `ArasOpenUrlService` implementation
+- `LibraryServicesFactory` to compose real services from the current session
+- `LibraryViewModel` open-target commands for Part, Entry, Library, and CAD navigation
+- `BrowserLauncher` validation for safe `http`/`https` URLs
+- WPF tab UI implementation with CAD, BOM, Revisions, and Where Used tabs
+- 44 focused service tests covering all VT and OA requirements
+- UI wiring tests covering routing, service composition, browser launch behavior
+- Live CAD lookup fix via server method `idea_GetPrimaryIronCadForPart`
+- App UAT smoke accepted: CAD lookup acceptable, Part Library loads, all tabs functional.
+
+#### Completed (Sprint 2.4 — Filters, Sorting, Hardening)
+
+All Sprint 2.4 workstreams implemented:
+- **Entry Status filter**: All/Draft/PendingReview/Published/Deprecated
+- **CAD Status filter**: All/Available/No CAD/No native file/CAD lookup unavailable
+- **Text search**: Filters by item_number/name (already existed, hardened)
+- **Sorting**: 7 columns (Item Number, Name, Entry Status, Revision Policy, CAD Status, Usage Count, Last Used On) with Ascending/Descending
+- **Detail status UX hardening**: Loading, permission denied, server unavailable, operation cancelled states with localized messages
+- **Command state regression**: Verified NVTKC (contributor) cannot Move/Pin; TNTKC (reviewer) can; TPTKC (manager) can manage; viewer blocked
+- **Archived Libraries**: Remain hidden by default per D-03
+- **Localization**: 25 new keys in en-US, vi-VN, ja-JP
+- **New tests**: 11 (filter, sort, command state, detail hardening, regression)
+- Debug build passed: 0 warnings, 0 errors
+- Release build passed: 0 warnings, 0 errors
+- Full tests passed: 403/403
+
+#### Phase 2 Closeout
+
+Phase 2 closed after Sprint 2.4 final live App UAT accepted on 2026-07-08.
+
+Final live UAT performed on actual organization Aras environment. Roles tested: TPTKC (manager), TNTKC (reviewer), NVTKC (contributor), NVLCR (assembly viewer), PM (project viewer). All command states, filters, sorting, tabs, CAD actions, and Aras links verified and accepted. No P0/P1 blocker found.
+
+Final role alignment:
+- **TPTKC** — Trưởng phòng thiết kế cơ — Manager — Can manage Libraries, Move Entry, Pin Revision
+- **TNTKC** — Trưởng nhóm thiết kế cơ — Reviewer — Can Move Entry, Pin Revision
+- **NVTKC** — Nhân viên thiết kế cơ — Contributor — Cannot Move/Pin, can view/use Library
+- **NVLCR** — Nhân viên lắp ráp cơ — Assembly viewer — View-only
+- **PM** — Quản lý dự án — Project viewer — View-only
+- **Khách hàng** — External viewer — View-only, read-only
+
+#### Remaining Known Limitations
+
+- Library restore flows (not in Phase 2 scope)
+- Real Download/Open IronCAD depends on local IronCAD install + Vault permissions
+- Role mapping is username/config based; future hardening should use Aras Identity membership
+
+## Phase 3
+
+| Phase | State | Baseline | Sprint |
+|---|---|---|---|
+| Phase 3 - Deployment and Production Hardening | `IN_PROGRESS` | `35494964519e014ee60e573a3db718770668ba8c` | Sprint 3.1 - Release Packaging Baseline |
+
+### Sprint 3.1 — Release Packaging Baseline
+
+**Status:** `PACKAGE_UAT_ACCEPTED`
+
+**Package tested:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+Scope implemented and accepted:
+
+- repeatable release package script (`tools/release/package-release.ps1`);
+- release zip structure for `IdeaCadConnector v0.3.0-rc1`;
+- install, configuration, UAT, rollback, and release notes;
+- Aras deployment bundle guidance for `idea_GetPrimaryIronCadForPart`;
+- checksum and version metadata generation (`VERSION.txt`, `SHA256SUMS.txt`);
+- Debug/Release build and test validation.
+
+Package UAT results (all PASS):
+
+| Area | Result |
+|---|---|
+| Extract zip | PASS |
+| VERSION.txt | PASS |
+| SHA256SUMS.txt | PASS |
+| App launch from clean folder | PASS |
+| Login Aras | PASS |
+| Part Library load | PASS |
+| Aras method included | PASS |
+| Docs readable | PASS |
+| Missing DLL check | PASS |
+| Secret/artifact check | PASS |
+
+### Sprint 3.2
+
+**Status:** `NOT STARTED`
+
+Environment Configuration Hardening — next sprint.
+
+### Sprint 3.3
+
+**Status:** `NOT STARTED`
+
+Internal Installation/UAT Hardening.
+
+### Sprint 3.4
+
+**Status:** `NOT STARTED`
+
+Production Release Readiness.

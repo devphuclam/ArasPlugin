@@ -66,25 +66,33 @@
 
 ## Command State Hardening
 
-### lamEngineer / NVTKC (contributor)
+### NVTKC (contributor — Nhân viên thiết kế cơ)
 - [ ] Cannot Move Entry
 - [ ] Cannot Pin Revision
 - [ ] Can view Revision Browser
 - [ ] Can view Library
 
-### TNTKC (reviewer)
+### TNTKC (reviewer — Trưởng nhóm thiết kế cơ)
 - [ ] Can Move Entry
 - [ ] Can Pin Revision
 - [ ] Can view Revision Browser
 - [ ] Can view Library
 
-### lamPM / manager
+### TPTKC (manager — Trưởng phòng thiết kế cơ)
 - [ ] Can Move Entry
 - [ ] Can Pin Revision
 - [ ] Can manage Libraries
 - [ ] Can view Revision Browser
 
-### Viewer / unknown
+### NVLCR (assembly viewer — Nhân viên lắp ráp cơ)
+- [ ] View-only Library
+- [ ] Cannot Add/Move/Pin/Admin
+
+### PM (project viewer — Quản lý dự án)
+- [ ] View-only Library
+- [ ] Cannot Add/Move/Pin/Admin
+
+### Khách hàng (external viewer)
 - [ ] Move Entry blocked
 - [ ] Revision Browser hidden
 - [ ] Library view-only

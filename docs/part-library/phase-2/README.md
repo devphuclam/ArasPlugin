@@ -1,6 +1,6 @@
 # Part Library Phase 2 README
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted; Sprint 2.4 filters/sort/hardening implemented; 403/403 tests pass)
+**State:** `COMPLETE` (All sprints accepted; final live App UAT accepted; role alignment confirmed with actual organization roles)
 
 ## Objective
 
@@ -64,10 +64,10 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 
 | Sprint | Scope | Status |
 |---|---|---|---|
-| `2.1` | `WS1` + `WS2` | UAT smoke accepted |
-| `2.2` | `WS3` + `WS4` | locally accepted |
+| `2.1` | `WS1` + `WS2` | accepted |
+| `2.2` | `WS3` + `WS4` | accepted |
 | `2.3` | `WS5` + `WS6` + `WS7` | App UAT accepted |
-| `2.4` | `WS8` + hardening/UAT prep | implemented |
+| `2.4` | `WS8` + hardening/UAT prep | accepted |
 
 ## Sprint 2.1 Completion Evidence
 
@@ -112,26 +112,26 @@ Sprint 2.2 core backend + UI are now implemented:
 - Release build passed
 - full tests passed `261/261`
 
-Sprint 2.2 follow-up patch applied. Move Entry and Pin Revision are now gated on `IsReviewerOrHigher` (TNTKC, lamPM, admin). lamEngineer/NVTKC can view Revision Browser but cannot Move or Pin.
+Sprint 2.2 follow-up patch applied. Move Entry and Pin Revision are now gated on `IsReviewerOrHigher` (TNTKC, TPTKC, admin). NVTKC can view Revision Browser but cannot Move or Pin.
 
 ## Sprint 2.1 UAT Smoke Evidence
 
-Recorded closeout evidence:
+Recorded closeout evidence (original role names used at time of testing):
 
 - Admin smoke test passed.
-- `lamEngineer` UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
-- `lamPM` UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
+- `NVTKC` (then `lamEngineer`) UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
+- `TPTKC` (then `lamPM`) UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
 - Viewer/unknown behavior confirmed conservative read-only behavior.
 - Automated verification passed: Debug build, Release build, and full tests `214/214`.
 
 ## Sprint 2.2 UAT Smoke Evidence
 
-Recorded closeout evidence:
+Recorded closeout evidence (original role names used at time of testing):
 
 - Admin smoke test passed.
-- `lamEngineer`/NVTKC UAT confirmed contributor behavior, Part Picker usability, Revision Browser view. Move Entry and Pin are correctly blocked for lamEngineer/NVTKC.
+- `NVTKC` (then `lamEngineer`) UAT confirmed contributor behavior, Part Picker usability, Revision Browser view. Move Entry and Pin are correctly blocked for NVTKC.
 - `TNTKC` UAT confirmed reviewer behavior: Move Entry and Pin Revision available.
-- `lamPM` UAT confirmed manager behavior: Move Entry and Pin Revision available.
+- `TPTKC` (then `lamPM`) UAT confirmed manager behavior: Move Entry and Pin Revision available.
 - Viewer/unknown behavior confirmed conservative read-only behavior.
 - Automated verification passed: Debug build, Release build, full tests 267/267.
 
@@ -237,9 +237,9 @@ Completed locally (2026-07-08):
 - Empty states: No CAD / No BOM / No Revisions / No Where Used already handled
 
 **Command state regression:**
-- lamEngineer/NVTKC: cannot Move Entry, cannot Pin Revision
-- TNTKC/reviewer: can Move and Pin where Aras permits
-- lamPM/manager: can manage Libraries, Move, Pin
+- NVTKC (contributor): cannot Move Entry, cannot Pin Revision
+- TNTKC (reviewer): can Move and Pin where Aras permits
+- TPTKC (manager): can manage Libraries, Move, Pin
 - viewer/unknown: read-only, blocked where required
 
 **Localization:** 25 new keys added to en-US, vi-VN, ja-JP.
@@ -248,13 +248,30 @@ Completed locally (2026-07-08):
 
 **Build:** Debug/Release 0 warnings, 0 errors.
 
-## Final UAT Checklist
+## Phase 2 Closeout
 
-A final Sprint 2.4 UAT checklist has been prepared in [ACCEPTANCE.md](ACCEPTANCE.md).
+Phase 2 closed after Sprint 2.4 final live App UAT accepted on 2026-07-08.
+
+**Final live UAT result:** Accepted.
+
+Roles tested on live Aras:
+- **TPTKC** — Trưởng phòng thiết kế cơ (Manager) — can manage Libraries, Move Entry, Pin Revision — PASS
+- **TNTKC** — Trưởng nhóm thiết kế cơ (Reviewer) — can Move Entry, Pin Revision — PASS
+- **NVTKC** — Nhân viên thiết kế cơ (Contributor) — cannot Move/Pin, can view/use Library — PASS
+- **NVLCR** — Nhân viên lắp ráp cơ (Assembly viewer) — view-only — PASS
+- **PM** — Quản lý dự án (Project viewer) — view-only — PASS
+
+**No P0/P1 blocker found.** All command states, filters, sorting, tabs, CAD actions, and Aras links verified and accepted.
+
+**Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
+**Tests:** 403/403 pass
+**Server method deployed:** `idea_GetPrimaryIronCadForPart` (read-only, live CAD lookup)
+
+**Final role alignment** recorded in `ACCEPTANCE.md` and `DESIGN.md`.
 
 ## Next Phase
 
-`Final Sprint 2.4 App UAT` — then Phase 2 closeout.
+`Phase 3 — Deployment and Production Hardening` — now in progress.
 
 Canonical supporting docs:
 

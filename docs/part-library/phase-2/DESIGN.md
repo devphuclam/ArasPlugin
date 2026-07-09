@@ -1,6 +1,6 @@
 # Part Library Phase 2 Design
 
-**State:** `IN_PROGRESS` (Sprint 2.1 UAT smoke accepted; Sprint 2.2 locally accepted; Sprint 2.3 App UAT accepted; Sprint 2.4 filters/sort/hardening implemented)
+**State:** `COMPLETE` (All sprints accepted; final live App UAT accepted 2026-07-08; role alignment confirmed with actual organization roles)
 
 ## Objective
 
@@ -128,12 +128,12 @@ Follow-up patch applied with commit `f0db0348e4a6a9a70ff6232d5031304b1ed9c211`. 
 
 - `ILibraryAuthorizationService` gained `IsReviewerOrHigher`, `CanMoveEntries`, `CanPinRevisions`.
 - `LibraryAuthorizationRules` gained `ReviewerUsers` collection and `IsReviewer()` method.
-- Default reviewer users: tntkc, lampm, tptkc, truongphongthietkeco, admin, innovatoradmin.
+- Default reviewer users: tntkc, lampm, tptkc, truongphongthietkeco, admin, innovatoradmin (original UAT usernames; mapped to official roles below).
 - `CanExecuteMoveEntry` now gates on `CanMoveEntries` (reviewer-or-higher) instead of `IsContributorOrHigher`.
 - `PartRevisionBrowserViewModel` accepts `canPinRevisions` parameter; `CanPin` gates on it.
-- lamEngineer/NVTKC: `IsReviewerOrHigher=false` → `CanMoveEntries=false`, `CanPinRevisions=false`.
+- NVTKC: `IsReviewerOrHigher=false` → `CanMoveEntries=false`, `CanPinRevisions=false`.
 - TNTKC: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
-- lamPM: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
+- TPTKC: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
 - viewer/unknown: conservative read-only, no Move/Pin.
 
 No backend `MoveLibraryEntryAsync`, `SearchPartRevisionsAsync`, or `UpdateRevisionPolicyAsync` behavior was changed.
@@ -202,6 +202,26 @@ Remaining live limitations:
 - prefer selection-driven loading and explicit guard checks over optimistic mutation;
 - preserve all Phase 1 safety boundaries and regression tests.
 
+## Final Role Matrix
+
+| ID | Official Title | Capability | Move Entry | Pin Revision | Library Admin |
+|---|---|---|---|---|---|
+| `TPTKC` | Trưởng phòng thiết kế cơ | Manager | Yes | Yes | Yes |
+| `TNTKC` | Trưởng nhóm thiết kế cơ | Reviewer | Yes | Yes | No |
+| `NVTKC` | Nhân viên thiết kế cơ | Contributor | No | No | No |
+| `NVLCR` | Nhân viên lắp ráp cơ | Assembly viewer | No | No | No |
+| `PM` | Quản lý dự án | Project viewer | No | No | No |
+| `Khách hàng` | Customer | External viewer | No | No | No |
+
+## Phase 2 Closeout
+
+Phase 2 closed after Sprint 2.4 final live App UAT accepted on 2026-07-08.
+
+**Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
+**Tests:** 403/403 pass
+**Server method deployed:** `idea_GetPrimaryIronCadForPart` (read-only, live CAD lookup)
+**Live UAT result:** Accepted. All roles tested, no P0/P1 blocker.
+
 ## Next Implementation Packet
 
-`Sprint 2.3: Vault and IronCAD (WS5) + Open in Aras (WS6) + Detail Tabs (WS7)`
+`Phase 3: Deployment and Production Hardening — Sprint 3.1 (release packaging) and beyond`

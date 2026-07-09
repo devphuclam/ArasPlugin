@@ -50,9 +50,34 @@ Results:
 - `checksums/SHA256SUMS.txt`: generated.
 - Required Aras method included: `aras/server-methods/idea_GetPrimaryIronCadForPart.cs`.
 
-## Manual Acceptance
+## Sprint 3.1 Package UAT
 
-Sprint 3.1 can be package-UAT ready after the packaging script produces a zip and internal users confirm they can extract and launch the app in a clean folder.
+**Package:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Package UAT performed** on 2026-07-08.
+
+### Package UAT Evidence
+
+| Area | Result | Evidence |
+|---|---|---|
+| Extract zip | PASS | Clean folder extraction succeeded |
+| VERSION.txt | PASS | File exists in package root |
+| SHA256SUMS.txt | PASS | File exists under checksums |
+| App launch | PASS | Desktop app launched from clean extracted folder |
+| Login Aras | PASS | Login completed successfully |
+| Part Library load | PASS | Part Library opened and loaded |
+| Aras method included | PASS | `idea_GetPrimaryIronCadForPart.cs` included |
+| Docs readable | PASS | INSTALL/CONFIGURATION/UAT/ROLLBACK docs readable |
+| Missing DLL check | PASS | No missing DLL error |
+| Secret/artifact check | PASS | No secret/artifact issue found |
+
+### Acceptance Decision
+
+Sprint 3.1 Package UAT **accepted**.
+
+Phase 3 remains `IN_PROGRESS`.
+
+Next sprint: **Sprint 3.2 — Environment Configuration Hardening**.
 
 ## Not Accepted In Sprint 3.1
 
