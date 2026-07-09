@@ -1,5 +1,7 @@
 # Release Packaging
 
+Sprint 3.2 Config Package UAT accepted. Template `IdeaCadConnector.environment.template.json` included at `docs/templates/`. Active config rejected by script. No secrets in template.
+
 ## Script
 
 ```powershell

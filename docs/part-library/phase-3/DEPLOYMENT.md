@@ -71,6 +71,10 @@ The method must not add, edit, promote, create relationships, upload files, or m
 | `PM` | Quan ly du an |
 | `Customer` | Khach hang |
 
+## Sprint 3.2 Config Package UAT
+
+Sprint 3.2 Config Package UAT accepted. Template `IdeaCadConnector.environment.template.json` included in package at `docs/templates/`. Active config excluded by script validation. No secrets in template. Role defaults correct. App launches without config and does not crash with config.
+
 ## Environment Configuration (Sprint 3.2)
 
 The release package includes an environment config template at:

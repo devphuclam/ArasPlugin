@@ -157,7 +157,7 @@ Package UAT results (all PASS):
 
 ### Sprint 3.2 — Environment Configuration Hardening
 
-**Status:** `IMPLEMENTED_LOCALLY`
+**Status:** `CONFIG_PACKAGE_UAT_ACCEPTED`
 
 Sprint 3.2 adds a non-secret environment configuration model for the desktop app.
 

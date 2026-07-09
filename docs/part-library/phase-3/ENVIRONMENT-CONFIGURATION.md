@@ -1,5 +1,7 @@
 # Environment Configuration
 
+Sprint 3.2 Config Package UAT accepted. Config model, loader, validation, template, and packaging safeguards are ready for internal deployment UAT.
+
 ## Config File Name
 
 ```text

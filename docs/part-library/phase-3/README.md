@@ -71,7 +71,7 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 | Sprint | Scope | State |
 |---|---|---|---|
 | `3.1` | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
-| `3.2` | Environment Configuration Hardening | `IMPLEMENTED_LOCALLY` |
+| `3.2` | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
 | `3.3` | Internal Installation/UAT Hardening | `NOT STARTED` |
 | `3.4` | Production Release Readiness | `NOT STARTED` |
 

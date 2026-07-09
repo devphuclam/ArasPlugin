@@ -116,6 +116,35 @@ Sprint 3.2 is locally accepted when all checklist items met:
 - [x] Phase 3 remains `IN_PROGRESS`;
 - [x] Sprint 3.3 not started.
 
+### Sprint 3.2 Config Package UAT
+
+**Package tested:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Commit tested:** `f95b58b9bfa154a5e661eb98b3e7f1d5439b3435`
+
+**Config Package UAT accepted** on 2026-07-08.
+
+| Area | Result | Evidence |
+|---|---|---|
+| Package script rerun | PASS | `package-release.ps1` completed |
+| Template included | PASS | `docs/templates/IdeaCadConnector.environment.template.json` exists in package |
+| Active config excluded | PASS | `IdeaCadConnector.environment.json` not packaged |
+| Template secret scan | PASS | No password/token/secret/cookie/session values in template |
+| Role defaults | PASS | Official role defaults present (TPTKC, TNTKC, NVTKC, NVLCR, PM, KhachHang/Customer) |
+| Launch without config | PASS | App opened without active config |
+| Login | PASS | Aras login still worked |
+| Part Library load | PASS | Part Library still loaded |
+| Optional active config | PASS | Copied config next to executable |
+| Active config safety | PASS | App did not crash with active config present |
+
+### Acceptance Decision
+
+Sprint 3.2 Config Package UAT **accepted**.
+
+Phase 3 remains `IN_PROGRESS`.
+
+Next sprint: **Sprint 3.3 — Internal Installation/UAT Hardening**.
+
 ## Not Accepted In Sprint 3.1 or Sprint 3.2
 
 - MSI installer;
