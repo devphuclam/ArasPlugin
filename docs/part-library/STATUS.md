@@ -122,7 +122,7 @@ Final role alignment:
 ## Phase 3
 
 | Phase | State | Baseline | Sprint |
-|---|---|---|---|---|
+|---|---|---|---|
 | Phase 3 - Deployment and Production Hardening | `COMPLETE` | `35494964519e014ee60e573a3db718770668ba8c` | Sprint 3.1 - Release Packaging Baseline |
 
 ### Sprint 3.1 — Release Packaging Baseline

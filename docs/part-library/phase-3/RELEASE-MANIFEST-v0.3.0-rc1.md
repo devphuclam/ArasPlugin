@@ -98,7 +98,7 @@ aras/server-methods/idea_GetPrimaryIronCadForPart.cs
 
 **Phase 3 — Deployment and Production Hardening:** `COMPLETE`
 
-**Closeout commit:** `dc4fe6c17d041a6618662187c209532e7fd0be0a`
+**Closeout commit:** `93a5acb340babf754a607877cff7616a19157966`
 
 **Recommended tag:** `v0.3.0-rc1` (not created in this commit)
 
