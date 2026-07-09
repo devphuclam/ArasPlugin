@@ -87,6 +87,8 @@ See [ROLLBACK.md](ROLLBACK.md) for file-based rollback steps.
 
 ## Final Decision
 
-- [ ] **GO** — All checks pass. Ready for wider UAT or production.
+- [x] **GO** — All checks pass. Ready for wider UAT or production.
 - [ ] **NO-GO** — Blocking issue found. List blocker below.
 - [ ] **GO WITH ACCEPTED LIMITATIONS** — Non-blocking issues documented and accepted.
+
+> **Phase 3 closeout:** Sprint 3.4 Production Readiness UAT accepted on 2026-07-09. Phase 3 is now `COMPLETE`.

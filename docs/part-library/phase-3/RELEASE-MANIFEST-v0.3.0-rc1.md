@@ -15,7 +15,7 @@ IdeaCadConnector-v0.3.0-rc1.zip
 ## Source Commit
 
 ```
-732f7f607c049ee31fcd048ec48675fee5415bc6
+dc4fe6c17d041a6618662187c209532e7fd0be0a
 ```
 
 ## Package Timestamp
@@ -83,7 +83,7 @@ aras/server-methods/idea_GetPrimaryIronCadForPart.cs
 | Debug tests | 419/419 pass |
 | Release tests | 419/419 pass |
 | Package script | PASS |
-| Validation script | 23/23 PASS (Sprint 3.3 baseline) + Sprint 3.4 checks |
+| Validation script | 30/30 PASS |
 
 ## Sprint Acceptance Summary
 
@@ -92,7 +92,15 @@ aras/server-methods/idea_GetPrimaryIronCadForPart.cs
 | 3.1 | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
 | 3.2 | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
 | 3.3 | Internal Installation/UAT Hardening | `INTERNAL_INSTALLATION_PACKAGE_UAT_ACCEPTED` |
-| 3.4 | Production Release Readiness | Pending UAT |
+| 3.4 | Production Release Readiness | `PRODUCTION_READINESS_UAT_ACCEPTED` |
+
+## Phase 3 Final State
+
+**Phase 3 — Deployment and Production Hardening:** `COMPLETE`
+
+**Closeout commit:** `dc4fe6c17d041a6618662187c209532e7fd0be0a`
+
+**Recommended tag:** `v0.3.0-rc1` (not created in this commit)
 
 ## Known Limitations
 

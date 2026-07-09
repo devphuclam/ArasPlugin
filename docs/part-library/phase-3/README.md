@@ -1,6 +1,6 @@
 # Part Library Phase 3 - Deployment and Production Hardening
 
-**State:** `IN_PROGRESS`
+**State:** `COMPLETE`
 
 ## Objective
 
@@ -32,7 +32,7 @@ Sprint 3.1 baseline commit:
 35494964519e014ee60e573a3db718770668ba8c
 ```
 
-Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Phase 3 Sprint 3.1 release packaging baseline accepted via package UAT.
+Phase 2 is `COMPLETE` (all sprints accepted, final live App UAT passed). Phase 3 is now `COMPLETE` (all 4 sprints accepted).
 
 ## Current State
 
@@ -52,15 +52,15 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 
 | ID | Workstream | Status |
 |---|---|---|
-| `WS3.4-A` | Production readiness doc | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-B` | Go/No-Go checklist | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-C` | Release sign-off template | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-D` | Release manifest | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-E` | Known limitations doc | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-F` | Phase 3 closeout plan | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-G` | Release verification script | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-H` | Packaging: include Sprint 3.4 docs/scripts | `IMPLEMENTED_LOCALLY` |
-| `WS3.4-I` | Validation: check Sprint 3.4 docs/scripts | `IMPLEMENTED_LOCALLY` |
+| `WS3.4-A` | Production readiness doc | `ACCEPTED` |
+| `WS3.4-B` | Go/No-Go checklist | `ACCEPTED` |
+| `WS3.4-C` | Release sign-off template | `ACCEPTED` |
+| `WS3.4-D` | Release manifest | `ACCEPTED` |
+| `WS3.4-E` | Known limitations doc | `ACCEPTED` |
+| `WS3.4-F` | Phase 3 closeout plan | `ACCEPTED` |
+| `WS3.4-G` | Release verification script | `ACCEPTED` |
+| `WS3.4-H` | Packaging: include Sprint 3.4 docs/scripts | `ACCEPTED` |
+| `WS3.4-I` | Validation: check Sprint 3.4 docs/scripts | `ACCEPTED` |
 
 ## Sprint 3.3 Workstreams
 
@@ -99,7 +99,7 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 | `3.1` | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
 | `3.2` | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
 | `3.3` | Internal Installation/UAT Hardening | `INTERNAL_INSTALLATION_PACKAGE_UAT_ACCEPTED` |
-| `3.4` | Production Release Readiness | `IMPLEMENTED_LOCALLY` |
+| `3.4` | Production Release Readiness | `PRODUCTION_READINESS_UAT_ACCEPTED` |
 
 ## Sprint 3.1 Package UAT Result
 
@@ -190,6 +190,25 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 - [x] no secrets committed;
 - [x] Phase 3 remains `IN_PROGRESS`;
 - [x] Sprint 3.4 not started.
+
+## Phase 3 Closeout
+
+Phase 3 — Deployment and Production Hardening is now `COMPLETE`.
+
+All 4 sprints accepted:
+
+| Sprint | Scope | Status |
+|---|---|---|
+| 3.1 | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
+| 3.2 | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
+| 3.3 | Internal Installation/UAT Hardening | `INTERNAL_INSTALLATION_PACKAGE_UAT_ACCEPTED` |
+| 3.4 | Production Release Readiness | `PRODUCTION_READINESS_UAT_ACCEPTED` |
+
+**Final package:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Final build/test:** Debug 0w/0e, Release 0w/0e, 419/419 tests pass.
+
+**Known limitations:** Documented in [KNOWN-LIMITATIONS.md](KNOWN-LIMITATIONS.md).
 
 ## Current Owner
 

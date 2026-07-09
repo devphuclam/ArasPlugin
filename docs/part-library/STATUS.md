@@ -122,8 +122,8 @@ Final role alignment:
 ## Phase 3
 
 | Phase | State | Baseline | Sprint |
-|---|---|---|---|
-| Phase 3 - Deployment and Production Hardening | `IN_PROGRESS` | `35494964519e014ee60e573a3db718770668ba8c` | Sprint 3.1 - Release Packaging Baseline |
+|---|---|---|---|---|
+| Phase 3 - Deployment and Production Hardening | `COMPLETE` | `35494964519e014ee60e573a3db718770668ba8c` | Sprint 3.1 - Release Packaging Baseline |
 
 ### Sprint 3.1 — Release Packaging Baseline
 
@@ -207,7 +207,13 @@ Sprint 3.3 adds installation hardening docs, a package validation script, a trou
 
 ### Sprint 3.4 — Production Release Readiness
 
-**Status:** `IMPLEMENTED_LOCALLY`
+**Status:** `PRODUCTION_READINESS_UAT_ACCEPTED`
+
+**Package tested:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Commit tested:** `dc4fe6c17d041a6618662187c209532e7fd0be0a`
+
+**Decision:** Sprint 3.4 Production Readiness UAT accepted.
 
 Sprint 3.4 adds final release-readiness documentation, checklists, and a release verification script.
 
@@ -223,8 +229,37 @@ Sprint 3.4 adds final release-readiness documentation, checklists, and a release
 - **Package script updated**: Includes all Sprint 3.4 docs and verification script
 - **Validation script updated**: Checks for Sprint 3.4 docs and verification script
 
-**Build:** Pending verification
+**Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
 
-**Tests:** Pending verification
+**Tests:** Debug — 419/419 pass; Release — 419/419 pass
 
-**UAT:** Not yet accepted
+**Package validation:** 30/30 checks PASS, exit code 0
+
+**Release verification:** 4/4 checks PASS, exit code 0
+
+**UAT Results:** Production readiness doc usable PASS, go/no-go checklist usable PASS, release sign-off template usable PASS, release manifest PASS, known limitations accepted PASS, closeout plan PASS, verification script PASS. No P0/P1 blocker reported. Sprint 3.4 accepted on 2026-07-09.
+
+## Phase 3 Closeout
+
+**Phase 3 — Deployment and Production Hardening:** `COMPLETE`
+
+Phase 3 completed after all 4 sprints accepted:
+
+| Sprint | Scope | Status |
+|---|---|---|
+| 3.1 | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
+| 3.2 | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
+| 3.3 | Internal Installation/UAT Hardening | `INTERNAL_INSTALLATION_PACKAGE_UAT_ACCEPTED` |
+| 3.4 | Production Release Readiness | `PRODUCTION_READINESS_UAT_ACCEPTED` |
+
+**Final package:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Final build/test baseline:** Debug 0w/0e, Release 0w/0e, 419/419 tests pass.
+
+**Required Aras method:** `idea_GetPrimaryIronCadForPart`
+
+**Official roles:** TPTKC (manager), TNTKC (reviewer), NVTKC (contributor), NVLCR (assembly viewer), PM (project viewer), Khách hàng (external viewer).
+
+**Known limitations:** Documented in [KNOWN-LIMITATIONS.md](phase-3/KNOWN-LIMITATIONS.md).
+
+**Recommended next action:** Optional Git tag `v0.3.0-rc1` (not created in this commit).

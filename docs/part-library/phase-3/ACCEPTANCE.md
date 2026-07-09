@@ -1,6 +1,6 @@
 # Phase 3 Acceptance
 
-**Phase state:** `IN_PROGRESS`
+**Phase state:** `COMPLETE`
 
 ## Sprint 3.1 Acceptance Checklist
 
@@ -233,9 +233,9 @@ Next sprint: **Sprint 3.4 — Production Release Readiness**.
 
 **Sprint 3.4 adds production release readiness documentation and a release verification script.**
 
-**Status:** `IMPLEMENTED_LOCALLY`
+**Status:** `PRODUCTION_READINESS_UAT_ACCEPTED`
 
-**Sprint 3.4 UAT not yet accepted.**
+**Sprint 3.4 Production Readiness UAT accepted on 2026-07-09.**
 
 ### Sprint 3.4 Implementation Checklist
 
@@ -259,7 +259,31 @@ Next sprint: **Sprint 3.4 — Production Release Readiness**.
 - [x] No live Aras changes;
 - [x] No Git tag created yet;
 - [x] Phase 3 remains `IN_PROGRESS`;
-- [ ] Sprint 3.4 UAT not yet accepted.
+- [x] Sprint 3.4 UAT accepted.
+
+## Phase 3 Closeout
+
+**Phase 3 — Deployment and Production Hardening: COMPLETE**
+
+All 4 sprints accepted.
+
+| Area | Result | Evidence |
+|---|---|---|
+| Sprint 3.1 Release Packaging Baseline | PASS | Package UAT accepted |
+| Sprint 3.2 Environment Configuration Hardening | PASS | Config package UAT accepted |
+| Sprint 3.3 Internal Installation/UAT Hardening | PASS | Internal installation package UAT accepted |
+| Sprint 3.4 Production Release Readiness | PASS | Production readiness UAT accepted |
+| Package validation | PASS | `validate-release-package.ps1` passed (30/30) |
+| Release verification | PASS | `verify-release-readiness.ps1` passed (4/4) |
+| Debug build | PASS | 0 warnings, 0 errors |
+| Release build | PASS | 0 warnings, 0 errors |
+| Full tests | PASS | 419/419 passed |
+| No secrets | PASS | Active config excluded, no secrets committed |
+| Required Aras method | PASS | `idea_GetPrimaryIronCadForPart` documented and packaged |
+| Official roles | PASS | TPTKC/TNTKC/NVTKC/NVLCR/PM/Khách hàng documented |
+| Rollback plan | PASS | Documented in ROLLBACK.md |
+| Known limitations | PASS | Documented and accepted in KNOWN-LIMITATIONS.md |
+| Final decision | PASS | Phase 3 COMPLETE |
 
 ## Not Accepted In Sprint 3.1, Sprint 3.2, or Sprint 3.3
 

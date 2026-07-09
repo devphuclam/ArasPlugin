@@ -1,5 +1,7 @@
 # Known Limitations and Accepted Risks
 
+These are the accepted limitations for v0.3.0-rc1. Phase 3 is `COMPLETE` with these limitations documented and accepted.
+
 ## Installer
 
 - No MSI, ClickOnce, or auto-update system.
@@ -36,7 +38,8 @@
 ## Production Rollout
 
 - Production deployment has not been executed.
-- Phase 3 does not include production rollout unless explicitly decided later.
+- Phase 3 closeout does not include production rollout execution.
+- Production rollout is outside this closeout unless the owner decides separately.
 
 ## Role Mapping
 

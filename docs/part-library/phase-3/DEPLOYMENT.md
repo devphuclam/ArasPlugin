@@ -87,7 +87,7 @@ Sprint 3.4 adds production readiness docs, checklists, and a release verificatio
 - `docs/PHASE-3-CLOSEOUT-PLAN.md` — remaining steps before Phase 3 COMPLETE
 - `tools/verify-release-readiness.ps1` — release readiness verification script
 
-Phase 3 remains `IN_PROGRESS`. Sprint 3.4 UAT not yet accepted.
+Sprint 3.4 Production Readiness UAT accepted. Phase 3 is now `COMPLETE`.
 
 ## Sprint 3.3 Internal Installation Package UAT
 

@@ -6,6 +6,8 @@ Sprint 3.3 Internal Installation Package UAT accepted on 2026-07-09. Package `Id
 
 Sprint 3.4 adds production readiness docs (PRODUCTION-READINESS, GO-NO-GO-CHECKLIST, RELEASE-SIGNOFF-TEMPLATE, RELEASE-MANIFEST, KNOWN-LIMITATIONS, PHASE-3-CLOSEOUT-PLAN) and a release verification script (verify-release-readiness.ps1). See [ACCEPTANCE.md](ACCEPTANCE.md).
 
+**Phase 3 closeout:** Sprint 3.4 Production Readiness UAT accepted on 2026-07-09. Phase 3 is now `COMPLETE`.
+
 ## Script
 
 ```powershell

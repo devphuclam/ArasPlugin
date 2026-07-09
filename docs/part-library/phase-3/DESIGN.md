@@ -2,7 +2,9 @@
 
 ## Scope
 
-Phase 3 makes the desktop connector deployable as an internal release candidate. Sprint 3.1 intentionally avoids runtime feature changes and focuses on a repeatable release package process.
+Phase 3 makes the desktop connector deployable as an internal release candidate. All 4 sprints are now complete. Phase 3 is `COMPLETE`.
+
+Sprint 3.1 intentionally avoids runtime feature changes and focuses on a repeatable release package process.
 
 ## Release Package Model
 

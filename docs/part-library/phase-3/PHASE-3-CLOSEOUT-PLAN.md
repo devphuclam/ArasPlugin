@@ -53,13 +53,13 @@ git tag v0.3.0-rc1
 
 Do not create tag inside Sprint 3.4 unless user explicitly asks after UAT acceptance.
 
-## Closeout Criteria
+## Closeout Status
 
-- [ ] Sprint 3.4 UAT accepted
-- [ ] Build/test/package/validate all pass
-- [ ] Go/No-Go decision = GO or GO WITH ACCEPTED LIMITATIONS
-- [ ] Known limitations documented and accepted
-- [ ] No P0/P1 blockers
-- [ ] Phase 3 docs updated to COMPLETE state
-- [ ] Git tag created (optional, user decision)
-- [ ] Phase 3 closeout reported to user
+- [x] Sprint 3.4 UAT accepted
+- [x] Build/test/package/validate all pass
+- [x] Go/No-Go decision = GO
+- [x] Known limitations documented and accepted
+- [x] No P0/P1 blockers
+- [x] Phase 3 docs updated to COMPLETE state
+- [ ] Git tag created (optional, user decision) — not created in this commit
+- [x] Phase 3 closeout reported to user
