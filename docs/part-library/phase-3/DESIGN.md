@@ -88,6 +88,18 @@ It is read-only and returns the best primary IronCAD CAD linked to a Part throug
 - creates `IdeaCadConnector-<Version>.zip`;
 - never copies source `bin/obj`, `.vs`, test results, Vault/cache folders, or credentials.
 
+## Installation Hardening (Sprint 3.3)
+
+Sprint 3.3 adds practical handoff docs and a validation script:
+
+- **Installation hardening guide**: extraction location, run steps, config setup, verify, rollback
+- **Machine readiness guide**: Windows/.NET 4.8, network, roles, Aras permissions
+- **Troubleshooting guide**: 14 issues with symptom/cause/check/action/severity (P0/P1/P2)
+- **Internal UAT result template**: 25-area fillable table with PASS/FAIL/BLOCKED/N/A
+- **IT handoff guide**: what to send/not send, Aras/machine prep, smoke test, escalation
+- **Package validation script**: `tools/release/validate-release-package.ps1` — validates structure, files, config, forbidden content, secrets; returns exit code
+- **Packaging**: all Sprint 3.3 docs included in release zip under `docs/`; validation script under `tools/`
+
 ## Risks
 
 - The package is a zip, not an installer; users need manual extraction guidance.

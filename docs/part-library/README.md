@@ -8,7 +8,7 @@ This directory is the only active documentation root for Part Library.
 |---|---|---|---|---|
 | Phase 1 - Core governance and reuse | `COMPLETE` | `08a9986d9cc867a2948afe5a56676730ada54fe4` | `b7f6cf67d0d191ddb71b3e3926064d928ded2c8c` | Build: 0 warnings/errors; tests: 117/117; owner accepted 2026-07-06 |
 | Phase 2 - Complete Library UX | `COMPLETE` | `956af6841392b609d9c06df60d484fe5244500c1` | Sprint 2.1–2.4 all accepted; final live App UAT accepted 2026-07-08; role alignment confirmed with actual organization roles | All 4 sprints implemented and accepted. Sprint 2.3 live CAD lookup fixed via `idea_GetPrimaryIronCadForPart`. Sprint 2.4 filters, sorting, detail UX hardening, command state hardening, localization. Official roles: TPTKC (manager), TNTKC (reviewer), NVTKC (contributor), NVLCR (assembly viewer), PM (project viewer), Khách hàng (external viewer). Debug/Release build passed; tests 403/403 pass |
-| Phase 3 - Deployment and Production Hardening | `IN_PROGRESS` | `35494964519e014ee60e573a3db718770668ba8c` | Sprint 3.1 release packaging accepted; Sprint 3.2 config package UAT accepted; Sprint 3.3 internal install/UAT hardening next | Release packaging, environment config model with safe loader/validation/template, Aras deployment checklist, rollback, checksums. Sprint 3.2: config template in package, active config excluded, secret detection, role defaults, no-crash with/without config. Package UAT all PASS. |
+| Phase 3 - Deployment and Production Hardening | `IN_PROGRESS` | `35494964519e014ee60e573a3db718770668ba8c` | Sprint 3.1 release packaging accepted; Sprint 3.2 config package UAT accepted; Sprint 3.3 installation hardening implemented locally; Sprint 3.4 next | Release packaging, environment config model, installation hardening docs, validation script, troubleshooting guide, IT handoff guide, UAT result template. Sprint 3.3: installation/machine readiness/troubleshooting docs, package validation script, internal UAT template, all build/test/package/validate PASS. |
 
 ## Read Phase 1
 
@@ -34,6 +34,11 @@ This directory is the only active documentation root for Part Library.
 - [Environment configuration guidance](phase-3/ENVIRONMENT-CONFIGURATION.md)
 - [Rollback guidance](phase-3/ROLLBACK.md)
 - [UAT checklist](phase-3/UAT-CHECKLIST.md)
+- [Installation hardening](phase-3/INSTALLATION-HARDENING.md)
+- [Machine readiness](phase-3/MACHINE-READINESS.md)
+- [Troubleshooting](phase-3/TROUBLESHOOTING.md)
+- [IT handoff guide](phase-3/IT-HANDOFF.md)
+- [Internal UAT result template](phase-3/INTERNAL-UAT-RESULT-TEMPLATE.md)
 
 ## Shared References
 

@@ -49,6 +49,19 @@
 - [x] Part Library still loads
 - [x] Active config next to exe does not crash
 
+## Sprint 3.3 Installation Hardening Smoke
+
+- [ ] Package validation script runs against zip
+- [ ] Package validation script returns exit code 0
+- [ ] Installation hardening doc present: `docs/INSTALLATION-HARDENING.md`
+- [ ] Machine readiness doc present: `docs/MACHINE-READINESS.md`
+- [ ] Troubleshooting doc present: `docs/TROUBLESHOOTING.md`
+- [ ] IT handoff doc present: `docs/IT-HANDOFF.md`
+- [ ] Internal UAT result template present: `docs/INTERNAL-UAT-RESULT-TEMPLATE.md`
+- [ ] Validation script present: `tools/validate-release-package.ps1`
+- [ ] Active config excluded from package
+- [ ] No secrets in template
+
 ## Package Result
 
 - [x] Ready for wider internal UAT.

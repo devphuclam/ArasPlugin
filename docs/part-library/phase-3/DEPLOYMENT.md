@@ -75,6 +75,17 @@ The method must not add, edit, promote, create relationships, upload files, or m
 
 Sprint 3.2 Config Package UAT accepted. Template `IdeaCadConnector.environment.template.json` included in package at `docs/templates/`. Active config excluded by script validation. No secrets in template. Role defaults correct. App launches without config and does not crash with config.
 
+## Sprint 3.3 Internal Installation Hardening
+
+Sprint 3.3 adds installation hardening docs and a package validation script. The release package now includes:
+
+- `docs/INSTALLATION-HARDENING.md` — extraction, run, verify, rollback
+- `docs/MACHINE-READINESS.md` — machine/network/permissions prerequisites
+- `docs/TROUBLESHOOTING.md` — 14 common issues with severity classification
+- `docs/INTERNAL-UAT-RESULT-TEMPLATE.md` — fillable 25-area test result form
+- `docs/IT-HANDOFF.md` — what to send/not send, prep steps, escalation
+- `tools/validate-release-package.ps1` — package integrity validation script
+
 ## Environment Configuration (Sprint 3.2)
 
 The release package includes an environment config template at:

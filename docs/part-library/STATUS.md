@@ -175,11 +175,25 @@ Sprint 3.2 adds a non-secret environment configuration model for the desktop app
 
 **Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
 
-### Sprint 3.3
+### Sprint 3.3 — Internal Installation/UAT Hardening
 
-**Status:** `NOT STARTED`
+**Status:** `IMPLEMENTED_LOCALLY`
 
-Internal Installation/UAT Hardening.
+Sprint 3.3 adds installation hardening docs, a package validation script, a troubleshooting guide, an IT handoff guide, and an internal UAT result template.
+
+**Implemented:**
+
+- **INSTALLATION-HARDENING.md**: Where to extract, how to run, config setup, what not to edit, verify package, rollback
+- **MACHINE-READINESS.md**: Windows/.NET 4.8 requirements, network access, role identities, Aras permissions checklist
+- **TROUBLESHOOTING.md**: 14 common issues with symptom/cause/check/action/blocker severity
+- **INTERNAL-UAT-RESULT-TEMPLATE.md**: Fillable table with 25 test areas, issues table, decision field
+- **IT-HANDOFF.md**: What to send/not send, Aras/machine prep, smoke test steps, rollback, escalation path
+- **validate-release-package.ps1**: Validates structure, files, docs, config exclusion, forbidden files, secrets; returns exit code
+- **Package script updated**: Includes all new docs and validation script in release zip
+
+**Validation:** 23/23 checks PASS, exit code 0
+
+**Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
 
 ### Sprint 3.4
 

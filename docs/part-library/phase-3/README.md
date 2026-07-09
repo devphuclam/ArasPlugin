@@ -48,6 +48,18 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 - Template: `docs/templates/IdeaCadConnector.environment.template.json` included in release package
 - Active config excluded from package by script validation
 
+## Sprint 3.3 Workstreams
+
+| ID | Workstream | Status |
+|---|---|---|
+| `WS3.3-A` | Installation hardening guide | `IMPLEMENTED_LOCALLY` |
+| `WS3.3-B` | Machine readiness guide | `IMPLEMENTED_LOCALLY` |
+| `WS3.3-C` | Troubleshooting guide | `IMPLEMENTED_LOCALLY` |
+| `WS3.3-D` | Internal UAT result template | `IMPLEMENTED_LOCALLY` |
+| `WS3.3-E` | IT handoff guide | `IMPLEMENTED_LOCALLY` |
+| `WS3.3-F` | Package validation script | `IMPLEMENTED_LOCALLY` |
+| `WS3.3-G` | Packaging: include new docs/scripts | `IMPLEMENTED_LOCALLY` |
+
 ## Sprint 3.2 Workstreams
 
 | ID | Workstream | Status |
@@ -72,7 +84,7 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 |---|---|---|---|
 | `3.1` | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
 | `3.2` | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
-| `3.3` | Internal Installation/UAT Hardening | `NOT STARTED` |
+| `3.3` | Internal Installation/UAT Hardening | `IMPLEMENTED_LOCALLY` |
 | `3.4` | Production Release Readiness | `NOT STARTED` |
 
 ## Sprint 3.1 Package UAT Result
@@ -105,9 +117,7 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 - [x] Debug and Release tests pass;
 - [x] no secrets or generated release artifacts are committed.
 
-## Sprint 3.2 Acceptance Gates
-
-Sprint 3.2 is accepted when:
+## Sprint 3.2 Acceptance Gates (all met)
 
 - [x] environment config model exists;
 - [x] safe config loader exists;
@@ -120,7 +130,27 @@ Sprint 3.2 is accepted when:
 - [x] package script passes;
 - [x] docs updated;
 - [x] Phase 3 remains `IN_PROGRESS`;
-- [x] Sprint 3.3 not started.
+
+## Sprint 3.3 Acceptance Gates
+
+Sprint 3.3 is accepted when:
+
+- [x] installation hardening guide exists;
+- [x] machine readiness guide exists;
+- [x] troubleshooting guide exists;
+- [x] IT handoff guide exists;
+- [x] internal UAT result template exists;
+- [x] package validation script exists;
+- [x] package script includes Sprint 3.3 docs/scripts;
+- [x] package validation script passes against generated zip (23/23 checks);
+- [x] Debug build passes;
+- [x] Release build passes;
+- [x] Debug tests pass;
+- [x] Release tests pass;
+- [x] no source feature changes;
+- [x] no secrets committed;
+- [x] Phase 3 remains `IN_PROGRESS`;
+- [x] Sprint 3.4 not started.
 
 ## Current Owner
 

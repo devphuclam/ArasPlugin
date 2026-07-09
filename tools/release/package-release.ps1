@@ -77,8 +77,9 @@ $appDir = Join-Path $stageRoot "app"
 $arasMethodsDir = Join-Path $stageRoot "aras\server-methods"
 $docsDir = Join-Path $stageRoot "docs"
 $checksumsDir = Join-Path $stageRoot "checksums"
+$toolsDir = Join-Path $stageRoot "tools"
 
-New-Item -ItemType Directory -Path $appDir, $arasMethodsDir, $docsDir, $checksumsDir | Out-Null
+New-Item -ItemType Directory -Path $appDir, $arasMethodsDir, $docsDir, $checksumsDir, $toolsDir | Out-Null
 
 Get-ChildItem -LiteralPath $desktopOutput -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $appDir $_.Name) -Force
@@ -94,6 +95,21 @@ Copy-RequiredFile (Join-Path $phase3Docs "UAT-CHECKLIST.md") (Join-Path $docsDir
 Copy-RequiredFile (Join-Path $phase3Docs "ROLLBACK.md") (Join-Path $docsDir "ROLLBACK.md")
 Copy-RequiredFile (Join-Path $phase3Docs "RELEASE-NOTES-v0.3.0-rc1.md") (Join-Path $docsDir "RELEASE-NOTES.md")
 Copy-RequiredFile (Join-Path $phase3Docs "templates\IdeaCadConnector.environment.template.json") (Join-Path $stageRoot "docs\templates\IdeaCadConnector.environment.template.json")
+
+# Sprint 3.3 — Installation hardening docs
+Copy-RequiredFile (Join-Path $phase3Docs "INSTALLATION-HARDENING.md") (Join-Path $docsDir "INSTALLATION-HARDENING.md")
+Copy-RequiredFile (Join-Path $phase3Docs "MACHINE-READINESS.md") (Join-Path $docsDir "MACHINE-READINESS.md")
+Copy-RequiredFile (Join-Path $phase3Docs "TROUBLESHOOTING.md") (Join-Path $docsDir "TROUBLESHOOTING.md")
+Copy-RequiredFile (Join-Path $phase3Docs "INTERNAL-UAT-RESULT-TEMPLATE.md") (Join-Path $docsDir "INTERNAL-UAT-RESULT-TEMPLATE.md")
+Copy-RequiredFile (Join-Path $phase3Docs "IT-HANDOFF.md") (Join-Path $docsDir "IT-HANDOFF.md")
+
+# Validation script
+$validationScript = Join-Path $repoRoot "tools\release\validate-release-package.ps1"
+if (Test-Path -LiteralPath $validationScript) {
+    Copy-Item -LiteralPath $validationScript -Destination (Join-Path $toolsDir "validate-release-package.ps1") -Force
+} else {
+    Write-Host "[WARNING] Validation script not found at $validationScript - will not be included in package"
+}
 
 $commit = (git -C $repoRoot rev-parse HEAD).Trim()
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

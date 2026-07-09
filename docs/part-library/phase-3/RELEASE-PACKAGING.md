@@ -40,8 +40,15 @@ IdeaCadConnector-v0.3.0-rc1/
     UAT-CHECKLIST.md
     ROLLBACK.md
     RELEASE-NOTES.md
+    INSTALLATION-HARDENING.md
+    MACHINE-READINESS.md
+    TROUBLESHOOTING.md
+    INTERNAL-UAT-RESULT-TEMPLATE.md
+    IT-HANDOFF.md
     templates/
       IdeaCadConnector.environment.template.json
+  tools/
+    validate-release-package.ps1
   checksums/
     SHA256SUMS.txt
   VERSION.txt

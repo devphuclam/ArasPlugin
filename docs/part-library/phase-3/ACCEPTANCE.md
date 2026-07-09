@@ -145,6 +145,55 @@ Phase 3 remains `IN_PROGRESS`.
 
 Next sprint: **Sprint 3.3 — Internal Installation/UAT Hardening**.
 
+## Sprint 3.3 Local Verification
+
+Baseline commit:
+
+```text
+df47338d1bdf8c68888e462b1ef4ab7bbc5f0ee9
+```
+
+Sprint 3.3 adds installation hardening docs, a package validation script, a troubleshooting guide, an IT handoff guide, and an internal UAT result template.
+
+Commands run:
+
+```powershell
+dotnet build .\IdeaCadConnector.sln -c Debug
+dotnet build .\IdeaCadConnector.sln -c Release
+dotnet test .\IdeaCadConnector.sln -c Debug
+dotnet test .\IdeaCadConnector.sln -c Release
+powershell -ExecutionPolicy Bypass -File .\tools\release\package-release.ps1 -Version v0.3.0-rc1 -Configuration Release
+powershell -ExecutionPolicy Bypass -File .\tools\release\validate-release-package.ps1 -PackagePath .\artifacts\release\IdeaCadConnector-v0.3.0-rc1.zip -ExpectedVersion v0.3.0-rc1
+```
+
+Results:
+
+- Debug build: passed, 0 warnings, 0 errors.
+- Release build: passed, 0 warnings, 0 errors.
+- Debug tests: passed, 419/419.
+- Release tests: passed, 419/419.
+- Package script: passed.
+- Package validation: 23/23 checks PASS, exit code 0.
+
+### Sprint 3.3 Acceptance Checklist
+
+- [x] Installation hardening guide exists (`INSTALLATION-HARDENING.md`);
+- [x] Machine readiness guide exists (`MACHINE-READINESS.md`);
+- [x] Troubleshooting guide exists (`TROUBLESHOOTING.md`);
+- [x] IT handoff guide exists (`IT-HANDOFF.md`);
+- [x] Internal UAT result template exists (`INTERNAL-UAT-RESULT-TEMPLATE.md`);
+- [x] Package validation script exists (`tools/release/validate-release-package.ps1`);
+- [x] Package script includes Sprint 3.3 docs/scripts;
+- [x] Package validation script passes against generated zip (23/23 checks);
+- [x] Debug build passes;
+- [x] Release build passes;
+- [x] Debug tests pass (419/419);
+- [x] Release tests pass (419/419);
+- [x] No source feature changes;
+- [x] No secrets committed;
+- [x] Phase 3 remains `IN_PROGRESS`;
+- [x] Sprint 3.4 not started.
+
 ## Not Accepted In Sprint 3.1 or Sprint 3.2
 
 - MSI installer;

@@ -18,7 +18,17 @@ Sprint 3.1 does not change live Aras. If the required method is newly deployed f
 2. Confirm Part Library CAD lookup returns the expected missing-method error.
 3. Restore the previous app package if needed.
 
-No ItemType, lifecycle, workflow, relationship, CAD, Part, File, or Vault data is changed by Sprint 3.1.
+No ItemType, lifecycle, workflow, relationship, CAD, Part, File, or Vault data is changed by Sprint 3.1, Sprint 3.2, or Sprint 3.3.
+
+## Package Validation
+
+Before and after rollback, run the package validation script to verify integrity:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\validate-release-package.ps1 -PackagePath .\IdeaCadConnector-v0.3.0-rc1
+```
+
+The script checks file structure, required files, forbidden files, and secrets. It returns exit code 0 on success.
 
 ## Checksum Recovery
 
