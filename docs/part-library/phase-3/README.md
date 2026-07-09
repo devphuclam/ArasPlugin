@@ -52,13 +52,13 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 
 | ID | Workstream | Status |
 |---|---|---|
-| `WS3.3-A` | Installation hardening guide | `IMPLEMENTED_LOCALLY` |
-| `WS3.3-B` | Machine readiness guide | `IMPLEMENTED_LOCALLY` |
-| `WS3.3-C` | Troubleshooting guide | `IMPLEMENTED_LOCALLY` |
-| `WS3.3-D` | Internal UAT result template | `IMPLEMENTED_LOCALLY` |
-| `WS3.3-E` | IT handoff guide | `IMPLEMENTED_LOCALLY` |
-| `WS3.3-F` | Package validation script | `IMPLEMENTED_LOCALLY` |
-| `WS3.3-G` | Packaging: include new docs/scripts | `IMPLEMENTED_LOCALLY` |
+| `WS3.3-A` | Installation hardening guide | `ACCEPTED` |
+| `WS3.3-B` | Machine readiness guide | `ACCEPTED` |
+| `WS3.3-C` | Troubleshooting guide | `ACCEPTED` |
+| `WS3.3-D` | Internal UAT result template | `ACCEPTED` |
+| `WS3.3-E` | IT handoff guide | `ACCEPTED` |
+| `WS3.3-F` | Package validation script | `ACCEPTED` |
+| `WS3.3-G` | Packaging: include new docs/scripts | `ACCEPTED` |
 
 ## Sprint 3.2 Workstreams
 
@@ -84,7 +84,7 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 |---|---|---|---|
 | `3.1` | Release Packaging Baseline | `PACKAGE_UAT_ACCEPTED` |
 | `3.2` | Environment Configuration Hardening | `CONFIG_PACKAGE_UAT_ACCEPTED` |
-| `3.3` | Internal Installation/UAT Hardening | `IMPLEMENTED_LOCALLY` |
+| `3.3` | Internal Installation/UAT Hardening | `INTERNAL_INSTALLATION_PACKAGE_UAT_ACCEPTED` |
 | `3.4` | Production Release Readiness | `NOT STARTED` |
 
 ## Sprint 3.1 Package UAT Result
@@ -131,9 +131,34 @@ Phase 2 is now `COMPLETE` (all sprints accepted, final live App UAT passed). Pha
 - [x] docs updated;
 - [x] Phase 3 remains `IN_PROGRESS`;
 
-## Sprint 3.3 Acceptance Gates
+## Sprint 3.3 Internal Installation Package UAT
 
-Sprint 3.3 is accepted when:
+**Package tested:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Commit tested:** `00d4b70454d7daf438d44385dde3dcebf72fbd0b`
+
+**Internal Installation Package UAT accepted** on 2026-07-09.
+
+| Area | Result | Evidence |
+|---|---|---|
+| Package script rerun | PASS | `package-release.ps1` completed |
+| Validation on zip | PASS | `validate-release-package.ps1` zip: 23/23 PASS |
+| Clean extraction | PASS | zip extracted to clean folder |
+| Validation on extracted folder | PASS | `validate-release-package.ps1` extracted: 23/23 PASS |
+| New docs included | PASS | Sprint 3.3 docs present in package |
+| Validation script included | PASS | `tools/validate-release-package.ps1` present |
+| Machine readiness doc | PASS | usable by internal tester |
+| Troubleshooting doc | PASS | usable by internal tester |
+| Internal UAT result template | PASS | usable by internal tester |
+| IT handoff doc | PASS | usable by IT/internal handoff |
+| Active config excluded | PASS | no active `IdeaCadConnector.environment.json` packaged |
+| Secret scan | PASS | no secrets found |
+| App launch | PASS | app launched from extracted folder |
+| Login Aras | PASS | login completed |
+| Part Library load | PASS | Part Library loaded |
+| Known issues | PASS | none reported |
+
+## Sprint 3.3 Acceptance Gates (all met)
 
 - [x] installation hardening guide exists;
 - [x] machine readiness guide exists;

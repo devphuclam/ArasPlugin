@@ -1,5 +1,8 @@
 # Internal UAT Result
 
+> **Sprint 3.3 Internal Installation Package UAT accepted** on 2026-07-09.
+> See [ACCEPTANCE.md](ACCEPTANCE.md).
+
 ## Session Info
 
 | Field | Value |

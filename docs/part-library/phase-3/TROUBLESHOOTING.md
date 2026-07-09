@@ -1,5 +1,8 @@
 # Troubleshooting
 
+> **Sprint 3.3 Internal Installation Package UAT accepted** on 2026-07-09.
+> See [ACCEPTANCE.md](ACCEPTANCE.md).
+
 ## App Does Not Launch
 
 **Symptom:** Double-clicking `IdeaCadConnector.Desktop.exe` does nothing or shows a brief cursor.

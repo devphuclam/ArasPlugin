@@ -177,7 +177,13 @@ Sprint 3.2 adds a non-secret environment configuration model for the desktop app
 
 ### Sprint 3.3 — Internal Installation/UAT Hardening
 
-**Status:** `IMPLEMENTED_LOCALLY`
+**Status:** `INTERNAL_INSTALLATION_PACKAGE_UAT_ACCEPTED`
+
+**Package tested:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Commit tested:** `00d4b70454d7daf438d44385dde3dcebf72fbd0b`
+
+**Decision:** Sprint 3.3 Internal Installation Package UAT accepted.
 
 Sprint 3.3 adds installation hardening docs, a package validation script, a troubleshooting guide, an IT handoff guide, and an internal UAT result template.
 
@@ -194,6 +200,10 @@ Sprint 3.3 adds installation hardening docs, a package validation script, a trou
 **Validation:** 23/23 checks PASS, exit code 0
 
 **Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
+
+**UAT Results:** Package script rerun PASS, validation on zip PASS, clean extraction PASS, validation on extracted folder PASS, new docs included PASS, validation script included PASS, machine readiness doc usable PASS, troubleshooting doc usable PASS, UAT result template usable PASS, IT handoff doc usable PASS, active config excluded PASS, secret scan PASS, app launch PASS, login Aras PASS, Part Library load PASS. Known issues: none.
+
+**Sprint 3.3 accepted** on 2026-07-09.
 
 ### Sprint 3.4
 

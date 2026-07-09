@@ -1,5 +1,8 @@
 # IT Handoff Guide
 
+> **Sprint 3.3 Internal Installation Package UAT accepted** on 2026-07-09.
+> See [ACCEPTANCE.md](ACCEPTANCE.md).
+
 ## What to Send to the Tester
 
 Send the release zip file:

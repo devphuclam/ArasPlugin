@@ -51,16 +51,20 @@
 
 ## Sprint 3.3 Installation Hardening Smoke
 
-- [ ] Package validation script runs against zip
-- [ ] Package validation script returns exit code 0
-- [ ] Installation hardening doc present: `docs/INSTALLATION-HARDENING.md`
-- [ ] Machine readiness doc present: `docs/MACHINE-READINESS.md`
-- [ ] Troubleshooting doc present: `docs/TROUBLESHOOTING.md`
-- [ ] IT handoff doc present: `docs/IT-HANDOFF.md`
-- [ ] Internal UAT result template present: `docs/INTERNAL-UAT-RESULT-TEMPLATE.md`
-- [ ] Validation script present: `tools/validate-release-package.ps1`
-- [ ] Active config excluded from package
-- [ ] No secrets in template
+- [x] Package validation script runs against zip
+- [x] Package validation script returns exit code 0
+- [x] Installation hardening doc present: `docs/INSTALLATION-HARDENING.md`
+- [x] Machine readiness doc present: `docs/MACHINE-READINESS.md`
+- [x] Troubleshooting doc present: `docs/TROUBLESHOOTING.md`
+- [x] IT handoff doc present: `docs/IT-HANDOFF.md`
+- [x] Internal UAT result template present: `docs/INTERNAL-UAT-RESULT-TEMPLATE.md`
+- [x] Validation script present: `tools/validate-release-package.ps1`
+- [x] Active config excluded from package
+- [x] No secrets in template
+
+## Sprint 3.3 UAT Result
+
+Sprint 3.3 Internal Installation Package UAT accepted on 2026-07-09. Package `IdeaCadConnector-v0.3.0-rc1.zip`. No blockers. See [ACCEPTANCE.md](ACCEPTANCE.md).
 
 ## Package Result
 

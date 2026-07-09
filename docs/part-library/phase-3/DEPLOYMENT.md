@@ -75,7 +75,11 @@ The method must not add, edit, promote, create relationships, upload files, or m
 
 Sprint 3.2 Config Package UAT accepted. Template `IdeaCadConnector.environment.template.json` included in package at `docs/templates/`. Active config excluded by script validation. No secrets in template. Role defaults correct. App launches without config and does not crash with config.
 
-## Sprint 3.3 Internal Installation Hardening
+## Sprint 3.3 Internal Installation Package UAT
+
+**Sprint 3.3 Internal Installation Package UAT accepted** on 2026-07-09.
+
+Package `IdeaCadConnector-v0.3.0-rc1.zip` validated against zip and extracted folder (23/23 checks PASS). App launched, Aras login passed, Part Library loaded. All new docs included and usable. No known issues.
 
 Sprint 3.3 adds installation hardening docs and a package validation script. The release package now includes:
 

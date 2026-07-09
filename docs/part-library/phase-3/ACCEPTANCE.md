@@ -194,7 +194,42 @@ Results:
 - [x] Phase 3 remains `IN_PROGRESS`;
 - [x] Sprint 3.4 not started.
 
-## Not Accepted In Sprint 3.1 or Sprint 3.2
+### Sprint 3.3 Internal Installation Package UAT
+
+**Package tested:** `IdeaCadConnector-v0.3.0-rc1.zip`
+
+**Commit tested:** `00d4b70454d7daf438d44385dde3dcebf72fbd0b`
+
+**Internal Installation Package UAT accepted** on 2026-07-09.
+
+| Area | Result | Evidence |
+|---|---|---|
+| Package script rerun | PASS | `package-release.ps1` completed |
+| Validation on zip | PASS | `validate-release-package.ps1` returned success |
+| Clean extraction | PASS | zip extracted to clean folder |
+| Validation on extracted folder | PASS | extracted package validated |
+| New docs included | PASS | Sprint 3.3 docs present in package |
+| Validation script included | PASS | `tools/validate-release-package.ps1` present |
+| Machine readiness doc | PASS | usable by internal tester |
+| Troubleshooting doc | PASS | usable by internal tester |
+| Internal UAT result template | PASS | usable by internal tester |
+| IT handoff doc | PASS | usable by IT/internal handoff |
+| Active config excluded | PASS | no active `IdeaCadConnector.environment.json` packaged |
+| Secret scan | PASS | no secrets found |
+| App launch | PASS | app launched from extracted folder |
+| Login Aras | PASS | login completed |
+| Part Library load | PASS | Part Library loaded |
+| Known issues | PASS | none reported |
+
+### Acceptance Decision
+
+Sprint 3.3 Internal Installation Package UAT **accepted**.
+
+Phase 3 remains `IN_PROGRESS`.
+
+Next sprint: **Sprint 3.4 — Production Release Readiness**.
+
+## Not Accepted In Sprint 3.1, Sprint 3.2, or Sprint 3.3
 
 - MSI installer;
 - ClickOnce;

@@ -2,6 +2,8 @@
 
 Sprint 3.2 Config Package UAT accepted. Template `IdeaCadConnector.environment.template.json` included at `docs/templates/`. Active config rejected by script. No secrets in template.
 
+Sprint 3.3 Internal Installation Package UAT accepted on 2026-07-09. Package `IdeaCadConnector-v0.3.0-rc1.zip` includes 5 new hardening docs, package validation script, and all prior content. See [ACCEPTANCE.md](ACCEPTANCE.md).
+
 ## Script
 
 ```powershell
