@@ -38,6 +38,8 @@ IdeaCadConnector-v0.3.0-rc1/
     UAT-CHECKLIST.md
     ROLLBACK.md
     RELEASE-NOTES.md
+    templates/
+      IdeaCadConnector.environment.template.json
   checksums/
     SHA256SUMS.txt
   VERSION.txt
@@ -54,7 +56,13 @@ The package must not include:
 - `.vs`;
 - `TestResults`;
 - personal developer configuration;
-- generated test artifacts.
+- generated test artifacts;
+- active `IdeaCadConnector.environment.json` (user-specific config with potential secrets);
+- any file named `IdeaCadConnector.environment.json` outside the `docs/templates/` folder.
+
+## Active Config Validation
+
+The packaging script validates that no active `IdeaCadConnector.environment.json` is present in the repository outside the docs template folder before building the release zip. If an active config is found, the script exits with an error to prevent accidental secret inclusion.
 
 ## Version File
 

@@ -79,7 +79,44 @@ Phase 3 remains `IN_PROGRESS`.
 
 Next sprint: **Sprint 3.2 — Environment Configuration Hardening**.
 
-## Not Accepted In Sprint 3.1
+## Sprint 3.2 Local Verification
+
+Baseline commit:
+
+```text
+09688754cf0db4a0ef350d84409371b51765ea5c
+```
+
+Sprint 3.2 implements the environment configuration model, config loader, validation, template, packaging safeguards, and tests.
+
+Results:
+
+- Debug build: passed, 0 warnings, 0 errors.
+- Release build: passed, 0 warnings, 0 errors.
+- Debug tests: passed, 419/419 (403 existing + 16 new).
+- Release tests: passed, 419/419.
+- Package script: passed.
+- Template included in package: `docs/templates/IdeaCadConnector.environment.template.json`
+- Active config excluded: validated by script.
+
+### Sprint 3.2 Acceptance
+
+Sprint 3.2 is locally accepted when all checklist items met:
+
+- [x] environment config model exists (`EnvironmentConfiguration`, `EnvironmentConfigurationLoader` in `Core.Configuration`);
+- [x] safe config loader exists with lookup order, path expansion, validation;
+- [x] missing config does not crash (returns defaults);
+- [x] template exists in `docs/templates/`;
+- [x] package includes template only (validated by script);
+- [x] no secrets committed;
+- [x] official role defaults remain correct (TPTKC/TNTKC/NVTKC/NVLCR/PM/Khách hàng);
+- [x] tests pass (419/419);
+- [x] package script passes;
+- [x] docs updated;
+- [x] Phase 3 remains `IN_PROGRESS`;
+- [x] Sprint 3.3 not started.
+
+## Not Accepted In Sprint 3.1 or Sprint 3.2
 
 - MSI installer;
 - ClickOnce;

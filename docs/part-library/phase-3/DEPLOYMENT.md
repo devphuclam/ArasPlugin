@@ -71,6 +71,24 @@ The method must not add, edit, promote, create relationships, upload files, or m
 | `PM` | Quan ly du an |
 | `Customer` | Khach hang |
 
+## Environment Configuration (Sprint 3.2)
+
+The release package includes an environment config template at:
+
+```text
+docs/templates/IdeaCadConnector.environment.template.json
+```
+
+Users should copy this template to `IdeaCadConnector.environment.json` and place it in one of the lookup locations:
+
+1. Set `IDEA_CAD_CONNECTOR_ENV_CONFIG` environment variable to the config path.
+2. Place next to the executable in the `app/` folder.
+3. Place in `%APPDATA%/IdeaCadConnector/` folder.
+
+Edit non-secret values only. Do not add passwords or tokens.
+
+The packaging script validates that no active `IdeaCadConnector.environment.json` is included in the release zip.
+
 ## Rollback
 
-Rollback is file-based for Sprint 3.1. See [ROLLBACK.md](ROLLBACK.md).
+Rollback is file-based for Sprint 3.1 and Sprint 3.2. See [ROLLBACK.md](ROLLBACK.md).

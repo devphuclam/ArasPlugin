@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "environmentName": "UAT",
+  "aras": {
+    "baseUrl": "https://your-aras-server.example.com/InnovatorServer",
+    "database": "InnovatorSolutions",
+    "openInArasBaseUrl": "https://your-aras-server.example.com/InnovatorServer"
+  },
+  "local": {
+    "vaultCacheDirectory": "%LOCALAPPDATA%/IdeaCadConnector/VaultCache",
+    "ironCadExecutablePath": "",
+    "openDownloadedCadAfterDownload": false
+  },
+  "roles": {
+    "managerUsers": ["TPTKC"],
+    "reviewerUsers": ["TNTKC", "TPTKC"],
+    "contributorUsers": ["NVTKC", "TNTKC", "TPTKC"],
+    "readOnlyUsers": ["NVLCR", "PM", "KhachHang", "Customer"]
+  },
+  "diagnostics": {
+    "logLevel": "Info",
+    "enableFileLogging": true,
+    "logDirectory": "%LOCALAPPDATA%/IdeaCadConnector/Logs"
+  }
+}

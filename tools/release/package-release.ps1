@@ -44,6 +44,22 @@ Assert-Exists $solutionPath "Solution"
 Assert-Exists $methodSource "Aras server method"
 Assert-Exists $phase3Docs "Phase 3 docs folder"
 
+$envConfigName = "IdeaCadConnector.environment.json"
+$envConfigActive = Join-Path $repoRoot $envConfigName
+
+# Block packaging if active environment config would be copied
+if (Test-Path -LiteralPath $envConfigActive) {
+    throw "Active environment config found at $envConfigActive. Refusing to package active config with possible secrets."
+}
+
+$envConfigFilesInDesktop = Get-ChildItem -LiteralPath $repoRoot -Filter $envConfigName -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notlike "*\bin\*" -and $_.FullName -notlike "*\obj\*" -and $_.FullName -notlike "*\TestResults\*" -and $_.FullName -notlike "*\artifacts\*" }
+foreach ($f in $envConfigFilesInDesktop) {
+    if ($f.DirectoryName -ne (Join-Path $repoRoot "docs\part-library\phase-3\templates")) {
+        throw "Unexpected active config file at $($f.FullName). Refusing to package."
+    }
+}
+
 if (Test-Path -LiteralPath $outputRoot) {
     Remove-Item -LiteralPath $outputRoot -Recurse -Force
 }
@@ -77,6 +93,7 @@ Copy-RequiredFile (Join-Path $phase3Docs "ENVIRONMENT-CONFIGURATION.md") (Join-P
 Copy-RequiredFile (Join-Path $phase3Docs "UAT-CHECKLIST.md") (Join-Path $docsDir "UAT-CHECKLIST.md")
 Copy-RequiredFile (Join-Path $phase3Docs "ROLLBACK.md") (Join-Path $docsDir "ROLLBACK.md")
 Copy-RequiredFile (Join-Path $phase3Docs "RELEASE-NOTES-v0.3.0-rc1.md") (Join-Path $docsDir "RELEASE-NOTES.md")
+Copy-RequiredFile (Join-Path $phase3Docs "templates\IdeaCadConnector.environment.template.json") (Join-Path $stageRoot "docs\templates\IdeaCadConnector.environment.template.json")
 
 $commit = (git -C $repoRoot rev-parse HEAD).Trim()
 $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

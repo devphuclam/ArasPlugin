@@ -155,11 +155,25 @@ Package UAT results (all PASS):
 | Missing DLL check | PASS |
 | Secret/artifact check | PASS |
 
-### Sprint 3.2
+### Sprint 3.2 — Environment Configuration Hardening
 
-**Status:** `NOT STARTED`
+**Status:** `IMPLEMENTED_LOCALLY`
 
-Environment Configuration Hardening — next sprint.
+Sprint 3.2 adds a non-secret environment configuration model for the desktop app.
+
+**Implemented:**
+
+- **Config model**: `EnvironmentConfiguration` and `EnvironmentConfigurationLoader` in `IdeaCadConnector.Core.Configuration`
+- **Lookup order**: (1) `IDEA_CAD_CONNECTOR_ENV_CONFIG` env var, (2) next to executable, (3) `%APPDATA%/IdeaCadConnector/`, (4) built-in defaults
+- **Validation**: schema version check, malformed JSON detection, secret-like key detection (password, token, secret, cookie, session, credential, passphrase, auth, apikey, api_key)
+- **Path expansion**: `%LOCALAPPDATA%`, `%APPDATA%`, `%USERPROFILE%` supported in path fields
+- **Fallback**: missing/empty/corrupt config returns defaults with clear diagnostic, never crashes
+- **Template**: `IdeaCadConnector.environment.template.json` in docs and release package
+- **Packaging**: script validates no active config is included; template only
+- **Role defaults**: TPTKC (manager), TNTKC (reviewer), NVTKC (contributor), NVLCR/PM/Khách hàng (read-only)
+- **Tests**: 16 new; total 419/419 pass
+
+**Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
 
 ### Sprint 3.3
 

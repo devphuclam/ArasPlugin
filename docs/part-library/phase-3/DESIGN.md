@@ -21,15 +21,50 @@ IdeaCadConnector-v0.3.0-rc1/
 
 The `app/` folder is copied from the desktop Release output folder. This keeps runtime DLL selection aligned with MSBuild and avoids guessing transitive dependencies.
 
-## Configuration Model
+## Configuration Model (Sprint 3.2)
 
-The current desktop app has no `App.config`. The only desktop project file explicitly copied to output is:
+The desktop app now includes an environment configuration model for non-secret settings:
+
+### Config File
 
 ```text
-pdm-naming-policy.json
+IdeaCadConnector.environment.json
 ```
 
-Aras connection details are runtime/session-driven. Sprint 3.1 documents required environment values but does not refactor startup configuration. Externalized connection profiles are deferred to Sprint 3.2.
+### Lookup Order
+
+1. `IDEA_CAD_CONNECTOR_ENV_CONFIG` environment variable
+2. Next to executable (`app/IdeaCadConnector.environment.json`)
+3. `%APPDATA%/IdeaCadConnector/IdeaCadConnector.environment.json`
+4. Built-in defaults (no crash if missing)
+
+### Supported Sections
+
+| Section | Purpose | Wiring Status |
+|---------|---------|---------------|
+| `aras` | Base URL, database, Open-in-Aras URL | Not wired (prefill candidate for Sprint 3.3) |
+| `local` | Vault cache directory, IronCAD path, auto-open | Not wired (candidate for Sprint 3.3) |
+| `roles` | Manager/reviewer/contributor/read-only user aliases | Documented only (candidate for Sprint 3.3) |
+| `diagnostics` | Log level, file logging, log directory | Not wired (requires logging infrastructure) |
+
+### Secret Policy
+
+No passwords, tokens, credentials, cookies, or sessions in config. Secret-like keys are detected at load time and emit warnings.
+
+### Validation
+
+- `schemaVersion` must be `1`
+- Malformed JSON produces clear error with defaults fallback
+- Empty file treated as missing
+- Path expansion for `%LOCALAPPDATA%`, `%APPDATA%`, `%USERPROFILE%`
+
+### Template
+
+```text
+docs/part-library/phase-3/templates/IdeaCadConnector.environment.template.json
+```
+
+Also included in release package as `docs/templates/IdeaCadConnector.environment.template.json`.
 
 ## Aras Dependency
 
