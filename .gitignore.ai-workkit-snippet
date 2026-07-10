@@ -1,0 +1,18 @@
+# BEGIN AI WORK KIT
+!AI_START_HERE.md
+!DEEPSEEK.md
+!docs/
+!docs/ai/
+!docs/ai/**
+!tasks/
+!tasks/ai/
+!tasks/ai/**
+!scripts/
+!scripts/ai/
+!scripts/ai/**
+!.github/
+!.github/ISSUE_TEMPLATE/
+!.github/ISSUE_TEMPLATE/**
+!.github/pull_request_template.md
+.ai-work/
+# END AI WORK KIT

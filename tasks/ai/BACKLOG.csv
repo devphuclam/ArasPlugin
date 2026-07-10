@@ -1,0 +1,65 @@
+﻿id,epic,title,dependencies,risk,status
+BASE-00,Baseline,Establish clean backed-up baseline,None,High,Ready
+BASE-01,Baseline,Build baseline,BASE-00,High,Blocked by dependencies
+BASE-02,Baseline,Test baseline,BASE-01,Medium,Blocked by dependencies
+BASE-03,Baseline,Install AI governance workflow,BASE-00,Low,Blocked by dependencies
+BASE-04,Baseline,Verify Aras schema map,BASE-01,Critical,Blocked by dependencies
+BASE-05,Baseline,Inventory deployed server methods,BASE-04,High,Blocked by dependencies
+DOC-01,Document Vault,Extend Document push contract,BASE-04,Medium,Blocked by dependencies
+DOC-02,Document Vault,Populate Document path and fingerprint,DOC-01,Medium,Blocked by dependencies
+DOC-03,Document Vault,Upload Document file to Vault,DOC-02,High,Blocked by dependencies
+DOC-04,Document Vault,Attach physical File to Document,DOC-03,Critical,Blocked by dependencies
+DOC-05,Document Vault,Implement Document content version policy,DOC-04,High,Blocked by dependencies
+DOC-06,Document Vault,Download real Document files during Clone,DOC-05,High,Blocked by dependencies
+DOC-07,Document Vault,Retain placeholder compatibility mode,DOC-06,Medium,Blocked by dependencies
+DOC-08,Document Vault,Document Vault integration suite,DOC-07,High,Blocked by dependencies
+WSP-01,Workspace State,Design manifest v2 model,DOC-04,Medium,Blocked by dependencies
+WSP-02,Workspace State,Migrate legacy manifest to v2,WSP-01,High,Blocked by dependencies
+WSP-03,Workspace State,Implement workspace file scanner,WSP-02,Medium,Blocked by dependencies
+WSP-04,Workspace State,Implement reusable SHA256 service,WSP-03,Medium,Blocked by dependencies
+WSP-05,Workspace State,Implement file Diff Engine,WSP-04,High,Blocked by dependencies
+WSP-06,Workspace State,Implement Part and BOM diff,WSP-05,High,Blocked by dependencies
+WSP-07,Workspace State,Write manifest atomically,WSP-06,Critical,Blocked by dependencies
+COM-01,Commit History,Record authenticated commit author,WSP-07,Medium,Blocked by dependencies
+COM-02,Commit History,Add parent commit semantics,COM-01,High,Blocked by dependencies
+COM-03,Commit History,Create per-file commit entries,COM-02,High,Blocked by dependencies
+COM-04,Commit History,Use correct commit change types,"COM-03,WSP-05",High,Blocked by dependencies
+COM-05,Commit History,Persist Vault File ID in commit file,"COM-04,DOC-04",High,Blocked by dependencies
+COM-06,Commit History,Query and display commit history,COM-05,Medium,Blocked by dependencies
+COM-07,Commit History,Commit integration suite,COM-06,High,Blocked by dependencies
+PULL-01,Pull/Sync,Define Pull and remote snapshot contracts,"WSP-07,COM-05",Medium,Blocked by dependencies
+PULL-02,Pull/Sync,Fetch remote snapshot,PULL-01,High,Blocked by dependencies
+PULL-03,Pull/Sync,Implement three-way comparison,"PULL-02,WSP-05,WSP-06",Critical,Blocked by dependencies
+PULL-04,Pull/Sync,Build Pull plan,PULL-03,High,Blocked by dependencies
+PULL-05,Pull/Sync,Add Pull Preview UI,PULL-04,Medium,Blocked by dependencies
+PULL-06,Pull/Sync,Download remote files to temp,PULL-04,High,Blocked by dependencies
+PULL-07,Pull/Sync,"Implement backup, apply and rollback","PULL-06,WSP-07",Critical,Blocked by dependencies
+PULL-08,Pull/Sync,Define conflict model and policies,PULL-03,High,Blocked by dependencies
+PULL-09,Pull/Sync,Add conflict resolution UI,"PULL-08,PULL-05",High,Blocked by dependencies
+PULL-10,Pull/Sync,Protect checkout and open files,PULL-07,Critical,Blocked by dependencies
+PULL-11,Pull/Sync,Pull integration and failure suite,"PULL-09,PULL-10",Critical,Blocked by dependencies
+BR-01,Remote Branch,Define and deploy PDM Branch schema,"COM-07,PULL-11,BASE-04",Critical,Blocked by dependencies
+BR-02,Remote Branch,Implement remote branch repository service,BR-01,High,Blocked by dependencies
+BR-03,Remote Branch,Manage branch head atomically,"BR-02,COM-02",Critical,Blocked by dependencies
+BR-04,Remote Branch,Clone branch-specific snapshot,"BR-03,COM-05",High,Blocked by dependencies
+BR-05,Remote Branch,Pull branch-specific snapshot,"BR-04,PULL-11",High,Blocked by dependencies
+BR-06,Remote Branch,Push branch-specific commit,"BR-03,COM-07",Critical,Blocked by dependencies
+BR-07,Remote Branch,Switch branch safely,"BR-04,BR-05",Critical,Blocked by dependencies
+BR-08,Remote Branch,Promote branch to main,"BR-06,BR-07",Critical,Blocked by dependencies
+BR-09,Remote Branch,Branch permission and concurrency suite,BR-08,High,Blocked by dependencies
+UI-01,Application Completion,Wire Projects navigation,PULL-05,Low,Blocked by dependencies
+UI-02,Application Completion,Implement Recent screen,COM-06,Low,Blocked by dependencies
+UI-03,Application Completion,Complete Favorites screen,UI-01,Medium,Blocked by dependencies
+UI-04,Application Completion,Implement operational Reports,"PULL-11,COM-06",Medium,Blocked by dependencies
+UI-05,Application Completion,Implement Settings screen,BASE-04,High,Blocked by dependencies
+UI-06,Application Completion,Implement About/Diagnostics screen,OPS-01,Low,Blocked by dependencies
+UI-07,Application Completion,Hide or flag unavailable features,UI-01,Low,Blocked by dependencies
+OPS-01,Operations,Add structured operation logging,BASE-01,Medium,Blocked by dependencies
+OPS-02,Operations,Add operation IDs and progress,OPS-01,Medium,Blocked by dependencies
+OPS-03,Operations,Add bounded retry policy,OPS-02,High,Blocked by dependencies
+OPS-04,Operations,Enforce secret redaction,OPS-01,High,Blocked by dependencies
+OPS-05,Operations,Build Aras deployment package,"BASE-05,BR-01",Critical,Blocked by dependencies
+OPS-06,Operations,Add schema version compatibility check,OPS-05,High,Blocked by dependencies
+OPS-07,Operations,Create repeatable integration environment guide,OPS-05,Medium,Blocked by dependencies
+OPS-08,Operations,Execute UAT checklist,"UI-07,BR-09,OPS-07",High,Blocked by dependencies
+OPS-09,Operations,Prepare production release documentation,OPS-08,High,Blocked by dependencies
