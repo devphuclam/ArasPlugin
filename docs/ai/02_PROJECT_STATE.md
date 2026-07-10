@@ -1,4 +1,4 @@
-# 02 — Project State
+﻿# 02 — Project State
 
 _Last audit source: uploaded repository archive, 2026-07-10._
 
@@ -11,10 +11,19 @@ _Last audit source: uploaded repository archive, 2026-07-10._
 - Aras communication: AML/HTTP/Vault and server-side C# Methods
 - Snapshot commit observed in archive: `29e2ef364eaa3106c3fba76a3da5b0d5bcdf0eba`
 - Current baseline commit (HEAD): `443847ff577710705879bbdd06013e1b58f1af03` (includes AI Work Kit + OpenCode + PROJECT_STATE.md update)
-- Clean source baseline tag: `baseline/clean-source` → `1c8a1b99672f5c791aa299dbebd70360503a71c3` (source code without AI infrastructure)
-- AI Work Kit baseline tag: `baseline/with-ai-work-kit` → `443847f` (HEAD including all AI governance files)
+- Clean source baseline tag: `baseline/clean-source` -> `1c8a1b99672f5c791aa299dbebd70360503a71c3` (source code without AI infrastructure)
+- AI Work Kit baseline tag: `baseline/with-ai-work-kit` -> `443847f` (HEAD including all AI governance files)
 
-## Important warning — resolved by BASE-00
+## Build Environment
+
+- SDK: .NET SDK 10.0.300 (runtime 10.0.8)
+- OS: Windows
+- Target framework: net48 (via `Directory.Build.props`)
+- Strong-name signing: enabled (uses `ICApiAddin.snk`)
+- VS2022/MSBuild at standard path: not found (not required; `dotnet build` is used)
+- `scripts/build-solution.ps1`: does not exist (use `dotnet build` directly --- see Testing Guide)
+
+## Important warning --- resolved by BASE-00
 
 BASE-00 established a clean, backed-up baseline. The original dirty working tree from the uploaded archive has been documented and isolated. Working tree is now clean. Do not assume any pre-BASE-00 uncommitted changes are intentional or safe.
 
@@ -44,7 +53,7 @@ BASE-00 established a clean, backed-up baseline. The original dirty working tree
 ## Current execution phase
 
 - Phase: Baseline and schema verification.
-- Next ticket: `BASE-01`.
+- Next ticket: `BASE-02`.
 - Do not begin: `DOC-03`, Pull or Branch before `BASE-04` is completed.
 
 ## Update discipline
@@ -67,3 +76,14 @@ The Verifier updates this document after each merged ticket:
 - Tags created: `baseline/clean-source`, `baseline/with-ai-work-kit`
 - Working tree: clean
 - Next ticket: `BASE-01` (build baseline)
+
+## BASE-01 completion record
+
+- Completed: 2026-07-10
+- HEAD commit: `49d721d473fefdb2b5b0d22df9375d65713f7628`
+- Build Debug: Succeeded (0 warnings, 0 errors, 11.31 s)
+- Build Release: Succeeded (0 warnings, 0 errors, 7.31 s)
+- All 7 projects in solution built in both Debug and Release
+- 2 csproj files outside solution documented (OcrTool, CreateIronCadTestFiles)
+- Working tree: clean
+- Next ticket: `BASE-02` (test baseline)
