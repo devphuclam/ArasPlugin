@@ -1,15 +1,19 @@
-# 05 — Testing Guide
+﻿# 05 — Testing Guide
 
 ## Baseline commands
 
 From `ARAS-Plugin\IdeaCadConnector` on Windows:
 
 ```powershell
-# Preferred existing build helper
-..\scripts\build-solution.ps1 -Configuration Debug
+# Restore and build (Debug)
+dotnet restore IdeaCadConnector.sln
+dotnet build IdeaCadConnector.sln --configuration Debug --no-restore
 
-# Tests
- dotnet test .\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj --configuration Debug
+# Build (Release)
+dotnet build IdeaCadConnector.sln --configuration Release --no-restore
+
+# Tests (build must have succeeded first)
+dotnet test .\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj --configuration Debug --no-restore --no-build
 ```
 
 If MSBuild is unavailable, use Visual Studio Developer PowerShell or install Visual Studio Build Tools with .NET Framework 4.8 targeting pack.
