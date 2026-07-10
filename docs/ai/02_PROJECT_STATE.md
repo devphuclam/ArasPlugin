@@ -53,7 +53,7 @@ BASE-00 established a clean, backed-up baseline. The original dirty working tree
 ## Current execution phase
 
 - Phase: Baseline and schema verification.
-- Next ticket: `BASE-02`.
+- Next ticket: `BASE-03`.
 - Do not begin: `DOC-03`, Pull or Branch before `BASE-04` is completed.
 
 ## Update discipline
@@ -87,3 +87,35 @@ The Verifier updates this document after each merged ticket:
 - 2 csproj files outside solution documented (OcrTool, CreateIronCadTestFiles)
 - Working tree: clean
 - Next ticket: `BASE-02` (test baseline)
+## BASE-02 completion record
+
+- Completed: 2026-07-10
+- HEAD commit: `329e8b88082d7b493fafe11e2a3e1f85df5541bb`
+- Test: 419 passed, 0 failed, 0 skipped (9.99 s)
+- Detailed output: `.ai-work/verification/BASE-02-test-detailed-output.log`
+- All tests run without live Aras (mocks/fakes used throughout)
+- No test categories or traits modified
+- Test file breakdown:
+
+  | File | Tests | Subject Area |
+  |---|---|---|
+  | PartLibraryStage2Tests.cs | 91 | Part Library Stage 2 |
+  | PartLibraryStage1Tests.cs | 79 | Part Library Stage 1 |
+  | PartLibraryTests.cs | 44 | Part Lib policies, AML, errors |
+  | PartLibraryVaultServiceTests.cs | 33 | Vault cache, download |
+  | LibraryViewModelTests.cs | 26 | Library ViewModel |
+  | ArasOpenUrlServiceTests.cs | 25 | Open-in-Aras URL |
+  | LibraryManagementUiTests.cs | 25 | Management UI/XAML |
+  | PartLibraryStage2CoreTests.cs | 17 | Part Lib Stage 2 Core |
+  | EnvironmentConfigurationTests.cs | 16 | Env config parsing |
+  | IronCadOpenServiceTests.cs | 15 | IronCAD adapter |
+  | PartRevisionBrowserViewModelTests.cs | 14 | Revision browser |
+  | ArasPartPickerViewModelTests.cs | 11 | Part picker |
+  | LibraryAuthorizationServiceTests.cs | 10 | Authorization |
+  | MoveLibraryEntryViewModelTests.cs | 8 | Move entry dialog |
+  | BrowserLauncherTests.cs | 4 | Browser launch |
+  | LibraryLocalizationTests.cs | 1 | Localization |
+  | **Total** | **419** | |
+
+- Working tree: clean
+- Next ticket: `BASE-03` (install AI governance workflow)
