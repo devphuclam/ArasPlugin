@@ -53,7 +53,7 @@ BASE-00 established a clean, backed-up baseline. The original dirty working tree
 ## Current execution phase
 
 - Phase: Baseline and schema verification.
-- Next ticket: `BASE-03`.
+- Next ticket: `BASE-04`.
 - Do not begin: `DOC-03`, Pull or Branch before `BASE-04` is completed.
 
 ## Update discipline
@@ -119,3 +119,14 @@ The Verifier updates this document after each merged ticket:
 
 - Working tree: clean
 - Next ticket: `BASE-03` (install AI governance workflow)
+
+## BASE-03 completion record
+
+- Completed: 2026-07-10
+- HEAD commit: `a7ccab3bdf2294f818e70ac1f0eda606945f9e1a`
+- Work kit files: 100% tracked (docs/ai/ = 25 files, scripts/ai/ = 7, tasks/ai/ = 50+ tickets + backlog, .opencode/ = 10, .github/ = 3, root docs = 4)
+- GitIgnore unignore rules: confirmed correct (both AI WORK KIT and OPENCODE AI WORK KIT blocks)
+- Start/Verify scripts: syntax verified (Start-AiTicket, Verify-AiTicket, Initialize-AiWorkKit, Check-AiScope, Collect-AiContext)
+- No application source modified
+- Working tree: clean
+- Next ticket: `BASE-04` (verify Aras schema map)
