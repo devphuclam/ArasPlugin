@@ -13,7 +13,7 @@ Status values:
 
 BASE-04 verification note, 2026-07-10:
 
-- Live Aras read-only AML evidence collected from `http://172.16.10.227/InnovatorServer/`, database `InnovatorSolutions`.
+- Live Aras read-only AML evidence collected from `<innovator-server-url>`, database `<db-name>`.
 - Evidence files are under `.ai-work/verification/BASE-04-live-schema/`.
 - Token was used only from `.ai-work/live-token.local.txt` and is not recorded in evidence.
 - Rows are promoted to `CONFIRMED-LIVE` only where read-only AML evidence confirms the logical name or deployment status.
@@ -82,16 +82,31 @@ Remaining live checks before schema-changing work:
 
 Deployment status on live server:
 
-| Method | Live | Last verified |
-|---|---|---|
-| `idea_EnsurePrimaryIronCadPartCad` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
-| `idea_CommitCadCheckin` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
-| `idea_ReviseCad` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
-| `idea_StartDetailedDesign` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
-| `idea_AddPartToLibrary` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
-| `idea_RecordPartLibraryUsage` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
-| `idea_GetPrimaryIronCadForPart` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
-| `idea_SyncPartLibraryEntryStatus` | CONFIRMED-LIVE | 2026-07-10 read-only AML get |
+BASE-05 verification note, 2026-07-10:
+
+- Live Aras read-only AML evidence collected from `<innovator-server-url>`, database `<db-name>`.
+- Evidence files are under `.ai-work/verification/BASE-05-server-methods/`.
+- Token was used only from `.ai-work/live-token.local.txt` and is not recorded in evidence.
+- Method bodies are not recorded in evidence or docs; only short SHA-256 prefixes and version markers are recorded.
+
+| Method | Live | Source version | Live version | Source SHA | Live SHA | Source/live compare | Last verified | Discrepancy |
+|---|---|---|---|---|---|---|---|---|
+| `idea_EnsurePrimaryIronCadPartCad` | CONFIRMED-LIVE | - | - | `0328346c3835` | `877297095ae7` | DIFFERS | 2026-07-10 read-only AML get | Live method body differs from source. Treat source/live parity as unconfirmed before editing or redeploying this method. |
+| `idea_CommitCadCheckin` | CONFIRMED-LIVE | - | - | `6a299060a080` | `2e46a3243e97` | DIFFERS | 2026-07-10 read-only AML get | Live method body differs from source. Treat source/live parity as unconfirmed before editing or redeploying this method. |
+| `idea_ReviseCad` | CONFIRMED-LIVE | - | - | `10d06eb1515d` | `10d06eb1515d` | MATCH | 2026-07-10 read-only AML get | None found by hash compare. |
+| `idea_StartDetailedDesign` | CONFIRMED-LIVE | - | - | `d159667823ff` | `d159667823ff` | MATCH | 2026-07-10 read-only AML get | None found by hash compare. |
+| `idea_AddPartToLibrary` | CONFIRMED-LIVE | - | - | `7e806a2313ad` | `8fbd6fd0896c` | DIFFERS | 2026-07-10 read-only AML get | Live method body differs from source. Treat source/live parity as unconfirmed before editing or redeploying this method. |
+| `idea_RecordPartLibraryUsage` | CONFIRMED-LIVE | - | - | `6752cd76841e` | `6752cd76841e` | MATCH | 2026-07-10 read-only AML get | None found by hash compare. |
+| `idea_GetPrimaryIronCadForPart` | CONFIRMED-LIVE | 2026-07-08-A | 2026-07-08-A | `fe7efeb20170` | `fe7efeb20170` | MATCH | 2026-07-10 read-only AML get | None found by hash compare. |
+| `idea_SyncPartLibraryEntryStatus` | CONFIRMED-LIVE | - | - | `887ef024343a` | `887ef024343a` | MATCH | 2026-07-10 read-only AML get | None found by hash compare. |
+
+BASE-05 inventory summary:
+
+- 8/8 source server methods exist on live.
+- 5/8 source server methods match live by normalized SHA-256.
+- 3/8 source server methods differ from live: `idea_EnsurePrimaryIronCadPartCad`, `idea_CommitCadCheckin`, `idea_AddPartToLibrary`.
+- No Method deployment or production schema change was performed.
+- Dev/Test method inventory is not recorded yet because no Dev/Test endpoint/token was provided during this BASE-05 run.
 
 ## Lifecycle / permission evidence
 
