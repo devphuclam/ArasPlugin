@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Localization;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -32,7 +33,7 @@ namespace IdeaCadConnector.Desktop
 
         public string AuthoringToolVersion
         {
-            get { return "IronCAD (external)"; }
+            get { return LocalizationSource.Instance[TranslationKeys.IronCadExternalDisplayName]; }
         }
 
         /// <summary>

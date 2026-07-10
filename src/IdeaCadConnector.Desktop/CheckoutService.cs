@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Workspace;
 
 namespace IdeaCadConnector.Desktop
@@ -98,7 +99,7 @@ namespace IdeaCadConnector.Desktop
                     return new CheckoutResultInfo
                     {
                         Success = false,
-                        ErrorMessage = "CAD has no native file to open.",
+                        ErrorMessage = LocalizationSource.Instance[TranslationKeys.CheckoutErrorNoNativeFile],
                         CadId = cadId,
                         IsReadOnly = true
                     };
@@ -143,7 +144,7 @@ namespace IdeaCadConnector.Desktop
                     return new CheckinResultInfo
                     {
                         Success = false,
-                        ErrorMessage = "Local file not found."
+                        ErrorMessage = LocalizationSource.Instance[TranslationKeys.CheckoutErrorLocalFileNotFound]
                     };
                 }
 

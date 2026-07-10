@@ -121,7 +121,7 @@ namespace IdeaCadConnector.Desktop
                 icon.Text = "\u25B6";
                 icon.HorizontalAlignment = HorizontalAlignment.Center;
                 button.Margin = new Thickness(0, 14, 0, 10);
-                button.ToolTip = "Expand panel";
+                button.ToolTip = LocalizationSource.Instance[TranslationKeys.PdmExpandPanel];
                 return;
             }
 
@@ -129,7 +129,7 @@ namespace IdeaCadConnector.Desktop
             icon.Text = "\u25C0";
             icon.HorizontalAlignment = HorizontalAlignment.Right;
             button.Margin = new Thickness(18, 14, 18, 10);
-            button.ToolTip = "Collapse panel";
+            button.ToolTip = LocalizationSource.Instance[TranslationKeys.PdmCollapsePanel];
         }
 
         private static void SetTreeExpansion(ItemsControl parent, bool isExpanded)

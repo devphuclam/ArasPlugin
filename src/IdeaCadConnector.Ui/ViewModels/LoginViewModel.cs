@@ -321,7 +321,7 @@ namespace IdeaCadConnector.Ui.ViewModels
             builder.AppendLine("  Description: " + Safe(culture, result.Part.Description));
 
             builder.AppendLine();
-            builder.AppendLine("IronCAD Part CAD");
+            builder.AppendLine(L(culture, TranslationKeys.LoginResultDetailsIronCad));
             if (result.IronCadPartCad == null)
             {
                 builder.Append("  " + L(culture, TranslationKeys.LoginCadNoneLinked));

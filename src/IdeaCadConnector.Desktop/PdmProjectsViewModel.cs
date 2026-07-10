@@ -260,8 +260,8 @@ namespace IdeaCadConnector.Desktop
         public bool IsMainBranch => string.Equals(SelectedBranch, "main", StringComparison.OrdinalIgnoreCase);
         public bool BranchPushAllowed => IsMainBranch;
         public string BranchStatusText => IsMainBranch
-            ? "Live push"
-            : "Preview only";
+            ? Loc(TranslationKeys.PdmPushModeLive)
+            : Loc(TranslationKeys.PdmPushModePreview);
 
         public bool HasBlockingIssues => BlockingIssueCount > 0;
 
@@ -451,7 +451,7 @@ namespace IdeaCadConnector.Desktop
             MainViewModel.SharedArasCadClient != null;
 
         public string OpenInIronCadModeText =>
-            IsReleasedCad() ? "Open in IronCAD (read-only)" : "Open in IronCAD";
+            IsReleasedCad() ? Loc(TranslationKeys.PdmOpenIronCadReadOnly) : Loc(TranslationKeys.PdmOpenIronCad);
 
         public string CommitMessage
         {
@@ -493,11 +493,11 @@ namespace IdeaCadConnector.Desktop
                 if (last == null)
                 {
                     var history = _workspaceService.LoadCommitHistory(FolderPath);
-                    if (history?.Commits == null || history.Commits.Count == 0)
-                        return "No local commits yet";
-                    return "No local commits on this branch yet";
+                if (history?.Commits == null || history.Commits.Count == 0)
+                    return Loc(TranslationKeys.PdmNoCommitsYet);
+                return Loc(TranslationKeys.PdmNoCommitsBranch);
                 }
-                return "[local] " + last.Message + " (" + last.Timestamp.ToString("g") + ")";
+                return Loc(TranslationKeys.PdmCommitLocalPrefix) + last.Message + " (" + last.Timestamp.ToString("g") + ")";
             }
         }
 
@@ -520,7 +520,7 @@ namespace IdeaCadConnector.Desktop
                 if (modified > 0) parts.Add($"{modified} modified");
                 if (renamed > 0) parts.Add($"{renamed} renamed");
                 if (deleted > 0) parts.Add($"{deleted} deleted");
-                return parts.Count > 0 ? string.Join(", ", parts) : "No changes yet";
+                return parts.Count > 0 ? string.Join(", ", parts) : Loc(TranslationKeys.PdmNoChangesYet);
             }
         }
 
@@ -547,7 +547,7 @@ namespace IdeaCadConnector.Desktop
 
         public string CadLockStateText
         {
-            get => _cadLockStateText ?? "Unknown";
+            get => _cadLockStateText ?? Loc(TranslationKeys.PdmCadStateUnknown);
             set => SetField(ref _cadLockStateText, value);
         }
 
@@ -559,7 +559,7 @@ namespace IdeaCadConnector.Desktop
 
         public string CadFileStateText
         {
-            get => _cadFileStateText ?? "Unknown";
+            get => _cadFileStateText ?? Loc(TranslationKeys.PdmFileStateUnknown);
             set => SetField(ref _cadFileStateText, value);
         }
 
@@ -772,9 +772,9 @@ namespace IdeaCadConnector.Desktop
                 if (result.Success)
                 {
                     var msg = result.StagingOnly
-                        ? $"Staging snapshot created for branch '{request.TargetBranch}'. Live business data was not updated. Commit: {result.CommitId ?? "-"}"
+                        ? string.Format(Loc(TranslationKeys.PdmStagingSnapshot), request.TargetBranch, result.CommitId ?? "-")
                         : string.Format(
-                            "Push complete. Created/Reused {0} part(s), {1} CAD(s), {2} document(s). Commit: {3}",
+                            Loc(TranslationKeys.PdmPushComplete),
                             result.PartResults?.Count(r => r.Success) ?? 0,
                             result.CadResults?.Count(r => r.Success) ?? 0,
                             result.DocumentResults?.Count(r => r.Success) ?? 0,
@@ -879,9 +879,9 @@ namespace IdeaCadConnector.Desktop
                     if (res != null)
                     {
                         if (res.Success)
-                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? Loc(TranslationKeys.PdmActionCreated) : res.ActionTaken;
                         else
-                            row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                            row.Action = string.Format(Loc(TranslationKeys.PdmActionFailed), res.ErrorMessage ?? Loc(TranslationKeys.PdmFileStateUnknown));
 
                         if (res.Success && !string.IsNullOrWhiteSpace(res.ArasId) && !string.IsNullOrWhiteSpace(logicalCode))
                             idLookup[logicalCode] = res.ArasId;
@@ -931,14 +931,14 @@ namespace IdeaCadConnector.Desktop
                     if (res != null)
                     {
                         if (res.Success)
-                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? Loc(TranslationKeys.PdmActionCreated) : res.ActionTaken;
                         else if (!string.IsNullOrWhiteSpace(res.ArasId))
                         {
                             var metaAction = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
-                            row.Action = metaAction + " (file failed): " + (res.ErrorMessage ?? "Unknown");
+                            row.Action = metaAction + string.Format(Loc(TranslationKeys.PdmActionFileFailed), res.ErrorMessage ?? Loc(TranslationKeys.PdmFileStateUnknown));
                         }
                         else
-                            row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                            row.Action = string.Format(Loc(TranslationKeys.PdmActionFailed), res.ErrorMessage ?? Loc(TranslationKeys.PdmFileStateUnknown));
                     }
                 }
             }
@@ -962,9 +962,9 @@ namespace IdeaCadConnector.Desktop
                     if (res != null)
                     {
                         if (res.Success)
-                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? "Created" : res.ActionTaken;
+                            row.Action = string.IsNullOrWhiteSpace(res.ActionTaken) ? Loc(TranslationKeys.PdmActionCreated) : res.ActionTaken;
                         else
-                            row.Action = "Failed: " + (res.ErrorMessage ?? "Unknown");
+                            row.Action = string.Format(Loc(TranslationKeys.PdmActionFailed), res.ErrorMessage ?? Loc(TranslationKeys.PdmFileStateUnknown));
                     }
                 }
             }
@@ -1039,7 +1039,7 @@ namespace IdeaCadConnector.Desktop
                         ProjectCode = projectCode,
                         ParentPartId = parentPartId,
                         Quantity = Math.Max(1, previewPart.Quantity),
-                        UsedBy = MainViewModel.SharedUserName ?? "engineer",
+                        UsedBy = MainViewModel.SharedUserName ?? Loc(TranslationKeys.DisplayEngineer),
                         CommitId = commitId,
                         ActionType = pushPart.ActionTaken ?? "ReusedFromLibrary"
                     }, CancellationToken.None).ConfigureAwait(true);
@@ -1107,7 +1107,7 @@ namespace IdeaCadConnector.Desktop
                 AnalyzeFolder();
 
                 var cloneSummary = string.Format(
-                    "Clone complete. Downloaded {0} CAD file(s) and created {1} document placeholder(s) in {2}.",
+                    Loc(TranslationKeys.PdmCloneComplete),
                     result.DownloadedCadFileCount,
                     result.PlaceholderDocumentCount,
                     FolderPath);
@@ -1170,7 +1170,7 @@ namespace IdeaCadConnector.Desktop
                             : Path.Combine(sources.PackageFolder, _latestBusinessStructure.RootDrawingFileName),
                         ProjectCode = _latestAnalysis.ProjectCode,
                         NodeType = "Assembly",
-                        Status = "Package root drawing"
+                        Status = Loc(TranslationKeys.PdmNodeRootDrawing)
                     };
 
                     _latestAnalysis.PrimaryAssembly = rootDrawing;
@@ -1191,10 +1191,10 @@ namespace IdeaCadConnector.Desktop
                     _latestAnalysis.Issues.Add(new PdmNamingIssue
                     {
                         FileName = path,
-                        Message = "Library references file is corrupted: " + ex.Message,
+                        Message = Loc(TranslationKeys.PdmErrorLibraryCorrupted) + ex.Message,
                         BlocksPush = true
                     });
-                    StatusMessage = "Library references file is corrupted. Open '" + path + "' and fix the JSON format, or delete the file to start fresh.";
+                    StatusMessage = string.Format(Loc(TranslationKeys.PdmErrorLibraryCorruptedMessage), path);
                 }
 
                 PdmStructure.Clear();
@@ -1344,10 +1344,10 @@ namespace IdeaCadConnector.Desktop
             var root = new PdmStructureNode(
                 analysis.ProjectCode,
                 analysis.ProjectCode,
-                "Assembly",
+                Loc(TranslationKeys.PdmNodeAssembly),
                 1,
                 analysis.PrimaryAssembly?.Revision ?? "-",
-                businessStructure != null && businessStructure.HasStructure ? "Business structure preview" : (analysis.IsValid ? "Ready to push" : "Fix naming"),
+                    businessStructure != null && businessStructure.HasStructure ? Loc(TranslationKeys.PdmStatusBusinessPreview) : (analysis.IsValid ? Loc(TranslationKeys.PdmStatusReadyToPush) : Loc(TranslationKeys.PdmStatusFixNaming)),
                 "#FF7C47DC",
                 perspective: "PDM",
                 primaryCad: analysis.PrimaryAssembly?.FileName ?? "-",
@@ -1374,7 +1374,7 @@ namespace IdeaCadConnector.Desktop
                         "Component",
                         1,
                         detail.Version ?? "-",
-                        "Parsed from name",
+                        Loc(TranslationKeys.PdmSourceParsedFromName),
                         "#FF1F9D55",
                         primaryCad: detail.FileName,
                         sourceDocument: detail.FileName));
@@ -1402,10 +1402,10 @@ namespace IdeaCadConnector.Desktop
             var root = new PdmStructureNode(
                 rootName,
                 projectCode,
-                "Assembly",
+                Loc(TranslationKeys.PdmNodeAssembly),
                 1,
                 analysis.PrimaryAssembly?.Revision ?? "-",
-                "Parsed from CAD folder",
+                Loc(TranslationKeys.PdmSourceParsedFromCadFolder),
                 "#FF2967EF",
                 perspective: "CAD",
                 primaryCad: analysis.PrimaryAssembly?.FileName ?? "-",
@@ -1419,7 +1419,7 @@ namespace IdeaCadConnector.Desktop
                     "Component",
                     1,
                     detail.Version ?? "-",
-                    "Parsed from CAD name",
+                    Loc(TranslationKeys.PdmSourceParsedFromCadName),
                     "#FF1F9D55",
                     perspective: "CAD",
                     primaryCad: detail.FileName,
@@ -1450,7 +1450,7 @@ namespace IdeaCadConnector.Desktop
                 businessNode.NodeType,
                 1,
                 "-",
-                "Package inferred",
+                Loc(TranslationKeys.PdmSourcePackageInferred),
                 businessNode.NodeType == "Assembly" ? "#FF2967EF" : "#FF1F9D55",
                 perspective: "PDM",
                 primaryCad: primaryCad,
@@ -1484,7 +1484,7 @@ namespace IdeaCadConnector.Desktop
             if (corruptionIssue != null)
             {
                 _hasLibraryReferenceLoadError = true;
-                StatusMessage = "Library references file is corrupted. Open '" + corruptionIssue.FileName + "' and fix the JSON format, or delete the file to start fresh.";
+                StatusMessage = string.Format(Loc(TranslationKeys.PdmErrorLibraryCorruptedMessage), corruptionIssue.FileName);
             }
         }
 
@@ -1520,8 +1520,8 @@ namespace IdeaCadConnector.Desktop
                 root.Children.Add(CreateLibraryStructureNode(reference, true));
                 analysisIssues?.Add(new PdmNamingIssue
                 {
-                    FileName = reference.PartNumber ?? reference.ReferenceId ?? reference.LocalLogicalCode ?? "Library reference",
-                    Message = "Library reference parent '" + reference.ParentLogicalCode + "' was not found in the current PDM structure.",
+                    FileName = reference.PartNumber ?? reference.ReferenceId ?? reference.LocalLogicalCode ?? Loc(TranslationKeys.PdmSourceLibraryReference),
+                    Message = string.Format(Loc(TranslationKeys.PdmIssueLibraryParentNotFound), reference.ParentLogicalCode),
                     BlocksPush = true
                 });
             }
@@ -1557,7 +1557,7 @@ namespace IdeaCadConnector.Desktop
                 "#FF0F8F86",
                 perspective: "PDM",
                 primaryCad: reference.PartNumber ?? "-",
-                sourceDocument: "Library Entry",
+                sourceDocument: Loc(TranslationKeys.PdmSourceLibraryEntry),
                 sourceKind: LibrarySourceKind.LibraryReference.ToString(),
                 libraryEntryId: reference.LibraryEntryId,
                 arasPartId: reference.PartId,
@@ -1613,7 +1613,7 @@ namespace IdeaCadConnector.Desktop
                     NodeType = "Component",
                     PartNumber = reference.PartNumber,
                     Quantity = Math.Max(1, reference.Quantity),
-                    SourceDocumentPath = "Library Entry",
+                    SourceDocumentPath = Loc(TranslationKeys.PdmSourceLibraryEntry),
                     PrimaryCadPath = null,
                     SortOrder = ++maxSortOrder,
                     SourceKind = LibrarySourceKind.LibraryReference.ToString(),
@@ -1654,22 +1654,22 @@ namespace IdeaCadConnector.Desktop
         {
             if (reference == null)
             {
-                return new LibraryReferenceMutationResult(false, "No Library reference was provided.");
+                return new LibraryReferenceMutationResult(false, Loc(TranslationKeys.PdmValidationNoLibraryRef));
             }
 
             if (string.IsNullOrWhiteSpace(FolderPath))
             {
-                return new LibraryReferenceMutationResult(false, "Open or clone a PDM project before adding a Library Part.");
+                return new LibraryReferenceMutationResult(false, Loc(TranslationKeys.PdmValidationOpenProject));
             }
 
             if (string.IsNullOrWhiteSpace(reference.ParentLogicalCode))
             {
-                return new LibraryReferenceMutationResult(false, "Choose a target parent in the Product Structure.");
+                return new LibraryReferenceMutationResult(false, Loc(TranslationKeys.PdmValidationChooseParent));
             }
 
             if (reference.Quantity <= 0)
             {
-                return new LibraryReferenceMutationResult(false, "Quantity must be greater than 0.");
+                return new LibraryReferenceMutationResult(false, Loc(TranslationKeys.PdmValidationQuantityPositive));
             }
 
             if (!ValidateLibraryReferencePlacement(reference, out var placementError))
@@ -1693,12 +1693,12 @@ namespace IdeaCadConnector.Desktop
                 duplicate.Quantity = reference.Quantity;
                 _libraryReferenceStore.Save(FolderPath, existing);
                 AnalyzeFolder();
-                return new LibraryReferenceMutationResult(true, "Existing Library reference updated in the workspace.");
+                return new LibraryReferenceMutationResult(true, Loc(TranslationKeys.PdmSuccessLibraryUpdated));
             }
 
             _libraryReferenceStore.Upsert(FolderPath, reference);
             AnalyzeFolder();
-            return new LibraryReferenceMutationResult(true, "Library reference added to the current workspace.");
+            return new LibraryReferenceMutationResult(true, Loc(TranslationKeys.PdmSuccessLibraryAdded));
         }
 
         private bool ValidateLibraryReferencePlacement(WorkspaceLibraryReference reference, out string errorMessage)
@@ -1707,13 +1707,13 @@ namespace IdeaCadConnector.Desktop
 
             if (reference == null)
             {
-                errorMessage = "No Library reference was provided.";
+                errorMessage = Loc(TranslationKeys.PdmValidationNoLibraryRef);
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(reference.ParentLogicalCode))
             {
-                errorMessage = "Choose a target parent in the Product Structure.";
+                errorMessage = Loc(TranslationKeys.PdmValidationChooseParent);
                 return false;
             }
 
@@ -1725,7 +1725,7 @@ namespace IdeaCadConnector.Desktop
             var parentPath = FindStructurePath(PdmStructure, reference.ParentLogicalCode);
             if (parentPath == null)
             {
-                errorMessage = "Choose a target parent that still exists in the Product Structure.";
+                errorMessage = Loc(TranslationKeys.PdmErrorParentNotFound);
                 return false;
             }
 
@@ -1735,7 +1735,7 @@ namespace IdeaCadConnector.Desktop
                 !string.IsNullOrWhiteSpace(node.ArasPartId) &&
                 string.Equals(node.ArasPartId, reference.PartId, StringComparison.OrdinalIgnoreCase)))
             {
-                errorMessage = "This Library Part would create a self/cycle reference under its own branch.";
+                errorMessage = Loc(TranslationKeys.PdmErrorSelfCycle);
                 return false;
             }
 
@@ -1802,10 +1802,10 @@ namespace IdeaCadConnector.Desktop
             {
                 StructureMappings.Add(new PdmStructureMappingItem(
                     analysis.ProjectCode ?? "PROJECT",
-                    analysis.ProjectCode ?? "Project Root",
+                    analysis.ProjectCode ?? Loc(TranslationKeys.PdmStructureRoot),
                     "Assembly",
                     analysis.PrimaryAssembly.FileName,
-                    "Root CAD mapped"));
+                    Loc(TranslationKeys.PdmStructureRootCadMapped)));
             }
 
             if (businessStructure == null || !businessStructure.HasStructure)
@@ -1831,17 +1831,17 @@ namespace IdeaCadConnector.Desktop
 
                 if (businessNode.NodeType == "Assembly")
                 {
-                    status = "Business grouping";
+                    status = Loc(TranslationKeys.PdmStatusBusinessGrouping);
                 }
                 else if (!string.IsNullOrWhiteSpace(businessNode.SourceFileName) &&
                          detailCadMap.TryGetValue(businessNode.SourceFileName, out var detailCad))
                 {
                     mappedCad = detailCad.FileName;
-                    status = "Mapped to CAD";
+                    status = Loc(TranslationKeys.PdmStatusMappedToCad);
                 }
                 else
                 {
-                    status = "Missing CAD mapping";
+                    status = Loc(TranslationKeys.PdmStatusMissingCadMapping);
                 }
 
                 StructureMappings.Add(new PdmStructureMappingItem(
@@ -1884,11 +1884,11 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            AddDocument(analysis.ProjectCode, analysis.PrimaryAssembly?.FileName, "Primary CAD", ResolveFilePath(analysis.PrimaryAssembly?.FileName, packageFolder, cadFolder));
+            AddDocument(analysis.ProjectCode, analysis.PrimaryAssembly?.FileName, Loc(TranslationKeys.PdmDocKindPrimaryCad), ResolveFilePath(analysis.PrimaryAssembly?.FileName, packageFolder, cadFolder));
 
             if (!string.IsNullOrWhiteSpace(businessStructure?.RootDrawingFileName))
             {
-                AddDocument(analysis.ProjectCode, businessStructure.RootDrawingFileName, "Root Drawing", ResolveFilePath(businessStructure.RootDrawingFileName, packageFolder, cadFolder));
+                AddDocument(analysis.ProjectCode, businessStructure.RootDrawingFileName, Loc(TranslationKeys.PdmDocKindRootDrawing), ResolveFilePath(businessStructure.RootDrawingFileName, packageFolder, cadFolder));
             }
 
             foreach (var olderAssembly in analysis.AssemblyFiles
@@ -1941,7 +1941,7 @@ namespace IdeaCadConnector.Desktop
                     ? null
                     : System.IO.Path.Combine(sourceFolder, node.SourceFileName);
 
-                AddDocument(logicalCode, node.SourceFileName, node.NodeType == "Assembly" ? "Package group" : "Package detail", sourcePath);
+                AddDocument(logicalCode, node.SourceFileName, node.NodeType == "Assembly" ? Loc(TranslationKeys.PdmDocKindPackageGroup) : Loc(TranslationKeys.PdmDocKindPackageDetail), sourcePath);
 
                 foreach (var child in node.Children)
                 {
@@ -1978,8 +1978,8 @@ namespace IdeaCadConnector.Desktop
                 {
                     var sourcePath = ResolvePrimaryCadPath(primaryCad);
                     var fileKind = string.Equals(SelectedNode.NodeType, "Assembly", StringComparison.OrdinalIgnoreCase)
-                        ? "CAD assembly"
-                        : "CAD component";
+                        ? Loc(TranslationKeys.PdmFileKindCadAssembly)
+                        : Loc(TranslationKeys.PdmFileKindCadComponent);
                     RelatedFiles.Add(new PdmDocumentItem(primaryCad, fileKind, sourcePath));
                 }
             }
@@ -2016,8 +2016,8 @@ namespace IdeaCadConnector.Desktop
             if (document?.CanOpen != true)
             {
                 StatusMessage = document?.SourcePath == null
-                    ? "Cannot open: file path is unknown."
-                    : "Cannot open: file not found at " + document.SourcePath;
+                    ? Loc(TranslationKeys.PdmErrorOpenFilePathUnknown)
+                    : string.Format(Loc(TranslationKeys.PdmErrorOpenFileNotFound), document.SourcePath);
                 return;
             }
 
@@ -2109,8 +2109,8 @@ namespace IdeaCadConnector.Desktop
                 return;
 
             var confirm = MessageBox.Show(
-                "Remove this Library reference from the workspace?",
-                "Remove Library Reference",
+                Loc(TranslationKeys.PdmConfirmRemoveLibraryRef),
+                Loc(TranslationKeys.PdmConfirmRemoveLibraryTitle),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -2119,18 +2119,18 @@ namespace IdeaCadConnector.Desktop
 
             if (string.IsNullOrWhiteSpace(selectedNode.ReferenceId))
             {
-                StatusMessage = "This Library reference does not have a workspace ID yet.";
+                StatusMessage = Loc(TranslationKeys.PdmRemoveNoWorkspaceId);
                 return;
             }
 
             if (_libraryReferenceStore.Remove(FolderPath, selectedNode.ReferenceId))
             {
                 AnalyzeFolder();
-                StatusMessage = "Library reference removed from the workspace.";
+                StatusMessage = Loc(TranslationKeys.PdmRemovedLibraryRef);
                 return;
             }
 
-            StatusMessage = "Library reference could not be removed from the workspace.";
+            StatusMessage = Loc(TranslationKeys.PdmRemoveLibraryRefFailed);
         }
 
         private async void OpenInIronCadAsync()
@@ -2276,7 +2276,7 @@ namespace IdeaCadConnector.Desktop
                     NativeFileId = checkoutInfo.Cad?.NativeFileId,
                     LocalFilePath = checkoutInfo.LocalFilePath,
                     LockToken = checkoutInfo.LockToken,
-                    LockedBy = MainViewModel.SharedUserName ?? "unknown",
+                    LockedBy = MainViewModel.SharedUserName ?? Loc(TranslationKeys.DisplayUnknown),
                     CheckedOutAt = DateTime.UtcNow,
                     Branch = SelectedBranch,
                     LastKnownRevision = checkoutInfo.Cad?.Revision,
@@ -2553,7 +2553,7 @@ namespace IdeaCadConnector.Desktop
                 CadRevisionText = SelectedNode?.Revision ?? "-";
                 CadGenerationText = "-";
                 CadLifecycleText = "-";
-                CadEditPolicyText = "Root assembly managed by push flow.";
+                CadEditPolicyText = Loc(TranslationKeys.PdmCadEditPolicyRoot);
                 IsCheckedOutByMe = false;
                 IsCheckedOutByOther = false;
                 IsAvailable = false;
@@ -2758,13 +2758,13 @@ namespace IdeaCadConnector.Desktop
             if (!string.IsNullOrWhiteSpace(_liveCadRevision) &&
                 !string.Equals(manifest.LastKnownRevision, _liveCadRevision, StringComparison.OrdinalIgnoreCase))
             {
-                parts.Add($"Revision changed from {manifest.LastKnownRevision} to {_liveCadRevision}");
+                parts.Add(string.Format(Loc(TranslationKeys.PdmRevisionDrift), manifest.LastKnownRevision, _liveCadRevision));
             }
 
             if (manifest.LastKnownGeneration > 0 && _liveCadGeneration > 0 &&
                 manifest.LastKnownGeneration != _liveCadGeneration)
             {
-                parts.Add($"Generation changed from {manifest.LastKnownGeneration} to {_liveCadGeneration}");
+                parts.Add(string.Format(Loc(TranslationKeys.PdmGenerationDrift), manifest.LastKnownGeneration, _liveCadGeneration));
             }
 
             return parts.Count > 0 ? string.Join("; ", parts) : null;
@@ -3071,12 +3071,12 @@ namespace IdeaCadConnector.Desktop
 
             if (!string.IsNullOrWhiteSpace(sources.PackageFolder) && Directory.Exists(sources.PackageFolder))
             {
-                ProjectFiles.Add(BuildFolderRootNode("Business packages", sources.PackageFolder));
+                ProjectFiles.Add(BuildFolderRootNode(Loc(TranslationKeys.PdmFolderBusinessPackages), sources.PackageFolder));
             }
 
             if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
             {
-                ProjectFiles.Add(BuildFolderRootNode("CAD source", sources.CadFolder));
+                ProjectFiles.Add(BuildFolderRootNode(Loc(TranslationKeys.PdmFolderCadSource), sources.CadFolder));
             }
 
             if (ProjectFiles.Count == 0 && !string.IsNullOrWhiteSpace(sources.SelectedFolder))
@@ -3089,7 +3089,7 @@ namespace IdeaCadConnector.Desktop
 
         private PdmProjectFileNode BuildFolderRootNode(string rootName, string folderPath)
         {
-            var root = new PdmProjectFileNode(rootName, folderPath, true, "Folder");
+            var root = new PdmProjectFileNode(rootName, folderPath, true, Loc(TranslationKeys.PdmFileKindFolder));
             if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
             {
                 return root;
@@ -3112,7 +3112,7 @@ namespace IdeaCadConnector.Desktop
         {
             if (fileInfo.Extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
             {
-                return "Package";
+                return Loc(TranslationKeys.PdmFileKindPackage);
             }
 
             if (fileInfo.Extension.Equals(".dwg", StringComparison.OrdinalIgnoreCase))
@@ -3122,7 +3122,7 @@ namespace IdeaCadConnector.Desktop
 
             if (fileInfo.Extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
             {
-                return "Spreadsheet";
+                return Loc(TranslationKeys.PdmFileKindSpreadsheet);
             }
 
             if (fileInfo.Extension.Equals(".err", StringComparison.OrdinalIgnoreCase) ||
@@ -3133,7 +3133,7 @@ namespace IdeaCadConnector.Desktop
 
             if (fileInfo.Extension.Equals(".bak", StringComparison.OrdinalIgnoreCase))
             {
-                return "Ignored";
+                return Loc(TranslationKeys.PdmFileKindIgnored);
             }
 
             return "File";
@@ -3179,9 +3179,9 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
-            AnalysisSummary = string.Format(
-                "Naming validation found {0} blocking issue(s). Review Naming Preview before push.",
-                BlockingIssueCount);
+                AnalysisSummary = string.Format(
+                    Loc(TranslationKeys.PdmNamingBlockingIssues),
+                    BlockingIssueCount);
             StatusMessage = AnalysisSummary;
         }
 
@@ -3220,8 +3220,8 @@ namespace IdeaCadConnector.Desktop
                     HasBlockingIssues = blockingCount > 0,
                     BlockingIssueCount = blockingCount,
                     Summary = blockingCount > 0
-                        ? "Workspace session has blocking issues. Resolve before push."
-                        : "Workspace session has warnings. Review before push."
+                        ? Loc(TranslationKeys.PdmSessionBlockingIssues)
+                        : Loc(TranslationKeys.PdmSessionWarnings)
                 }
             };
 

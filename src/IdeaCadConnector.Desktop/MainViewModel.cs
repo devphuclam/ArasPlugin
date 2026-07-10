@@ -56,7 +56,7 @@ namespace IdeaCadConnector.Desktop
             set => AppSessionContext.Current.PartLibraryClient = value;
         }
 
-        private string _statusMessage = "Sign in to Aras to start.";
+        private string _statusMessage = LocalizationSource.Instance[TranslationKeys.StatusSignInToStart];
         private PartSearchResult _selectedSearchResult;
         private CadSummary _currentCad;
         private string _selectedPartId;
@@ -176,9 +176,9 @@ namespace IdeaCadConnector.Desktop
 
         public IReadOnlyList<LanguageOption> LanguageOptions { get; } = new List<LanguageOption>
         {
-            new LanguageOption { DisplayName = "English", CultureName = "en-US" },
-            new LanguageOption { DisplayName = "Tiếng Việt", CultureName = "vi-VN" },
-            new LanguageOption { DisplayName = "日本語", CultureName = "ja-JP" },
+            new LanguageOption { DisplayName = Loc(TranslationKeys.LanguageEnglish), CultureName = "en-US" },
+            new LanguageOption { DisplayName = Loc(TranslationKeys.LanguageVietnamese), CultureName = "vi-VN" },
+            new LanguageOption { DisplayName = Loc(TranslationKeys.LanguageJapanese), CultureName = "ja-JP" },
         };
 
         private string _selectedLanguage;
@@ -982,11 +982,11 @@ namespace IdeaCadConnector.Desktop
             if (!EnsureLoggedIn() || IsBusy) return;
             var confirmMsg = kind switch
             {
-                CadBusinessActionKind.StartDetailedDesign => "Move this CAD from 'Khoi tao' to 'Thiet ke chi tiet'?",
-                CadBusinessActionKind.SubmitForReview => "Submit this CAD for review?",
-                CadBusinessActionKind.Approve => "Approve this CAD?",
-                CadBusinessActionKind.RequestRework => "Request rework on this CAD?",
-                _ => $"Execute {kind}?"
+                CadBusinessActionKind.StartDetailedDesign => Loc(TranslationKeys.ConfirmStartDetailedDesign),
+                CadBusinessActionKind.SubmitForReview => Loc(TranslationKeys.ConfirmSubmitForReview),
+                CadBusinessActionKind.Approve => Loc(TranslationKeys.ConfirmApprove),
+                CadBusinessActionKind.RequestRework => Loc(TranslationKeys.ConfirmRequestRework),
+                _ => string.Format(Loc(TranslationKeys.ConfirmExecuteAction), kind)
             };
 
             var result = MessageBox.Show(confirmMsg, Loc(TranslationKeys.WorkflowActionTitle), MessageBoxButton.YesNo, MessageBoxImage.Question);

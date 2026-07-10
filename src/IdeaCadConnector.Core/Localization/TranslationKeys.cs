@@ -14,6 +14,7 @@ namespace IdeaCadConnector.Core.Localization
         public const string SidebarAbout = "SidebarAbout";
         public const string SidebarTheme = "SidebarTheme";
         public const string SidebarCollapse = "SidebarCollapse";
+        public const string SidebarLanguage = "SidebarLanguage";
         public const string HeaderTitle = "HeaderTitle";
         public const string HeaderSubtitle = "HeaderSubtitle";
         public const string ConnectedUserLabel = "ConnectedUserLabel";
@@ -708,5 +709,257 @@ namespace IdeaCadConnector.Core.Localization
         public const string LibraryCadLookupUnavailable = "LibraryCadLookupUnavailable";
         public const string LibraryStatusServerUnavailable = "LibraryStatusServerUnavailable";
         public const string LibraryStatusOperationCancelled = "LibraryStatusOperationCancelled";
+
+        // Publish Library Entry Dialog
+        public const string PublishDialogTitle = "PublishDialogTitle";
+        public const string PublishDialogSubtitle = "PublishDialogSubtitle";
+        public const string PublishDialogSelectedPart = "PublishDialogSelectedPart";
+        public const string PublishDialogWorkflowStatus = "PublishDialogWorkflowStatus";
+        public const string PublishDialogNotWired = "PublishDialogNotWired";
+        public const string PublishDialogChecklistHeading = "PublishDialogChecklistHeading";
+        public const string PublishDialogChecklist1 = "PublishDialogChecklist1";
+        public const string PublishDialogChecklist2 = "PublishDialogChecklist2";
+        public const string PublishDialogChecklist3 = "PublishDialogChecklist3";
+        public const string PublishDialogRevisionUpdate = "PublishDialogRevisionUpdate";
+        public const string PublishDialogPlaceholderText = "PublishDialogPlaceholderText";
+        public const string PublishDialogPublishRevision = "PublishDialogPublishRevision";
+        public const string PublishDialogLatestReleased = "PublishDialogLatestReleased";
+        public const string PublishDialogBackendWarning = "PublishDialogBackendWarning";
+        public const string PublishDialogTargetLibrary = "PublishDialogTargetLibrary";
+        public const string PublishDialogDefaultLibrary = "PublishDialogDefaultLibrary";
+        public const string PublishDialogReviewer = "PublishDialogReviewer";
+        public const string PublishDialogLibraryManager = "PublishDialogLibraryManager";
+        public const string PublishDialogReviewComment = "PublishDialogReviewComment";
+        public const string PublishDialogBackendUnavailable = "PublishDialogBackendUnavailable";
+        public const string PublishDialogCloseButton = "PublishDialogCloseButton";
+        public const string PublishDialogViewWhereUsed = "PublishDialogViewWhereUsed";
+        public const string PublishDialogSubmitForReview = "PublishDialogSubmitForReview";
+
+        // Add Library Part To Project Dialog
+        public const string AddPartDialogTitle = "AddPartDialogTitle";
+        public const string AddPartDialogSubtitle = "AddPartDialogSubtitle";
+        public const string AddPartDialogCurrentRepo = "AddPartDialogCurrentRepo";
+        public const string AddPartDialogBranch = "AddPartDialogBranch";
+        public const string AddPartDialogBaseCommit = "AddPartDialogBaseCommit";
+        public const string AddPartDialogTargetParent = "AddPartDialogTargetParent";
+        public const string AddPartDialogTargetParentHint = "AddPartDialogTargetParentHint";
+        public const string AddPartDialogQuantity = "AddPartDialogQuantity";
+        public const string AddPartDialogQuantityHint = "AddPartDialogQuantityHint";
+        public const string AddPartDialogReuseMode = "AddPartDialogReuseMode";
+        public const string AddPartDialogRefExisting = "AddPartDialogRefExisting";
+        public const string AddPartDialogRefExistingHint = "AddPartDialogRefExistingHint";
+        public const string AddPartDialogCloneNew = "AddPartDialogCloneNew";
+        public const string AddPartDialogCloneNewHint = "AddPartDialogCloneNewHint";
+        public const string AddPartDialogWorkspaceActions = "AddPartDialogWorkspaceActions";
+        public const string AddPartDialogAddToTree = "AddPartDialogAddToTree";
+        public const string AddPartDialogKeepCadRef = "AddPartDialogKeepCadRef";
+        public const string AddPartDialogDownloadCad = "AddPartDialogDownloadCad";
+        public const string AddPartDialogRecordUsage = "AddPartDialogRecordUsage";
+        public const string AddPartDialogCancel = "AddPartDialogCancel";
+        public const string AddPartDialogPreviewTree = "AddPartDialogPreviewTree";
+        public const string AddPartDialogAddToProject = "AddPartDialogAddToProject";
+
+        // MainWindow action labels
+        public const string MainActionsSection = "MainActionsSection";
+        public const string MainSelectCreateCad = "MainSelectCreateCad";
+        public const string MainOpenReadOnly = "MainOpenReadOnly";
+        public const string MainCheckoutButton = "MainCheckoutButton";
+        public const string MainCheckinButton = "MainCheckinButton";
+        public const string MainCancelCheckoutButton = "MainCancelCheckoutButton";
+        public const string MainStartNewRevision = "MainStartNewRevision";
+        public const string MainStartNewRevisionTooltip = "MainStartNewRevisionTooltip";
+        public const string MainWorkflowSection = "MainWorkflowSection";
+        public const string MainRefreshButton = "MainRefreshButton";
+        public const string MainStartDetailedDesign = "MainStartDetailedDesign";
+        public const string MainSubmitForReview = "MainSubmitForReview";
+        public const string MainApprove = "MainApprove";
+        public const string MainRequestRework = "MainRequestRework";
+        public const string MainVersion = "MainVersion";
+
+        // MainWindow meta labels
+        public const string MainCadClassification = "MainCadClassification";
+        public const string MainLockedBy = "MainLockedBy";
+
+        // PdmProjectsView labels
+        public const string PdmCheckinButton = "PdmCheckinButton";
+        public const string PdmCancelCheckoutButton = "PdmCancelCheckoutButton";
+        public const string PdmRemoveLibraryRef = "PdmRemoveLibraryRef";
+        public const string PdmRelatedFiles = "PdmRelatedFiles";
+        public const string PdmPushPreviewTab = "PdmPushPreviewTab";
+        public const string PdmPushPreviewSection = "PdmPushPreviewSection";
+        public const string PdmAnalyzeHint = "PdmAnalyzeHint";
+        public const string PdmMetricsParts = "PdmMetricsParts";
+        public const string PdmMetricsCads = "PdmMetricsCads";
+        public const string PdmMetricsDocuments = "PdmMetricsDocuments";
+        public const string PdmMetricsIgnored = "PdmMetricsIgnored";
+        public const string PdmPartsTab = "PdmPartsTab";
+        public const string PdmCadsTab = "PdmCadsTab";
+        public const string PdmDocumentsTab = "PdmDocumentsTab";
+        public const string PdmIgnoredTab = "PdmIgnoredTab";
+        public const string PdmWorkspaceFormat = "PdmWorkspaceFormat";
+        public const string PdmNamingPolicyFormat = "PdmNamingPolicyFormat";
+        public const string PdmCommitTooltip = "PdmCommitTooltip";
+
+        // PdmProjectsView.xaml.cs tooltips
+        public const string PdmExpandPanel = "PdmExpandPanel";
+        public const string PdmCollapsePanel = "PdmCollapsePanel";
+
+        // LibraryView column headers
+        public const string LibraryPolicyColumn = "LibraryPolicyColumn";
+
+        // LibraryView filter tooltips
+        public const string LibraryFilterEntryStatusTooltip = "LibraryFilterEntryStatusTooltip";
+        public const string LibraryFilterCadStatusTooltip = "LibraryFilterCadStatusTooltip";
+        public const string LibraryFilterSortByTooltip = "LibraryFilterSortByTooltip";
+        public const string LibraryFilterSortDirectionTooltip = "LibraryFilterSortDirectionTooltip";
+        public const string LibraryItemsFormat = "LibraryItemsFormat";
+
+        // Shared enum display texts (used in LibraryViewModel, PdmProjectsViewModel)
+        public const string DisplayAssembly = "DisplayAssembly";
+        public const string DisplayComponent = "DisplayComponent";
+        public const string DisplayReleased = "DisplayReleased";
+        public const string DisplayInReview = "DisplayInReview";
+        public const string DisplayPreliminary = "DisplayPreliminary";
+        public const string DisplayDeprecated = "DisplayDeprecated";
+        public const string DisplayDraft = "DisplayDraft";
+        public const string DisplayPendingReview = "DisplayPendingReview";
+        public const string DisplayPublished = "DisplayPublished";
+        public const string DisplayAvailable = "DisplayAvailable";
+        public const string DisplayNoCad = "DisplayNoCad";
+        public const string DisplayNoNativeFile = "DisplayNoNativeFile";
+        public const string DisplayCadLookupUnavailable = "DisplayCadLookupUnavailable";
+        public const string DisplayDescending = "DisplayDescending";
+        public const string DisplayItemNumber = "DisplayItemNumber";
+        public const string DisplayEntryStatus = "DisplayEntryStatus";
+        public const string DisplayRevisionPolicy = "DisplayRevisionPolicy";
+        public const string DisplayCadStatus = "DisplayCadStatus";
+        public const string DisplayUsageCount = "DisplayUsageCount";
+        public const string DisplayLastUsed = "DisplayLastUsed";
+        public const string DisplayEngineer = "DisplayEngineer";
+        public const string DisplayUnknown = "DisplayUnknown";
+
+        // PdmProjectsViewModel status/error messages
+        public const string PdmPushModeLive = "PdmPushModeLive";
+        public const string PdmPushModePreview = "PdmPushModePreview";
+        public const string PdmOpenIronCadReadOnly = "PdmOpenIronCadReadOnly";
+        public const string PdmOpenIronCad = "PdmOpenIronCad";
+        public const string PdmNoCommitsYet = "PdmNoCommitsYet";
+        public const string PdmNoCommitsBranch = "PdmNoCommitsBranch";
+        public const string PdmCommitLocalPrefix = "PdmCommitLocalPrefix";
+        public const string PdmNoChangesYet = "PdmNoChangesYet";
+        public const string PdmCadStateUnknown = "PdmCadStateUnknown";
+        public const string PdmFileStateUnknown = "PdmFileStateUnknown";
+        public const string PdmStagingSnapshot = "PdmStagingSnapshot";
+        public const string PdmPushComplete = "PdmPushComplete";
+        public const string PdmActionCreated = "PdmActionCreated";
+        public const string PdmActionFailed = "PdmActionFailed";
+        public const string PdmActionFileFailed = "PdmActionFileFailed";
+        public const string PdmCloneComplete = "PdmCloneComplete";
+        public const string PdmErrorLibraryCorrupted = "PdmErrorLibraryCorrupted";
+        public const string PdmErrorLibraryCorruptedMessage = "PdmErrorLibraryCorruptedMessage";
+        public const string PdmNodeAssembly = "PdmNodeAssembly";
+        public const string PdmNodeRootDrawing = "PdmNodeRootDrawing";
+        public const string PdmFileKindIgnored = "PdmFileKindIgnored";
+        public const string PdmFileKindInvalid = "PdmFileKindInvalid";
+        public const string PdmChangeTypeComponent = "PdmChangeTypeComponent";
+        public const string PdmChangeTypeBlocked = "PdmChangeTypeBlocked";
+        public const string PdmChangeTypeLibrary = "PdmChangeTypeLibrary";
+        public const string PdmStatusBusinessPreview = "PdmStatusBusinessPreview";
+        public const string PdmStatusReadyToPush = "PdmStatusReadyToPush";
+        public const string PdmStatusFixNaming = "PdmStatusFixNaming";
+        public const string PdmSourceParsedFromName = "PdmSourceParsedFromName";
+        public const string PdmSourceParsedFromCadFolder = "PdmSourceParsedFromCadFolder";
+        public const string PdmSourceParsedFromCadName = "PdmSourceParsedFromCadName";
+        public const string PdmSourcePackageInferred = "PdmSourcePackageInferred";
+        public const string PdmSourceLibraryReference = "PdmSourceLibraryReference";
+        public const string PdmSourceLibraryMissingParent = "PdmSourceLibraryMissingParent";
+        public const string PdmSourceLibraryEntry = "PdmSourceLibraryEntry";
+        public const string PdmIssueLibraryParentNotFound = "PdmIssueLibraryParentNotFound";
+        public const string PdmLibrarySuffix = "PdmLibrarySuffix";
+        public const string PdmValidationNoLibraryRef = "PdmValidationNoLibraryRef";
+        public const string PdmValidationOpenProject = "PdmValidationOpenProject";
+        public const string PdmValidationChooseParent = "PdmValidationChooseParent";
+        public const string PdmValidationQuantityPositive = "PdmValidationQuantityPositive";
+        public const string PdmSuccessLibraryUpdated = "PdmSuccessLibraryUpdated";
+        public const string PdmSuccessLibraryAdded = "PdmSuccessLibraryAdded";
+        public const string PdmErrorNoLibraryRef = "PdmErrorNoLibraryRef";
+        public const string PdmErrorChooseParent = "PdmErrorChooseParent";
+        public const string PdmErrorParentNotFound = "PdmErrorParentNotFound";
+        public const string PdmErrorSelfCycle = "PdmErrorSelfCycle";
+        public const string PdmStructureRoot = "PdmStructureRoot";
+        public const string PdmStructureRootCadMapped = "PdmStructureRootCadMapped";
+        public const string PdmStructureDirectCad = "PdmStructureDirectCad";
+        public const string PdmStatusBusinessGrouping = "PdmStatusBusinessGrouping";
+        public const string PdmStatusMappedToCad = "PdmStatusMappedToCad";
+        public const string PdmStatusMissingCadMapping = "PdmStatusMissingCadMapping";
+        public const string PdmDocKindPrimaryCad = "PdmDocKindPrimaryCad";
+        public const string PdmDocKindRootDrawing = "PdmDocKindRootDrawing";
+        public const string PdmDocKindPackageGroup = "PdmDocKindPackageGroup";
+        public const string PdmDocKindPackageDetail = "PdmDocKindPackageDetail";
+        public const string PdmFileKindCadAssembly = "PdmFileKindCadAssembly";
+        public const string PdmFileKindCadComponent = "PdmFileKindCadComponent";
+        public const string PdmErrorOpenFilePathUnknown = "PdmErrorOpenFilePathUnknown";
+        public const string PdmErrorOpenFileNotFound = "PdmErrorOpenFileNotFound";
+        public const string PdmConfirmRemoveLibraryRef = "PdmConfirmRemoveLibraryRef";
+        public const string PdmConfirmRemoveLibraryTitle = "PdmConfirmRemoveLibraryTitle";
+        public const string PdmRemoveNoWorkspaceId = "PdmRemoveNoWorkspaceId";
+        public const string PdmRemovedLibraryRef = "PdmRemovedLibraryRef";
+        public const string PdmRemoveLibraryRefFailed = "PdmRemoveLibraryRefFailed";
+        public const string PdmCadEditPolicyRoot = "PdmCadEditPolicyRoot";
+        public const string PdmRevisionDrift = "PdmRevisionDrift";
+        public const string PdmGenerationDrift = "PdmGenerationDrift";
+        public const string PdmFolderBusinessPackages = "PdmFolderBusinessPackages";
+        public const string PdmFolderCadSource = "PdmFolderCadSource";
+        public const string PdmFileKindFolder = "PdmFileKindFolder";
+        public const string PdmFileKindPackage = "PdmFileKindPackage";
+        public const string PdmFileKindSpreadsheet = "PdmFileKindSpreadsheet";
+        public const string PdmNamingBlockingIssues = "PdmNamingBlockingIssues";
+        public const string PdmSessionBlockingIssues = "PdmSessionBlockingIssues";
+        public const string PdmSessionWarnings = "PdmSessionWarnings";
+        public const string PdmSummaryPrefixTf = "PdmSummaryPrefixTf";
+        public const string PdmSummaryPrefixDoc = "PdmSummaryPrefixDoc";
+        public const string PdmSummaryPrefixPa = "PdmSummaryPrefixPa";
+
+        // CheckoutService error messages
+        public const string CheckoutErrorNoNativeFile = "CheckoutErrorNoNativeFile";
+        public const string CheckoutErrorLocalFileNotFound = "CheckoutErrorLocalFileNotFound";
+
+        // GuidanceRevisionService error messages
+        public const string GuidanceBlockedNotReleased = "GuidanceBlockedNotReleased";
+        public const string GuidanceBlockedNoArasId = "GuidanceBlockedNoArasId";
+        public const string GuidanceBlockedPartNotTracked = "GuidanceBlockedPartNotTracked";
+        public const string GuidanceBlockedActiveCheckout = "GuidanceBlockedActiveCheckout";
+        public const string GuidanceErrorNotConnected = "GuidanceErrorNotConnected";
+
+        // SaveToLibraryWorkflow error
+        public const string SaveToLibraryClientNotAvailable = "SaveToLibraryClientNotAvailable";
+
+        // LibraryViewModel preview/error messages
+        public const string LibraryPreviewNoPersistSave = "LibraryPreviewNoPersistSave";
+        public const string LibraryPreviewNoPersistMove = "LibraryPreviewNoPersistMove";
+        public const string LibraryPreviewNoPersistPolicy = "LibraryPreviewNoPersistPolicy";
+        public const string LibraryPreviewNoPersistCreate = "LibraryPreviewNoPersistCreate";
+        public const string LibraryPreviewNoPersistUpdate = "LibraryPreviewNoPersistUpdate";
+        public const string LibraryPreviewNoPersistArchive = "LibraryPreviewNoPersistArchive";
+        public const string LibraryPreviewMode = "LibraryPreviewMode";
+        public const string LibraryErrorNoParentPart = "LibraryErrorNoParentPart";
+        public const string LibraryReusablePartFallback = "LibraryReusablePartFallback";
+
+        // LoginViewModel labels
+        public const string LoginResultDetailsIronCad = "LoginResultDetailsIronCad";
+
+        // PdmProjectsView.xaml toolbar buttons
+        public const string PdmNewBranchButton = "PdmNewBranchButton";
+
+        // Language options in MainViewModel
+        public const string LanguageEnglish = "LanguageEnglish";
+        public const string LanguageVietnamese = "LanguageVietnamese";
+        public const string LanguageJapanese = "LanguageJapanese";
+
+        // CheckoutService
+        public const string IronCadExternalDisplayName = "IronCadExternalDisplayName";
+
+        // MainViewModel status messages
+        public const string StatusSignInToStart = "StatusSignInToStart";
     }
 }

@@ -22,7 +22,7 @@ namespace IdeaCadConnector.Desktop
 {
     public sealed class LibraryViewModel : ILibraryViewModel
     {
-        private const string NoValidTargetParentMessage = "Current PDM Project does not contain a valid target parent Part. Analyze or open a valid PDM Project first.";
+        private const string NoValidTargetParentMessage = TranslationKeys.LibraryErrorNoParentPart;
         private readonly IAppSessionContext _session;
         private readonly IPartLibraryClient _injectedClient;
         private readonly IPartLibraryClient _unavailableClient = new UnavailablePartLibraryClient();
@@ -522,7 +522,7 @@ namespace IdeaCadConnector.Desktop
         }
 
         public string ConnectionTitle => _session.IsConnected
-            ? Lf(TranslationKeys.LibraryConnectionConnectedAs, _session.CurrentUserName ?? "engineer")
+            ? Lf(TranslationKeys.LibraryConnectionConnectedAs, _session.CurrentUserName ?? L(TranslationKeys.DisplayEngineer))
             : L(TranslationKeys.LibraryConnectionOffline);
 
         public string ConnectionDatabase => _session.IsConnected
@@ -986,7 +986,7 @@ namespace IdeaCadConnector.Desktop
 
                 if (validParentCandidates.Count == 0)
                 {
-                    StatusMessage = NoValidTargetParentMessage;
+                    StatusMessage = L(NoValidTargetParentMessage);
                     return;
                 }
 
@@ -1044,7 +1044,7 @@ namespace IdeaCadConnector.Desktop
 
                 if (dialogViewModel.SelectedParent == null || string.IsNullOrWhiteSpace(dialogViewModel.SelectedParent.LogicalCode))
                 {
-                    StatusMessage = NoValidTargetParentMessage;
+                    StatusMessage = L(NoValidTargetParentMessage);
                     return;
                 }
 
@@ -1073,7 +1073,7 @@ namespace IdeaCadConnector.Desktop
                     Quantity = dialogViewModel.ParsedQuantity,
                     RevisionPolicy = SelectedEntry.RevisionPolicy,
                     AddedOn = DateTime.UtcNow,
-                    AddedBy = _session.CurrentUserName ?? "engineer"
+                    AddedBy = _session.CurrentUserName ?? L(TranslationKeys.DisplayEngineer)
                 };
 
                 var result = AddLibraryReferenceHandler(workspace, reference);
@@ -1787,9 +1787,9 @@ namespace IdeaCadConnector.Desktop
             if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllTypes))
                 return null;
             if (value == L(TranslationKeys.LibraryFilterAssembly))
-                return "Assembly";
+                return L(TranslationKeys.DisplayAssembly);
             if (value == L(TranslationKeys.LibraryFilterComponent))
-                return "Component";
+                return L(TranslationKeys.DisplayComponent);
             return value;
         }
 
@@ -1798,11 +1798,11 @@ namespace IdeaCadConnector.Desktop
             if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllStates))
                 return null;
             if (value == L(TranslationKeys.LibraryFilterReleased))
-                return "Released";
+                return L(TranslationKeys.DisplayReleased);
             if (value == L(TranslationKeys.LibraryFilterInReview))
-                return "In Review";
+                return L(TranslationKeys.DisplayInReview);
             if (value == L(TranslationKeys.LibraryFilterPreliminary))
-                return "Preliminary";
+                return L(TranslationKeys.DisplayPreliminary);
             return value;
         }
 
@@ -1824,13 +1824,13 @@ namespace IdeaCadConnector.Desktop
             if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllEntryStatuses))
                 return null;
             if (value == L(TranslationKeys.LibraryFilterEntryStatusDraft))
-                return "Draft";
+                return L(TranslationKeys.DisplayDraft);
             if (value == L(TranslationKeys.LibraryFilterEntryStatusPendingReview))
-                return "PendingReview";
+                return L(TranslationKeys.DisplayPendingReview);
             if (value == L(TranslationKeys.LibraryFilterEntryStatusPublished))
-                return "Published";
+                return L(TranslationKeys.DisplayPublished);
             if (value == L(TranslationKeys.LibraryFilterEntryStatusDeprecated))
-                return "Deprecated";
+                return L(TranslationKeys.DisplayDeprecated);
             return value;
         }
 
@@ -1839,13 +1839,13 @@ namespace IdeaCadConnector.Desktop
             if (string.IsNullOrWhiteSpace(value) || value == L(TranslationKeys.LibraryFilterAllCadStatuses))
                 return null;
             if (value == L(TranslationKeys.LibraryFilterCadStatusAvailable) || value == L(TranslationKeys.LibraryCadStatusAvailable))
-                return "Available";
+                return L(TranslationKeys.DisplayAvailable);
             if (value == L(TranslationKeys.LibraryFilterCadStatusNoCad) || value == L(TranslationKeys.LibraryCadStatusNoCad))
-                return "No CAD";
+                return L(TranslationKeys.DisplayNoCad);
             if (value == L(TranslationKeys.LibraryFilterCadStatusNoNativeFile) || value == L(TranslationKeys.LibraryCadStatusNoNative))
-                return "No native file";
+                return L(TranslationKeys.DisplayNoNativeFile);
             if (value == L(TranslationKeys.LibraryFilterCadStatusLookupUnavailable) || value == L(TranslationKeys.LibraryCadLookupUnavailable))
-                return "CAD lookup unavailable";
+                return L(TranslationKeys.DisplayCadLookupUnavailable);
             return value;
         }
 
@@ -1854,33 +1854,33 @@ namespace IdeaCadConnector.Desktop
             if (entries == null || entries.Count == 0)
                 return Enumerable.Empty<PartLibraryEntryRow>();
 
-            bool descending = sortDirection != null && sortDirection.Contains("Descending");
+            bool descending = sortDirection != null && sortDirection.Contains(L(TranslationKeys.DisplayDescending));
 
-            if (sortOption == null || sortOption.Contains("Item Number"))
+            if (sortOption == null || sortOption.Contains(L(TranslationKeys.DisplayItemNumber)))
                 return descending
                     ? entries.OrderByDescending(e => e.PartNumber, StringComparer.OrdinalIgnoreCase)
                     : entries.OrderBy(e => e.PartNumber, StringComparer.OrdinalIgnoreCase);
-            if (sortOption.Contains("Name"))
+            if (sortOption.Contains(L(TranslationKeys.LibrarySortByName)))
                 return descending
                     ? entries.OrderByDescending(e => e.PartName, StringComparer.OrdinalIgnoreCase)
                     : entries.OrderBy(e => e.PartName, StringComparer.OrdinalIgnoreCase);
-            if (sortOption.Contains("Entry Status"))
+            if (sortOption.Contains(L(TranslationKeys.DisplayEntryStatus)))
                 return descending
                     ? entries.OrderByDescending(e => e.EntryStatus)
                     : entries.OrderBy(e => e.EntryStatus);
-            if (sortOption.Contains("Revision Policy"))
+            if (sortOption.Contains(L(TranslationKeys.DisplayRevisionPolicy)))
                 return descending
                     ? entries.OrderByDescending(e => e.RevisionPolicy)
                     : entries.OrderBy(e => e.RevisionPolicy);
-            if (sortOption.Contains("CAD Status"))
+            if (sortOption.Contains(L(TranslationKeys.DisplayCadStatus)))
                 return descending
                     ? entries.OrderByDescending(e => e.CadStatus)
                     : entries.OrderBy(e => e.CadStatus);
-            if (sortOption.Contains("Usage Count"))
+            if (sortOption.Contains(L(TranslationKeys.DisplayUsageCount)))
                 return descending
                     ? entries.OrderByDescending(e => e.UsageCount)
                     : entries.OrderBy(e => e.UsageCount);
-            if (sortOption.Contains("Last Used"))
+            if (sortOption.Contains(L(TranslationKeys.DisplayLastUsed)))
                 return entries;
             return entries.OrderBy(e => e.PartNumber, StringComparer.OrdinalIgnoreCase);
         }
@@ -2374,7 +2374,7 @@ namespace IdeaCadConnector.Desktop
             PartNumber = partNumber;
             ResolvedPartSummary = string.Format(
                 TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogResolvedPartSummary),
-                partName ?? "Reusable Part",
+                partName ?? TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryReusablePartFallback),
                 TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogRevisionWord),
                 revision ?? "-");
             ReuseBadge = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryAddDialogReuseBadgeExistingPart);
@@ -2589,7 +2589,7 @@ namespace IdeaCadConnector.Desktop
             return Task.FromResult(new AddPartToLibraryResult
             {
                 Success = false,
-                ErrorMessage = "Preview client does not persist Save-to-Library yet."
+                ErrorMessage = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryPreviewNoPersistSave)
             });
         }
 
@@ -2602,7 +2602,7 @@ namespace IdeaCadConnector.Desktop
                 EntryId = request?.EntryId,
                 TargetLibraryId = request?.TargetLibraryId,
                 ErrorCode = ArasErrorCode.ValidationFailed,
-                ErrorMessage = "Preview client does not persist move operations yet."
+                ErrorMessage = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryPreviewNoPersistMove)
             });
 
         public Task<ResolveLibraryPartResult> ResolvePartAsync(string entryId, LibraryRevisionPolicy policy, CancellationToken cancellationToken)
@@ -2645,28 +2645,28 @@ namespace IdeaCadConnector.Desktop
             {
                 Success = false,
                 EntryId = request?.EntryId,
-                ErrorMessage = "Preview client does not persist policy changes."
+                ErrorMessage = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryPreviewNoPersistPolicy)
             });
         }
         public Task<LibraryMutationResult> CreateLibraryAsync(CreatePartLibraryRequest request, CancellationToken cancellationToken)
             => Task.FromResult(new LibraryMutationResult
             {
                 Success = false,
-                ErrorMessage = "Preview client does not persist library creation yet."
+                ErrorMessage = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryPreviewNoPersistCreate)
             });
 
         public Task<LibraryMutationResult> UpdateLibraryAsync(UpdatePartLibraryRequest request, CancellationToken cancellationToken)
             => Task.FromResult(new LibraryMutationResult
             {
                 Success = false,
-                ErrorMessage = "Preview client does not persist library updates yet."
+                ErrorMessage = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryPreviewNoPersistUpdate)
             });
 
         public Task<LibraryMutationResult> ArchiveLibraryAsync(string libraryId, CancellationToken cancellationToken)
             => Task.FromResult(new LibraryMutationResult
             {
                 Success = false,
-                ErrorMessage = "Preview client does not persist library archiving yet."
+                ErrorMessage = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryPreviewNoPersistArchive)
             });
 
         public Task<PartPickerSearchResponse> SearchPartsAsync(PartPickerSearchRequest request, CancellationToken cancellationToken)
@@ -2683,7 +2683,7 @@ namespace IdeaCadConnector.Desktop
             {
                 PartId = partId,
                 IsEligibleForReuse = false,
-                IneligibilityReason = "Preview mode"
+                IneligibilityReason = TranslationResources.GetString(CultureInfo.CurrentUICulture.Name, TranslationKeys.LibraryPreviewMode)
             });
 
         public Task<DuplicateEntryCheckResult> CheckDuplicateEntryAsync(string libraryId, string partConfigId, CancellationToken cancellationToken)

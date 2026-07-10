@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto.Library;
+using IdeaCadConnector.Core.Localization;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -20,7 +21,7 @@ namespace IdeaCadConnector.Desktop
                 return new SaveToLibraryWorkflowResult
                 {
                     Submitted = false,
-                    ErrorMessage = "Part Library client is not available."
+                    ErrorMessage = LocalizationSource.Instance[TranslationKeys.SaveToLibraryClientNotAvailable]
                 };
             }
 

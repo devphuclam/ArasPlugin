@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
+using IdeaCadConnector.Core.Localization;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -49,16 +50,16 @@ namespace IdeaCadConnector.Desktop
             var isReleased = !string.IsNullOrWhiteSpace(cadState)
                 && CadLifecyclePolicy.IsState(cadState, CadLifecyclePolicy.Released);
             if (!isReleased)
-                blocking.Add("CAD is not in Released state.");
+                blocking.Add(LocalizationSource.Instance[TranslationKeys.GuidanceBlockedNotReleased]);
 
             if (string.IsNullOrWhiteSpace(cadId))
-                blocking.Add("CAD Aras ID is not known.");
+                blocking.Add(LocalizationSource.Instance[TranslationKeys.GuidanceBlockedNoArasId]);
 
             if (string.IsNullOrWhiteSpace(partId))
-                blocking.Add("Part Aras ID is not tracked. Cannot verify linked Part for revision.");
+                blocking.Add(LocalizationSource.Instance[TranslationKeys.GuidanceBlockedPartNotTracked]);
 
             if (!string.IsNullOrWhiteSpace(lockToken))
-                blocking.Add("Active local checkout detected. Cancel checkout before revision.");
+                blocking.Add(LocalizationSource.Instance[TranslationKeys.GuidanceBlockedActiveCheckout]);
 
             var result = new PdmRevisePreconditionResult
             {
@@ -78,7 +79,7 @@ namespace IdeaCadConnector.Desktop
                 return new PdmReviseResult
                 {
                     Success = false,
-                    ErrorMessage = "Not connected to Aras. Sign in and select a CAD to create a new revision."
+                    ErrorMessage = LocalizationSource.Instance[TranslationKeys.GuidanceErrorNotConnected]
                 };
             }
 

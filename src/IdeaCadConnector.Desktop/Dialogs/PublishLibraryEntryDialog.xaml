@@ -1,7 +1,8 @@
 <Window x:Class="IdeaCadConnector.Desktop.PublishLibraryEntryDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Publish to Standard Library"
+        xmlns:core="clr-namespace:IdeaCadConnector.Core.Localization;assembly=IdeaCadConnector.Core"
+        Title="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogTitle]}"
         Width="980"
         Height="790"
         WindowStartupLocation="CenterOwner"
@@ -97,11 +98,11 @@
                     Padding="26,22,26,18">
                 <Grid>
                     <StackPanel>
-                        <TextBlock Text="Publish to Standard Library"
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogTitle]}"
                                    FontSize="24"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource DialogTextBrush}"/>
-                        <TextBlock Text="Submit a reusable Part for review before it becomes available to all engineers."
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogSubtitle]}"
                                    Margin="0,6,0,0"
                                    Foreground="{StaticResource DialogMutedBrush}"
                                    FontSize="13"/>
@@ -148,11 +149,11 @@
                             <StackPanel Grid.Column="1"
                                         Margin="12,0,0,0"
                                         VerticalAlignment="Center">
-                                <TextBlock Text="Selected reusable Part"
+                                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogSelectedPart]}"
                                            FontSize="17"
                                            FontWeight="Bold"
                                            Foreground="{StaticResource DialogTextBrush}"/>
-                                <TextBlock Text="Publish workflow is prepared visually, but the Aras workflow backend is not wired in this MVP slice."
+                                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogWorkflowStatus]}"
                                            Margin="0,3,0,0"
                                            FontSize="12"
                                            Foreground="{StaticResource DialogMutedBrush}"
@@ -164,7 +165,7 @@
                                     CornerRadius="10"
                                     Padding="10,4"
                                     VerticalAlignment="Center">
-                                <TextBlock Text="Not wired"
+                                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogNotWired]}"
                                            Foreground="#A15C00"
                                            FontSize="12"
                                            FontWeight="SemiBold"/>
@@ -185,7 +186,7 @@
                                 Padding="16"
                                 Background="#FBFDFF">
                             <StackPanel>
-                                <TextBlock Text="Publish Checklist"
+                                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogChecklistHeading]}"
                                            FontSize="17"
                                            FontWeight="Bold"
                                            Foreground="{StaticResource DialogTextBrush}"/>
@@ -198,7 +199,7 @@
                                     <Border Width="22" Height="22" CornerRadius="11" Background="#DCFCE7">
                                         <TextBlock Text="1" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#087443" FontWeight="Bold"/>
                                     </Border>
-                                    <TextBlock Grid.Column="1" Text="Part lifecycle and CAD readiness validation"
+                                    <TextBlock Grid.Column="1" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogChecklist1]}"
                                                Foreground="{StaticResource DialogTextBrush}" VerticalAlignment="Center"/>
                                 </Grid>
 
@@ -210,7 +211,7 @@
                                     <Border Width="22" Height="22" CornerRadius="11" Background="#DCFCE7">
                                         <TextBlock Text="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#087443" FontWeight="Bold"/>
                                     </Border>
-                                    <TextBlock Grid.Column="1" Text="Duplicate Library entry check"
+                                    <TextBlock Grid.Column="1" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogChecklist2]}"
                                                Foreground="{StaticResource DialogTextBrush}" VerticalAlignment="Center"/>
                                 </Grid>
 
@@ -222,7 +223,7 @@
                                     <Border Width="22" Height="22" CornerRadius="11" Background="#FFF7E8">
                                         <TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#A15C00" FontWeight="Bold"/>
                                     </Border>
-                                    <TextBlock Grid.Column="1" Text="Reviewer confirmation through live Aras workflow"
+                                    <TextBlock Grid.Column="1" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogChecklist3]}"
                                                Foreground="{StaticResource DialogTextBrush}" VerticalAlignment="Center"/>
                                 </Grid>
                             </StackPanel>
@@ -235,21 +236,21 @@
                                 Padding="16"
                                 Background="#FBFDFF">
                             <StackPanel>
-                                <TextBlock Text="Revision Update"
+                                <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogRevisionUpdate]}"
                                            FontSize="17"
                                            FontWeight="Bold"
                                            Foreground="{StaticResource DialogTextBrush}"/>
                                 <TextBlock Margin="0,12,0,0"
-                                           Text="This placeholder keeps the Phase 2 UX honest: it shows the intended publish flow without creating unsupported server behavior."
+                                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogPlaceholderText]}"
                                            Foreground="{StaticResource DialogMutedBrush}"
                                            TextWrapping="Wrap"/>
                                 <TextBlock Margin="0,18,0,0"
-                                           Text="Publish revision"
+                                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogPublishRevision]}"
                                            Style="{StaticResource DialogLabelStyle}"/>
                                 <ComboBox Margin="0,8,0,0"
                                           Style="{StaticResource DialogComboBoxStyle}"
                                           IsEnabled="False">
-                                    <ComboBoxItem Content="Latest released revision"/>
+                                    <ComboBoxItem Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogLatestReleased]}"/>
                                 </ComboBox>
                                 <Border Margin="0,14,0,0"
                                         Padding="12"
@@ -257,7 +258,7 @@
                                         Background="#FFF7E8"
                                         BorderBrush="#F8C983"
                                         BorderThickness="1">
-                                    <TextBlock Text="Backend method and Aras workflow package must be deployed before submit actions are enabled."
+                                    <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogBackendWarning]}"
                                                Foreground="#8B5800"
                                                FontSize="12"
                                                TextWrapping="Wrap"/>
@@ -274,25 +275,25 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel>
-                            <TextBlock Text="Target Standard Library" Style="{StaticResource DialogLabelStyle}"/>
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogTargetLibrary]}" Style="{StaticResource DialogLabelStyle}"/>
                             <ComboBox Margin="0,8,0,0"
                                       Style="{StaticResource DialogComboBoxStyle}"
                                       IsEnabled="False">
-                                <ComboBoxItem Content="Standard Mechanical Parts"/>
+                                <ComboBoxItem Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogDefaultLibrary]}"/>
                             </ComboBox>
                         </StackPanel>
 
                         <StackPanel Grid.Column="2">
-                            <TextBlock Text="Reviewer" Style="{StaticResource DialogLabelStyle}"/>
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogReviewer]}" Style="{StaticResource DialogLabelStyle}"/>
                             <TextBox Margin="0,8,0,0"
                                      Style="{StaticResource DialogTextBoxStyle}"
-                                     Text="Library manager"
+                                     Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogLibraryManager]}"
                                      IsReadOnly="True"/>
                         </StackPanel>
                     </Grid>
 
                     <StackPanel Margin="0,16,0,0">
-                        <TextBlock Text="Review comment" Style="{StaticResource DialogLabelStyle}"/>
+                        <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogReviewComment]}" Style="{StaticResource DialogLabelStyle}"/>
                         <TextBox Height="76"
                                  Margin="0,8,0,0"
                                  Padding="12,10"
@@ -300,7 +301,7 @@
                                  TextWrapping="Wrap"
                                  VerticalContentAlignment="Top"
                                  Style="{StaticResource DialogTextBoxStyle}"
-                                 Text="Publish workflow backend is not available yet."
+                                 Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogBackendUnavailable]}"
                                  IsReadOnly="True"/>
                     </StackPanel>
                 </StackPanel>
@@ -313,17 +314,17 @@
                     Padding="26,16">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Width="104"
-                            Content="Close"
+                            Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogCloseButton]}"
                             IsCancel="True"
                             Style="{StaticResource DialogButtonStyle}"/>
                     <Button Width="170"
                             Margin="10,0,0,0"
-                            Content="View Where Used"
+                            Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogViewWhereUsed]}"
                             IsEnabled="False"
                             Style="{StaticResource DialogButtonStyle}"/>
                     <Button Width="160"
                             Margin="10,0,0,0"
-                            Content="Submit for Review"
+                            Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PublishDialogSubmitForReview]}"
                             IsEnabled="False"
                             Style="{StaticResource DialogPrimaryButtonStyle}"/>
                 </StackPanel>
@@ -331,3 +332,4 @@
         </Grid>
     </Border>
 </Window>
+

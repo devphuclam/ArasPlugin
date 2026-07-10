@@ -415,12 +415,12 @@
                   <Rectangle Width="7" Height="7" RadiusX="1.5" RadiusY="1.5" Fill="White" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6" />
                 </Grid>
               </Border>
-              <TextBlock Margin="12,0,0,0"
-                         VerticalAlignment="Center"
-                         FontSize="16"
-                         FontWeight="Medium"
-                         Foreground="#FF1B274A"
-                         Text="IDEA PDM - IronCAD / Aras Innovator" />
+               <TextBlock Margin="12,0,0,0"
+                          VerticalAlignment="Center"
+                          FontSize="16"
+                          FontWeight="Medium"
+                          Foreground="#FF1B274A"
+                          Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[Title]}" />
             </StackPanel>
 
             <Button x:Name="HomeNavigationButton"
@@ -443,7 +443,7 @@
                            FontSize="15"
                            FontWeight="SemiBold"
                            Foreground="#FF1D63E7"
-                           Text="Home" />
+                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarHome]}" />
               </Grid>
             </Button>
 
@@ -456,7 +456,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE721;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Search" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarSearch]}" />
               </Grid>
             </Button>
 
@@ -467,7 +467,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE823;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Recent" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarRecent]}" />
               </Grid>
             </Button>
 
@@ -478,7 +478,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE734;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Favorites" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarFavorites]}" />
               </Grid>
             </Button>
 
@@ -491,7 +491,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8A5;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="PDM Projects" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarPdmProjects]}" />
               </Grid>
             </Button>
 
@@ -504,7 +504,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8F1;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Library" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LibraryTitle]}" />
               </Grid>
             </Button>
 
@@ -515,7 +515,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE8B7;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Projects" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarProjects]}" />
               </Grid>
             </Button>
 
@@ -526,7 +526,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE9D2;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Reports" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarReports]}" />
               </Grid>
             </Button>
 
@@ -537,7 +537,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE713;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="Settings" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarSettings]}" />
               </Grid>
             </Button>
 
@@ -548,7 +548,7 @@
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="18" VerticalAlignment="Center" Text="&#xE897;" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="About" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="15" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarAbout]}" />
               </Grid>
             </Button>
           </StackPanel>
@@ -583,7 +583,7 @@
                     CornerRadius="14">
               <StackPanel>
                 <TextBlock Style="{StaticResource SidebarFooterLabelStyle}"
-                           Text="Language" />
+                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarLanguage]}" />
                 <Grid>
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="26" />
@@ -630,7 +630,7 @@
                 <TextBlock Grid.Column="1"
                            VerticalAlignment="Center"
                            FontSize="15"
-                           Text="Collapse" />
+                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SidebarCollapse]}" />
               </Grid>
             </Button>
           </StackPanel>
@@ -693,11 +693,11 @@
                   <TextBlock FontSize="54"
                              FontWeight="Bold"
                              Foreground="#FF122A63"
-                             Text="IDEA PDM" />
+                             Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[HeaderTitle]}" />
                   <TextBlock Margin="0,4,0,0"
                              FontSize="21"
                              Foreground="#FF5E6D8B"
-                             Text="Search part, review linked CAD status, then checkout or open the file in IronCAD." />
+                             Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[HeaderSubtitle]}" />
                 </StackPanel>
 
                 <Border Grid.Column="1"
@@ -743,7 +743,7 @@
                             Background="Transparent"
                             BorderThickness="0"
                             Cursor="Hand"
-                            ToolTip="Sign out"
+                            ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SignOutTooltip]}"
                             Command="{Binding LogoutCommand}">
                       <TextBlock FontFamily="Segoe MDL2 Assets"
                                  FontSize="15"
@@ -771,12 +771,12 @@
                     <ColumnDefinition Width="*" />
                   </Grid.ColumnDefinitions>
 
-                  <TextBlock Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF25355D" Text="User" />
+                  <TextBlock Grid.Column="0" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF25355D" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LoginLabelUser]}" />
                   <TextBox Grid.Column="1"
                            Margin="0,0,14,0"
                            Style="{StaticResource TextInputStyle}"
                            Text="{Binding LoginViewModel.UserName, UpdateSourceTrigger=PropertyChanged}" />
-                  <TextBlock Grid.Column="2" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF25355D" Text="Password" />
+                  <TextBlock Grid.Column="2" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#FF25355D" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LoginLabelPassword]}" />
                   <Border Grid.Column="3"
                           Margin="0,0,14,0"
                           Height="40"
@@ -794,7 +794,7 @@
                           Width="116"
                           Style="{StaticResource PrimaryButtonStyle}"
                           Command="{Binding LoginCommand}"
-                          Content="Login" />
+                          Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[LoginButton]}" />
                   <TextBlock Grid.Column="5"
                              Margin="16,0,0,0"
                              VerticalAlignment="Center"
@@ -831,7 +831,7 @@
                   <StackPanel Grid.Column="1">
                     <TextBlock Margin="0,0,0,8"
                                Style="{StaticResource SectionTitleStyle}"
-                               Text="Part Search" />
+                               Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PartSearchLabel]}" />
                     <TextBox Style="{StaticResource TextInputStyle}"
                              Text="{Binding LoginViewModel.SearchKeyword, UpdateSourceTrigger=PropertyChanged}" />
                   </StackPanel>
@@ -841,7 +841,7 @@
                             Margin="0,0,12,0"
                             Style="{StaticResource PrimaryButtonStyle}"
                             Command="{Binding SearchPartsCommand}"
-                            Content="Search" />
+                            Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SearchButton]}" />
                     <TextBlock VerticalAlignment="Center"
                                FontSize="14"
                                Foreground="#FF60708E"
@@ -856,7 +856,7 @@
                           Style="{StaticResource SecondaryButtonStyle}">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                       <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE71C;" />
-                      <TextBlock Margin="8,0,8,0" Text="Filters" />
+                      <TextBlock Margin="8,0,8,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[FiltersButton]}" />
                       <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE70D;" />
                     </StackPanel>
                   </Button>
@@ -889,11 +889,11 @@
 
                   <DockPanel Grid.Row="0" Margin="0,0,0,16">
                     <StackPanel DockPanel.Dock="Left">
-                      <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Part Results" />
+                      <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PartResultsLabel]}" />
                       <TextBlock Margin="0,6,0,0"
                                  FontSize="14"
                                  Foreground="#FF60708E"
-                                 Text="Select one row to see part and CAD details." />
+                                 Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PartResultsSubtitle]}" />
                     </StackPanel>
 
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
@@ -916,7 +916,7 @@
                               ItemsSource="{Binding LoginViewModel.SearchResults}"
                               SelectedItem="{Binding SelectedSearchResult, Mode=TwoWay}">
                       <DataGrid.Columns>
-                        <DataGridTemplateColumn Width="170" Header="Part Number">
+                        <DataGridTemplateColumn Width="170" Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ColumnPartNumber]}">
                           <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                               <TextBlock VerticalAlignment="Center"
@@ -926,9 +926,9 @@
                             </DataTemplate>
                           </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Width="220" Header="Part Name" Binding="{Binding Part.Name}" />
-                        <DataGridTextColumn Width="72" Header="Part Rev" Binding="{Binding Part.Revision}" />
-                        <DataGridTemplateColumn Width="160" Header="State">
+                        <DataGridTextColumn Width="220" Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ColumnPartName]}" Binding="{Binding Part.Name}" />
+                        <DataGridTextColumn Width="72" Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ColumnPartRev]}" Binding="{Binding Part.Revision}" />
+                        <DataGridTemplateColumn Width="160" Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ColumnState]}">
                           <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                               <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -969,7 +969,7 @@
                             </DataTemplate>
                           </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTemplateColumn Width="128" Header="Type">
+                        <DataGridTemplateColumn Width="128" Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ColumnType]}">
                           <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                               <Border VerticalAlignment="Center" Padding="10,4" CornerRadius="12">
@@ -999,7 +999,7 @@
                             </DataTemplate>
                           </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Width="140" Header="CAD Number" Binding="{Binding IronCadPartCad.CadNumber}" />
+                        <DataGridTextColumn Width="140" Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[ColumnCadNumber]}" Binding="{Binding IronCadPartCad.CadNumber}" />
                       </DataGrid.Columns>
                     </DataGrid>
                   </Border>
@@ -1052,8 +1052,8 @@
 
                     <DockPanel Grid.Row="0" Margin="0,0,0,16">
                       <TextBlock DockPanel.Dock="Left"
-                                 Style="{StaticResource SectionTitleStyle}"
-                                 Text="Selected Part" />
+                                  Style="{StaticResource SectionTitleStyle}"
+                                  Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SelectedPartLabel]}" />
                       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button Width="32" Height="32" Margin="0,0,8,0"
                                 Background="Transparent"
@@ -1123,16 +1123,16 @@
                             <RowDefinition Height="Auto" />
                           </Grid.RowDefinitions>
 
-                          <TextBlock Grid.Row="0" Style="{StaticResource MetaLabelStyle}" Text="Revision" />
+                          <TextBlock Grid.Row="0" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetaRevision]}" />
                           <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.Part.Revision, TargetNullValue=-}" />
-                          <TextBlock Grid.Row="1" Style="{StaticResource MetaLabelStyle}" Text="State" />
+                          <TextBlock Grid.Row="1" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetaState]}" />
                           <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
                             <Ellipse Width="9" Height="9" Margin="0,5,10,0" Fill="#FF2E63FF" />
                             <TextBlock Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.Part.State, TargetNullValue=-}" />
                           </StackPanel>
-                          <TextBlock Grid.Row="2" Style="{StaticResource MetaLabelStyle}" Text="Type" />
+                          <TextBlock Grid.Row="2" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetaType]}" />
                           <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Foreground="#FF6D46D9" Text="{Binding SelectedSearchResult.Part.PartType, TargetNullValue=-}" />
-                          <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="Description" />
+                          <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetaDescription]}" />
                           <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.Part.Description, TargetNullValue=-}" />
                         </Grid>
                       </StackPanel>
@@ -1146,8 +1146,8 @@
                   <StackPanel>
                     <DockPanel Margin="0,0,0,16">
                       <TextBlock DockPanel.Dock="Left"
-                                 Style="{StaticResource SectionTitleStyle}"
-                                 Text="Selected CAD" />
+                                  Style="{StaticResource SectionTitleStyle}"
+                                  Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SelectedCadLabel]}" />
                       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                         <Border Padding="10,4"
                                 Margin="0,0,8,0"
@@ -1186,15 +1186,15 @@
                         <RowDefinition Height="Auto" />
                       </Grid.RowDefinitions>
 
-<TextBlock Grid.Row="0" Style="{StaticResource MetaLabelStyle}" Text="CAD Revision" />
+<TextBlock Grid.Row="0" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SummaryCadRevision]}" />
                       <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Revision, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="1" Style="{StaticResource MetaLabelStyle}" Text="State" />
+                      <TextBlock Grid.Row="1" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetaState]}" />
                       <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.State, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="2" Style="{StaticResource MetaLabelStyle}" Text="Classification" />
+                      <TextBlock Grid.Row="2" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[SummaryCadClassification]}" />
                       <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Classification, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="Aras Generation" />
+                      <TextBlock Grid.Row="3" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetricArasGeneration]}" />
                       <TextBlock Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.Generation, TargetNullValue=-}" />
-                      <TextBlock Grid.Row="4" Style="{StaticResource MetaLabelStyle}" Text="Locked By" />
+                      <TextBlock Grid.Row="4" Style="{StaticResource MetaLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MetricLockedBy]}" />
                       <TextBlock Grid.Row="4" Grid.Column="1" Style="{StaticResource MetaValueStyle}" Text="{Binding SelectedSearchResult.IronCadPartCad.LockedBy, TargetNullValue=-}" />
                     </Grid>
 
@@ -1225,14 +1225,14 @@
 
                 <Border Style="{StaticResource AppCardStyle}">
                   <StackPanel>
-                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="Actions" />
+                    <TextBlock Style="{StaticResource SectionTitleStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainActionsSection]}" />
                     <UniformGrid Columns="2" Margin="0,16,0,0">
                       <Button Margin="0,0,8,10"
                               Style="{StaticResource PrimaryButtonStyle}"
                               Command="{Binding SelectAndCreateCadCommand}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE710;" />
-                          <TextBlock Margin="8,0,0,0" Text="Select / Create CAD" />
+                          <TextBlock Margin="8,0,0,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainSelectCreateCad]}" />
                         </StackPanel>
                       </Button>
 
@@ -1242,7 +1242,7 @@
                               Visibility="{Binding HasOpenReadOnlyAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" />
-                          <TextBlock Margin="8,0,0,0" Text="Open Read-Only" />
+                          <TextBlock Margin="8,0,0,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainOpenReadOnly]}" />
                         </StackPanel>
                       </Button>
 
@@ -1252,7 +1252,7 @@
                               Visibility="{Binding HasCheckoutAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72E;" />
-                          <TextBlock Margin="8,0,0,0" Text="Checkout" />
+                          <TextBlock Margin="8,0,0,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainCheckoutButton]}" />
                         </StackPanel>
                       </Button>
 
@@ -1262,7 +1262,7 @@
                               Visibility="{Binding HasCheckInAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE898;" />
-                          <TextBlock Margin="8,0,0,0" Text="Checkin" />
+                          <TextBlock Margin="8,0,0,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainCheckinButton]}" />
                         </StackPanel>
                       </Button>
 
@@ -1272,7 +1272,7 @@
                               Visibility="{Binding HasCancelCheckoutAction, Converter={StaticResource BoolToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                           <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE711;" />
-                          <TextBlock Margin="8,0,0,0" Text="Cancel Checkout" />
+                          <TextBlock Margin="8,0,0,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainCancelCheckoutButton]}" />
                         </StackPanel>
                       </Button>
                     </UniformGrid>
@@ -1284,9 +1284,9 @@
                             Foreground="White"
                             FontWeight="SemiBold"
                             Command="{Binding StartNewRevisionCommand}"
-                            Content="Start New Revision"
+                            Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainStartNewRevision]}"
                             Visibility="{Binding HasSearchRevisionEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}"
-                            ToolTip="Requests a new revision through the app revision flow. Server-side support is still required." />
+                            ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainStartNewRevisionTooltip]}" />
 
                     <Button Margin="0,10,0,0"
                             Height="36"
@@ -1319,7 +1319,7 @@
                                      FontSize="16"
                                      FontWeight="SemiBold"
                                      Foreground="#FF1A2752"
-                                     Text="Workflow" />
+                                      Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainWorkflowSection]}" />
                           <Button DockPanel.Dock="Right"
                                   Width="92"
                                   Height="32"
@@ -1327,7 +1327,7 @@
                                   Command="{Binding RefreshWorkflowCommand}">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                               <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72C;" />
-                              <TextBlock Margin="6,0,0,0" Text="Refresh" />
+                              <TextBlock Margin="6,0,0,0" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainRefreshButton]}" />
                             </StackPanel>
                           </Button>
                         </DockPanel>
@@ -1342,25 +1342,25 @@
                                   Style="{StaticResource PrimaryButtonStyle}"
                                   Command="{Binding StartDetailedDesignCommand}"
                                   Visibility="{Binding HasStartDetailedDesignAction, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <TextBlock Text="Start Detailed Design" />
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainStartDetailedDesign]}" />
                           </Button>
                           <Button Margin="0,0,0,8"
                                   Style="{StaticResource PrimaryButtonStyle}"
                                   Command="{Binding SubmitForReviewCommand}"
                                   Visibility="{Binding HasSubmitForReviewAction, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <TextBlock Text="Submit for Review" />
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainSubmitForReview]}" />
                           </Button>
                           <Button Margin="0,0,8,0"
                                   Style="{StaticResource PrimaryButtonStyle}"
                                   Command="{Binding ApproveCommand}"
                                   Visibility="{Binding HasApproveAction, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <TextBlock Text="Approve" />
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainApprove]}" />
                           </Button>
                           <Button Margin="0,0,0,0"
                                   Style="{StaticResource SecondaryButtonStyle}"
                                   Command="{Binding RequestReworkCommand}"
                                   Visibility="{Binding HasRequestReworkAction, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <TextBlock Text="Request Rework" />
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainRequestRework]}" />
                           </Button>
                         </UniformGrid>
                       </StackPanel>
@@ -1394,12 +1394,12 @@
           <TextBlock VerticalAlignment="Center"
                      FontSize="12"
                      Foreground="#FF7A879F"
-                     Text="IDEA PDM - IronCAD / Aras Innovator" />
+                     Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[Title]}" />
           <TextBlock Grid.Column="1"
                      VerticalAlignment="Center"
                      FontSize="12"
                      Foreground="#FF7A879F"
-                     Text="v1.0.0" />
+                     Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainVersion]}" />
         </Grid>
       </Grid>
     </Grid>

@@ -291,7 +291,7 @@
                     FontSize="17"
                     FontWeight="Bold"
                     Command="{Binding NewBranchCommand}"
-                    Content="+"
+                    Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmNewBranchButton]}"
                     ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[TooltipNewBranch]}" />
             <Border Grid.Column="2"
                     Margin="8,6,0,0"
@@ -401,7 +401,7 @@
                  HorizontalAlignment="Stretch"
                  Style="{DynamicResource TextInputStyle}"
                  Text="{Binding CommitMessage, UpdateSourceTrigger=PropertyChanged}"
-                 ToolTip="Enter a message for the local workspace commit (does not affect Aras revision history)" />
+                 ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmCommitTooltip]}" />
         <TextBlock Grid.Row="2"
                    Grid.Column="0"
                    Grid.ColumnSpan="3"
@@ -1046,7 +1046,7 @@
                             FontWeight="SemiBold"
                             Command="{Binding CheckInCommand}"
                             Visibility="{Binding HasCheckInCadAction, Converter={StaticResource BoolToVisibilityConverter}}"
-                            Content="Check-in" />
+                            Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmCheckinButton]}" />
                   </Grid>
 
                   <Button Margin="0,10,0,0"
@@ -1058,7 +1058,7 @@
                           FontWeight="SemiBold"
                           Command="{Binding CancelCheckoutCommand}"
                           Visibility="{Binding HasCancelCheckoutCadAction, Converter={StaticResource BoolToVisibilityConverter}}"
-                          Content="Cancel Checkout" />
+                           Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmCancelCheckoutButton]}" />
 
                   <Button Margin="0,10,0,0"
                           Height="40"
@@ -1067,8 +1067,8 @@
                           Foreground="White"
                           FontWeight="SemiBold"
                           Command="{Binding StartNewRevisionCommand}"
-                          Content="Start New Revision"
-                          ToolTip="Requests a new revision through the app revision flow. Server-side support is still required."
+                          Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainStartNewRevision]}"
+                          ToolTip="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainStartNewRevisionTooltip]}"
                           Visibility="{Binding HasCadRevisionEntryPoint, Converter={StaticResource BoolToVisibilityConverter}}" />
 
                    <Button Margin="0,10,0,0"
@@ -1091,7 +1091,7 @@
                           FontWeight="SemiBold"
                           Command="{Binding RemoveSelectedLibraryReferenceCommand}"
                           Visibility="{Binding HasRemoveLibraryReferenceAction, Converter={StaticResource BoolToVisibilityConverter}}"
-                          Content="Remove Library Reference" />
+                           Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmRemoveLibraryRef]}" />
 
                   <TextBlock Margin="0,6,0,0"
                              FontSize="11"
@@ -1115,7 +1115,7 @@
                               FontWeight="SemiBold"
                               Command="{Binding StartDetailedDesignCommand}"
                               Visibility="{Binding HasStartDetailedDesignBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
-                              Content="Start Detailed Design" />
+                              Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainStartDetailedDesign]}" />
                       <Button Margin="0,0,0,8"
                               Height="36"
                               Background="#FF6A5AE0"
@@ -1124,7 +1124,7 @@
                               FontWeight="SemiBold"
                               Command="{Binding SubmitForReviewCommand}"
                               Visibility="{Binding HasSubmitForReviewBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
-                              Content="Submit for Review" />
+                              Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainSubmitForReview]}" />
                       <Button Margin="0,0,8,0"
                               Height="36"
                               Background="#FF139A6C"
@@ -1133,7 +1133,7 @@
                               FontWeight="SemiBold"
                               Command="{Binding ApproveCadCommand}"
                               Visibility="{Binding HasApproveBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
-                              Content="Approve" />
+                              Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainApprove]}" />
                       <Button Margin="0,0,0,0"
                               Height="36"
                               Background="White"
@@ -1143,7 +1143,7 @@
                               FontWeight="SemiBold"
                               Command="{Binding RequestReworkCommand}"
                               Visibility="{Binding HasRequestReworkBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
-                              Content="Request Rework" />
+                              Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainRequestRework]}" />
                     </UniformGrid>
                   </StackPanel>
                   </StackPanel>
@@ -1164,7 +1164,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                       </Grid.ColumnDefinitions>
-                      <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="Related Files" />
+                      <TextBlock Style="{DynamicResource SectionTitleStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmRelatedFiles]}" />
                       <TextBlock Grid.Column="1" FontSize="14" Foreground="#FF60708E" Text="{Binding DocumentsSectionIcon}" />
                     </Grid>
                   </Button>
@@ -1206,7 +1206,7 @@
           </Grid>
         </TabItem>
 
-        <TabItem Header="Push Preview">
+        <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmPushPreviewTab]}">
           <Border Margin="0,14,0,0" Style="{DynamicResource AppCardStyle}">
             <Grid>
               <Grid.RowDefinitions>
@@ -1218,14 +1218,14 @@
               <DockPanel Margin="18,14,18,8">
                 <TextBlock DockPanel.Dock="Left"
                            Style="{DynamicResource SectionTitleStyle}"
-                           Text="Push Preview" />
+                           Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmPushPreviewSection]}" />
                 <Border DockPanel.Dock="Right"
                         Margin="8,0,0,0"
                         Padding="12,4"
                         CornerRadius="10"
                         Background="#FFF0F5FF">
                   <TextBlock Style="{StaticResource BadgeTextStyle}"
-                             Text="{Binding PushPreviewReadiness.DisplayText, TargetNullValue=Analyze folder to generate preview}" />
+                             Text="{Binding PushPreviewReadiness.DisplayText}" />
                 </Border>
               </DockPanel>
 
@@ -1246,13 +1246,13 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                   </Grid.RowDefinitions>
-                  <TextBlock Style="{StaticResource MetricLabelStyle}" Text="Parts" />
+                  <TextBlock Style="{StaticResource MetricLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmMetricsParts]}" />
                   <TextBlock Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewParts.Count}" />
-                  <TextBlock Grid.Column="2" Style="{StaticResource MetricLabelStyle}" Text="CADs" />
+                  <TextBlock Grid.Column="2" Style="{StaticResource MetricLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmMetricsCads]}" />
                   <TextBlock Grid.Column="3" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewCads.Count}" />
-                  <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="Documents" />
+                  <TextBlock Grid.Row="1" Style="{StaticResource MetricLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmMetricsDocuments]}" />
                   <TextBlock Grid.Row="1" Grid.Column="1" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewDocuments.Count}" />
-                  <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource MetricLabelStyle}" Text="Ignored" />
+                  <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource MetricLabelStyle}" Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmMetricsIgnored]}" />
                   <TextBlock Grid.Row="1" Grid.Column="3" Style="{StaticResource MetricValueStyle}" Text="{Binding PreviewIgnoredFiles.Count}" />
                 </Grid>
               </Border>
@@ -1275,7 +1275,7 @@
                   </Style>
                 </TabControl.Resources>
 
-                <TabItem Header="Parts">
+                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmPartsTab]}">
                   <Border BorderThickness="1"
                           BorderBrush="#FFE3EAF5"
                           CornerRadius="12"
@@ -1322,7 +1322,7 @@
                 </Border>
                 </TabItem>
 
-                <TabItem Header="CADs">
+                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmCadsTab]}">
                   <Border BorderThickness="1"
                           BorderBrush="#FFE3EAF5"
                           CornerRadius="12"
@@ -1369,7 +1369,7 @@
                 </Border>
                 </TabItem>
 
-                <TabItem Header="Documents">
+                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmDocumentsTab]}">
                   <Border BorderThickness="1"
                           BorderBrush="#FFE3EAF5"
                           CornerRadius="12"
@@ -1416,7 +1416,7 @@
                 </Border>
                 </TabItem>
 
-                <TabItem Header="Ignored">
+                <TabItem Header="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[PdmIgnoredTab]}">
                   <Border BorderThickness="1"
                           BorderBrush="#FFE3EAF5"
                           CornerRadius="12"
