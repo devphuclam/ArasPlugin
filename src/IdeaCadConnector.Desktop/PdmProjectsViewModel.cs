@@ -847,6 +847,9 @@ namespace IdeaCadConnector.Desktop
                 {
                     SourceFileName = d.SourceFileName,
                     LogicalCode = d.LogicalCode,
+                    SourceFilePath = d.SourceFilePath,
+                    FileHash = d.FileHash,
+                    FileSize = d.FileSize,
                     DocumentNumber = d.DocumentNumber,
                     Classification = d.Classification,
                     LinkTargetType = d.LinkTargetType,
@@ -3781,6 +3784,9 @@ namespace IdeaCadConnector.Desktop
                     {
                         SourceFileName = doc.SourceFileName,
                         LogicalCode = doc.LogicalCode,
+                        SourceFilePath = doc.SourceFilePath,
+                        FileHash = doc.FileHash,
+                        FileSize = doc.FileSize,
                         DocumentNumber = doc.DocumentNumber,
                         Classification = doc.Classification,
                         LinkTargetType = doc.LinkTargetType,

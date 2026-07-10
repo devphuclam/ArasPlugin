@@ -1,11 +1,11 @@
-# DOC-01 — Extend Document push contract
+﻿# DOC-01 — Extend Document push contract
 
 ## Metadata
 
 - Epic: Document Vault
 - Dependencies: BASE-04
 - Risk: Medium
-- Status: Not Started
+- Status: Completed
 
 ## Goal
 

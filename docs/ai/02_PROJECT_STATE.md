@@ -182,3 +182,23 @@ The Verifier updates this document after each merged ticket:
   - collect Dev/Test method presence and version evidence when endpoints/tokens are provided;
   - continue decoding permission/lifecycle/Document File write behavior;
   - do not start server-side Branch/Commit tickets until `PDM Commit`, `PDM Commit File`, and `PDM Branch` schema is planned and deployed.
+
+## DOC-01 completion record
+
+- Completed: 2026-07-10
+- HEAD commit before review fixes: `2ba7880be0cb1f75303333c5a531c1c8b0b5188e`
+- Scope: extend Document push contract with physical-file identity fields
+- Changes:
+  - PdmDocumentRequest (Core contract): added SourceFilePath (string), FileHash (string), FileSize (long)
+  - DocumentPreviewRow (Workspace DTO): added same 3 fields
+  - PdmPushPreviewBuilder.MapDocuments: populates SourceFilePath from AnalyzedDocumentFile.SourcePath, FileHash from Fingerprint, FileSize from file length (guarded by File.Exists)
+  - PdmProjectsViewModel: passes new fields through both Document to PdmDocumentRequest and preview-refresh mappings
+  - New test file tests/IdeaCadConnector.Tests/PushContractTests.cs: 8 tests for defaults, DTO mapping, builder mapping, and missing-file size fallback
+- Build/test evidence: `.ai-work/verification/DOC-01-build-debug.log`, `.ai-work/verification/DOC-01-test-debug.trx`
+- Build Debug: Succeeded
+- Test Debug: 427 passed (419 prior plus 8 new), 0 failed, 0 skipped
+- Application source changes: 4 files (2 DTOs, 1 builder, 1 ViewModel) plus 1 new test file
+- Schema changes: none (no Aras ItemType/property/relationship touched)
+- Behavior change: none (push logic in CreateOrGetDocumentAsync unchanged; fields carried only)
+- Working tree: clean
+- Next ticket: DOC-02 (populate document path and fingerprint)

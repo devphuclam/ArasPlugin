@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace IdeaCadConnector.Workspace
@@ -137,6 +137,9 @@ namespace IdeaCadConnector.Workspace
         public string LinkTargetType { get; set; }
         public string Action { get; set; }
         public string LinkedPartLogicalCode { get; set; }
+        public string SourceFilePath { get; set; }
+        public string FileHash { get; set; }
+        public long FileSize { get; set; }
     }
 
     public sealed class IgnoredPreviewRow
