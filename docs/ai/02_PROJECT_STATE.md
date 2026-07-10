@@ -10,10 +10,13 @@ _Last audit source: uploaded repository archive, 2026-07-10._
 - CAD focus: IronCAD `.ics`
 - Aras communication: AML/HTTP/Vault and server-side C# Methods
 - Snapshot commit observed in archive: `29e2ef364eaa3106c3fba76a3da5b0d5bcdf0eba`
+- Current baseline commit (HEAD): `86e25866e8ef64a616e2ec913a486eb6536cbad1` (includes AI Work Kit + OpenCode infrastructure)
+- Clean source baseline tag: `baseline/clean-source` → `1c8a1b99672f5c791aa299dbebd70360503a71c3` (source code without AI infrastructure)
+- AI Work Kit baseline tag: `baseline/with-ai-work-kit` → `86e2586` (HEAD including all AI governance files)
 
-## Important warning
+## Important warning — resolved by BASE-00
 
-The uploaded archive contained a dirty working tree with many modified files. Do not assume those changes are intentional or safe. `BASE-00` must establish a clean, backed-up baseline before an agent edits source.
+BASE-00 established a clean, backed-up baseline. The original dirty working tree from the uploaded archive has been documented and isolated. Working tree is now clean. Do not assume any pre-BASE-00 uncommitted changes are intentional or safe.
 
 ## Confirmed existing capabilities
 
@@ -41,7 +44,7 @@ The uploaded archive contained a dirty working tree with many modified files. Do
 ## Current execution phase
 
 - Phase: Baseline and schema verification.
-- Next ticket: `BASE-00`.
+- Next ticket: `BASE-01`.
 - Do not begin: `DOC-03`, Pull or Branch before `BASE-04` is completed.
 
 ## Update discipline
@@ -54,3 +57,13 @@ The Verifier updates this document after each merged ticket:
 - newly confirmed schema;
 - known blocker;
 - next allowed tickets.
+
+## BASE-00 completion record
+
+- Completed: 2026-07-10
+- HEAD commit: `86e25866e8ef64a616e2ec913a486eb6536cbad1`
+- Build: Succeeded (0 warnings, 0 errors)
+- Test: 419 passed, 0 failed, 0 skipped (4 s)
+- Tags created: `baseline/clean-source`, `baseline/with-ai-work-kit`
+- Working tree: clean
+- Next ticket: `BASE-01` (build baseline)
