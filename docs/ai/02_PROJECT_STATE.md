@@ -53,9 +53,9 @@ BASE-00 established a clean, backed-up baseline. The original dirty working tree
 ## Current execution phase
 
 - Phase: Baseline and schema verification.
-- Current ticket: `BASE-04` has live schema evidence for core names; remaining blockers are permission/version/lifecycle details and absent PDM Branch/Commit schema.
-- Next allowed work: decode live permissions/lifecycle or plan schema tickets for absent PDM Branch/Commit.
-- Do not begin: `DOC-03`, Pull or Branch before `BASE-04` is completed.
+- Current ticket: `BASE-05` has live server-method inventory evidence only; Dev/Test method inventory remains unverified because no Dev/Test endpoint/token was provided.
+- Next allowed work: reconcile source/live differences for live methods, collect Dev/Test method inventory, or decode live permissions/lifecycle.
+- Do not begin: `DOC-03`, Pull, Branch, or server-side Branch/Commit schema work until Document File write behavior, permissions, lifecycle paths, and required PDM schema are confirmed.
 
 ## Update discipline
 
@@ -157,3 +157,28 @@ The Verifier updates this document after each merged ticket:
   - role-specific permission matrix;
   - lifecycle transition map details;
   - any ticket that requires server-side PDM Branch/Commit schema.
+
+## BASE-05 live inventory record
+
+- Live inventory completed: 2026-07-10
+- HEAD commit at implementation start: `bda183fbf4952bb697f0dcdb1994d78339371eff`
+- Scope: inventory deployed server methods; no live deploy or schema change
+- Live target: `<innovator-server-url>`, database `<db-name>`
+- Evidence: `.ai-work/verification/BASE-05-server-methods/method-inventory.md`
+- Build/test evidence: `.ai-work/verification/BASE-05-server-methods/BASE-05-build-debug.log`, `.ai-work/verification/BASE-05-server-methods/BASE-05-build-release.log`, `.ai-work/verification/BASE-05-server-methods/BASE-05-test-debug.trx`
+- Secret handling: token read from ignored `.ai-work/live-token.local.txt`; token value was not recorded in evidence or docs
+- Live method presence: 8/8 source server methods confirmed live
+- Source/live parity:
+  - MATCH: `idea_ReviseCad`, `idea_StartDetailedDesign`, `idea_RecordPartLibraryUsage`, `idea_GetPrimaryIronCadForPart`, `idea_SyncPartLibraryEntryStatus`
+  - DIFFERS: `idea_EnsurePrimaryIronCadPartCad`, `idea_CommitCadCheckin`, `idea_AddPartToLibrary`
+- No application source changes
+- No Aras production deploy
+- Build Debug: Succeeded
+- Build Release: Succeeded
+- Test Debug: 419 passed, 0 failed, 0 skipped
+- BASE-05 status: partially completed; Dev/Test environment method inventory remains unverified.
+- Next allowed work:
+  - reconcile or intentionally redeploy the three differing server methods before depending on source/live parity;
+  - collect Dev/Test method presence and version evidence when endpoints/tokens are provided;
+  - continue decoding permission/lifecycle/Document File write behavior;
+  - do not start server-side Branch/Commit tickets until `PDM Commit`, `PDM Commit File`, and `PDM Branch` schema is planned and deployed.
