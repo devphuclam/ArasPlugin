@@ -1,0 +1,56 @@
+name: AI feature ticket
+description: Small, testable implementation ticket for an AI coding agent
+title: "[TICKET-ID] "
+labels: ["ai-ready"]
+body:
+  - type: input
+    id: goal
+    attributes:
+      label: Goal
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior and evidence
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: schema
+    attributes:
+      label: Aras/schema impact and verification
+  - type: textarea
+    id: tests
+    attributes:
+      label: Required tests and commands
+    validations:
+      required: true
+  - type: checkboxes
+    id: readiness
+    attributes:
+      label: Readiness
+      options:
+        - label: Dependencies are merged
+          required: true
+        - label: Working tree will be clean
+          required: true
+        - label: Required Aras names are confirmed or ticket is schema-independent
+          required: true

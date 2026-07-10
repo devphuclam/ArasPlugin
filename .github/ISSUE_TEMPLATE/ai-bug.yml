@@ -1,0 +1,39 @@
+name: AI bug-fix ticket
+description: Reproducible bug with bounded fix scope
+title: "[BUG-ID] "
+labels: ["bug", "ai-ready"]
+body:
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and evidence
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Allowed scope / forbidden scope
+    validations:
+      required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: Required regression test
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Data safety / rollback considerations
