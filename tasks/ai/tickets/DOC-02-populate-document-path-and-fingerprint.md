@@ -5,7 +5,7 @@
 - Epic: Document Vault
 - Dependencies: DOC-01
 - Risk: Medium
-- Status: Not Started
+- Status: Completed
 
 ## Goal
 
@@ -14,6 +14,20 @@ Analyze/preview each Document physical file deterministically.
 ## Scope
 
 Workspace analyze/preview mapping, validation, SHA256 service reuse.
+
+## Implementation outcome
+
+- `RelativePath` and deterministic absolute `SourceFilePath` are carried through preview and document request contracts.
+- `DocumentFileIdentityService` computes lowercase SHA-256 and byte size from one validated stream.
+- Folder and business-structure document sources use the same identity mapping.
+- Missing and unreadable files produce blocking preview warnings.
+- No Aras upload, schema, or server-method change was made.
+
+## Verification
+
+- Debug and Release solution builds passed with 0 warnings and 0 errors.
+- Debug and Release test-project runs passed 433/433.
+- Evidence: `.ai-work/verification/DOC-02-build-debug.log`, `.ai-work/verification/DOC-02-build-release.log`, `.ai-work/verification/DOC-02-test-debug.trx`, `.ai-work/verification/DOC-02-test-release.trx`.
 
 ## Required preparation
 

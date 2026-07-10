@@ -52,10 +52,10 @@ BASE-00 established a clean, backed-up baseline. The original dirty working tree
 
 ## Current execution phase
 
-- Phase: Baseline and schema verification.
-- Current ticket: `BASE-05` has live server-method inventory evidence only; Dev/Test method inventory remains unverified because no Dev/Test endpoint/token was provided.
-- Next allowed work: reconcile source/live differences for live methods, collect Dev/Test method inventory, or decode live permissions/lifecycle.
-- Do not begin: `DOC-03`, Pull, Branch, or server-side Branch/Commit schema work until Document File write behavior, permissions, lifecycle paths, and required PDM schema are confirmed.
+- Phase: Document Vault foundation.
+- Current ticket: `DOC-02` completed with local physical-file identity and preview blocking behavior.
+- Next allowed work: `DOC-03` Document File write behavior verification, subject to the live permission/lifecycle blockers below.
+- Do not begin: Pull, Branch, or server-side Branch/Commit schema work until Document File write behavior, permissions, lifecycle paths, and required PDM schema are confirmed.
 
 ## Update discipline
 
@@ -201,4 +201,23 @@ The Verifier updates this document after each merged ticket:
 - Schema changes: none (no Aras ItemType/property/relationship touched)
 - Behavior change: none (push logic in CreateOrGetDocumentAsync unchanged; fields carried only)
 - Working tree: clean
-- Next ticket: DOC-02 (populate document path and fingerprint)
+- Next ticket: DOC-03 (Document File write behavior verification)
+
+## DOC-02 completion record
+
+- Completed: 2026-07-10
+- Scope: deterministic document path, SHA-256 content identity, stream-counted size, and blocking preview validation
+- Changes:
+  - NEW: `src/IdeaCadConnector.Workspace/DocumentFileIdentityService.cs`
+  - EDIT: Workspace/Core/Desktop document contracts and mappings
+  - EDIT: `PushPreviewMapper` and `PdmPushPreviewBuilder`
+  - EDIT: production-path document identity tests
+- Build Debug: Succeeded (0 warnings, 0 errors); evidence `.ai-work/verification/DOC-02-build-debug.log`
+- Build Release: Succeeded (0 warnings, 0 errors); evidence `.ai-work/verification/DOC-02-build-release.log`
+- Test Debug: 433 passed, 0 failed, 0 skipped; evidence `.ai-work/verification/DOC-02-test-debug.trx`
+- Test Release: 433 passed, 0 failed, 0 skipped; evidence `.ai-work/verification/DOC-02-test-release.trx`
+- Application source changes: 6 files (identity service and mapping updates)
+- Test changes: production mapping, exact hash/size, missing/unreadable blocking, and contract coverage
+- Schema changes: none (no Aras ItemType/property/relationship touched)
+- Behavior change: Document files now carry relative/absolute path, SHA256 content identity, and stream-counted size; missing/unreadable files block readiness
+- Working tree: DOC-02 files verified; unrelated staged `tests/IdeaCadConnector.Tests/TestResults/BASE-02-test-debug.trx` remains outside this patch.

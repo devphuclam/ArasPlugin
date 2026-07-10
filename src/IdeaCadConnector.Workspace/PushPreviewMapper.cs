@@ -18,7 +18,7 @@ namespace IdeaCadConnector.Workspace
             var cadFiles = MapCadFiles(folderAnalysis);
             var documentFiles = MapDocumentFiles(businessAnalysis, folderAnalysis);
             var ignoredFiles = MapIgnoredFiles(folderAnalysis);
-            var warnings = MapWarnings(folderAnalysis, businessAnalysis);
+            var warnings = MapWarnings(folderAnalysis, businessAnalysis, documentFiles);
             var summary = BuildSummary(structureNodes, cadFiles, documentFiles, ignoredFiles, warnings);
 
             PopulateCadLinkedPartCodes(cadFiles, structureNodes, folderAnalysis, businessAnalysis);
@@ -203,15 +203,13 @@ namespace IdeaCadConnector.Workspace
                     if (!string.IsNullOrWhiteSpace(sourceName) && businessSourcePaths.Contains(sourceName))
                         continue;
 
-                    docs.Add(new AnalyzedDocumentFile
-                    {
-                        SourcePath = docFile.FullPath ?? docFile.RelativePath,
-                        RelativePath = docFile.RelativePath ?? docFile.FileName,
-                        LogicalCode = docFile.LogicalPartCode ?? docFile.ProjectCode ?? "DOC",
-                        DocumentRole = docFile.NodeType == "Reference" ? "Reference" : "PackageDetail",
-                        LinkTargetType = "Project",
-                        Fingerprint = docFile.LastWriteTime.Ticks.ToString()
-                    });
+                    docs.Add(CreateDocumentFile(
+                        folderAnalysis.FolderPath,
+                        docFile.FullPath,
+                        docFile.RelativePath ?? docFile.FileName,
+                        docFile.LogicalPartCode ?? docFile.ProjectCode ?? "DOC",
+                        docFile.NodeType == "Reference" ? "Reference" : "PackageDetail",
+                        "Project"));
                 }
             }
 
@@ -220,43 +218,60 @@ namespace IdeaCadConnector.Workspace
 
             foreach (var rootNode in businessAnalysis.RootNodes)
             {
-                docs.Add(new AnalyzedDocumentFile
-                {
-                    SourcePath = rootNode.SourceFileName,
-                    RelativePath = rootNode.SourceFileName,
-                    LogicalCode = rootNode.Code,
-                    DocumentRole = "PackageGroup",
-                    LinkTargetType = "Part",
-                    Fingerprint = null
-                });
+                docs.Add(CreateDocumentFile(
+                    businessAnalysis.FolderPath,
+                    rootNode.SourceFileName,
+                    rootNode.SourceFileName,
+                    rootNode.Code,
+                    "PackageGroup",
+                    "Part"));
 
                 foreach (var child in rootNode.Children)
                 {
-                    docs.Add(new AnalyzedDocumentFile
-                    {
-                        SourcePath = child.SourceFileName,
-                        RelativePath = child.SourceFileName,
-                        LogicalCode = child.Code,
-                        DocumentRole = "PackageDetail",
-                        LinkTargetType = "Part",
-                        Fingerprint = null
-                    });
+                    docs.Add(CreateDocumentFile(
+                        businessAnalysis.FolderPath,
+                        child.SourceFileName,
+                        child.SourceFileName,
+                        child.Code,
+                        "PackageDetail",
+                        "Part"));
                 }
             }
 
             if (!string.IsNullOrWhiteSpace(businessAnalysis.RootDrawingFileName))
             {
-                docs.Add(new AnalyzedDocumentFile
-                {
-                    SourcePath = businessAnalysis.RootDrawingFileName,
-                    RelativePath = businessAnalysis.RootDrawingFileName,
-                    DocumentRole = "Reference",
-                    LinkTargetType = "Project",
-                    Fingerprint = null
-                });
+                docs.Add(CreateDocumentFile(
+                    businessAnalysis.FolderPath,
+                    businessAnalysis.RootDrawingFileName,
+                    businessAnalysis.RootDrawingFileName,
+                    null,
+                    "Reference",
+                    "Project"));
             }
 
             return docs;
+        }
+
+        private static AnalyzedDocumentFile CreateDocumentFile(
+            string rootFolder,
+            string sourcePath,
+            string relativePath,
+            string logicalCode,
+            string documentRole,
+            string linkTargetType)
+        {
+            var identity = DocumentFileIdentityService.ResolveAndRead(rootFolder, sourcePath, relativePath);
+            return new AnalyzedDocumentFile
+            {
+                SourcePath = identity.AbsolutePath,
+                RelativePath = identity.RelativePath,
+                LogicalCode = logicalCode,
+                DocumentRole = documentRole,
+                LinkTargetType = linkTargetType,
+                Fingerprint = identity.FileHash,
+                FileSize = identity.FileSize,
+                FileFailureReason = identity.FailureReason
+            };
         }
 
         private static IReadOnlyList<AnalyzedIgnoredFile> MapIgnoredFiles(PdmFolderAnalysis folderAnalysis)
@@ -273,7 +288,8 @@ namespace IdeaCadConnector.Workspace
 
         private static IReadOnlyList<AnalyzeWarning> MapWarnings(
             PdmFolderAnalysis folderAnalysis,
-            PdmBusinessStructureAnalysis businessAnalysis)
+            PdmBusinessStructureAnalysis businessAnalysis,
+            IReadOnlyList<AnalyzedDocumentFile> documentFiles)
         {
             var warnings = new List<AnalyzeWarning>();
 
@@ -299,7 +315,23 @@ namespace IdeaCadConnector.Workspace
                     });
                 }
             }
+            var warnedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var document in documentFiles ?? Array.Empty<AnalyzedDocumentFile>())
+            {
+                if (string.IsNullOrWhiteSpace(document.FileFailureReason))
+                    continue;
 
+                var path = document.SourcePath ?? document.RelativePath;
+                if (string.IsNullOrWhiteSpace(path) || !warnedPaths.Add(path))
+                    continue;
+
+                warnings.Add(new AnalyzeWarning
+                {
+                    Source = Path.GetFileName(path),
+                    Message = document.FileFailureReason + " " + path,
+                    BlocksPush = true
+                });
+            }
             return warnings;
         }
 

@@ -57,6 +57,8 @@ namespace IdeaCadConnector.Workspace
         public string DocumentRole { get; set; }
         public string LinkTargetType { get; set; }
         public string Fingerprint { get; set; }
+        public long FileSize { get; set; }
+        public string FileFailureReason { get; set; }
         public string LinkedPartLogicalCode { get; set; }
     }
 
@@ -131,6 +133,7 @@ namespace IdeaCadConnector.Workspace
     public sealed class DocumentPreviewRow
     {
         public string SourceFileName { get; set; }
+        public string RelativePath { get; set; }
         public string LogicalCode { get; set; }
         public string DocumentNumber { get; set; }
         public string Classification { get; set; }

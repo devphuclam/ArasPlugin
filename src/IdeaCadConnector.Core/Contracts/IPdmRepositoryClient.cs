@@ -97,6 +97,7 @@ namespace IdeaCadConnector.Core.Contracts
     public sealed class PdmDocumentRequest
     {
         public string SourceFileName { get; set; }
+        public string RelativePath { get; set; }
         public string LogicalCode { get; set; }
         public string DocumentNumber { get; set; }
         public string Classification { get; set; }
