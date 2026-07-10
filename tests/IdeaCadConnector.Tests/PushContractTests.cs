@@ -136,5 +136,79 @@ namespace IdeaCadConnector.Tests
                 }
             }
         }
+
+        [Fact]
+        public void PdmPushPreviewBuilder_MapsAnalyzedDocumentPhysicalFileFields()
+        {
+            var tempFile = Path.GetTempFileName();
+            try
+            {
+                File.WriteAllText(tempFile, "builder mapping");
+                var analyzeResult = CreateAnalyzeResult(new AnalyzedDocumentFile
+                {
+                    SourcePath = tempFile,
+                    LogicalCode = "01-01",
+                    DocumentRole = "PackageDetail",
+                    LinkTargetType = "Part",
+                    Fingerprint = "fingerprint-123",
+                    LinkedPartLogicalCode = "01-01"
+                });
+
+                var preview = new PdmPushPreviewBuilder().Build(analyzeResult, "main", "test");
+                var document = Assert.Single(preview.Documents);
+
+                Assert.Equal(tempFile, document.SourceFilePath);
+                Assert.Equal("fingerprint-123", document.FileHash);
+                Assert.Equal(new FileInfo(tempFile).Length, document.FileSize);
+            }
+            finally
+            {
+                if (File.Exists(tempFile))
+                {
+                    File.Delete(tempFile);
+                }
+            }
+        }
+
+        [Fact]
+        public void PdmPushPreviewBuilder_MapsMissingDocumentFileSizeAsZero()
+        {
+            var missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".pdf");
+            var analyzeResult = CreateAnalyzeResult(new AnalyzedDocumentFile
+            {
+                SourcePath = missingPath,
+                LogicalCode = "01-02",
+                DocumentRole = "PackageDetail",
+                LinkTargetType = "Part",
+                Fingerprint = "fingerprint-missing",
+                LinkedPartLogicalCode = "01-02"
+            });
+
+            var preview = new PdmPushPreviewBuilder().Build(analyzeResult, "main", "test");
+            var document = Assert.Single(preview.Documents);
+
+            Assert.Equal(missingPath, document.SourceFilePath);
+            Assert.Equal("fingerprint-missing", document.FileHash);
+            Assert.Equal(0L, document.FileSize);
+        }
+
+        private static AnalyzeResult CreateAnalyzeResult(AnalyzedDocumentFile document)
+        {
+            return new AnalyzeResult
+            {
+                RepositoryCode = "IRONCASE",
+                ProjectName = "IRONCASE",
+                StructureNodes = Array.Empty<AnalyzedStructureNode>(),
+                CadFiles = Array.Empty<AnalyzedCadFile>(),
+                DocumentFiles = new[] { document },
+                IgnoredFiles = Array.Empty<AnalyzedIgnoredFile>(),
+                Warnings = Array.Empty<AnalyzeWarning>(),
+                Summary = new AnalyzeSummary
+                {
+                    DocumentFileCount = 1,
+                    IsValid = true
+                }
+            };
+        }
     }
 }
