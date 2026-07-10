@@ -53,7 +53,8 @@ BASE-00 established a clean, backed-up baseline. The original dirty working tree
 ## Current execution phase
 
 - Phase: Baseline and schema verification.
-- Next ticket: `BASE-04`.
+- Current ticket: `BASE-04` has live schema evidence for core names; remaining blockers are permission/version/lifecycle details and absent PDM Branch/Commit schema.
+- Next allowed work: decode live permissions/lifecycle or plan schema tickets for absent PDM Branch/Commit.
 - Do not begin: `DOC-03`, Pull or Branch before `BASE-04` is completed.
 
 ## Update discipline
@@ -130,3 +131,29 @@ The Verifier updates this document after each merged ticket:
 - No application source modified
 - Working tree: clean
 - Next ticket: `BASE-04` (verify Aras schema map)
+
+## BASE-04 blocker record
+
+- Started: 2026-07-10
+- HEAD commit at planning start: `fe99d2a39a364545a01b5909a6967427cd9eff56`
+- Scope: verify Aras schema map; do not create schema
+- Result so far: partially verified against live Aras; remaining blockers documented
+- Build Debug: Succeeded (0 warnings, 0 errors)
+- Build Release: Succeeded (0 warnings, 0 errors)
+- Test Debug: 419 passed, 0 failed, 0 skipped
+- Application source changes: none
+- Schema changes: none
+- Live confirmed:
+  - core ItemTypes and relationships currently used by clone/push;
+  - `Document File` relationship exists and links `Document` to `File`;
+  - Part Library ItemTypes and key properties exist;
+  - all eight listed server methods exist on live.
+- Live confirmed absent:
+  - `PDM Commit`;
+  - `PDM Commit File`;
+  - `PDM Branch`.
+- Still blocked:
+  - Document File write/version/permission behavior;
+  - role-specific permission matrix;
+  - lifecycle transition map details;
+  - any ticket that requires server-side PDM Branch/Commit schema.
