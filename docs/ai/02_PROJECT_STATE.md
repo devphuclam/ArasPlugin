@@ -10,9 +10,9 @@ _Last audit source: uploaded repository archive, 2026-07-10._
 - CAD focus: IronCAD `.ics`
 - Aras communication: AML/HTTP/Vault and server-side C# Methods
 - Snapshot commit observed in archive: `29e2ef364eaa3106c3fba76a3da5b0d5bcdf0eba`
-- Current baseline commit (HEAD): `86e25866e8ef64a616e2ec913a486eb6536cbad1` (includes AI Work Kit + OpenCode infrastructure)
+- Current baseline commit (HEAD): `443847ff577710705879bbdd06013e1b58f1af03` (includes AI Work Kit + OpenCode + PROJECT_STATE.md update)
 - Clean source baseline tag: `baseline/clean-source` → `1c8a1b99672f5c791aa299dbebd70360503a71c3` (source code without AI infrastructure)
-- AI Work Kit baseline tag: `baseline/with-ai-work-kit` → `86e2586` (HEAD including all AI governance files)
+- AI Work Kit baseline tag: `baseline/with-ai-work-kit` → `443847f` (HEAD including all AI governance files)
 
 ## Important warning — resolved by BASE-00
 
@@ -61,7 +61,7 @@ The Verifier updates this document after each merged ticket:
 ## BASE-00 completion record
 
 - Completed: 2026-07-10
-- HEAD commit: `86e25866e8ef64a616e2ec913a486eb6536cbad1`
+- HEAD commit: `443847ff577710705879bbdd06013e1b58f1af03`
 - Build: Succeeded (0 warnings, 0 errors)
 - Test: 419 passed, 0 failed, 0 skipped (4 s)
 - Tags created: `baseline/clean-source`, `baseline/with-ai-work-kit`
