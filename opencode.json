@@ -1,0 +1,66 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "shell": "pwsh",
+  "snapshot": true,
+  "instructions": [
+    "AI_START_HERE.md",
+    "docs/ai/01_AI_RUNBOOK.md",
+    "docs/ai/02_PROJECT_STATE.md",
+    "docs/ai/03_ARCHITECTURE_RULES.md",
+    "docs/ai/04_ARAS_SCHEMA_MAP.md",
+    "docs/ai/08_DEFINITION_OF_DONE.md",
+    "docs/ai/09_SECURITY_AND_DATA_SAFETY.md",
+    "docs/ai/11_CONTEXT_PACK_RULES.md"
+  ],
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "edit": "ask",
+    "bash": {
+      "*": "ask",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git branch*": "allow",
+      "git rev-parse*": "allow",
+      "Get-ChildItem*": "allow",
+      "Get-Content*": "allow",
+      "Select-String*": "allow",
+      "Test-Path*": "allow",
+      "rg *": "allow",
+      "dotnet --info*": "allow",
+      "dotnet --list-sdks*": "allow",
+      "git add*": "ask",
+      "git commit*": "ask",
+      "git push*": "deny",
+      "git reset*": "deny",
+      "git clean*": "deny",
+      "git checkout --*": "deny",
+      "git restore*": "ask",
+      "Remove-Item*": "ask",
+      "rm *": "deny",
+      "del *": "deny"
+    },
+    "external_directory": "deny",
+    "webfetch": "ask",
+    "websearch": "ask",
+    "task": "ask",
+    "doom_loop": "ask"
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "reserved": 12000
+  },
+  "watcher": {
+    "ignore": [
+      ".git/**",
+      ".vs/**",
+      "**/bin/**",
+      "**/obj/**",
+      "artifacts/**",
+      ".ai-work/verification/**"
+    ]
+  }
+}
