@@ -413,7 +413,7 @@ namespace IdeaCadConnector.Desktop
             if (result.Success)
             {
                 StatusMessage = $"New revision created: {result.NewRevision ?? "-"}";
-                // Clear the old manifest — the checkout session pointed to the released CAD
+                // Clear the old manifest Ã¢â‚¬â€ the checkout session pointed to the released CAD
                 // and is no longer valid after revision.
                 _workspaceService.ClearManifest(FolderPath);
                 await RefreshCadStateAsync(result.NewCadId, result.NewPartId);
@@ -847,6 +847,9 @@ namespace IdeaCadConnector.Desktop
                 {
                     SourceFileName = d.SourceFileName,
                     LogicalCode = d.LogicalCode,
+                    SourceFilePath = d.SourceFilePath,
+                    FileHash = d.FileHash,
+                    FileSize = d.FileSize,
                     DocumentNumber = d.DocumentNumber,
                     Classification = d.Classification,
                     LinkTargetType = d.LinkTargetType,
@@ -861,7 +864,7 @@ namespace IdeaCadConnector.Desktop
             {
                 var idLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-                // Build SourceKey → result lookup for LogicalCode-based matching
+                // Build SourceKey Ã¢â€ â€™ result lookup for LogicalCode-based matching
                 var resultBySourceKey = new Dictionary<string, PdmItemResult>(StringComparer.OrdinalIgnoreCase);
                 foreach (var r in result.PartResults)
                 {
@@ -1553,7 +1556,7 @@ namespace IdeaCadConnector.Desktop
                 "Component",
                 Math.Max(1, reference.Quantity),
                 reference.Revision ?? "-",
-                "Library reference • " + (reference.RevisionPolicy ?? "Pinned"),
+                "Library reference Ã¢â‚¬Â¢ " + (reference.RevisionPolicy ?? "Pinned"),
                 "#FF0F8F86",
                 perspective: "PDM",
                 primaryCad: reference.PartNumber ?? "-",
@@ -1579,7 +1582,7 @@ namespace IdeaCadConnector.Desktop
                 node.NodeType,
                 node.Quantity,
                 node.Revision,
-                "Library reference • Missing parent",
+                "Library reference Ã¢â‚¬Â¢ Missing parent",
                 "#FFD54B4B",
                 children: node.Children,
                 perspective: node.Perspective,
@@ -2357,7 +2360,7 @@ namespace IdeaCadConnector.Desktop
             _liveHasNativeFile = false;
             _livePartId = null;
 
-            // Không xóa push result — node selection không được phá state của PDM.
+            // KhÃƒÂ´ng xÃƒÂ³a push result Ã¢â‚¬â€ node selection khÃƒÂ´ng Ã„â€˜Ã†Â°Ã¡Â»Â£c phÃƒÂ¡ state cÃ¡Â»Â§a PDM.
             // _postPushPartIds = null;
 
             _isCheckedOutByOther = false;
@@ -2468,11 +2471,11 @@ namespace IdeaCadConnector.Desktop
             if (SelectedNode == null)
                 return null;
 
-            // Library node đã biết sẵn Aras Part ID.
+            // Library node Ã„â€˜ÃƒÂ£ biÃ¡ÂºÂ¿t sÃ¡ÂºÂµn Aras Part ID.
             if (!string.IsNullOrWhiteSpace(SelectedNode.ArasPartId))
                 return SelectedNode.ArasPartId;
 
-            // ID vừa nhận được từ kết quả Push.
+            // ID vÃ¡Â»Â«a nhÃ¡ÂºÂ­n Ã„â€˜Ã†Â°Ã¡Â»Â£c tÃ¡Â»Â« kÃ¡ÂºÂ¿t quÃ¡ÂºÂ£ Push.
             if (_postPushPartIds != null &&
                 _postPushPartIds.TryGetValue(SelectedNode.PartCode, out var pushedId) &&
                 !string.IsNullOrWhiteSpace(pushedId))
@@ -2480,25 +2483,25 @@ namespace IdeaCadConnector.Desktop
                 return pushedId;
             }
 
-            // Tìm Part tương ứng trong Push Preview.
+            // TÃƒÂ¬m Part tÃ†Â°Ã†Â¡ng Ã¡Â»Â©ng trong Push Preview.
             var previewPart = _pushPreview?.Parts?.FirstOrDefault(part =>
                 string.Equals(
                     part.LogicalCode,
                     SelectedNode.PartCode,
                     StringComparison.OrdinalIgnoreCase));
 
-            // Part được reuse từ Library.
+            // Part Ã„â€˜Ã†Â°Ã¡Â»Â£c reuse tÃ¡Â»Â« Library.
             if (!string.IsNullOrWhiteSpace(previewPart?.ExistingPartId))
                 return previewPart.ExistingPartId;
 
-            // Root Part đã được resolve từ CAD/workspace.
+            // Root Part Ã„â€˜ÃƒÂ£ Ã„â€˜Ã†Â°Ã¡Â»Â£c resolve tÃ¡Â»Â« CAD/workspace.
             if (IsSelectedRootAssemblyNode() &&
                 !string.IsNullOrWhiteSpace(_livePartId))
             {
                 return _livePartId;
             }
 
-            // Fallback: hỏi Aras bằng Part Number.
+            // Fallback: hÃ¡Â»Âi Aras bÃ¡ÂºÂ±ng Part Number.
             var pdmClient = MainViewModel.SharedPdmClient;
             var partNumber = previewPart?.PartNumber ?? SelectedNode.PartCode;
 
@@ -3413,7 +3416,7 @@ namespace IdeaCadConnector.Desktop
                     {
                         var cycleStart = path.IndexOf(current);
                         var cycleNames = cycleStart >= 0
-                            ? string.Join(" → ", path.Skip(cycleStart).Select(c => codeToName.TryGetValue(c, out var n) ? n : c))
+                            ? string.Join(" Ã¢â€ â€™ ", path.Skip(cycleStart).Select(c => codeToName.TryGetValue(c, out var n) ? n : c))
                             : (codeToName.TryGetValue(current, out var n) ? n : current);
                         warnings.Add(new PreviewWarning
                         {
@@ -3781,6 +3784,9 @@ namespace IdeaCadConnector.Desktop
                     {
                         SourceFileName = doc.SourceFileName,
                         LogicalCode = doc.LogicalCode,
+                        SourceFilePath = doc.SourceFilePath,
+                        FileHash = doc.FileHash,
+                        FileSize = doc.FileSize,
                         DocumentNumber = doc.DocumentNumber,
                         Classification = doc.Classification,
                         LinkTargetType = doc.LinkTargetType,
