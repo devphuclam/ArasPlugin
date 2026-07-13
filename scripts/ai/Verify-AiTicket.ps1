@@ -17,7 +17,7 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 function Run-Step([string]$Name, [scriptblock]$Command) {
     $log = Join-Path $outDir "$Name.log"
     "COMMAND STEP: $Name`nSTART: $(Get-Date -Format o)`n" | Set-Content $log
-    & $Command *>&1 | Tee-Object -FilePath $log -Append
+    & $Command *>&1 | Tee-Object -FilePath $log -Append | Out-Host
     $code = $LASTEXITCODE
     "`nEXIT CODE: $code`nEND: $(Get-Date -Format o)" | Add-Content $log
     return $code
