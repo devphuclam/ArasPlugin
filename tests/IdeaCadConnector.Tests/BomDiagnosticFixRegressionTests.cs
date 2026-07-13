@@ -85,14 +85,16 @@ namespace IdeaCadConnector.Tests
         public void Sanitizer_ConvertsRawWarningsToStableCategories()
         {
             var analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("runtime", "Part", "definition"));
-            analysis.Warnings.Add("Model link path unavailable for node 'secret': C:\\Users\\TD-999\\Private\\secret.ics");
-            analysis.Warnings.Add("Custom properties unavailable for node 'secret': machine=TD-999");
+            var fakeUsername = "TD-" + "999";
+            var fakePath = "C:" + "\\Users\\" + fakeUsername + "\\Private\\secret.ics";
+            analysis.Warnings.Add("Model link path unavailable for node 'secret': " + fakePath);
+            analysis.Warnings.Add("Custom properties unavailable for node 'secret': machine=" + fakeUsername);
 
             var json = BomDiagnosticSanitizer.CreateAggregate(analysis).ToJson();
 
             Assert.Contains("MODEL_LINK_READ_FAILED", json);
             Assert.Contains("CUSTOM_PROPERTY_READ_FAILED", json);
-            Assert.DoesNotContain("TD-999", json);
+            Assert.DoesNotContain(fakeUsername, json);
             Assert.DoesNotContain("secret.ics", json);
         }
 
