@@ -38,7 +38,7 @@ if (Test-Path $buildHelper) {
     } else {
         $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
         if ($dotnet) {
-            $buildCode = Run-Step 'build' { & $dotnet.Source build 'IdeaCadConnector.sln' --configuration $Configuration --no-restore }
+            $buildCode = Run-Step 'build' { & $dotnet.Source build 'IdeaCadConnector.sln' --configuration $Configuration --no-restore -m:1 }
         } else {
             'NOT RUN: build helper, msbuild.exe, and dotnet were not found.' | Set-Content (Join-Path $outDir 'build.log')
             $buildCode = 9001
