@@ -1,6 +1,6 @@
 # SEC-00-HOTFIX — Repair configuration regressions and unsafe tests
 
-Status: In Progress
+Status: Completed — 2026-07-13
 
 ## Scope
 
@@ -27,14 +27,23 @@ Repair the regressions introduced by SEC-00 while preserving the security baseli
 
 ## Verification record
 
-This section is completed only from fresh commands on the hotfix branch. It must include exact Debug/Release build and test counts, `Check-AiScope`, `Verify-AiTicket`, security scan results, and commit SHAs. No live Aras connection or production credentials are used.
+Fresh verification on the hotfix branch used no live Aras connection or production credentials:
+
+- Debug solution build: succeeded, 0 errors, 12 existing IronCAD post-build `Access is denied` warnings.
+- Release solution build: succeeded, 0 errors, 12 existing IronCAD post-build `Access is denied` warnings.
+- Debug tests: 482 passed, 0 failed, 0 skipped.
+- Release tests: 482 passed, 0 failed, 0 skipped.
+- `Check-AiScope.ps1`: passed with a clean working tree.
+- `Verify-AiTicket.ps1 -TicketId SEC-00-HOTFIX`: passed; build exit 0 and test exit 0; evidence under `.ai-work/verification/SEC-00-HOTFIX-20260713-113709`.
+- Current-tree scans: no private-IP URL, exposed infrastructure database/Vault value, machine-specific IronCAD install path, or original role code.
+- `dotnet restore IdeaCadConnector.sln`: independently failed in this environment during NuGet/MSBuild restore-graph traversal with exit 1 and no reported project error; project restore for Core and Aras passed, while the test-project restore reproduced the same restore-graph failure. Builds/tests were run with `--no-restore` against the existing package cache.
 
 ## Acceptance criteria
 
-- [ ] HOTFIX-01 through HOTFIX-05 regression tests pass.
-- [ ] Current-tree security scans have no private IP URL, exposed database/Vault value, machine-specific IronCAD path, or internal role code.
-- [ ] Debug and Release solution builds pass.
-- [ ] Debug and Release test suites pass with exact counts recorded.
-- [ ] `Check-AiScope` passes.
-- [ ] `Verify-AiTicket -TicketId SEC-00-HOTFIX` passes, or any independent script defect is documented exactly.
+- [x] HOTFIX-01 through HOTFIX-05 regression tests pass.
+- [x] Current-tree security scans have no private IP URL, exposed database/Vault value, machine-specific IronCAD path, or internal role code.
+- [x] Debug and Release solution builds pass.
+- [x] Debug and Release test suites pass with exact counts recorded.
+- [x] `Check-AiScope` passes.
+- [x] `Verify-AiTicket -TicketId SEC-00-HOTFIX` passes.
 - [ ] Draft PR targets `main`; it is not merged.

@@ -273,4 +273,12 @@ The SEC-00 completion record above was not sufficient to close the security work
 - Aras schema/server methods: unchanged; no live Aras connection used.
 - Historical commits: unchanged; history cleanup requires separate approval.
 - DOC-03: not started.
-- Status: In Progress until fresh Debug/Release build/test and AI-ticket verification evidence is recorded.
+- Status: Completed on 2026-07-13 after fresh verification.
+- Debug build: succeeded, 0 errors, 12 existing IronCAD post-build `Access is denied` warnings.
+- Release build: succeeded, 0 errors, 12 existing IronCAD post-build `Access is denied` warnings.
+- Debug tests: 482 passed, 0 failed, 0 skipped.
+- Release tests: 482 passed, 0 failed, 0 skipped.
+- `Check-AiScope.ps1`: passed.
+- `Verify-AiTicket.ps1 -TicketId SEC-00-HOTFIX`: passed; evidence `.ai-work/verification/SEC-00-HOTFIX-20260713-113709`.
+- Restore note: solution restore independently failed during restore-graph traversal with exit 1 and no project error; Core/Aras project restore passed, and build/test verification used `--no-restore` with the existing cache.
+- Next allowed work remains gated by the existing BASE-04/schema and document-file blockers; DOC-03 was not started by this hotfix.
