@@ -48,7 +48,7 @@ if (Test-Path $buildHelper) {
 
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
 if ($dotnet) {
-    $testCode = Run-Step 'tests' { & $dotnet.Source test '.\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj' --configuration $Configuration --no-restore }
+    $testCode = Run-Step 'tests' { & $dotnet.Source test '.\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj' --configuration $Configuration --no-restore --no-build }
 } else {
     'NOT RUN: dotnet was not found.' | Set-Content (Join-Path $outDir 'tests.log')
     $testCode = 9002
