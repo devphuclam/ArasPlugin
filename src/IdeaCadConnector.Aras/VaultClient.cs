@@ -30,6 +30,11 @@ namespace IdeaCadConnector.Aras
         /// </summary>
         public async Task<string> UploadFileAsync(string filePath, string fileName, CancellationToken ct)
         {
+            if (string.IsNullOrWhiteSpace(_options.VaultId))
+                throw new ArasOperationException(
+                    ArasErrorCode.ValidationFailed,
+                    "Vault ID is not configured. Set 'aras.vaultId' in the environment configuration.");
+
             if (!File.Exists(filePath))
                 throw new ArasOperationException(ArasErrorCode.FileUploadNotFound, $"File not found: {filePath}");
 

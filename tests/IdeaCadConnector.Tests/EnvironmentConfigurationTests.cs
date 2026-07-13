@@ -1,8 +1,16 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Configuration;
+using IdeaCadConnector.Core.Cad;
+using IdeaCadConnector.Core.Contracts;
+using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Errors;
+using IdeaCadConnector.Desktop;
+using IdeaCadConnector.Desktop.Services;
 using Xunit;
 
 namespace IdeaCadConnector.Tests
@@ -539,6 +547,427 @@ namespace IdeaCadConnector.Tests
             Assert.Null(options.Database);
             Assert.Null(options.VaultId);
             Assert.Null(options.IronCadExecutablePath);
+        }
+
+        [Fact]
+        public void ResolvePath_EnvVarPrecedesSideBySideAndAppData()
+        {
+            string envVarPath = Path.Combine(_tempDir, "from-env-var.json");
+            File.WriteAllText(envVarPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromEnvVar"" }");
+
+            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
+            string appDataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
+            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
+
+            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
+            try
+            {
+                File.WriteAllText(sideBySidePath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromSideBySide"" }");
+                Directory.CreateDirectory(appDataDir);
+                File.WriteAllText(appDataPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
+
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, envVarPath);
+
+                string resolved = EnvironmentConfigurationLoader.ResolvePath();
+                Assert.NotNull(resolved);
+                Assert.Equal(Path.GetFullPath(envVarPath), Path.GetFullPath(resolved));
+
+                var result = EnvironmentConfigurationLoader.Load();
+                Assert.Equal("FromEnvVar", result.Configuration.EnvironmentName);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
+                TryDeleteFile(sideBySidePath);
+                TryDeleteFile(appDataPath);
+                TryDeleteDir(appDataDir);
+            }
+        }
+
+        [Fact]
+        public void ResolvePath_SideBySidePrecedesAppData()
+        {
+            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
+            string appDataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
+            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
+
+            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
+            try
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, null);
+                File.WriteAllText(sideBySidePath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromSideBySide"" }");
+                Directory.CreateDirectory(appDataDir);
+                File.WriteAllText(appDataPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
+
+                string resolved = EnvironmentConfigurationLoader.ResolvePath();
+                Assert.NotNull(resolved);
+                Assert.Equal(Path.GetFullPath(sideBySidePath), Path.GetFullPath(resolved));
+
+                var result = EnvironmentConfigurationLoader.Load();
+                Assert.Equal("FromSideBySide", result.Configuration.EnvironmentName);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
+                TryDeleteFile(sideBySidePath);
+                TryDeleteFile(appDataPath);
+                TryDeleteDir(appDataDir);
+            }
+        }
+
+        [Fact]
+        public void ResolvePath_AppDataFallback_WhenHigherAbsent()
+        {
+            string appDataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
+            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
+            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
+
+            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
+            try
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, null);
+                TryDeleteFile(sideBySidePath);
+                Directory.CreateDirectory(appDataDir);
+                File.WriteAllText(appDataPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
+
+                string resolved = EnvironmentConfigurationLoader.ResolvePath();
+                Assert.NotNull(resolved);
+                Assert.Equal(Path.GetFullPath(appDataPath), Path.GetFullPath(resolved));
+
+                var result = EnvironmentConfigurationLoader.Load();
+                Assert.Equal("FromAppData", result.Configuration.EnvironmentName);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
+                TryDeleteFile(appDataPath);
+                TryDeleteDir(appDataDir);
+            }
+        }
+
+        [Fact]
+        public void ResolvePath_NoFiles_ReturnsNull()
+        {
+            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
+            string appDataDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
+            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
+
+            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
+            try
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, null);
+                TryDeleteFile(sideBySidePath);
+                TryDeleteFile(appDataPath);
+                TryDeleteDir(appDataDir);
+
+                string resolved = EnvironmentConfigurationLoader.ResolvePath();
+                Assert.Null(resolved);
+
+                var result = EnvironmentConfigurationLoader.Load();
+                Assert.Equal("built-in defaults", result.SourcePath);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
+            }
+        }
+
+        [Fact]
+        public void Load_DirectoryPath_ReturnsNotFoundWarning()
+        {
+            string dirPath = Path.Combine(_tempDir, "subdir");
+            Directory.CreateDirectory(dirPath);
+            string dirAsFile = dirPath;
+
+            var result = EnvironmentConfigurationLoader.LoadFromPath(dirAsFile);
+            Assert.True(result.IsValid);
+            Assert.NotEmpty(result.Warnings);
+            Assert.Contains(result.Warnings, w => w.Contains("not found"));
+        }
+
+        [Fact]
+        public void ArasClientOptions_Clone_ReturnsIndependentCopy()
+        {
+            var original = new ArasClientOptions
+            {
+                BaseUri = new Uri("https://original.com"),
+                Database = "OriginalDb",
+                VaultId = "Vault123",
+                OAuthClientId = "MyApp",
+                OAuthScope = "MyScope",
+                Timeout = TimeSpan.FromSeconds(45),
+                IronCadExecutablePath = @"C:\ironcad.exe",
+                DefaultMaxSearchResults = 99
+            };
+
+            var clone = original.Clone();
+
+            Assert.Equal("https://original.com/", clone.BaseUri?.AbsoluteUri);
+            Assert.Equal("OriginalDb", clone.Database);
+            Assert.Equal("Vault123", clone.VaultId);
+            Assert.Equal(45, (int)clone.Timeout.TotalSeconds);
+
+            clone.BaseUri = new Uri("https://modified.com");
+            clone.Database = "ModifiedDb";
+            Assert.Equal("https://original.com/", original.BaseUri?.AbsoluteUri);
+            Assert.Equal("OriginalDb", original.Database);
+        }
+
+        [Fact]
+        public void Factory_InitializeAndReset_StateCleared()
+        {
+            ArasClientOptionsFactory.Reset();
+            // After Reset, internal state is cleared. Accessing CurrentConfig or
+            // Current triggers lazy init, so we verify by checking that Initialize
+            // succeeds and Reset can be called without error.
+            Assert.False(ArasClientOptionsFactory.IsInitialized);
+
+            ArasClientOptionsFactory.Initialize();
+            Assert.True(ArasClientOptionsFactory.IsInitialized);
+            Assert.NotNull(ArasClientOptionsFactory.CurrentConfig);
+            Assert.NotNull(ArasClientOptionsFactory.Current);
+
+            ArasClientOptionsFactory.Reset();
+            Assert.False(ArasClientOptionsFactory.IsInitialized);
+        }
+
+        [Fact]
+        public void Factory_Initialize_IsIdempotent()
+        {
+            ArasClientOptionsFactory.Reset();
+            ArasClientOptionsFactory.Initialize();
+            var firstConfig = ArasClientOptionsFactory.CurrentConfig;
+            var firstOptions = ArasClientOptionsFactory.Current;
+
+            ArasClientOptionsFactory.Initialize();
+            var secondConfig = ArasClientOptionsFactory.CurrentConfig;
+            var secondOptions = ArasClientOptionsFactory.Current;
+
+            Assert.NotNull(firstConfig);
+            Assert.NotNull(secondConfig);
+            Assert.Equal(firstOptions?.BaseUri?.AbsoluteUri, secondOptions?.BaseUri?.AbsoluteUri);
+            Assert.Equal(firstOptions?.Database, secondOptions?.Database);
+        }
+
+        [Fact]
+        public void Factory_Current_ReturnsSnapshotNotSharedInstance()
+        {
+            ArasClientOptionsFactory.Reset();
+            ArasClientOptionsFactory.Initialize();
+
+            var first = ArasClientOptionsFactory.Current;
+            var second = ArasClientOptionsFactory.Current;
+
+            Assert.NotSame(first, second);
+        }
+
+        [Fact]
+        public void VaultClient_MissingVaultId_UploadThrowsClearError()
+        {
+            var options = new ArasClientOptions
+            {
+                BaseUri = new Uri("https://example.com"),
+                Database = "Db"
+            };
+            Assert.Null(options.VaultId);
+
+            var http = new Aras.ArasHttpClient(options.BaseUri, TimeSpan.FromSeconds(5));
+            var vault = new Aras.VaultClient(http, options);
+
+            var ex = Assert.Throws<ArasOperationException>(() =>
+                vault.UploadFileAsync("nonexistent.ics", "test.ics", CancellationToken.None)
+                    .GetAwaiter().GetResult());
+
+            Assert.Contains("Vault ID", ex.Message);
+            Assert.Equal(ArasErrorCode.ValidationFailed, ex.ErrorCode);
+        }
+
+        [Fact]
+        public void IronCadExternalAdapter_DefaultConstructor_HasNullPath()
+        {
+            string testFile = Path.Combine(_tempDir, "test.ics");
+            File.WriteAllText(testFile, "dummy");
+            var adapter = new IronCadExternalAdapter();
+            var ex = Assert.Throws<FileNotFoundException>(() =>
+                adapter.OpenDocumentAsync(testFile, CadOpenMode.ReadOnly, CancellationToken.None)
+                    .GetAwaiter().GetResult());
+
+            Assert.Contains("IronCAD executable", ex.Message);
+        }
+
+        [Fact]
+        public void IronCadExternalAdapter_ExplicitNullPath_ThrowsOnOpen()
+        {
+            string testFile = Path.Combine(_tempDir, "test.ics");
+            File.WriteAllText(testFile, "dummy");
+            var adapter = new IronCadExternalAdapter(null);
+            var ex = Assert.Throws<FileNotFoundException>(() =>
+                adapter.OpenDocumentAsync(testFile, CadOpenMode.ReadOnly, CancellationToken.None)
+                    .GetAwaiter().GetResult());
+
+            Assert.Contains("IronCAD executable", ex.Message);
+        }
+
+        [Fact]
+        public void IronCadOpenService_DefaultConstructor_NullPath_ReturnsFalse()
+        {
+            var adapter = new StubCadAdapter();
+            var service = new IronCadOpenService(adapter);
+            Assert.False(service.IsIronCadAvailable);
+        }
+
+        [Fact]
+        public void IronCadOpenService_ExplicitNullPath_ReturnsFalse()
+        {
+            var adapter = new StubCadAdapter();
+            var service = new IronCadOpenService(adapter, null);
+            Assert.False(service.IsIronCadAvailable);
+        }
+
+        [Fact]
+        public void Factory_DesktopStartup_ObtainsConfiguredOptions()
+        {
+            string configPath = Path.Combine(_tempDir, "desktop-startup.json");
+            File.WriteAllText(configPath, @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://desktop-test.example.com/InnovatorServer"",
+                    ""database"": ""DesktopTestDb"",
+                    ""vaultId"": ""DESKTOP-VAULT"",
+                    ""timeoutSeconds"": 90
+                },
+                ""local"": {
+                    ""ironCadExecutablePath"": ""D:\\desktop\\IRONCAD.exe""
+                }
+            }");
+
+            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
+            try
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, configPath);
+
+                ArasClientOptionsFactory.Reset();
+                ArasClientOptionsFactory.Initialize();
+                var options = ArasClientOptionsFactory.Current;
+
+                Assert.Equal("https://desktop-test.example.com/InnovatorServer", options.BaseUri?.AbsoluteUri.TrimEnd('/'));
+                Assert.Equal("DesktopTestDb", options.Database);
+                Assert.Equal("DESKTOP-VAULT", options.VaultId);
+                Assert.Equal(90, (int)options.Timeout.TotalSeconds);
+                Assert.Equal(@"D:\desktop\IRONCAD.exe", options.IronCadExecutablePath);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
+                ArasClientOptionsFactory.Reset();
+            }
+        }
+
+        [Fact]
+        public void Factory_IronCadAddinStartup_ObtainsConfiguredOptions()
+        {
+            string configPath = Path.Combine(_tempDir, "addin-startup.json");
+            File.WriteAllText(configPath, @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://addin-test.example.com/InnovatorServer"",
+                    ""database"": ""AddinTestDb"",
+                    ""vaultId"": ""ADDIN-VAULT""
+                },
+                ""local"": {
+                    ""ironCadExecutablePath"": ""E:\\addin\\IRONCAD.exe""
+                }
+            }");
+
+            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
+            try
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, configPath);
+
+                ArasClientOptionsFactory.Reset();
+                ArasClientOptionsFactory.Initialize();
+                var options = ArasClientOptionsFactory.Current;
+
+                Assert.Equal("https://addin-test.example.com/InnovatorServer", options.BaseUri?.AbsoluteUri.TrimEnd('/'));
+                Assert.Equal("AddinTestDb", options.Database);
+                Assert.Equal("ADDIN-VAULT", options.VaultId);
+                Assert.Equal(@"E:\addin\IRONCAD.exe", options.IronCadExecutablePath);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
+                ArasClientOptionsFactory.Reset();
+            }
+        }
+
+        [Fact]
+        public void Factory_EmptyValuesDoNotEraseLowerPrecedence()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": """",
+                    ""database"": """",
+                    ""vaultId"": """",
+                    ""oAuthClientId"": """",
+                    ""oAuthScope"": """"
+                },
+                ""local"": {
+                    ""ironCadExecutablePath"": """"
+                }
+            }";
+            string path = Path.Combine(_tempDir, "empty-values.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Null(options.BaseUri);
+            Assert.Null(options.Database);
+            Assert.Null(options.VaultId);
+            Assert.Equal("IOMApp", options.OAuthClientId);
+            Assert.Equal("Innovator", options.OAuthScope);
+            Assert.Equal(20, options.DefaultMaxSearchResults);
+            Assert.Equal(30, (int)options.Timeout.TotalSeconds);
+            Assert.Null(options.IronCadExecutablePath);
+        }
+
+        [Fact]
+        public void RealConfigFile_IsIgnored_ByGitIgnore()
+        {
+            var repoRoot = Path.GetFullPath(Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "..", "..", "..", "..", ".."));
+
+            var gitignorePath = Path.Combine(repoRoot, ".gitignore");
+            Assert.True(File.Exists(gitignorePath), ".gitignore not found at repo root");
+
+            string gitignore = File.ReadAllText(gitignorePath);
+            Assert.Contains("IdeaCadConnector.environment.json", gitignore);
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { }
+        }
+
+        private static void TryDeleteDir(string path)
+        {
+            try { if (Directory.Exists(path)) Directory.Delete(path, true); } catch { }
+        }
+
+        internal sealed class StubCadAdapter : ICadApplicationAdapter
+        {
+            public string AuthoringTool => "Stub";
+            public string AuthoringToolVersion => "1.0";
+            public CadDocumentInfo GetActiveDocumentInfo() => null;
+            public CadMetadata ReadMetadata() => new CadMetadata();
+            public void WriteMetadata(CadMetadata metadata) { }
+            public Task OpenDocumentAsync(string filePath, CadOpenMode openMode, CancellationToken ct) => Task.FromResult(0);
         }
 
         [Fact]

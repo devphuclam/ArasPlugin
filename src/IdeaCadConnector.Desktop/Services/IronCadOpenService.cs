@@ -15,7 +15,7 @@ namespace IdeaCadConnector.Desktop.Services
 
         public IronCadOpenService(
             ICadApplicationAdapter adapter,
-            string ironCadExecutablePath = @"C:\Program Files\IronCAD\2025\bin\IRONCAD.exe")
+            string ironCadExecutablePath = null)
         {
             _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
             _ironCadExecutablePath = ironCadExecutablePath;

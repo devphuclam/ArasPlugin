@@ -21,18 +21,76 @@ namespace IdeaCadConnector.Aras
         public string IronCadExecutablePath { get; set; }
 
         public int DefaultMaxSearchResults { get; set; } = 20;
+
+        internal ArasClientOptions Clone()
+        {
+            return new ArasClientOptions
+            {
+                BaseUri = BaseUri,
+                Database = Database,
+                Timeout = Timeout,
+                VaultId = VaultId,
+                OAuthClientId = OAuthClientId,
+                OAuthScope = OAuthScope,
+                IronCadExecutablePath = IronCadExecutablePath,
+                DefaultMaxSearchResults = DefaultMaxSearchResults
+            };
+        }
     }
 
     public static class ArasClientOptionsFactory
     {
-        public static ArasClientOptions Current { get; private set; }
+        private static readonly object _lock = new();
+        private static bool _initialized;
 
-        public static EnvironmentConfigurationResult CurrentConfig { get; private set; }
+        public static ArasClientOptions Current
+        {
+            get
+            {
+                LazyInitialize();
+                return _current?.Clone();
+            }
+        }
+
+        private static ArasClientOptions _current;
+
+        public static EnvironmentConfigurationResult CurrentConfig
+        {
+            get
+            {
+                LazyInitialize();
+                return _currentConfig;
+            }
+        }
+
+        internal static bool IsInitialized => _initialized;
+
+        private static EnvironmentConfigurationResult _currentConfig;
 
         public static void Initialize()
         {
-            CurrentConfig = EnvironmentConfigurationLoader.Load();
-            Current = FromConfiguration(CurrentConfig);
+            lock (_lock)
+            {
+                _currentConfig = EnvironmentConfigurationLoader.Load();
+                _current = FromConfiguration(_currentConfig);
+                _initialized = true;
+            }
+        }
+
+        internal static void Reset()
+        {
+            lock (_lock)
+            {
+                _current = null;
+                _currentConfig = null;
+                _initialized = false;
+            }
+        }
+
+        private static void LazyInitialize()
+        {
+            if (!_initialized)
+                Initialize();
         }
 
         public static ArasClientOptions FromConfiguration(EnvironmentConfigurationResult configResult)

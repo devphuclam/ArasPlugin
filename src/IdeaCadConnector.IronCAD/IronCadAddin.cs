@@ -260,7 +260,8 @@ namespace IdeaCadConnector.IronCAD
         {
             try
             {
-                var options = ArasClientOptionsFactory.Current ?? new ArasClientOptions();
+                ArasClientOptionsFactory.Initialize();
+                var options = ArasClientOptionsFactory.Current;
                 var dialog = new LoginDialog(options);
                 dialog.ShowDialog();
 
