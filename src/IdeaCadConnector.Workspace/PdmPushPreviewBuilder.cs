@@ -150,9 +150,10 @@ namespace IdeaCadConnector.Workspace
                 rows.Add(new DocumentPreviewRow
                 {
                     SourceFileName = System.IO.Path.GetFileName(doc.SourcePath),
+                    RelativePath = doc.RelativePath,
                     SourceFilePath = doc.SourcePath,
                     FileHash = doc.Fingerprint,
-                    FileSize = System.IO.File.Exists(doc.SourcePath) ? new System.IO.FileInfo(doc.SourcePath).Length : 0,
+                    FileSize = doc.FileSize,
                     LogicalCode = doc.LogicalCode,
                     DocumentNumber = GenerateDocumentNumber(result.RepositoryCode, doc),
                     Classification = classification,

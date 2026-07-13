@@ -15,6 +15,7 @@ namespace IdeaCadConnector.Tests
             var request = new PdmDocumentRequest();
 
             Assert.Null(request.SourceFilePath);
+            Assert.Null(request.RelativePath);
             Assert.Null(request.FileHash);
             Assert.Equal(0L, request.FileSize);
         }
@@ -25,6 +26,7 @@ namespace IdeaCadConnector.Tests
             var row = new DocumentPreviewRow();
 
             Assert.Null(row.SourceFilePath);
+            Assert.Null(row.RelativePath);
             Assert.Null(row.FileHash);
             Assert.Equal(0L, row.FileSize);
         }
@@ -35,6 +37,7 @@ namespace IdeaCadConnector.Tests
             var row = new DocumentPreviewRow
             {
                 SourceFileName = "spec.pdf",
+                RelativePath = "docs/spec.pdf",
                 SourceFilePath = @"C:\repo\docs\spec.pdf",
                 FileHash = "abc123",
                 FileSize = 4096L,
@@ -48,6 +51,7 @@ namespace IdeaCadConnector.Tests
             var request = new PdmDocumentRequest
             {
                 SourceFileName = row.SourceFileName,
+                RelativePath = row.RelativePath,
                 SourceFilePath = row.SourceFilePath,
                 FileHash = row.FileHash,
                 FileSize = row.FileSize,
@@ -59,82 +63,9 @@ namespace IdeaCadConnector.Tests
             };
 
             Assert.Equal(row.SourceFilePath, request.SourceFilePath);
+            Assert.Equal(row.RelativePath, request.RelativePath);
             Assert.Equal(row.FileHash, request.FileHash);
             Assert.Equal(row.FileSize, request.FileSize);
-        }
-
-        [Fact]
-        public void AnalyzedDocumentFile_To_DocumentPreviewRow_SourcePathMapped()
-        {
-            var analyzed = new AnalyzedDocumentFile
-            {
-                SourcePath = @"C:\repo\docs\spec.pdf",
-                LogicalCode = "DOC-1",
-                Fingerprint = "fp-1"
-            };
-
-            var row = new DocumentPreviewRow
-            {
-                SourceFileName = Path.GetFileName(analyzed.SourcePath),
-                SourceFilePath = analyzed.SourcePath,
-                FileHash = analyzed.Fingerprint
-            };
-
-            Assert.Equal(analyzed.SourcePath, row.SourceFilePath);
-            Assert.Equal("spec.pdf", row.SourceFileName);
-        }
-
-        [Fact]
-        public void AnalyzedDocumentFile_To_DocumentPreviewRow_FileHashFromFingerprint()
-        {
-            var analyzed = new AnalyzedDocumentFile
-            {
-                SourcePath = @"C:\repo\docs\spec.pdf",
-                Fingerprint = "fp-abc-123"
-            };
-
-            var row = new DocumentPreviewRow
-            {
-                FileHash = analyzed.Fingerprint
-            };
-
-            Assert.Equal("fp-abc-123", row.FileHash);
-        }
-
-        [Fact]
-        public void AnalyzedDocumentFile_To_DocumentPreviewRow_FileSizeFromFile()
-        {
-            var tempFile = Path.GetTempFileName();
-            try
-            {
-                File.WriteAllText(tempFile, "hello world");
-                var analyzed = new AnalyzedDocumentFile
-                {
-                    SourcePath = tempFile,
-                    Fingerprint = "fp-1"
-                };
-
-                var fileSize = File.Exists(analyzed.SourcePath)
-                    ? new FileInfo(analyzed.SourcePath).Length
-                    : 0L;
-
-                var row = new DocumentPreviewRow
-                {
-                    SourceFilePath = analyzed.SourcePath,
-                    FileHash = analyzed.Fingerprint,
-                    FileSize = fileSize
-                };
-
-                Assert.Equal(new FileInfo(tempFile).Length, row.FileSize);
-                Assert.True(row.FileSize > 0);
-            }
-            finally
-            {
-                if (File.Exists(tempFile))
-                {
-                    File.Delete(tempFile);
-                }
-            }
         }
 
         [Fact]
@@ -144,22 +75,30 @@ namespace IdeaCadConnector.Tests
             try
             {
                 File.WriteAllText(tempFile, "builder mapping");
-                var analyzeResult = CreateAnalyzeResult(new AnalyzedDocumentFile
+                var analysis = new PdmFolderAnalysis { FolderPath = Path.GetDirectoryName(tempFile) };
+                analysis.DetailFiles.Add(new PdmParsedFile
                 {
-                    SourcePath = tempFile,
-                    LogicalCode = "01-01",
-                    DocumentRole = "PackageDetail",
-                    LinkTargetType = "Part",
-                    Fingerprint = "fingerprint-123",
-                    LinkedPartLogicalCode = "01-01"
+                    FullPath = Path.Combine(Path.GetDirectoryName(tempFile), "IRONCASE_Ver1.0_001.ics"),
+                    RelativePath = "IRONCASE_Ver1.0_001.ics",
+                    FileName = "IRONCASE_Ver1.0_001.ics",
+                    LogicalPartCode = "IRONCASE-01"
                 });
+                analysis.DocumentFiles.Add(new PdmParsedFile
+                {
+                    FullPath = tempFile,
+                    RelativePath = Path.GetFileName(tempFile),
+                    FileName = Path.GetFileName(tempFile),
+                    LogicalPartCode = "01-01"
+                });
+                var analyzeResult = PushPreviewMapper.ToAnalyzeResult(analysis, null);
 
                 var preview = new PdmPushPreviewBuilder().Build(analyzeResult, "main", "test");
                 var document = Assert.Single(preview.Documents);
 
                 Assert.Equal(tempFile, document.SourceFilePath);
-                Assert.Equal("fingerprint-123", document.FileHash);
+                Assert.Equal(DocumentFileIdentityService.ComputeSha256(tempFile), document.FileHash);
                 Assert.Equal(new FileInfo(tempFile).Length, document.FileSize);
+                Assert.True(preview.Readiness.CanPush);
             }
             finally
             {
@@ -174,41 +113,24 @@ namespace IdeaCadConnector.Tests
         public void PdmPushPreviewBuilder_MapsMissingDocumentFileSizeAsZero()
         {
             var missingPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".pdf");
-            var analyzeResult = CreateAnalyzeResult(new AnalyzedDocumentFile
+            var analysis = new PdmFolderAnalysis { FolderPath = Path.GetDirectoryName(missingPath) };
+            analysis.DocumentFiles.Add(new PdmParsedFile
             {
-                SourcePath = missingPath,
-                LogicalCode = "01-02",
-                DocumentRole = "PackageDetail",
-                LinkTargetType = "Part",
-                Fingerprint = "fingerprint-missing",
-                LinkedPartLogicalCode = "01-02"
+                FullPath = missingPath,
+                RelativePath = Path.GetFileName(missingPath),
+                FileName = Path.GetFileName(missingPath),
+                LogicalPartCode = "01-02"
             });
+            var analyzeResult = PushPreviewMapper.ToAnalyzeResult(analysis, null);
 
             var preview = new PdmPushPreviewBuilder().Build(analyzeResult, "main", "test");
             var document = Assert.Single(preview.Documents);
 
             Assert.Equal(missingPath, document.SourceFilePath);
-            Assert.Equal("fingerprint-missing", document.FileHash);
+            Assert.Null(document.FileHash);
             Assert.Equal(0L, document.FileSize);
-        }
-
-        private static AnalyzeResult CreateAnalyzeResult(AnalyzedDocumentFile document)
-        {
-            return new AnalyzeResult
-            {
-                RepositoryCode = "IRONCASE",
-                ProjectName = "IRONCASE",
-                StructureNodes = Array.Empty<AnalyzedStructureNode>(),
-                CadFiles = Array.Empty<AnalyzedCadFile>(),
-                DocumentFiles = new[] { document },
-                IgnoredFiles = Array.Empty<AnalyzedIgnoredFile>(),
-                Warnings = Array.Empty<AnalyzeWarning>(),
-                Summary = new AnalyzeSummary
-                {
-                    DocumentFileCount = 1,
-                    IsValid = true
-                }
-            };
+            Assert.Contains(preview.Warnings, warning => warning.BlocksPush);
+            Assert.False(preview.Readiness.CanPush);
         }
     }
 }
