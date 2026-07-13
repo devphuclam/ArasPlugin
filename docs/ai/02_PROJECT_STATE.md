@@ -224,25 +224,34 @@ The Verifier updates this document after each merged ticket:
 
 ## SEC-00 completion record
 
+_Updated 2026-07-13 with PRE-01 through PRE-05 review-fix pass._
+
 - Completed: 2026-07-13
 - Scope: remove hardcoded environment-specific Aras configuration from source code
+- HEAD commit (initial): `fd9081d` (15 files, +614/−19)
+- HEAD commit (review fixes): `7f588c9` (6 files, +500/−7)
 - Changes:
-  - EDIT: `src/IdeaCadConnector.Aras/ArasClientOptions.cs` — removed real IP, DB name, Vault ID, IronCAD path from defaults; added `ArasClientOptionsFactory` with `FromConfiguration()`, `WithLoginOverrides()`, and `Initialize()` static methods
+  - EDIT: `src/IdeaCadConnector.Aras/ArasClientOptions.cs` — removed real IP, DB name, Vault ID, IronCAD path from defaults; added `ArasClientOptionsFactory` with `FromConfiguration()`, `WithLoginOverrides()`, `Initialize()`, `Reset()`, `IsInitialized`, lazy init, and `Clone()` snapshot semantics
+  - EDIT: `src/IdeaCadConnector.Aras/VaultClient.cs` — added VaultId null/empty validation in `UploadFileAsync` that throws clear `ArasOperationException`
   - EDIT: `src/IdeaCadConnector.Core/Configuration/EnvironmentConfiguration.cs` — added `VaultId`, `OAuthClientId`, `OAuthScope`, `DefaultMaxSearchResults`, `TimeoutSeconds` to `ArasConfiguration`
   - EDIT: `src/IdeaCadConnector.Desktop/App.xaml.cs` — calls `ArasClientOptionsFactory.Initialize()` at startup to load environment config
   - EDIT: `src/IdeaCadConnector.Desktop/MainViewModel.cs` — parameterless constructor reads from `ArasClientOptionsFactory.Current`
-  - EDIT: `src/IdeaCadConnector.IronCAD/IronCadAddin.cs` — login flow reads from `ArasClientOptionsFactory.Current`
+  - EDIT: `src/IdeaCadConnector.Desktop/IronCadExternalAdapter.cs` — removed machine-specific default from constructor parameter (`null` now)
+  - EDIT: `src/IdeaCadConnector.Desktop/Services/IronCadOpenService.cs` — removed machine-specific default from constructor parameter (`null` now)
+  - EDIT: `src/IdeaCadConnector.IronCAD/IronCadAddin.cs` — calls `ArasClientOptionsFactory.Initialize()` before reading `Current`; removed `?? new ArasClientOptions()` fallback
   - EDIT: `src/IdeaCadConnector.Ui/Views/LoginDialog.xaml.cs` — stores supplied options; `TestConnectionAsync` uses `_options` instead of `new ArasClientOptions()`
   - EDIT: `src/IdeaCadConnector.Desktop/IdeaCadConnector.environment.template.json` — added new fields with placeholder values
   - EDIT: `src/IdeaCadConnector.Desktop/IdeaCadConnector.Desktop.csproj` — template copied to output directory
   - EDIT: `.gitignore` — ignore `IdeaCadConnector.environment.json`
-  - EDIT: `tests/IdeaCadConnector.Tests/EnvironmentConfigurationTests.cs` — 14 new tests
+  - EDIT: `tests/IdeaCadConnector.Tests/EnvironmentConfigurationTests.cs` — 32 tests total (14 initial + 18 new)
 - Build Debug: Succeeded (0 warnings, 0 errors)
 - Build Release: Succeeded (0 warnings, 0 errors)
-- Test Debug: 447 passed (433 prior + 14 new), 0 failed, 0 skipped
-- Test Release: 447 passed, 0 failed, 0 skipped
-- Application source changes: 8 files
-- Test changes: 14 new tests (full config mapping, missing BaseUri/Database/VaultId, malformed URI, TimeoutSeconds, DefaultMaxSearchResults, IronCadExecutablePath, login overrides, safe defaults, template integrity)
+- Test Debug: 465 passed (447 prior + 18 new), 0 failed, 0 skipped
+- Test Release: 465 passed, 0 failed, 0 skipped
+- Application source changes: 8 + 3 = 11 files (8 initial SEC-00 + 3 review-fix: VaultClient.cs, IronCadExternalAdapter.cs, IronCadOpenService.cs)
+- Test changes: 32 tests total (config mapping, missing fields, malformed URI, precedence, loader errors, login overrides, VaultId validation, IronCAD null path, entry path verification, Clone snapshot, Reset/isolation, template/gitignore integrity)
 - Schema changes: none (no Aras ItemType/property/relationship touched)
-- Behavior change: Aras server URL, database, Vault ID, and IronCAD path must now be provided via local config file or login form, not from hardcoded source defaults
+- Behavior change: Aras server URL, database, Vault ID, and IronCAD path must now be provided via local config file or login form, not from hardcoded source defaults; missing VaultId blocks upload with typed error; missing IronCAD path disables Open in IronCAD
+- Check-AiScope: passed (6 review-fix files, total 21 across both commits)
+- Verify-AiTicket: pre-existing infrastructure issue (`build-solution.ps1` wrong path) — not a regression
 - Working tree: clean
