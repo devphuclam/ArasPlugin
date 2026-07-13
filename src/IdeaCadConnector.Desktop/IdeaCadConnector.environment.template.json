@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "environmentName": "Development",
   "aras": {
-    "baseUrl": "https://your-aras-server.example.com/InnovatorServer",
+    "baseUrl": "https://your-aras-server.example.com/InnovatorServer/",
     "database": "YourDatabaseName",
-    "openInArasBaseUrl": "https://your-aras-server.example.com/InnovatorServer",
+    "openInArasBaseUrl": "https://your-aras-server.example.com/InnovatorServer/",
     "vaultId": "YOUR_VAULT_ID_GUID",
     "oAuthClientId": "IOMApp",
     "oAuthScope": "Innovator",

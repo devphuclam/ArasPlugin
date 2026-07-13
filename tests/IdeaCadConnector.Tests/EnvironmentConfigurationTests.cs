@@ -402,7 +402,7 @@ namespace IdeaCadConnector.Tests
             var options = ArasClientOptionsFactory.FromConfiguration(configResult);
 
             Assert.Null(options.BaseUri);
-            Assert.Contains(configResult.Errors, e => e.Contains("valid absolute URI"));
+            Assert.Contains(configResult.Errors, e => e.Contains("absolute http or https URI"));
         }
 
         [Fact]

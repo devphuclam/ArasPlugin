@@ -33,6 +33,7 @@ namespace IdeaCadConnector.Aras
         private readonly ArasClientOptions _options;
         private readonly ILogger<HttpArasCadClient> _logger;
         private readonly WorkflowActionMapper _actionMapper;
+        private readonly HttpMessageHandler _httpHandler;
         private ArasHttpClient _http;
         private ArasAmlClient _aml;
         private PartSearchClient _partSearch;
@@ -49,10 +50,20 @@ namespace IdeaCadConnector.Aras
         }
 
         public HttpArasCadClient(ArasClientOptions options, ILogger<HttpArasCadClient> logger, WorkflowActionMapper actionMapper)
+            : this(options, logger, actionMapper, null)
+        {
+        }
+
+        internal HttpArasCadClient(
+            ArasClientOptions options,
+            ILogger<HttpArasCadClient> logger,
+            WorkflowActionMapper actionMapper,
+            HttpMessageHandler httpHandler)
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpArasCadClient>.Instance;
             _actionMapper = actionMapper ?? WorkflowActionMapper.CreateDefault();
+            _httpHandler = httpHandler;
         }
 
         public async Task<ArasLoginResult> LoginAsync(ArasLoginRequest request, CancellationToken ct)
@@ -63,13 +74,13 @@ namespace IdeaCadConnector.Aras
             _options.EnsureValid();
 
             _http?.Dispose();
-            _http = new ArasHttpClient(_options.BaseUri, _options.Timeout);
+            _http = new ArasHttpClient(_options.BaseUri, _options.Timeout, _httpHandler);
 
             var formFields = new Dictionary<string, string>
             {
                 { "grant_type", "password" },
-                { "client_id", "IOMApp" },
-                { "scope", "Innovator" },
+                { "client_id", _options.OAuthClientId },
+                { "scope", _options.OAuthScope },
                 { "database", request.Database ?? _options.Database },
                 { "username", request.UserName },
                 { "password", request.Password }
@@ -88,11 +99,11 @@ namespace IdeaCadConnector.Aras
             _aml = new ArasAmlClient(_http, request.Database ?? _options.Database);
 
             // Set up OData Part search client reusing a dedicated HttpClient
-            var searchHttp = new HttpClient
-            {
-                BaseAddress = _options.BaseUri,
-                Timeout = _options.Timeout
-            };
+            var searchHttp = _httpHandler == null
+                ? new HttpClient()
+                : new HttpClient(_httpHandler, disposeHandler: false);
+            searchHttp.BaseAddress = _options.BaseUri;
+            searchHttp.Timeout = _options.Timeout;
             searchHttp.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue(_tokenType, _accessToken);
 
