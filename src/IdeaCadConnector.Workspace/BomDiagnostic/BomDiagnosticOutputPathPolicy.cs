@@ -3,8 +3,22 @@ using System.IO;
 
 namespace IdeaCadConnector.Workspace.BomDiagnostic
 {
+    public sealed class BomDiagnosticOutputContext
+    {
+        public string RepositoryRoot { get; set; }
+        public string StudyDirectory { get; set; }
+        public string ApplicationDataDirectory { get; set; }
+    }
+
     public static class BomDiagnosticOutputPathPolicy
     {
+        public static string Validate(string outputFolder, BomDiagnosticOutputContext context)
+        {
+            context = context ?? new BomDiagnosticOutputContext();
+            return Validate(outputFolder, context.RepositoryRoot, context.StudyDirectory,
+                context.ApplicationDataDirectory);
+        }
+
         public static string Validate(string outputFolder, string repositoryRoot = null,
             string studyDirectory = null, string applicationDataDirectory = null)
         {
@@ -41,6 +55,11 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
                         "Raw diagnostic output is restricted to an external folder; protected path rejected: " + fullOutput);
             }
             return fullOutput;
+        }
+
+        public static string TryFindRepositoryRoot()
+        {
+            return FindRepositoryRoot();
         }
 
         private static string CombineIfPresent(string root, string child)

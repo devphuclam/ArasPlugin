@@ -11,6 +11,7 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
             {
                 case "Z_ELEMENT_SCENE":
                 case "Z_ELEMENT_ROOT":
+                    return "SceneRoot";
                 case "Z_ELEMENT_ASSEMBLY":
                 case "ASSEMBLY":
                     return "Assembly";

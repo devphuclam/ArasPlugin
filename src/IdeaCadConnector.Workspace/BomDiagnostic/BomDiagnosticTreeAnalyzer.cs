@@ -59,6 +59,7 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
             result.MaxDepth = Math.Max(result.MaxDepth, depth);
             if (node.NodeKind == "Assembly") result.AssemblyCount++;
             else if (node.NodeKind == "Part") result.PartCount++;
+            else if (node.NodeKind == "SceneRoot") result.SceneRootCount++;
             else result.TechnicalOrUnknownCount++;
 
             var children = source.Children;
@@ -101,6 +102,7 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
         {
             if (string.Equals(kind, "Assembly", StringComparison.OrdinalIgnoreCase)) return "Assembly";
             if (string.Equals(kind, "Part", StringComparison.OrdinalIgnoreCase)) return "Part";
+            if (string.Equals(kind, "SceneRoot", StringComparison.OrdinalIgnoreCase)) return "SceneRoot";
             return "TechnicalOrUnknown";
         }
 

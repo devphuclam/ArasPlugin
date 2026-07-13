@@ -20,6 +20,25 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(expected, IronCadBomDiagnosticNodeKindMapper.Map(rawKind));
         }
 
+        [Theory]
+        [InlineData("Z_ELEMENT_SCENE")]
+        [InlineData("Z_ELEMENT_ROOT")]
+        public void IcapiNodeKindMapper_MapsSceneRootsSeparately(string rawKind)
+        {
+            Assert.Equal("SceneRoot", IronCadBomDiagnosticNodeKindMapper.Map(rawKind));
+        }
+
+        [Fact]
+        public void Analyzer_DoesNotCountSceneRootAsAssembly()
+        {
+            var result = BomDiagnosticTreeAnalyzer.Analyze(Node("scene", "SceneRoot", null,
+                Node("assembly", "Assembly", "assembly-def")));
+
+            Assert.Equal(1, result.SceneRootCount);
+            Assert.Equal(1, result.AssemblyCount);
+            Assert.Equal(0, result.TechnicalOrUnknownCount);
+        }
+
         [Fact]
         public void Analyzer_MarksExplicitlyAmbiguousDefinitionIdentity()
         {
@@ -135,6 +154,45 @@ namespace IdeaCadConnector.Tests
             var analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
             Assert.Throws<InvalidOperationException>(() => BomDiagnosticOutput.WriteRawSnapshot(
                 analysis, Directory.GetCurrentDirectory(), "unsafe-repository-report"));
+        }
+
+        [Fact]
+        public void DiagnosticOutput_UsesExplicitContextToRejectStudyAndRepositoryDescendants()
+        {
+            var root = CreateFolder();
+            var repository = Path.Combine(root, "repository");
+            var study = Path.Combine(root, "study");
+            var appData = Path.Combine(root, "appdata");
+            var external = Path.Combine(root, "external");
+            Directory.CreateDirectory(Path.Combine(repository, "src"));
+            Directory.CreateDirectory(Path.Combine(study, "nested"));
+            Directory.CreateDirectory(appData);
+            Directory.CreateDirectory(external);
+            var context = new BomDiagnosticOutputContext
+            {
+                RepositoryRoot = repository,
+                StudyDirectory = study,
+                ApplicationDataDirectory = appData
+            };
+            var analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
+            try
+            {
+                var path = BomDiagnosticOutput.WriteRawSnapshot(analysis, external, "safe", context);
+                Assert.True(File.Exists(path));
+                Assert.Throws<InvalidOperationException>(() => BomDiagnosticOutput.WriteRawSnapshot(
+                    analysis, study, "study", context));
+                Assert.Throws<InvalidOperationException>(() => BomDiagnosticOutput.WriteRawSnapshot(
+                    analysis, Path.Combine(study, "nested"), "study-child", context));
+                Assert.Throws<InvalidOperationException>(() => BomDiagnosticOutput.WriteRawSnapshot(
+                    analysis, repository, "repo", context));
+                Assert.Throws<InvalidOperationException>(() => BomDiagnosticOutput.WriteRawSnapshot(
+                    analysis, Path.Combine(repository, "src"), "repo-child", context));
+                Assert.Throws<InvalidOperationException>(() => BomDiagnosticOutput.WriteRawSnapshot(
+                    analysis, appData, "appdata", context));
+                Assert.Throws<IOException>(() => BomDiagnosticOutput.WriteRawSnapshot(
+                    analysis, external, "safe", context));
+            }
+            finally { DeleteFolder(root); }
         }
 
         [Fact]

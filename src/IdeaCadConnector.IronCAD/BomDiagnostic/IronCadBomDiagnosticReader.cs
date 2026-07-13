@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using interop.ICApiIronCAD;
 using IdeaCadConnector.Workspace.BomDiagnostic;
 
@@ -10,6 +11,7 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
         public string DocumentName { get; set; }
         public string AuthoringToolVersion { get; set; }
         public string ActiveDocumentType { get; set; }
+        public string ActiveDocumentPath { get; set; }
         public bool TopElementAvailable { get; set; }
         public BomDiagnosticSourceNode RootNode { get; set; }
         public IList<string> Warnings { get; } = new List<string>();
@@ -95,7 +97,12 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
 
         private static void TryReadDocumentInfo(IZDoc document, IronCadBomDiagnosticReadResult result)
         {
-            try { result.DocumentName = document.Name; }
+            try
+            {
+                result.DocumentName = document.Name;
+                if (!string.IsNullOrWhiteSpace(result.DocumentName) && Path.IsPathRooted(result.DocumentName))
+                    result.ActiveDocumentPath = result.DocumentName;
+            }
             catch (Exception ex) { result.Warnings.Add("Document name is unavailable: " + ex.Message); }
             try { result.ActiveDocumentType = document.Type.ToString(); }
             catch (Exception ex) { result.Warnings.Add("Document type is unavailable: " + ex.Message); }

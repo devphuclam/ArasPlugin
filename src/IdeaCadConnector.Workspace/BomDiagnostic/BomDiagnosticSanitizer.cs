@@ -9,6 +9,7 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
         public int TotalNodes { get; set; }
         public int AssemblyCount { get; set; }
         public int PartCount { get; set; }
+        public int SceneRootCount { get; set; }
         public int TechnicalOrUnknownCount { get; set; }
         public int MaximumDepth { get; set; }
         public int RepeatedDefinitionCount { get; set; }
@@ -36,6 +37,7 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
                 TotalNodes = analysis.DepthFirstNodes.Count,
                 AssemblyCount = analysis.AssemblyCount,
                 PartCount = analysis.PartCount,
+                SceneRootCount = analysis.SceneRootCount,
                 TechnicalOrUnknownCount = analysis.TechnicalOrUnknownCount,
                 MaximumDepth = analysis.MaxDepth,
                 RepeatedDefinitionCount = analysis.RepeatedDefinitionCount,

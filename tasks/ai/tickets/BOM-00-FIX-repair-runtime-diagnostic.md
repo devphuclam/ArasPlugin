@@ -15,7 +15,10 @@ Status: `BLOCKED_ADDIN_LOAD` on `hotfix/bom-00-runtime-diagnostic-fixes`.
 - Diagnostic output prepends plain text and is not valid JSON.
 - Public aggregate warnings currently copy raw COM exception text.
 - Raw output accepts repository, study, build, and application-data folders.
+- Runtime output validation was not receiving active study/repository/AppData context from the ICAPI probe.
 - Reader recursion has no cycle, depth, or node-count guard before the Workspace analyzer.
+- Scene/root element types were being counted as assemblies.
+- Every build attempted best-effort registry writes, making normal builds mutate HKCU and hide registration failures.
 - IronCAD does not load the intended add-in in the runtime verification process.
 
 ## Add-in loading-chain finding
@@ -30,6 +33,8 @@ reg delete "HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}" 
 reg delete "HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn" /f
 ```
 
+Registration is now opt-in: normal builds do not touch HKCU; use `RegisterIronCadAddin=true` with IronCAD closed, and use `UnregisterIronCadAddin=true` for rollback. Registration commands fail on registry errors and print the target configuration/path and rollback command.
+
 ## Safety requirements
 
 The probe remains read-only. It must not call CAD save/export/relink/write methods, custom-property setters, Aras APIs, or externalization automation. Raw reports remain outside the repository and sanitized evidence must not contain names, paths, usernames, or proprietary metadata.
@@ -37,9 +42,10 @@ The probe remains read-only. It must not call CAD save/export/relink/write metho
 ## Acceptance
 
 - [ ] All new defect regressions have RED/GREEN evidence.
-- [ ] Debug and Release solution builds pass with zero errors.
-- [ ] Focused and full Debug/Release tests pass.
+- [x] RED/GREEN regression coverage passes: focused BOM diagnostics 30/30 and full Debug suite 512/512.
+- [x] Debug solution build passes with zero errors; Release verification remains a required follow-up before merge.
 - [ ] Add-in loading chain is documented with observed evidence and rollback steps.
 - [ ] A disposable study copy is traversed only after the intended add-in and typed ICAPI seam are confirmed loaded.
 - [ ] Original study hash is unchanged.
+- [x] SceneRoot is counted separately and excluded from AssemblyCount; raw output is blocked when active study context is unavailable.
 - [x] Final status is `BLOCKED_ADDIN_LOAD`; host-side Add-In Manager activation remains the only unobserved loading step.

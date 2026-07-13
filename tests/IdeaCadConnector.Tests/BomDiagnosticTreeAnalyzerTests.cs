@@ -27,15 +27,16 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void Analyze_TreatsNullChildrenAsEmptyAndUnsupportedKindsAsTechnical()
+        public void Analyze_TreatsNullChildrenAsEmptyAndSceneRootAsNonAssembly()
         {
-            var root = Node("root", "Scene", null);
+            var root = Node("root", "SceneRoot", null);
 
             var result = BomDiagnosticTreeAnalyzer.Analyze(root);
 
             Assert.Empty(result.RootNode.Children);
-            Assert.Equal("TechnicalOrUnknown", result.RootNode.NodeKind);
-            Assert.Equal(1, result.TechnicalOrUnknownCount);
+            Assert.Equal("SceneRoot", result.RootNode.NodeKind);
+            Assert.Equal(1, result.SceneRootCount);
+            Assert.Equal(0, result.TechnicalOrUnknownCount);
         }
 
         [Fact]
