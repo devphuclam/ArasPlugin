@@ -11,10 +11,10 @@
 .PARAMETER SkipIcs        Skip IronCAD COM - only create PDF/DWG placeholder files.
 .PARAMETER Force          Overwrite existing files.
 .EXAMPLE
-    .\New-IronCadProject.ps1 -OutputFolder "C:\Cases\IRONCASE"
-    .\New-IronCadProject.ps1 -OutputFolder "D:\Cases\MOTOR" -ProjectName "MOTOR" -Groups "Body,Engine,Wheel" -Version "2.0"
+    .\New-IronCadProject.ps1 -OutputFolder "C:\Cases\IRONCASE" -SeedPartPath "C:\Cases\SeedPart.ics"
+    .\New-IronCadProject.ps1 -OutputFolder "D:\Cases\MOTOR" -ProjectName "MOTOR" -Groups "Body,Engine,Wheel" -Version "2.0" -SeedPartPath "D:\Cases\SeedPart.ics"
     .\New-IronCadProject.ps1 -OutputFolder "C:\Cases\QUICK" -SkipIcs
-    .\New-IronCadProject.ps1 -OutputFolder "C:\Cases\IRONCASE" -Force
+    .\New-IronCadProject.ps1 -OutputFolder "C:\Cases\IRONCASE" -Force -SeedPartPath "C:\Cases\SeedPart.ics"
 #>
 param(
     [Parameter(Mandatory = $true)][string]$OutputFolder,
@@ -28,6 +28,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if (-not $SkipIcs -and [string]::IsNullOrWhiteSpace($SeedPartPath)) {
+    throw "SeedPartPath is required when creating .ics files. Pass -SeedPartPath <existing .ics> or use -SkipIcs."
+}
+if (-not $SkipIcs -and -not (Test-Path -LiteralPath $SeedPartPath -PathType Leaf)) {
+    throw "SeedPartPath not found: $SeedPartPath"
+}
 
 function Write-Step { param([string]$m) Write-Host "  $m" -ForegroundColor Cyan }
 function Write-OK   { param([string]$m) Write-Host "  [OK] $m" -ForegroundColor Green }
@@ -321,10 +328,6 @@ if ($SkipIcs) {
     Write-Host "[2/3] Skipping .ics creation (-SkipIcs)." -ForegroundColor Yellow
 } else {
     Write-Host "[2/3] Creating .ics files from seed part..." -ForegroundColor Yellow
-
-    if (-not (Test-Path $SeedPartPath)) {
-        throw "SeedPartPath not found: $SeedPartPath"
-    }
 
     foreach ($p in $partList) {
         $seq     = "{0:D3}" -f $p.GlobalSeq

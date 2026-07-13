@@ -90,12 +90,12 @@ namespace IdeaCadConnector.Tests
                     Analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"))
                 };
 
-                var path = BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study");
+                var path = BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study", TestContext());
                 var parsed = JsonConvert.DeserializeObject<BomDiagnosticSnapshot>(File.ReadAllText(path));
 
                 Assert.NotNull(parsed);
                 Assert.Equal(snapshot.LocalReportWarning, parsed.LocalReportWarning);
-                Assert.Throws<IOException>(() => BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study"));
+                Assert.Throws<IOException>(() => BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study", TestContext()));
             }
             finally { DeleteFolder(folder); }
         }
@@ -153,7 +153,7 @@ namespace IdeaCadConnector.Tests
         {
             var analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
             Assert.Throws<InvalidOperationException>(() => BomDiagnosticOutput.WriteRawSnapshot(
-                analysis, Directory.GetCurrentDirectory(), "unsafe-repository-report"));
+                analysis, Directory.GetCurrentDirectory(), "unsafe-repository-report", TestContext(Directory.GetCurrentDirectory())));
         }
 
         [Fact]
@@ -193,6 +193,29 @@ namespace IdeaCadConnector.Tests
                     analysis, external, "safe", context));
             }
             finally { DeleteFolder(root); }
+        }
+
+        [Fact]
+        public void DiagnosticOutput_RequiresSafetyContext()
+        {
+            var folder = CreateFolder();
+            try
+            {
+                var analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
+                Assert.Throws<ArgumentNullException>(() => BomDiagnosticOutput.WriteRawSnapshot(
+                    analysis, folder, "missing-context", null));
+            }
+            finally { DeleteFolder(folder); }
+        }
+
+        private static BomDiagnosticOutputContext TestContext(string protectedRoot = null)
+        {
+            return new BomDiagnosticOutputContext
+            {
+                RepositoryRoot = protectedRoot ?? Path.Combine(Path.GetTempPath(), "bom-test-repo-" + Guid.NewGuid().ToString("N")),
+                StudyDirectory = Path.Combine(Path.GetTempPath(), "bom-test-study-" + Guid.NewGuid().ToString("N")),
+                ApplicationDataDirectory = Path.Combine(Path.GetTempPath(), "bom-test-appdata-" + Guid.NewGuid().ToString("N"))
+            };
         }
 
         [Fact]

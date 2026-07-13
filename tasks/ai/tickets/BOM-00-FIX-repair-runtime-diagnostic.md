@@ -33,7 +33,7 @@ reg delete "HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}" 
 reg delete "HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn" /f
 ```
 
-Registration is now opt-in: normal builds do not touch HKCU; use `RegisterIronCadAddin=true` with IronCAD closed, and use `UnregisterIronCadAddin=true` for rollback. Registration commands fail on registry errors and print the target configuration/path and rollback command.
+Registration is now opt-in: normal builds do not touch HKCU; use `RegisterIronCadAddin=true` with IronCAD closed. Rollback is directly invokable with `dotnet msbuild .\src\IdeaCadConnector.IronCAD\IdeaCadConnector.IronCAD.csproj -t:UnregisterIronCadAddin`; it requires IronCAD closed, fails on registry errors, removes the three top-level key trees, and exits 0 only after the delete commands succeed.
 
 ## Safety requirements
 
@@ -42,8 +42,8 @@ The probe remains read-only. It must not call CAD save/export/relink/write metho
 ## Acceptance
 
 - [ ] All new defect regressions have RED/GREEN evidence.
-- [x] RED/GREEN regression coverage passes: focused BOM diagnostics 30/30 and full Debug suite 512/512.
-- [x] Debug solution build passes with zero errors; Release verification remains a required follow-up before merge.
+- [x] RED/GREEN regression coverage passes: focused BOM diagnostics 31/31 in Debug and Release; full Debug and Release suites 513/513.
+- [x] Debug and Release solution builds pass with zero errors.
 - [ ] Add-in loading chain is documented with observed evidence and rollback steps.
 - [ ] A disposable study copy is traversed only after the intended add-in and typed ICAPI seam are confirmed loaded.
 - [ ] Original study hash is unchanged.

@@ -184,10 +184,10 @@ namespace IdeaCadConnector.Tests
             try
             {
                 var snapshot = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
-                var path = BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study");
+                var path = BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study", TestContext());
 
                 Assert.True(File.Exists(path));
-                Assert.Throws<IOException>(() => BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study"));
+                Assert.Throws<IOException>(() => BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study", TestContext()));
             }
             finally
             {
@@ -201,9 +201,19 @@ namespace IdeaCadConnector.Tests
         {
             var analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
 
-            Assert.Throws<ArgumentException>(() => BomDiagnosticOutput.WriteRawSnapshot(analysis, null, "study"));
+            Assert.Throws<ArgumentException>(() => BomDiagnosticOutput.WriteRawSnapshot(analysis, null, "study", TestContext()));
             Assert.Throws<DirectoryNotFoundException>(() => BomDiagnosticOutput.WriteRawSnapshot(
-                analysis, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), "study"));
+                analysis, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), "study", TestContext()));
+        }
+
+        private static BomDiagnosticOutputContext TestContext(string protectedRoot = null)
+        {
+            return new BomDiagnosticOutputContext
+            {
+                RepositoryRoot = protectedRoot ?? Path.Combine(Path.GetTempPath(), "bom-test-repo-" + Guid.NewGuid().ToString("N")),
+                StudyDirectory = Path.Combine(Path.GetTempPath(), "bom-test-study-" + Guid.NewGuid().ToString("N")),
+                ApplicationDataDirectory = Path.Combine(Path.GetTempPath(), "bom-test-appdata-" + Guid.NewGuid().ToString("N"))
+            };
         }
 
         [Fact]

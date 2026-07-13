@@ -91,16 +91,16 @@
     <!-- 4. COM categories required by IronCAD's application add-in discovery -->
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Implemented Categories\{6CA5004A-8CD0-454d-88BA-E9700C9789A6}&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Required Categories\{2D652377-6B3B-450e-840A-5DE09A48B464}&quot; /f" />
-    <Message Importance="High" Text="Registration succeeded. Rollback: dotnet build -p:UnregisterIronCadAddin=true" />
+    <Message Importance="High" Text="Registration succeeded. Rollback: dotnet msbuild .\src\IdeaCadConnector.IronCAD\IdeaCadConnector.IronCAD.csproj -t:UnregisterIronCadAddin" />
   </Target>
 
-  <Target Name="UnregisterIronCadAddin" Condition="'$(UnregisterIronCadAddin)' == 'true'">
+  <Target Name="UnregisterIronCadAddin">
     <Message Importance="High" Text="Unregistering IdeaCadConnector from IronCAD and COM registry keys" />
     <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;if (Get-Process -Name IronCAD -ErrorAction SilentlyContinue) { Write-Error 'Close IronCAD before unregistering the add-in.'; exit 1 }&quot;" />
     <Exec Command="reg delete &quot;HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector&quot; /f" />
     <Exec Command="reg delete &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot; /f" />
     <Exec Command="reg delete &quot;HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn&quot; /f" />
-    <Message Importance="High" Text="Unregistration succeeded; add-in registry keys and COM category subkeys were removed." />
+    <Message Importance="High" Text="Unregistration succeeded; add-in registry keys and COM category subkeys were removed. Verify with: reg query &quot;HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector&quot; and reg query &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot;" />
   </Target>
 
   <!--

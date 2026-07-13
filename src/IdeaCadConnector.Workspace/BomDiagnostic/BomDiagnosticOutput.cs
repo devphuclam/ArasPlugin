@@ -6,12 +6,6 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
 {
     public static class BomDiagnosticOutput
     {
-        public static string WriteRawSnapshot(BomDiagnosticAnalysis analysis, string outputFolder, string reportName)
-        {
-            if (analysis == null) throw new ArgumentNullException(nameof(analysis));
-            return WriteRawSnapshot(new BomDiagnosticSnapshot { Analysis = analysis }, outputFolder, reportName);
-        }
-
         public static string WriteRawSnapshot(BomDiagnosticAnalysis analysis, string outputFolder,
             string reportName, BomDiagnosticOutputContext context)
         {
@@ -19,15 +13,11 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
             return WriteRawSnapshot(new BomDiagnosticSnapshot { Analysis = analysis }, outputFolder, reportName, context);
         }
 
-        public static string WriteRawSnapshot(BomDiagnosticSnapshot snapshot, string outputFolder, string reportName)
-        {
-            return WriteRawSnapshot(snapshot, outputFolder, reportName, null);
-        }
-
         public static string WriteRawSnapshot(BomDiagnosticSnapshot snapshot, string outputFolder,
             string reportName, BomDiagnosticOutputContext context)
         {
             if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            if (context == null) throw new ArgumentNullException(nameof(context));
             if (string.IsNullOrWhiteSpace(outputFolder))
                 throw new ArgumentException("An explicit diagnostic output folder is required.", nameof(outputFolder));
             outputFolder = BomDiagnosticOutputPathPolicy.Validate(outputFolder, context);

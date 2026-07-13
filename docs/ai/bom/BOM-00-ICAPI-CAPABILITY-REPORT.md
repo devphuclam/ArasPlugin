@@ -67,7 +67,7 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 - Reader traversal has reference-identity cycle protection plus finite depth/node limits; repeated occurrences are not collapsed by definition identity.
 - Raw JSON is UTF-8 valid JSON with the warning as a property. Public sanitizer emits stable warning categories and strips raw warning text.
 - Raw output path policy requires an explicit runtime context (active study directory, discovered repository root when available, and AppData) and rejects those protected roots; missing active study context fails closed.
-- Registry registration is opt-in via `RegisterIronCadAddin=true`; normal builds do not mutate HKCU. Explicit registration fails on registry errors and requires IronCAD closed; `UnregisterIronCadAddin=true` removes the application, CLSID, and ProgId keys.
+- Registry registration is opt-in via `RegisterIronCadAddin=true`; normal builds do not mutate HKCU. Explicit registration fails on registry errors and requires IronCAD closed. Direct rollback is `dotnet msbuild .\src\IdeaCadConnector.IronCAD\IdeaCadConnector.IronCAD.csproj -t:UnregisterIronCadAddin`; it removes the application, CLSID, and ProgId keys and exits 0 when verification succeeds.
 
 ## RED/GREEN evidence
 
@@ -75,8 +75,10 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 |---|---|
 | RED | `dotnet build tests/IdeaCadConnector.Tests/IdeaCadConnector.Tests.csproj --configuration Debug --no-restore -m:1` failed because `BomDiagnostic` types did not exist; 3 expected compiler errors |
 | GREEN analyzer | Same serialized build passed, 0 errors |
-| GREEN focused | `dotnet test ... --configuration Debug --no-restore --filter FullyQualifiedName~BomDiagnostic` passed: 30/30 |
-| GREEN full Debug | `dotnet test ... --configuration Debug --no-restore` passed: 512/512 |
+| GREEN focused Debug | `dotnet test ... --configuration Debug --no-restore --no-build --filter FullyQualifiedName~BomDiagnostic` passed: 31/31 |
+| GREEN focused Release | `dotnet test ... --configuration Release --no-restore --no-build --filter FullyQualifiedName~BomDiagnostic` passed: 31/31 |
+| GREEN full Debug | `dotnet test ... --configuration Debug --no-restore --no-build` passed: 513/513 |
+| GREEN full Release | `dotnet test ... --configuration Release --no-restore --no-build` passed: 513/513 |
 | Runtime probe attempt | `BLOCKED_ADDIN_LOAD`; study copy opened successfully, but `IdeaCadConnector.IronCAD` was absent from the IronCAD process and no active add-in-provided `IZBaseApp` was available |
 
 ## Runtime verification record
