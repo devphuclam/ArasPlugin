@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)]
-    [ValidatePattern('^[A-Z]+-\d{2}$')]
+    [ValidatePattern('^[A-Z]+-\d{2}(-[A-Z0-9]+)*$')]
     [string]$TicketId,
     [ValidateSet('Debug','Release')]
     [string]$Configuration = 'Debug'
@@ -17,7 +17,7 @@ New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 function Run-Step([string]$Name, [scriptblock]$Command) {
     $log = Join-Path $outDir "$Name.log"
     "COMMAND STEP: $Name`nSTART: $(Get-Date -Format o)`n" | Set-Content $log
-    & $Command *>&1 | Tee-Object -FilePath $log -Append
+    & $Command *>&1 | Tee-Object -FilePath $log -Append | Out-Host
     $code = $LASTEXITCODE
     "`nEXIT CODE: $code`nEND: $(Get-Date -Format o)" | Add-Content $log
     return $code
@@ -28,7 +28,7 @@ function Run-Step([string]$Name, [scriptblock]$Command) {
 & git status --short | Set-Content (Join-Path $outDir 'status.txt')
 & git diff --stat | Set-Content (Join-Path $outDir 'diff-stat.txt')
 
-$buildHelper = Join-Path $repoRoot '..\scripts\build-solution.ps1'
+$buildHelper = Join-Path $repoRoot 'scripts\build-solution.ps1'
 if (Test-Path $buildHelper) {
     $buildCode = Run-Step 'build' { & $buildHelper -Configuration $Configuration }
 } else {
@@ -36,14 +36,19 @@ if (Test-Path $buildHelper) {
     if ($msbuild) {
         $buildCode = Run-Step 'build' { & $msbuild.Source 'IdeaCadConnector.sln' /m /t:Restore,Build /p:Configuration=$Configuration '/p:Platform=Any CPU' /v:minimal }
     } else {
-        'NOT RUN: build helper and msbuild.exe were not found.' | Set-Content (Join-Path $outDir 'build.log')
-        $buildCode = 9001
+        $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($dotnet) {
+            $buildCode = Run-Step 'build' { & $dotnet.Source build 'IdeaCadConnector.sln' --configuration $Configuration --no-restore -m:1 }
+        } else {
+            'NOT RUN: build helper, msbuild.exe, and dotnet were not found.' | Set-Content (Join-Path $outDir 'build.log')
+            $buildCode = 9001
+        }
     }
 }
 
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
 if ($dotnet) {
-    $testCode = Run-Step 'tests' { & $dotnet.Source test '.\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj' --configuration $Configuration --no-restore }
+    $testCode = Run-Step 'tests' { & $dotnet.Source test '.\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj' --configuration $Configuration --no-restore --no-build }
 } else {
     'NOT RUN: dotnet was not found.' | Set-Content (Join-Path $outDir 'tests.log')
     $testCode = 9002

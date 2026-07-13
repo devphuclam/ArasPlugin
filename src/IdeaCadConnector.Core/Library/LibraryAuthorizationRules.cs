@@ -6,9 +6,9 @@ namespace IdeaCadConnector.Core.Library
     public sealed class LibraryAuthorizationRules
     {
         public static LibraryAuthorizationRules Default { get; } = new LibraryAuthorizationRules(
-            managerUsers: new[] { "admin", "innovatoradmin", "lampm", "tptkc", "truongphongthietkeco" },
-            reviewerUsers: new[] { "tntkc", "lampm", "tptkc", "truongphongthietkeco", "admin", "innovatoradmin" },
-            contributorUsers: new[] { "lamengineer", "nvtkc", "tntkc" });
+            managerUsers: new[] { "admin", "innovatoradmin", "lampm", "examplemanager", "truongphongthietkeco" },
+            reviewerUsers: new[] { "examplereviewer", "lampm", "examplemanager", "truongphongthietkeco", "admin", "innovatoradmin" },
+            contributorUsers: new[] { "lamengineer", "examplecontributor", "examplereviewer" });
 
         public LibraryAuthorizationRules(
             IEnumerable<string> managerUsers = null,

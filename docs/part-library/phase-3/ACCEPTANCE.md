@@ -109,7 +109,7 @@ Sprint 3.2 is locally accepted when all checklist items met:
 - [x] template exists in `docs/templates/`;
 - [x] package includes template only (validated by script);
 - [x] no secrets committed;
-- [x] official role defaults remain correct (TPTKC/TNTKC/NVTKC/NVLCR/PM/Khách hàng);
+- [x] official role defaults remain correct (ExampleManager/ExampleReviewer/ExampleContributor/ExampleAssemblyViewer/ExampleProjectViewer/Khách hàng);
 - [x] tests pass (419/419);
 - [x] package script passes;
 - [x] docs updated;
@@ -130,7 +130,7 @@ Sprint 3.2 is locally accepted when all checklist items met:
 | Template included | PASS | `docs/templates/IdeaCadConnector.environment.template.json` exists in package |
 | Active config excluded | PASS | `IdeaCadConnector.environment.json` not packaged |
 | Template secret scan | PASS | No password/token/secret/cookie/session values in template |
-| Role defaults | PASS | Official role defaults present (TPTKC, TNTKC, NVTKC, NVLCR, PM, KhachHang/Customer) |
+| Role defaults | PASS | Official role defaults present (ExampleManager, ExampleReviewer, ExampleContributor, ExampleAssemblyViewer, ExampleProjectViewer, KhachHang/Customer) |
 | Launch without config | PASS | App opened without active config |
 | Login | PASS | Aras login still worked |
 | Part Library load | PASS | Part Library still loaded |
@@ -280,7 +280,7 @@ All 4 sprints accepted.
 | Full tests | PASS | 419/419 passed |
 | No secrets | PASS | Active config excluded, no secrets committed |
 | Required Aras method | PASS | `idea_GetPrimaryIronCadForPart` documented and packaged |
-| Official roles | PASS | TPTKC/TNTKC/NVTKC/NVLCR/PM/Khách hàng documented |
+| Official roles | PASS | ExampleManager/ExampleReviewer/ExampleContributor/ExampleAssemblyViewer/ExampleProjectViewer/Khách hàng documented |
 | Rollback plan | PASS | Documented in ROLLBACK.md |
 | Known limitations | PASS | Documented and accepted in KNOWN-LIMITATIONS.md |
 | Final decision | PASS | Phase 3 COMPLETE |

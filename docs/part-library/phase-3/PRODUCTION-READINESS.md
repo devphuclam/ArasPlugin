@@ -25,7 +25,7 @@ IdeaCadConnector-v0.3.0-rc1.zip
 - User has Execute Method permission on `idea_GetPrimaryIronCadForPart`.
 - User has Get permission on `Part`, `CAD`, `Part CAD`, `File`.
 - User has Get permission on `idea_PartLibrary`, `idea_PartLibraryEntry`.
-- Role identity matches one of: TPTKC, TNTKC, NVTKC, NVLCR, PM, Khách hàng.
+- Role identity matches one of: ExampleManager, ExampleReviewer, ExampleContributor, ExampleAssemblyViewer, ExampleProjectViewer, Khách hàng.
 
 ## Machine Prerequisites
 

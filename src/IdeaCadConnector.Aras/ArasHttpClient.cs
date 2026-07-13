@@ -22,15 +22,20 @@ namespace IdeaCadConnector.Aras
         private bool _disposed;
 
         public ArasHttpClient(Uri baseUri, TimeSpan timeout)
+            : this(baseUri, timeout, null)
+        {
+        }
+
+        internal ArasHttpClient(Uri baseUri, TimeSpan timeout, HttpMessageHandler handler)
         {
             if (baseUri == null)
                 throw new ArgumentNullException(nameof(baseUri));
 
-            _httpClient = new HttpClient
-            {
-                BaseAddress = baseUri,
-                Timeout = timeout
-            };
+            _httpClient = handler == null
+                ? new HttpClient()
+                : new HttpClient(handler, disposeHandler: false);
+            _httpClient.BaseAddress = baseUri;
+            _httpClient.Timeout = timeout;
         }
 
         public void SetBearerToken(string token, string tokenType = "Bearer")

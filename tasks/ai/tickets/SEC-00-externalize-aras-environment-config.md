@@ -11,7 +11,7 @@
 
 ### Behavior before
 
-`ArasClientOptions.cs` contained hardcoded environment-specific values: an internal Aras server URL (`http://172.16.10.227/InnovatorServer/`), real database name (`InnovatorSolutions`), real Vault ID (`67BBB9204FE84A8981ED8313049BA06C`), and a machine-specific IronCAD executable path. The existing `EnvironmentConfigurationLoader` class was never called from production code — it was dead code only exercised by tests.
+`ArasClientOptions.cs` contained hardcoded environment-specific values: an internal Aras server URL (`https://<innovator-server-url>/InnovatorServer/`), real database name (`SampleDatabase`), real Vault ID (`SampleVaultId`), and a machine-specific IronCAD executable path. The existing `EnvironmentConfigurationLoader` class was never called from production code — it was dead code only exercised by tests.
 
 ### Behavior after
 

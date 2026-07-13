@@ -2181,7 +2181,7 @@ namespace IdeaCadConnector.Desktop
                     !string.IsNullOrWhiteSpace(manifest.LockToken) &&
                     CadLifecyclePolicy.CanCheckout(_liveCadState))
                 {
-                    var adapter = new IronCadExternalAdapter();
+                    var adapter = CreateIronCadAdapter();
                     await adapter.OpenDocumentAsync(manifest.LocalFilePath, CadOpenMode.Edit, CancellationToken.None);
                     StatusMessage = $"Opened {Path.GetFileName(manifest.LocalFilePath)} (checked out).";
                     return;
@@ -2193,7 +2193,7 @@ namespace IdeaCadConnector.Desktop
                     !string.IsNullOrWhiteSpace(manifest.LockToken) &&
                     !CadLifecyclePolicy.CanCheckout(_liveCadState))
                 {
-                    var adapter = new IronCadExternalAdapter();
+                    var adapter = CreateIronCadAdapter();
                     await adapter.OpenDocumentAsync(manifest.LocalFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
                     StatusMessage = LifecycleDisplayText.GetReadOnlySessionStaleMessage(Path.GetFileName(manifest.LocalFilePath));
                     return;
@@ -2205,7 +2205,7 @@ namespace IdeaCadConnector.Desktop
                         _liveCadId, localDir, CancellationToken.None);
                     if (roResult.Success && roResult.LocalFilePath != null)
                     {
-                        var adapter = new IronCadExternalAdapter();
+                        var adapter = CreateIronCadAdapter();
                         await adapter.OpenDocumentAsync(roResult.LocalFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
                         StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnly), cadFileName);
                     }
@@ -2214,7 +2214,7 @@ namespace IdeaCadConnector.Desktop
                         var fallbackPath = cadPath;
                         if (fallbackPath != null && System.IO.File.Exists(fallbackPath))
                         {
-                            var adapter = new IronCadExternalAdapter();
+                            var adapter = CreateIronCadAdapter();
                             await adapter.OpenDocumentAsync(fallbackPath, CadOpenMode.ReadOnly, CancellationToken.None);
                             StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnlyLocal), cadFileName);
                         }
@@ -2233,7 +2233,7 @@ namespace IdeaCadConnector.Desktop
                         _liveCadId, localDir, CancellationToken.None);
                     if (roResult.Success && roResult.LocalFilePath != null)
                     {
-                        var adapter = new IronCadExternalAdapter();
+                        var adapter = CreateIronCadAdapter();
                         await adapter.OpenDocumentAsync(roResult.LocalFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
                         StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnlyLifecycle), cadFileName, _liveCadState);
                     }
@@ -2255,7 +2255,7 @@ namespace IdeaCadConnector.Desktop
                     {
                         if (cadPath != null && System.IO.File.Exists(cadPath))
                         {
-                            var adapter = new IronCadExternalAdapter();
+                            var adapter = CreateIronCadAdapter();
                             await adapter.OpenDocumentAsync(cadPath, CadOpenMode.ReadOnly, CancellationToken.None);
                             StatusMessage = string.Format(Loc(TranslationKeys.StatusCadOpenedReadOnlyLocked), cadFileName);
                         }
@@ -2287,7 +2287,7 @@ namespace IdeaCadConnector.Desktop
                     LastKnownGeneration = checkoutInfo.Cad?.Generation ?? 0
                 });
 
-                var editAdapter = new IronCadExternalAdapter();
+                var editAdapter = CreateIronCadAdapter();
                 await editAdapter.OpenDocumentAsync(checkoutInfo.LocalFilePath, CadOpenMode.Edit, CancellationToken.None);
                 StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckedOutPdm), Path.GetFileName(checkoutInfo.LocalFilePath));
                 _ = RefreshCadStateAsync();
@@ -2300,6 +2300,11 @@ namespace IdeaCadConnector.Desktop
             {
                 IsOpeningInIronCad = false;
             }
+        }
+
+        private static ICadApplicationAdapter CreateIronCadAdapter()
+        {
+            return IronCadAdapterFactory.CreateFromSession();
         }
 
         private async Task<string> ResolveCadIdForNodeAsync(PdmStructureNode node, CancellationToken ct)

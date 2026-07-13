@@ -97,8 +97,8 @@ The repository now **adds** in Sprint 2.4:
 The following evidence has been recorded against the current design baseline:
 
 - Admin smoke test passed.
-- `lamEngineer` UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
-- `lamPM` UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
+- `ExampleContributor` UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
+- `ExampleManager` UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
 - Viewer/unknown behavior confirmed conservative read-only behavior.
 - Automated verification passed: Debug build, Release build, and full tests `214/214`.
 
@@ -128,12 +128,12 @@ Follow-up patch applied with commit `f0db0348e4a6a9a70ff6232d5031304b1ed9c211`. 
 
 - `ILibraryAuthorizationService` gained `IsReviewerOrHigher`, `CanMoveEntries`, `CanPinRevisions`.
 - `LibraryAuthorizationRules` gained `ReviewerUsers` collection and `IsReviewer()` method.
-- Default reviewer users: tntkc, lampm, tptkc, truongphongthietkeco, admin, innovatoradmin (original UAT usernames; mapped to official roles below).
+- Default reviewer users: examplereviewer, lampm, examplemanager, truongphongthietkeco, admin, innovatoradmin (original UAT usernames; mapped to official roles below).
 - `CanExecuteMoveEntry` now gates on `CanMoveEntries` (reviewer-or-higher) instead of `IsContributorOrHigher`.
 - `PartRevisionBrowserViewModel` accepts `canPinRevisions` parameter; `CanPin` gates on it.
-- NVTKC: `IsReviewerOrHigher=false` → `CanMoveEntries=false`, `CanPinRevisions=false`.
-- TNTKC: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
-- TPTKC: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
+- ExampleContributor: `IsReviewerOrHigher=false` → `CanMoveEntries=false`, `CanPinRevisions=false`.
+- ExampleReviewer: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
+- ExampleManager: `IsReviewerOrHigher=true` → `CanMoveEntries=true`, `CanPinRevisions=true`.
 - viewer/unknown: conservative read-only, no Move/Pin.
 
 No backend `MoveLibraryEntryAsync`, `SearchPartRevisionsAsync`, or `UpdateRevisionPolicyAsync` behavior was changed.
@@ -206,11 +206,11 @@ Remaining live limitations:
 
 | ID | Official Title | Capability | Move Entry | Pin Revision | Library Admin |
 |---|---|---|---|---|---|
-| `TPTKC` | Trưởng phòng thiết kế cơ | Manager | Yes | Yes | Yes |
-| `TNTKC` | Trưởng nhóm thiết kế cơ | Reviewer | Yes | Yes | No |
-| `NVTKC` | Nhân viên thiết kế cơ | Contributor | No | No | No |
-| `NVLCR` | Nhân viên lắp ráp cơ | Assembly viewer | No | No | No |
-| `PM` | Quản lý dự án | Project viewer | No | No | No |
+| `ExampleManager` | Trưởng phòng thiết kế cơ | Manager | Yes | Yes | Yes |
+| `ExampleReviewer` | Trưởng nhóm thiết kế cơ | Reviewer | Yes | Yes | No |
+| `ExampleContributor` | Nhân viên thiết kế cơ | Contributor | No | No | No |
+| `ExampleAssemblyViewer` | Nhân viên lắp ráp cơ | Assembly viewer | No | No | No |
+| `ExampleProjectViewer` | Quản lý dự án | Project viewer | No | No | No |
 | `Khách hàng` | Customer | External viewer | No | No | No |
 
 ## Phase 2 Closeout

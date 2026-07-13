@@ -16,7 +16,7 @@ Include a brief message with:
 
 - The extraction destination (see INSTALLATION-HARDENING.md)
 - The Aras server URL and database name
-- The tester's role identity (TPTKC/TNTKC/NVTKC/NVLCR/PM/Khách hàng)
+- The tester's role identity (ExampleManager/ExampleReviewer/ExampleContributor/ExampleAssemblyViewer/ExampleProjectViewer/Khách hàng)
 - A link to the UAT checklist (docs/UAT-CHECKLIST.md)
 
 Do **not** send:
@@ -46,7 +46,7 @@ Before the tester starts, confirm:
    - Get permission on `Part`, `CAD`, `Part CAD`, `File`
    - Get permission on `idea_PartLibrary`, `idea_PartLibraryEntry`
 3. The tester's Aras username matches one of the expected role aliases:
-   - TPTKC, TNTKC, NVTKC, NVLCR, PM, or Customer/KhachHang
+   - ExampleManager, ExampleReviewer, ExampleContributor, ExampleAssemblyViewer, ExampleProjectViewer, or Customer/KhachHang
 4. The Part Library Items are populated with test data (Libraries and Entries).
 
 ## Required Machine Preparation

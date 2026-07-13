@@ -121,11 +121,11 @@ Sprint 2.1 implemented locally:
 Recorded UAT evidence:
 
 1. Admin smoke test passed.
-2. `lamEngineer` UAT:
+2. `ExampleContributor` UAT:
    - contributor behavior confirmed
    - no Library admin commands
    - Part Picker usable where Aras permission allows
-3. `lamPM` UAT:
+3. `ExampleManager` UAT:
    - manager behavior confirmed for current UAT
    - Create/Edit/Archive Library available
 4. Viewer/unknown behavior:
@@ -147,14 +147,14 @@ Remaining live limitations:
 Recorded UAT evidence on 2026-07-07:
 
 1. **Admin** Move Entry and Revision Browser: PASS
-2. **lamEngineer/NVTKC** (contributor):
+2. **ExampleContributor/ExampleContributor** (contributor):
    - Move Entry: FAIL (can move via `IsContributorOrHigher`; business rule says view-only) — logged as follow-up
    - Revision Browser view: PASS
    - Pin Selected Revision: FAIL (can pin via `IsContributorOrHigher`; business rule says view-only) — logged as follow-up
-3. **TNTKC** (reviewer):
+3. **ExampleReviewer** (reviewer):
    - Move Entry: PASS
    - Revision Browser view and Pin: PASS
-4. **lamPM** (manager):
+4. **ExampleManager** (manager):
    - Move Entry: PASS
    - Revision Browser view and Pin: PASS
 5. **Viewer/unknown**:
@@ -170,15 +170,15 @@ Recorded UAT evidence on 2026-07-07:
 
 Follow-up patch applied. Authorization model extended: `IsReviewerOrHigher` capability separates reviewer from contributor. `CanExecuteMoveEntry` now gates on `CanMoveEntries` (reviewer-or-higher). `PartRevisionBrowserViewModel.CanPin` gates on `canPinRevisions` parameter.
 
-- lamEngineer/NVTKC: `IsReviewerOrHigher=false` → Move/Pin blocked, Revision Browser view allowed.
-- TNTKC: `IsReviewerOrHigher=true` → Move/Pin allowed.
-- lamPM: `IsReviewerOrHigher=true` → Move/Pin allowed.
+- ExampleContributor/ExampleContributor: `IsReviewerOrHigher=false` → Move/Pin blocked, Revision Browser view allowed.
+- ExampleReviewer: `IsReviewerOrHigher=true` → Move/Pin allowed.
+- ExampleManager: `IsReviewerOrHigher=true` → Move/Pin allowed.
 - viewer/unknown: read-only, no Move/Pin.
 
 Default role mapping:
-- Manager: admin, innovatoradmin, lampm, tptkc, truongphongthietkeco
-- Reviewer: tntkc, lampm, tptkc, truongphongthietkeco, admin, innovatoradmin
-- Contributor: lamengineer, nvtkc, tntkc
+- Manager: admin, innovatoradmin, lampm, examplemanager, truongphongthietkeco
+- Reviewer: examplereviewer, lampm, examplemanager, truongphongthietkeco, admin, innovatoradmin
+- Contributor: lamengineer, examplecontributor, examplereviewer
 
 ## Sprint 2.3 App UAT Smoke Evidence
 
@@ -231,9 +231,9 @@ Recorded UAT evidence on 2026-07-08:
    - Operation cancelled: "Operation was cancelled."
    - Empty states: No CAD / No BOM / No Revisions / No Where Used already previously confirmed working
 7. **Command state regression** (verified against 2.2 follow-up):
-   - lamEngineer/NVTKC: Cannot Move Entry, Cannot Pin Revision (verified: `IsContributorOrHigher` without `IsReviewerOrHigher`)
-   - TNTKC: Can Move Entry, Can Pin Revision
-   - lamPM: Can Move Entry, Can Pin Revision
+   - ExampleContributor/ExampleContributor: Cannot Move Entry, Cannot Pin Revision (verified: `IsContributorOrHigher` without `IsReviewerOrHigher`)
+   - ExampleReviewer: Can Move Entry, Can Pin Revision
+   - ExampleManager: Can Move Entry, Can Pin Revision
    - viewer/unknown: Move Entry blocked, Revision Browser hidden
    - Test: `FilterByEntryStatus_WhenArchived_ExcludesArchivedLibraries`
 8. **Archived Libraries**: Remain hidden by default per D-03; archived entry status matches filtering against the library's current archive state
@@ -338,11 +338,11 @@ Performed on 2026-07-08 on actual organization Aras environment.
 | CAD lookup via `idea_GetPrimaryIronCadForPart` | PASS | Read-only server method deployed and working |
 | Open Part/Entry/Library/CAD in Aras | PASS | Browser opens correct Innovator URL |
 | Download/Open CAD | ACCEPTED_ENV_DEPENDENT | Behavior depends on local IronCAD install + Vault permissions |
-| TPTKC permissions | PASS | Can manage Libraries, Move Entry, Pin Revision |
-| TNTKC permissions | PASS | Can Move Entry, Pin Revision |
-| NVTKC permissions | PASS | Cannot Move/Pin, can view/use Library |
-| NVLCR permissions | PASS | View-only |
-| PM permissions | PASS | View-only |
+| ExampleManager permissions | PASS | Can manage Libraries, Move Entry, Pin Revision |
+| ExampleReviewer permissions | PASS | Can Move Entry, Pin Revision |
+| ExampleContributor permissions | PASS | Cannot Move/Pin, can view/use Library |
+| ExampleAssemblyViewer permissions | PASS | View-only |
+| ExampleProjectViewer permissions | PASS | View-only |
 | Khách hàng permissions | N/A | No live account available for this UAT session |
 | Negative states | PASS | Loading, permission denied, server unavailable, cancelled — all show correct messages |
 
@@ -352,11 +352,11 @@ No screenshots committed to repository; retained externally by tester.
 
 | ID | Official Title | Capability | Move Entry | Pin Revision | Library Admin |
 |---|---|---|---|---|---|
-| `TPTKC` | Trưởng phòng thiết kế cơ | Manager | Yes | Yes | Yes |
-| `TNTKC` | Trưởng nhóm thiết kế cơ | Reviewer | Yes | Yes | No |
-| `NVTKC` | Nhân viên thiết kế cơ | Contributor | No | No | No |
-| `NVLCR` | Nhân viên lắp ráp cơ | Assembly viewer | No | No | No |
-| `PM` | Quản lý dự án | Project viewer | No | No | No |
+| `ExampleManager` | Trưởng phòng thiết kế cơ | Manager | Yes | Yes | Yes |
+| `ExampleReviewer` | Trưởng nhóm thiết kế cơ | Reviewer | Yes | Yes | No |
+| `ExampleContributor` | Nhân viên thiết kế cơ | Contributor | No | No | No |
+| `ExampleAssemblyViewer` | Nhân viên lắp ráp cơ | Assembly viewer | No | No | No |
+| `ExampleProjectViewer` | Quản lý dự án | Project viewer | No | No | No |
 | `Khách hàng` | Customer | External viewer | No | No | No |
 
 ### Final Deployment Requirements
@@ -364,7 +364,7 @@ No screenshots committed to repository; retained externally by tester.
 - Server method: `idea_GetPrimaryIronCadForPart` (read-only C#)
 - Method behavior: accepts `part_id`, returns primary CAD/native_file — no mutation
 - Required permissions: Execute Method, Get Part, Get CAD, Get Part CAD relationship, Get File/native_file
-- Target Aras must have role identities: TPTKC, TNTKC, NVTKC, NVLCR, PM, Khách hàng
+- Target Aras must have role identities: ExampleManager, ExampleReviewer, ExampleContributor, ExampleAssemblyViewer, ExampleProjectViewer, Khách hàng
 
 ### Summary
 

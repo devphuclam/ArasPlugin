@@ -20,11 +20,26 @@ namespace IdeaCadConnector.Core.Configuration
 
         public static EnvironmentConfigurationResult Load()
         {
+            return Load(CreateProductionPathContext());
+        }
+
+        internal static EnvironmentConfigurationResult Load(EnvironmentConfigurationPathContext paths)
+        {
+            if (paths == null)
+                throw new ArgumentNullException(nameof(paths));
+
             var result = new EnvironmentConfigurationResult();
 
-            string path = ResolvePath();
+            string path = ResolvePath(paths, result.Errors);
             if (path == null)
             {
+                if (result.Errors.Count > 0)
+                {
+                    result.Configuration = CreateDefault();
+                    result.SourcePath = paths.EnvironmentVariableValue;
+                    return result;
+                }
+
                 result.Warnings.Add("No environment config file found. Using built-in defaults.");
                 result.Configuration = CreateDefault();
                 result.SourcePath = "built-in defaults";
@@ -92,29 +107,63 @@ namespace IdeaCadConnector.Core.Configuration
 
         public static string ResolvePath()
         {
-            string envPath = Environment.GetEnvironmentVariable(EnvVarName);
-            if (!string.IsNullOrWhiteSpace(envPath) && File.Exists(envPath))
+            var errors = new List<string>();
+            return ResolvePath(CreateProductionPathContext(), errors);
+        }
+
+        internal static string ResolvePath(
+            EnvironmentConfigurationPathContext paths,
+            IList<string> errors)
+        {
+            if (paths == null)
+                throw new ArgumentNullException(nameof(paths));
+            if (errors == null)
+                throw new ArgumentNullException(nameof(errors));
+
+            string envPath = paths.EnvironmentVariableValue;
+            if (!string.IsNullOrWhiteSpace(envPath))
             {
-                return Path.GetFullPath(envPath);
+                string fullEnvPath = Path.GetFullPath(envPath.Trim());
+                if (Directory.Exists(fullEnvPath))
+                {
+                    errors.Add("The explicit environment config path points to a directory. " +
+                        "Set IDEA_CAD_CONNECTOR_ENV_CONFIG to a readable JSON file.");
+                    return null;
+                }
+
+                if (!File.Exists(fullEnvPath))
+                {
+                    errors.Add("The explicit environment config path does not exist. " +
+                        "Set IDEA_CAD_CONNECTOR_ENV_CONFIG to an existing readable JSON file.");
+                    return null;
+                }
+
+                return fullEnvPath;
             }
 
-            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-            string nextToExe = Path.Combine(exeDir, FileName);
+            string nextToExe = Path.Combine(paths.SideBySideDirectory, FileName);
             if (File.Exists(nextToExe))
             {
                 return Path.GetFullPath(nextToExe);
             }
 
-            string appData = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "IdeaCadConnector",
-                FileName);
+            string appData = Path.Combine(paths.AppDataDirectory, FileName);
             if (File.Exists(appData))
             {
                 return Path.GetFullPath(appData);
             }
 
             return null;
+        }
+
+        private static EnvironmentConfigurationPathContext CreateProductionPathContext()
+        {
+            return new EnvironmentConfigurationPathContext(
+                Environment.GetEnvironmentVariable(EnvVarName),
+                AppDomain.CurrentDomain.BaseDirectory,
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "IdeaCadConnector"));
         }
 
         public static EnvironmentConfiguration CreateDefault()

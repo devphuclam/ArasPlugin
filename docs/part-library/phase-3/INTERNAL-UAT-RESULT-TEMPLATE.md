@@ -9,7 +9,7 @@
 |---|---|
 | Machine name | |
 | Windows version | |
-| Tester role | TPTKC / TNTKC / NVTKC / NVLCR / PM / Khách hàng |
+| Tester role | ExampleManager / ExampleReviewer / ExampleContributor / ExampleAssemblyViewer / ExampleProjectViewer / Khách hàng |
 | Aras URL | |
 | Aras database | |
 | Package version | v0.3.0-rc1 |

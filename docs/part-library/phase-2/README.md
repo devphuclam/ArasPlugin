@@ -29,8 +29,8 @@ Complete the desktop Part Library experience on top of the working Phase 1 and S
 
 | ID | Persona | Role |
 |---|---|---|
-| `NVTKC` | Mechanical Designer | Library Contributor |
-| `TNTKC` | Mechanical Team Leader | Library Reviewer (inherits Contributor) |
+| `ExampleContributor` | Mechanical Designer | Library Contributor |
+| `ExampleReviewer` | Mechanical Team Leader | Library Reviewer (inherits Contributor) |
 | `TKC_MANAGER` | Mechanical Design Department Manager | Library Manager (inherits Reviewer + Contributor) |
 | `PROJECT_VIEWER` | Project Manager | Project and Usage Viewer |
 | `MFG_VIEWER` | Mechanical Assembly User | Manufacturing Viewer |
@@ -112,15 +112,15 @@ Sprint 2.2 core backend + UI are now implemented:
 - Release build passed
 - full tests passed `261/261`
 
-Sprint 2.2 follow-up patch applied. Move Entry and Pin Revision are now gated on `IsReviewerOrHigher` (TNTKC, TPTKC, admin). NVTKC can view Revision Browser but cannot Move or Pin.
+Sprint 2.2 follow-up patch applied. Move Entry and Pin Revision are now gated on `IsReviewerOrHigher` (ExampleReviewer, ExampleManager, admin). ExampleContributor can view Revision Browser but cannot Move or Pin.
 
 ## Sprint 2.1 UAT Smoke Evidence
 
 Recorded closeout evidence (original role names used at time of testing):
 
 - Admin smoke test passed.
-- `NVTKC` (then `lamEngineer`) UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
-- `TPTKC` (then `lamPM`) UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
+- `ExampleContributor` (then `ExampleContributor`) UAT confirmed contributor behavior, no Library admin commands, and Part Picker usability where Aras permission allows.
+- `ExampleManager` (then `ExampleManager`) UAT confirmed manager behavior for current UAT, with Create/Edit/Archive Library available.
 - Viewer/unknown behavior confirmed conservative read-only behavior.
 - Automated verification passed: Debug build, Release build, and full tests `214/214`.
 
@@ -129,9 +129,9 @@ Recorded closeout evidence (original role names used at time of testing):
 Recorded closeout evidence (original role names used at time of testing):
 
 - Admin smoke test passed.
-- `NVTKC` (then `lamEngineer`) UAT confirmed contributor behavior, Part Picker usability, Revision Browser view. Move Entry and Pin are correctly blocked for NVTKC.
-- `TNTKC` UAT confirmed reviewer behavior: Move Entry and Pin Revision available.
-- `TPTKC` (then `lamPM`) UAT confirmed manager behavior: Move Entry and Pin Revision available.
+- `ExampleContributor` (then `ExampleContributor`) UAT confirmed contributor behavior, Part Picker usability, Revision Browser view. Move Entry and Pin are correctly blocked for ExampleContributor.
+- `ExampleReviewer` UAT confirmed reviewer behavior: Move Entry and Pin Revision available.
+- `ExampleManager` (then `ExampleManager`) UAT confirmed manager behavior: Move Entry and Pin Revision available.
 - Viewer/unknown behavior confirmed conservative read-only behavior.
 - Automated verification passed: Debug build, Release build, full tests 267/267.
 
@@ -237,9 +237,9 @@ Completed locally (2026-07-08):
 - Empty states: No CAD / No BOM / No Revisions / No Where Used already handled
 
 **Command state regression:**
-- NVTKC (contributor): cannot Move Entry, cannot Pin Revision
-- TNTKC (reviewer): can Move and Pin where Aras permits
-- TPTKC (manager): can manage Libraries, Move, Pin
+- ExampleContributor (contributor): cannot Move Entry, cannot Pin Revision
+- ExampleReviewer (reviewer): can Move and Pin where Aras permits
+- ExampleManager (manager): can manage Libraries, Move, Pin
 - viewer/unknown: read-only, blocked where required
 
 **Localization:** 25 new keys added to en-US, vi-VN, ja-JP.
@@ -255,11 +255,11 @@ Phase 2 closed after Sprint 2.4 final live App UAT accepted on 2026-07-08.
 **Final live UAT result:** Accepted.
 
 Roles tested on live Aras:
-- **TPTKC** — Trưởng phòng thiết kế cơ (Manager) — can manage Libraries, Move Entry, Pin Revision — PASS
-- **TNTKC** — Trưởng nhóm thiết kế cơ (Reviewer) — can Move Entry, Pin Revision — PASS
-- **NVTKC** — Nhân viên thiết kế cơ (Contributor) — cannot Move/Pin, can view/use Library — PASS
-- **NVLCR** — Nhân viên lắp ráp cơ (Assembly viewer) — view-only — PASS
-- **PM** — Quản lý dự án (Project viewer) — view-only — PASS
+- **ExampleManager** — Trưởng phòng thiết kế cơ (Manager) — can manage Libraries, Move Entry, Pin Revision — PASS
+- **ExampleReviewer** — Trưởng nhóm thiết kế cơ (Reviewer) — can Move Entry, Pin Revision — PASS
+- **ExampleContributor** — Nhân viên thiết kế cơ (Contributor) — cannot Move/Pin, can view/use Library — PASS
+- **ExampleAssemblyViewer** — Nhân viên lắp ráp cơ (Assembly viewer) — view-only — PASS
+- **ExampleProjectViewer** — Quản lý dự án (Project viewer) — view-only — PASS
 
 **No P0/P1 blocker found.** All command states, filters, sorting, tabs, CAD actions, and Aras links verified and accepted.
 

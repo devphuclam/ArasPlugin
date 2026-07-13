@@ -27,11 +27,11 @@
 
 ## 4. Role Readiness
 
-- [x] TPTKC (manager) account available
-- [x] TNTKC (reviewer) account available
-- [x] NVTKC (contributor) account available
-- [x] NVLCR (assembly viewer) account available
-- [x] PM (project viewer) account available
+- [x] ExampleManager (manager) account available
+- [x] ExampleReviewer (reviewer) account available
+- [x] ExampleContributor (contributor) account available
+- [x] ExampleAssemblyViewer (assembly viewer) account available
+- [x] ExampleProjectViewer (project viewer) account available
 - [x] Khách hàng (customer) account available
 - [x] Role mapping defaults correct
 

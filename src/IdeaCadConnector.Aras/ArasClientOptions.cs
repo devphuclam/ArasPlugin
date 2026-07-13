@@ -48,6 +48,23 @@ namespace IdeaCadConnector.Aras
                 throw new ArasOperationException(
                     ArasErrorCode.ValidationFailed,
                     "Aras database is not configured. Set 'aras.database' in the environment configuration or provide it in the login form.");
+            if (string.IsNullOrWhiteSpace(OAuthClientId) || string.IsNullOrWhiteSpace(OAuthScope))
+                throw new ArasOperationException(
+                    ArasErrorCode.ValidationFailed,
+                    "OAuth client ID and scope are not configured. Set 'aras.oauthClientId' and 'aras.oauthScope' in the environment configuration.");
+        }
+
+        internal static Uri NormalizeBaseUri(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            string trimmed = value.Trim().TrimEnd('/');
+            if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+                || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                return null;
+
+            return new Uri(trimmed + "/", UriKind.Absolute);
         }
     }
 
@@ -123,14 +140,15 @@ namespace IdeaCadConnector.Aras
             if (!string.IsNullOrWhiteSpace(envConfig.Aras?.BaseUrl))
             {
                 var url = envConfig.Aras.BaseUrl.Trim();
-                if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                var uri = ArasClientOptions.NormalizeBaseUri(url);
+                if (uri != null)
                 {
                     options.BaseUri = uri;
                 }
                 else
                 {
                     configResult.Errors.Add(
-                        $"Configuration 'aras.baseUrl' is not a valid absolute URI: '{TruncateForLog(url)}'.");
+                        $"Configuration 'aras.baseUrl' must be an absolute http or https URI: '{TruncateForLog(url)}'.");
                 }
             }
             else
@@ -226,10 +244,11 @@ namespace IdeaCadConnector.Aras
 
             if (!string.IsNullOrWhiteSpace(serverUrl))
             {
-                if (Uri.TryCreate(serverUrl.Trim(), UriKind.Absolute, out var uri))
-                {
-                    result.BaseUri = uri;
-                }
+                result.BaseUri = ArasClientOptions.NormalizeBaseUri(serverUrl);
+                if (result.BaseUri == null)
+                    throw new ArasOperationException(
+                        ArasErrorCode.ValidationFailed,
+                        "Login server URL must be an absolute http or https URI.");
             }
 
             result.Database = database?.Trim() ?? options.Database;

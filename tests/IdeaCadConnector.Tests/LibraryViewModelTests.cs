@@ -66,7 +66,7 @@ namespace IdeaCadConnector.Tests
             session.PartLibraryClient = client;
             session.ArasCadClient = new StubArasCadClient();
             session.ArasServerUrl = "http://innovator-test/InnovatorServer/";
-            session.ArasDatabase = "InnovatorSolutions";
+            session.ArasDatabase = "SampleDatabase";
             session.NotifyLibraryDataChanged();
 
             var openUrlService = typeof(LibraryViewModel)
@@ -101,7 +101,7 @@ namespace IdeaCadConnector.Tests
             session.PartLibraryClient = client;
             session.ArasCadClient = new StubArasCadClient();
             session.ArasServerUrl = "http://innovator-test/InnovatorServer/";
-            session.ArasDatabase = "InnovatorSolutions";
+            session.ArasDatabase = "SampleDatabase";
             session.NotifyLibraryDataChanged();
 
             viewModel.SelectedEntry = new PartLibraryEntryRow
@@ -115,7 +115,7 @@ namespace IdeaCadConnector.Tests
             await WaitForAsync(() => browserLauncher.LastUrl != null);
 
             Assert.Contains("type=Part", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("InnovatorSolutions", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("SampleDatabase", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("Unavailable", browserLauncher.LastUrl, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -125,7 +125,7 @@ namespace IdeaCadConnector.Tests
             var session = new FakeAppSessionContext
             {
                 ArasServerUrl = "http://innovator-test/InnovatorServer/",
-                ArasDatabase = "InnovatorSolutions"
+                ArasDatabase = "SampleDatabase"
             };
             var client = CreateReusableClient();
             client.EntryDetailsToReturn.PrimaryCadId = "cad-1";
@@ -200,7 +200,7 @@ namespace IdeaCadConnector.Tests
             var browserLauncher = new CapturingBrowserLauncher();
             var openUrlService = new ArasOpenUrlService(
                 new Uri("http://innovator-test/InnovatorServer/"),
-                "InnovatorSolutions");
+                "SampleDatabase");
 
             var viewModel = new LibraryViewModel(
                 session,

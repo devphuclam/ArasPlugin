@@ -8,7 +8,7 @@ ReadOnly,User can get Library but lacks contributor permission,You can view but 
 DuplicateEntry,Same Library plus Part config plus revision policy exists,HANDLE already exists in this Library,Open Existing Entry,Save duplicate,Select existing relationship
 PartNotPushed,Selected PDM node has no Aras Part ID,Push the Part to Aras before saving,Open PDM Project,Save to Library,Do not create Library relationship to local-only node
 PartNoCad,Part exists but no linked native CAD,No linked CAD found,Reuse BOM only,Open IronCAD; Checkout,Allow Part reference when category policy permits
-LockedByOther,CAD is locked by another Identity,Locked by lamEngineer,Add to Project,Checkout; Edit,Reuse BOM remains allowed
+LockedByOther,CAD is locked by another Identity,Locked by ExampleContributor,Add to Project,Checkout; Edit,Reuse BOM remains allowed
 NewRevision,Resolved current revision differs from latest released,Revision B is available,Use B or Keep A,Automatic silent replacement,Show impact and Where Used
 Deprecated,Entry or Part is deprecated or obsolete,Do not use in new designs,Find Replacement,Add to Project by default,Preserve audit and Where Used
 NoProjectOpen,No active PDM workspace,Open or clone a PDM Project,Open PDM Projects,Add to Current Project,Library browsing remains enabled

@@ -262,3 +262,23 @@ _Updated 2026-07-13 with review-fix pass 2 (F-01, F-03, F-04, F-06)._
 - Verify-AiTicket: pre-existing `build-solution.ps1` path issue — not a regression
 - Working tree: clean
 - Follow-up: `PdmProjectsViewModel.cs` uses `new IronCadExternalAdapter()` with null path (PDM scope, excluded); old real values remain in Git history
+
+## SEC-00 correction record — 2026-07-13
+
+The SEC-00 completion record above was not sufficient to close the security work. Post-merge review found unsafe configuration-path tests, a PDM IronCAD path regression, incomplete BaseUri normalization, hardcoded HTTP OAuth values, silent fallback for an invalid explicit environment path, and current-tree infrastructure evidence that required sanitation. The historical record is retained as a record of what was reported; this correction is the authoritative status for the hotfix.
+
+- Hotfix branch: `hotfix/sec-00-config-regressions`
+- Ticket: `SEC-00-HOTFIX`
+- Scope: configuration loader/test isolation, BaseUri/OAuth handling, PDM adapter composition, current-tree sanitation, and verification evidence only.
+- Aras schema/server methods: unchanged; no live Aras connection used.
+- Historical commits: unchanged; history cleanup requires separate approval.
+- DOC-03: not started.
+- Status: Completed on 2026-07-13 after fresh verification.
+- Debug build: succeeded, 0 errors, 12 existing IronCAD post-build `Access is denied` warnings.
+- Release build: succeeded, 0 errors, 12 existing IronCAD post-build `Access is denied` warnings.
+- Debug tests: 482 passed, 0 failed, 0 skipped.
+- Release tests: 482 passed, 0 failed, 0 skipped.
+- `Check-AiScope.ps1`: passed.
+- `Verify-AiTicket.ps1 -TicketId SEC-00-HOTFIX`: passed; evidence `.ai-work/verification/SEC-00-HOTFIX-20260713-113709`.
+- Restore note: solution restore independently failed during restore-graph traversal with exit 1 and no project error; Core/Aras project restore passed, and build/test verification used `--no-restore` with the existing cache.
+- Next allowed work remains gated by the existing BASE-04/schema and document-file blockers; DOC-03 was not started by this hotfix.

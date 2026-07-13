@@ -53,7 +53,7 @@ namespace IdeaCadConnector.Aras
             _options.EnsureValid();
 
             var serverUrl = _options.BaseUri.ToString().TrimEnd('/');
-            var tokenEndpoint = _options.BaseUri + "oauthserver/connect/token";
+            var tokenEndpoint = new Uri(_options.BaseUri, "oauthserver/connect/token").ToString();
 
             _logger.LogInformation("IOM login user={User} database={Database}", userName, database);
 

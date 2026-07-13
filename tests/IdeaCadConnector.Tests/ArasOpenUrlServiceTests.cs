@@ -11,7 +11,7 @@ namespace IdeaCadConnector.Tests
     public sealed class ArasOpenUrlServiceTests
     {
         private static readonly Uri TestBaseUri = new Uri("http://innovator-test/InnovatorServer/");
-        private const string TestDatabase = "InnovatorSolutions";
+        private const string TestDatabase = "SampleDatabase";
 
         [Fact]
         public void BuildPartUrl_WithConfigId_UsesConfigId()
@@ -21,7 +21,7 @@ namespace IdeaCadConnector.Tests
 
             Assert.Contains("cfg-1", url);
             Assert.Contains("type=Part", url);
-            Assert.Contains("db=InnovatorSolutions", url);
+            Assert.Contains("db=SampleDatabase", url);
             Assert.DoesNotContain("part-1", url);
         }
 
@@ -121,10 +121,10 @@ namespace IdeaCadConnector.Tests
         {
             var service = CreateService();
 
-            Assert.Contains("db=InnovatorSolutions", service.BuildPartUrl("p1", "c1"));
-            Assert.Contains("db=InnovatorSolutions", service.BuildCadUrl("c1"));
-            Assert.Contains("db=InnovatorSolutions", service.BuildLibraryUrl("l1"));
-            Assert.Contains("db=InnovatorSolutions", service.BuildEntryUrl("e1"));
+            Assert.Contains("db=SampleDatabase", service.BuildPartUrl("p1", "c1"));
+            Assert.Contains("db=SampleDatabase", service.BuildCadUrl("c1"));
+            Assert.Contains("db=SampleDatabase", service.BuildLibraryUrl("l1"));
+            Assert.Contains("db=SampleDatabase", service.BuildEntryUrl("e1"));
         }
 
         [Fact]
