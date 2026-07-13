@@ -11,7 +11,7 @@ Status: `BLOCKED_RUNTIME_VERIFICATION`
 | Primary interop | `interop.ICApiIronCAD.dll`, assembly/file version `27.0.0.0` |
 | Companion interop | `IronCADCOMInterop.dll`, assembly version `27.0.0.0` |
 | Study | `PDM_StudyCase_260713-1.ics` exists locally; original was not opened for writing, modified, renamed, or committed |
-| Runtime probe | `PROBE_BLOCKED_NO_ACTIVE_COM`; no active `IronCAD.Application` object was available |
+| Runtime probe | `BLOCKED_RUNTIME_VERIFICATION`; disposable study copy opened and legacy `IronCAD.Application` was active, but the project add-in was not loaded, so no `_addinSite.Application`/`IZBaseApp` seam was available |
 
 Reflection and SDK sample evidence establishes only `API_PRESENT`. It does not establish runtime behavior, persistence, occurrence reuse, quantity semantics, or equivalence to UI externalization.
 
@@ -70,7 +70,7 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 | RED | `dotnet build tests/IdeaCadConnector.Tests/IdeaCadConnector.Tests.csproj --configuration Debug --no-restore -m:1` failed because `BomDiagnostic` types did not exist; 3 expected compiler errors |
 | GREEN analyzer | Same serialized build passed, 0 errors |
 | GREEN focused | `dotnet test ... --no-restore --no-build --filter FullyQualifiedName~BomDiagnosticTreeAnalyzerTests` passed: 14/14 |
-| Runtime probe attempt | `PROBE_BLOCKED_NO_ACTIVE_COM`; no study result claimed |
+| Runtime probe attempt | `BLOCKED_RUNTIME_VERIFICATION`; study copy opened successfully, but `IdeaCadConnector.IronCAD` was absent from the IronCAD process and no active add-in-provided `IZBaseApp` was available |
 
 ## Runtime verification record
 
@@ -78,7 +78,8 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 Runtime probe status: BLOCKED_RUNTIME_VERIFICATION
 IronCAD version: 27.0.26.19811
 Interop assembly version: 27.0.0.0
-Active document type: NOT OBSERVED
+Active legacy page: `C:\Users\TD-999\Research\ArasInnovator\copilot-worktrees\ARAS-Plugin\IdeaCadConnector\.ai-work\BOM-00-runtime\study-copy.ics`
+Active document type: NOT OBSERVED (add-in not loaded)
 Top element available: NOT OBSERVED
 Total traversed nodes: NOT OBSERVED
 Assembly nodes: NOT OBSERVED
@@ -91,7 +92,7 @@ External-link nodes: NOT OBSERVED
 Suppressed nodes: NOT OBSERVED
 Hidden nodes: NOT OBSERVED
 Excluded-from-BOM nodes: NOT OBSERVED
-Warnings: no active IronCAD.Application COM object was available
+Warnings: study copy was open through legacy `IronCAD.Application`, but the project add-in was not loaded; direct legacy COM `ZIronCADApp` access could not substitute for the add-in's typed `_addinSite.Application` (`TYPE_E_LIBNOTREGISTERED`/no `IZBaseApp` QI)
 ```
 
 ## Safety and out-of-scope

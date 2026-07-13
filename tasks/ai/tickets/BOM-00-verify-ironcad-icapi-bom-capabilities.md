@@ -13,7 +13,7 @@ This ticket adds a provider-neutral, pure tree analyzer and a read-only IronCAD 
 - `interop.ICApiIronCAD.dll`: assembly/file version `27.0.0.0`.
 - Pure analyzer: implemented and unit-tested.
 - IronCAD reader/probe: implemented and solution-compiled.
-- Runtime study probe: `BLOCKED_RUNTIME_VERIFICATION`; no active `IronCAD.Application` COM object was available.
+- Runtime study probe: `BLOCKED_RUNTIME_VERIFICATION`; a disposable study copy opened and legacy `IronCAD.Application` was active, but the project add-in was not loaded and therefore did not expose `_addinSite.Application`/`IZBaseApp`.
 - Study aggregate counts: not recorded because runtime verification did not run.
 - Original study: unchanged and not committed.
 
@@ -31,7 +31,7 @@ The probe calls only `ActiveDoc`, document metadata, `GetTopElement`, element re
 - [x] Invocation is DEBUG-only, developer-only, requires an explicit output folder, and has no ribbon/UI registration.
 - [x] Debug solution build passed.
 - [x] Focused analyzer tests passed: 14 passed, 0 failed, 0 skipped.
-- [ ] Runtime study verification; blocked until IronCAD add-in and disposable study copy are active.
+- [ ] Runtime study verification; the disposable study copy was active, but the IronCAD process did not load `IdeaCadConnector.IronCAD`, so the typed ICAPI add-in seam remained unavailable.
 - [ ] Externalization, relink, and persistence manual procedure; intentionally deferred and not automated in BOM-00.
 
 ## Follow-up
