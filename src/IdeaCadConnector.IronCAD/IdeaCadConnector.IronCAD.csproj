@@ -86,6 +86,9 @@
     <!-- 3. ProgId: allows COM to find the CLSID by progid string -->
     <Exec Command="reg add &quot;HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn&quot; /ve /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn\CLSID&quot; /ve /d &quot;{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <!-- 4. COM categories required by IronCAD's application add-in discovery -->
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Implemented Categories\{6CA5004A-8CD0-454d-88BA-E9700C9789A6}&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Required Categories\{2D652377-6B3B-450e-840A-5DE09A48B464}&quot; /f" ContinueOnError="true" IgnoreExitCode="true" />
   </Target>
 
   <!--

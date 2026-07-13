@@ -21,7 +21,7 @@ param(
     [string]$ProjectName = "IRONCASE",
     [string]$Version     = "1.0",
     [string]$Groups      = "Frame,Drive,Sensor",
-    [string]$SeedPartPath = "C:\Users\TD-999\Research\ArasInnovator\copilot-worktrees\StudyCase_0603\Stapler.ics",
+    [string]$SeedPartPath = "",
     [switch]$SkipIcs,
     [switch]$Force
 )
