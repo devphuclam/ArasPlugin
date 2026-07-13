@@ -60,6 +60,8 @@ namespace IdeaCadConnector.Aras
             if (request == null)
                 throw new ArgumentNullException(nameof(request));
 
+            _options.EnsureValid();
+
             _http?.Dispose();
             _http = new ArasHttpClient(_options.BaseUri, _options.Timeout);
 

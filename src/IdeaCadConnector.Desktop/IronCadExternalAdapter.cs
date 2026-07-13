@@ -21,7 +21,7 @@ namespace IdeaCadConnector.Desktop
     {
         private readonly string _ironCadExecutablePath;
 
-        public IronCadExternalAdapter(string ironCadExecutablePath = @"C:\Program Files\IronCAD\2025\bin\IRONCAD.exe")
+        public IronCadExternalAdapter(string ironCadExecutablePath = null)
         {
             _ironCadExecutablePath = ironCadExecutablePath;
         }

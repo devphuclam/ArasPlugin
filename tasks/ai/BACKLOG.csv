@@ -1,4 +1,5 @@
 ﻿id,epic,title,dependencies,risk,status
+SEC-00,Security,Externalize Aras environment config from source control,None,High,Completed
 BASE-00,Baseline,Establish clean backed-up baseline,None,High,Ready
 BASE-01,Baseline,Build baseline,BASE-00,High,Blocked by dependencies
 BASE-02,Baseline,Test baseline,BASE-01,Medium,Blocked by dependencies

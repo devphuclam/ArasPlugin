@@ -1,10 +1,15 @@
 {
   "schemaVersion": 1,
-  "environmentName": "UAT",
+  "environmentName": "Development",
   "aras": {
     "baseUrl": "https://your-aras-server.example.com/InnovatorServer",
-    "database": "InnovatorSolutions",
-    "openInArasBaseUrl": "https://your-aras-server.example.com/InnovatorServer"
+    "database": "YourDatabaseName",
+    "openInArasBaseUrl": "https://your-aras-server.example.com/InnovatorServer",
+    "vaultId": "YOUR_VAULT_ID_GUID",
+    "oAuthClientId": "IOMApp",
+    "oAuthScope": "Innovator",
+    "defaultMaxSearchResults": 20,
+    "timeoutSeconds": 30
   },
   "local": {
     "vaultCacheDirectory": "%LOCALAPPDATA%/IdeaCadConnector/VaultCache",
@@ -12,10 +17,10 @@
     "openDownloadedCadAfterDownload": false
   },
   "roles": {
-    "managerUsers": ["TPTKC"],
-    "reviewerUsers": ["TNTKC", "TPTKC"],
-    "contributorUsers": ["NVTKC", "TNTKC", "TPTKC"],
-    "readOnlyUsers": ["NVLCR", "PM", "KhachHang", "Customer"]
+    "managerUsers": ["ManagerUserA"],
+    "reviewerUsers": ["ReviewerUserA"],
+    "contributorUsers": ["ContributorUserA"],
+    "readOnlyUsers": ["ReadOnlyUserA"]
   },
   "diagnostics": {
     "logLevel": "Info",

@@ -13,14 +13,16 @@ namespace IdeaCadConnector.Ui.Views
     public partial class LoginDialog : Window
     {
         private ArasCadClient _arasClient;
+        private readonly ArasClientOptions _options;
 
         public LoginDialog()
-            : this(new ArasClientOptions())
+            : this(ArasClientOptionsFactory.Current ?? new ArasClientOptions())
         {
         }
 
         public LoginDialog(ArasClientOptions options)
         {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
             InitializeComponent();
             DataContext = new LoginViewModel(options);
         }
@@ -111,7 +113,8 @@ namespace IdeaCadConnector.Ui.Views
             {
                 DisposeAuthenticatedClient();
 
-                _arasClient = new ArasCadClient(new ArasClientOptions());
+                var mergedOptions = _options.WithLoginOverrides(LoginRequest.ServerUrl, LoginRequest.Database);
+                _arasClient = new ArasCadClient(mergedOptions);
 
                 var loginResult = await _arasClient.LoginAsync(LoginRequest, CancellationToken.None).ConfigureAwait(true);
                 ViewModel.IsConnected = true;

@@ -221,3 +221,44 @@ The Verifier updates this document after each merged ticket:
 - Schema changes: none (no Aras ItemType/property/relationship touched)
 - Behavior change: Document files now carry relative/absolute path, SHA256 content identity, and stream-counted size; missing/unreadable files block readiness
 - Working tree: DOC-02 files verified; unrelated staged `tests/IdeaCadConnector.Tests/TestResults/BASE-02-test-debug.trx` remains outside this patch.
+
+## SEC-00 completion record
+
+_Updated 2026-07-13 with review-fix pass 2 (F-01, F-03, F-04, F-06)._
+
+- Completed: 2026-07-13
+- Scope: remove hardcoded environment-specific Aras configuration from source code
+- HEAD commit (initial): `fd9081d` (15 files, +614/−19)
+- HEAD commit (review-fix 1): `7f588c9` (6 files, +500/−7)
+- HEAD commit (review-fix 2): `5f4c38d` (7 files, +38/−24)
+- Changes:
+  - Aras project:
+    - `ArasClientOptions.cs` — removed real IP, DB name, Vault ID, IronCAD path from defaults; added `ArasClientOptionsFactory` with `FromConfiguration()`, `WithLoginOverrides()`, `Initialize()`, `Reset()`, `IsInitialized`, lazy init, `Clone()` snapshot semantics, `EnsureValid()` validation
+    - `VaultClient.cs` — VaultId null/empty validation in `UploadFileAsync` throws clear `ArasOperationException`
+    - `ArasAuthenticator.cs` — calls `_options.EnsureValid()` before login to prevent NRE on missing BaseUri
+    - `HttpArasCadClient.cs` — calls `_options.EnsureValid()` before login to prevent NRE on missing BaseUri
+  - Core project: `EnvironmentConfiguration.cs` — added `VaultId`, `OAuthClientId`, `OAuthScope`, `DefaultMaxSearchResults`, `TimeoutSeconds`
+  - Desktop project:
+    - `App.xaml.cs` — calls `ArasClientOptionsFactory.Initialize()` at startup
+    - `MainViewModel.cs` — login uses `ArasClientOptionsFactory.Current.WithLoginOverrides()` so VaultId/OAuth/Timeout survive
+    - `IronCadExternalAdapter.cs` — removed machine-specific default (`null` now)
+    - `Services/IronCadOpenService.cs` — removed machine-specific default (`null` now)
+    - `IdeaCadConnector.environment.template.json` — added all fields with placeholder values
+    - `IdeaCadConnector.Desktop.csproj` — template copy-to-output
+  - IronCAD project: `IronCadAddin.cs` — calls `Initialize()`; uses `WithLoginOverrides()` for user URL
+  - Ui project: `LoginDialog.xaml.cs` — uses `_options.WithLoginOverrides()` so configured VaultId/OAuth survive login
+  - `.gitignore` — ignores `IdeaCadConnector.environment.json`
+  - Tests: 32 tests total (config mapping, missing/malformed fields, precedence, loader errors, login overrides, VaultId validation, IronCAD null path, entry paths, snapshot isolation, template/gitignore integrity)
+  - Secondary template: `docs/part-library/phase-3/templates/IdeaCadConnector.environment.template.json` — cleaned of real database name and user IDs
+- Build Debug: Succeeded (0 warnings, 0 errors)
+- Build Release: Succeeded (0 warnings, 0 errors)
+- Test Debug: 465 passed, 0 failed, 0 skipped
+- Test Release: 465 passed, 0 failed, 0 skipped
+- Application source changes: 13 files across all passes
+- Test changes: 32 tests (14 initial + 18 new)
+- Schema changes: none
+- Behavior change: Aras URL, database, Vault ID, and IronCAD path from config or login form; loaded VaultId/OAuth/Timeout/Search/IronCAD path now carried through all production login paths; missing BaseUri/Database/VaultId produce clear typed errors
+- Check-AiScope: passed
+- Verify-AiTicket: pre-existing `build-solution.ps1` path issue — not a regression
+- Working tree: clean
+- Follow-up: `PdmProjectsViewModel.cs` uses `new IronCadExternalAdapter()` with null path (PDM scope, excluded); old real values remain in Git history

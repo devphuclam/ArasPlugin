@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Desktop.Services;
 
@@ -9,6 +10,9 @@ namespace IdeaCadConnector.Desktop
 {
     public partial class App : Application
     {
+        internal static ArasClientOptions LoadedOptions => ArasClientOptionsFactory.Current;
+
+        internal static Core.Configuration.EnvironmentConfigurationResult ConfigLoadResult => ArasClientOptionsFactory.CurrentConfig;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -25,6 +29,8 @@ namespace IdeaCadConnector.Desktop
                 {
                 }
             }
+
+            ArasClientOptionsFactory.Initialize();
 
             base.OnStartup(e);
 
