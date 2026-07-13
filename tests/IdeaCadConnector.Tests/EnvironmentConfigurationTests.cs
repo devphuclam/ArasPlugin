@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -15,6 +16,7 @@ using Xunit;
 
 namespace IdeaCadConnector.Tests
 {
+    [Collection("Environment configuration process state")]
     public sealed class EnvironmentConfigurationTests : IDisposable
     {
         private readonly string _tempDir;
@@ -27,6 +29,7 @@ namespace IdeaCadConnector.Tests
 
         public void Dispose()
         {
+            ArasClientOptionsFactory.Reset();
             try { Directory.Delete(_tempDir, true); } catch { }
         }
 
@@ -555,125 +558,176 @@ namespace IdeaCadConnector.Tests
             string envVarPath = Path.Combine(_tempDir, "from-env-var.json");
             File.WriteAllText(envVarPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromEnvVar"" }");
 
-            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
-            string appDataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
-            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
+            string sideBySideDir = Path.Combine(_tempDir, "output");
+            string appDataDir = Path.Combine(_tempDir, "appdata");
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""FromSideBySide"" }");
+            File.WriteAllText(Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
 
-            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
-            try
-            {
-                File.WriteAllText(sideBySidePath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromSideBySide"" }");
-                Directory.CreateDirectory(appDataDir);
-                File.WriteAllText(appDataPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
+            var context = new EnvironmentConfigurationPathContext(envVarPath, sideBySideDir, appDataDir);
+            string resolved = EnvironmentConfigurationLoader.ResolvePath(context, new List<string>());
 
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, envVarPath);
+            Assert.Equal(Path.GetFullPath(envVarPath), Path.GetFullPath(resolved));
+            Assert.Equal("FromEnvVar", EnvironmentConfigurationLoader.Load(context).Configuration.EnvironmentName);
+        }
 
-                string resolved = EnvironmentConfigurationLoader.ResolvePath();
-                Assert.NotNull(resolved);
-                Assert.Equal(Path.GetFullPath(envVarPath), Path.GetFullPath(resolved));
+        [Fact]
+        public void Load_WithIsolatedCandidates_UsesExplicitEnvFileAndPreservesSentinel()
+        {
+            string root = Path.Combine(_tempDir, "isolated");
+            string sideBySideDir = Path.Combine(root, "output");
+            string appDataDir = Path.Combine(root, "appdata");
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
 
-                var result = EnvironmentConfigurationLoader.Load();
-                Assert.Equal("FromEnvVar", result.Configuration.EnvironmentName);
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
-                TryDeleteFile(sideBySidePath);
-                TryDeleteFile(appDataPath);
-                TryDeleteDir(appDataDir);
-            }
+            string envPath = Path.Combine(root, "explicit.json");
+            string sentinelPath = Path.Combine(appDataDir, "keep.txt");
+            File.WriteAllText(envPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""Explicit"" }");
+            File.WriteAllText(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""SideBySide"" }");
+            File.WriteAllText(Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""AppData"" }");
+            File.WriteAllText(sentinelPath, "must remain");
+
+            var context = new EnvironmentConfigurationPathContext(envPath, sideBySideDir, appDataDir);
+            var result = EnvironmentConfigurationLoader.Load(context);
+
+            Assert.Equal("Explicit", result.Configuration.EnvironmentName);
+            Assert.Equal("must remain", File.ReadAllText(sentinelPath));
+            Assert.True(File.Exists(envPath));
+        }
+
+        [Fact]
+        public void Load_WithMissingExplicitEnvFile_ReturnsErrorWithoutFallback()
+        {
+            string root = Path.Combine(_tempDir, "invalid-explicit");
+            string sideBySideDir = Path.Combine(root, "output");
+            string appDataDir = Path.Combine(root, "appdata");
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""SideBySide"" }");
+            File.WriteAllText(Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""AppData"" }");
+
+            var context = new EnvironmentConfigurationPathContext(
+                Path.Combine(root, "missing.json"), sideBySideDir, appDataDir);
+            var result = EnvironmentConfigurationLoader.Load(context);
+
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, error => error.Contains("explicit environment config path"));
+            Assert.NotEqual("SideBySide", result.Configuration.EnvironmentName);
+            Assert.NotEqual("AppData", result.Configuration.EnvironmentName);
+        }
+
+        [Fact]
+        public void Load_WithExplicitDirectoryPath_ReturnsErrorWithoutFallback()
+        {
+            string root = Path.Combine(_tempDir, "directory-explicit");
+            string sideBySideDir = Path.Combine(root, "output");
+            string appDataDir = Path.Combine(root, "appdata");
+            Directory.CreateDirectory(Path.Combine(root, "config-directory"));
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""SideBySide"" }");
+
+            var context = new EnvironmentConfigurationPathContext(
+                Path.Combine(root, "config-directory"), sideBySideDir, appDataDir);
+            var result = EnvironmentConfigurationLoader.Load(context);
+
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, error => error.Contains("points to a directory"));
+            Assert.NotEqual("SideBySide", result.Configuration.EnvironmentName);
+        }
+
+        [Fact]
+        public void Load_WithMalformedExplicitEnvFile_ReturnsErrorWithoutFallback()
+        {
+            string root = Path.Combine(_tempDir, "malformed-explicit");
+            string sideBySideDir = Path.Combine(root, "output");
+            string appDataDir = Path.Combine(root, "appdata");
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
+            string envPath = Path.Combine(root, "malformed.json");
+            File.WriteAllText(envPath, "{ not valid json }");
+            File.WriteAllText(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""SideBySide"" }");
+
+            var context = new EnvironmentConfigurationPathContext(envPath, sideBySideDir, appDataDir);
+            var result = EnvironmentConfigurationLoader.Load(context);
+
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, error => error.Contains("malformed JSON"));
+            Assert.NotEqual("SideBySide", result.Configuration.EnvironmentName);
+        }
+
+        [Fact]
+        public void Load_WithBlankEnvValue_AllowsSideBySideFallback()
+        {
+            string root = Path.Combine(_tempDir, "blank-explicit");
+            string sideBySideDir = Path.Combine(root, "output");
+            string appDataDir = Path.Combine(root, "appdata");
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""SideBySide"" }");
+
+            var context = new EnvironmentConfigurationPathContext("  ", sideBySideDir, appDataDir);
+            var result = EnvironmentConfigurationLoader.Load(context);
+
+            Assert.True(result.IsValid);
+            Assert.Equal("SideBySide", result.Configuration.EnvironmentName);
         }
 
         [Fact]
         public void ResolvePath_SideBySidePrecedesAppData()
         {
-            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
-            string appDataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
-            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
+            string sideBySideDir = Path.Combine(_tempDir, "output");
+            string appDataDir = Path.Combine(_tempDir, "appdata");
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""FromSideBySide"" }");
+            File.WriteAllText(Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
 
-            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
-            try
-            {
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, null);
-                File.WriteAllText(sideBySidePath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromSideBySide"" }");
-                Directory.CreateDirectory(appDataDir);
-                File.WriteAllText(appDataPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
+            var context = new EnvironmentConfigurationPathContext(null, sideBySideDir, appDataDir);
+            string resolved = EnvironmentConfigurationLoader.ResolvePath(context, new List<string>());
 
-                string resolved = EnvironmentConfigurationLoader.ResolvePath();
-                Assert.NotNull(resolved);
-                Assert.Equal(Path.GetFullPath(sideBySidePath), Path.GetFullPath(resolved));
-
-                var result = EnvironmentConfigurationLoader.Load();
-                Assert.Equal("FromSideBySide", result.Configuration.EnvironmentName);
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
-                TryDeleteFile(sideBySidePath);
-                TryDeleteFile(appDataPath);
-                TryDeleteDir(appDataDir);
-            }
+            Assert.Equal(Path.Combine(sideBySideDir, EnvironmentConfigurationLoader.FileName), resolved);
+            Assert.Equal("FromSideBySide", EnvironmentConfigurationLoader.Load(context).Configuration.EnvironmentName);
         }
 
         [Fact]
         public void ResolvePath_AppDataFallback_WhenHigherAbsent()
         {
-            string appDataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
-            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
-            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
+            string sideBySideDir = Path.Combine(_tempDir, "empty-output");
+            string appDataDir = Path.Combine(_tempDir, "appdata");
+            Directory.CreateDirectory(sideBySideDir);
+            Directory.CreateDirectory(appDataDir);
+            File.WriteAllText(Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName),
+                @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
 
-            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
-            try
-            {
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, null);
-                TryDeleteFile(sideBySidePath);
-                Directory.CreateDirectory(appDataDir);
-                File.WriteAllText(appDataPath, @"{ ""schemaVersion"": 1, ""environmentName"": ""FromAppData"" }");
+            var context = new EnvironmentConfigurationPathContext(null, sideBySideDir, appDataDir);
+            string resolved = EnvironmentConfigurationLoader.ResolvePath(context, new List<string>());
 
-                string resolved = EnvironmentConfigurationLoader.ResolvePath();
-                Assert.NotNull(resolved);
-                Assert.Equal(Path.GetFullPath(appDataPath), Path.GetFullPath(resolved));
-
-                var result = EnvironmentConfigurationLoader.Load();
-                Assert.Equal("FromAppData", result.Configuration.EnvironmentName);
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
-                TryDeleteFile(appDataPath);
-                TryDeleteDir(appDataDir);
-            }
+            Assert.Equal(Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName), resolved);
+            Assert.Equal("FromAppData", EnvironmentConfigurationLoader.Load(context).Configuration.EnvironmentName);
         }
 
         [Fact]
         public void ResolvePath_NoFiles_ReturnsNull()
         {
-            string sideBySidePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, EnvironmentConfigurationLoader.FileName);
-            string appDataDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IdeaCadConnector");
-            string appDataPath = Path.Combine(appDataDir, EnvironmentConfigurationLoader.FileName);
+            var context = new EnvironmentConfigurationPathContext(
+                null, Path.Combine(_tempDir, "empty-output"), Path.Combine(_tempDir, "empty-appdata"));
+            string resolved = EnvironmentConfigurationLoader.ResolvePath(context, new List<string>());
 
-            string savedEnv = Environment.GetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName);
-            try
-            {
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, null);
-                TryDeleteFile(sideBySidePath);
-                TryDeleteFile(appDataPath);
-                TryDeleteDir(appDataDir);
-
-                string resolved = EnvironmentConfigurationLoader.ResolvePath();
-                Assert.Null(resolved);
-
-                var result = EnvironmentConfigurationLoader.Load();
-                Assert.Equal("built-in defaults", result.SourcePath);
-            }
-            finally
-            {
-                Environment.SetEnvironmentVariable(EnvironmentConfigurationLoader.EnvVarName, savedEnv);
-            }
+            Assert.Null(resolved);
+            Assert.Equal("built-in defaults", EnvironmentConfigurationLoader.Load(context).SourcePath);
         }
 
         [Fact]
@@ -948,16 +1002,6 @@ namespace IdeaCadConnector.Tests
 
             string gitignore = File.ReadAllText(gitignorePath);
             Assert.Contains("IdeaCadConnector.environment.json", gitignore);
-        }
-
-        private static void TryDeleteFile(string path)
-        {
-            try { if (File.Exists(path)) File.Delete(path); } catch { }
-        }
-
-        private static void TryDeleteDir(string path)
-        {
-            try { if (Directory.Exists(path)) Directory.Delete(path, true); } catch { }
         }
 
         internal sealed class StubCadAdapter : ICadApplicationAdapter
