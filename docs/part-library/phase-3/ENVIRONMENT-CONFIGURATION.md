@@ -29,10 +29,10 @@ The config file is resolved in the following order:
 | `local` | `vaultCacheDirectory` | string | `%LOCALAPPDATA%/IdeaCadConnector/VaultCache` | Vault cache root. Supports %LOCALAPPDATA%, %APPDATA%, %USERPROFILE%. |
 | `local` | `ironCadExecutablePath` | string | `""` | Override for IronCAD executable path. Empty = use default or file association. |
 | `local` | `openDownloadedCadAfterDownload` | bool | `false` | Whether to auto-open CAD after downloading. |
-| `roles` | `managerUsers` | string[] | `["TPTKC"]` | User aliases with manager capability. |
-| `roles` | `reviewerUsers` | string[] | `["TNTKC", "TPTKC"]` | User aliases with reviewer capability. |
-| `roles` | `contributorUsers` | string[] | `["NVTKC", "TNTKC", "TPTKC"]` | User aliases with contributor capability. |
-| `roles` | `readOnlyUsers` | string[] | `["NVLCR", "PM", "KhachHang", "Customer"]` | User aliases with read-only access. |
+| `roles` | `managerUsers` | string[] | `["ExampleManager"]` | User aliases with manager capability. |
+| `roles` | `reviewerUsers` | string[] | `["ExampleReviewer", "ExampleManager"]` | User aliases with reviewer capability. |
+| `roles` | `contributorUsers` | string[] | `["ExampleContributor", "ExampleReviewer", "ExampleManager"]` | User aliases with contributor capability. |
+| `roles` | `readOnlyUsers` | string[] | `["ExampleAssemblyViewer", "ExampleProjectViewer", "KhachHang", "Customer"]` | User aliases with read-only access. |
 | `diagnostics` | `logLevel` | string | `"Info"` | Log level. Not yet wired. |
 | `diagnostics` | `enableFileLogging` | bool | `false` | Whether to log to a file. Not yet wired. |
 | `diagnostics` | `logDirectory` | string | `%LOCALAPPDATA%/IdeaCadConnector/Logs` | Log file directory. Not yet wired. |
@@ -74,11 +74,11 @@ The `roles` section in the config overrides the built-in role defaults. The offi
 
 | ID | Official Title | Default Capability |
 |---|---|---|
-| `TPTKC` | Trưởng phòng thiết kế cơ | Manager |
-| `TNTKC` | Trưởng nhóm thiết kế cơ | Reviewer |
-| `NVTKC` | Nhân viên thiết kế cơ | Contributor |
-| `NVLCR` | Nhân viên lắp ráp cơ | Read-only |
-| `PM` | Quản lý dự án | Read-only |
+| `ExampleManager` | Trưởng phòng thiết kế cơ | Manager |
+| `ExampleReviewer` | Trưởng nhóm thiết kế cơ | Reviewer |
+| `ExampleContributor` | Nhân viên thiết kế cơ | Contributor |
+| `ExampleAssemblyViewer` | Nhân viên lắp ráp cơ | Read-only |
+| `ExampleProjectViewer` | Quản lý dự án | Read-only |
 | `Khách hàng` | Customer | Read-only |
 
 If no config file is present, the built-in defaults above are used.

@@ -64,11 +64,11 @@ The method must not add, edit, promote, create relationships, upload files, or m
 
 | ID | Role |
 |---|---|
-| `TPTKC` | Truong phong thiet ke co |
-| `TNTKC` | Truong nhom thiet ke co |
-| `NVTKC` | Nhan vien thiet ke co |
-| `NVLCR` | Nhan vien lap rap co |
-| `PM` | Quan ly du an |
+| `ExampleManager` | Truong phong thiet ke co |
+| `ExampleReviewer` | Truong nhom thiet ke co |
+| `ExampleContributor` | Nhan vien thiet ke co |
+| `ExampleAssemblyViewer` | Nhan vien lap rap co |
+| `ExampleProjectViewer` | Quan ly du an |
 | `Customer` | Khach hang |
 
 ## Sprint 3.2 Config Package UAT

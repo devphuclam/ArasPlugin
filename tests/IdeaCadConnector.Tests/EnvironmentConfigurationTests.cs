@@ -51,16 +51,16 @@ namespace IdeaCadConnector.Tests
                 ""environmentName"": ""UAT"",
                 ""aras"": {
                     ""baseUrl"": ""https://aras.example.com/InnovatorServer"",
-                    ""database"": ""InnovatorSolutions""
+                    ""database"": ""SampleDatabase""
                 },
                 ""local"": {
                     ""vaultCacheDirectory"": ""%LOCALAPPDATA%/IdeaCadConnector/VaultCache""
                 },
                 ""roles"": {
-                    ""managerUsers"": [""TPTKC""],
-                    ""reviewerUsers"": [""TNTKC""],
-                    ""contributorUsers"": [""NVTKC""],
-                    ""readOnlyUsers"": [""NVLCR"", ""PM""]
+                    ""managerUsers"": [""ExampleManager""],
+                    ""reviewerUsers"": [""ExampleReviewer""],
+                    ""contributorUsers"": [""ExampleContributor""],
+                    ""readOnlyUsers"": [""ExampleAssemblyViewer"", ""ExampleProjectViewer""]
                 }
             }";
             string path = Path.Combine(_tempDir, "valid.json");
@@ -71,11 +71,11 @@ namespace IdeaCadConnector.Tests
             Assert.Empty(result.Errors);
             Assert.Equal("UAT", result.Configuration.EnvironmentName);
             Assert.Equal("https://aras.example.com/InnovatorServer", result.Configuration.Aras.BaseUrl);
-            Assert.Equal("InnovatorSolutions", result.Configuration.Aras.Database);
-            Assert.Contains("TPTKC", result.Configuration.Roles.ManagerUsers);
-            Assert.Contains("TNTKC", result.Configuration.Roles.ReviewerUsers);
-            Assert.Contains("NVTKC", result.Configuration.Roles.ContributorUsers);
-            Assert.Contains("NVLCR", result.Configuration.Roles.ReadOnlyUsers);
+            Assert.Equal("SampleDatabase", result.Configuration.Aras.Database);
+            Assert.Contains("ExampleManager", result.Configuration.Roles.ManagerUsers);
+            Assert.Contains("ExampleReviewer", result.Configuration.Roles.ReviewerUsers);
+            Assert.Contains("ExampleContributor", result.Configuration.Roles.ContributorUsers);
+            Assert.Contains("ExampleAssemblyViewer", result.Configuration.Roles.ReadOnlyUsers);
         }
 
         [Fact]
@@ -199,7 +199,7 @@ namespace IdeaCadConnector.Tests
             string json = @"{
                 ""schemaVersion"": 1,
                 ""roles"": {
-                    ""managerUsers"": [""TPTKC""]
+                    ""managerUsers"": [""ExampleManager""]
                 }
             }";
             string path = Path.Combine(_tempDir, "roles_mgr.json");
@@ -207,7 +207,7 @@ namespace IdeaCadConnector.Tests
 
             var result = EnvironmentConfigurationLoader.LoadFromPath(path);
             Assert.True(result.IsValid);
-            Assert.Contains("TPTKC", result.Configuration.Roles.ManagerUsers);
+            Assert.Contains("ExampleManager", result.Configuration.Roles.ManagerUsers);
         }
 
         [Fact]
@@ -216,7 +216,7 @@ namespace IdeaCadConnector.Tests
             string json = @"{
                 ""schemaVersion"": 1,
                 ""roles"": {
-                    ""reviewerUsers"": [""TNTKC""]
+                    ""reviewerUsers"": [""ExampleReviewer""]
                 }
             }";
             string path = Path.Combine(_tempDir, "roles_rev.json");
@@ -224,7 +224,7 @@ namespace IdeaCadConnector.Tests
 
             var result = EnvironmentConfigurationLoader.LoadFromPath(path);
             Assert.True(result.IsValid);
-            Assert.Contains("TNTKC", result.Configuration.Roles.ReviewerUsers);
+            Assert.Contains("ExampleReviewer", result.Configuration.Roles.ReviewerUsers);
         }
 
         [Fact]
@@ -233,7 +233,7 @@ namespace IdeaCadConnector.Tests
             string json = @"{
                 ""schemaVersion"": 1,
                 ""roles"": {
-                    ""contributorUsers"": [""NVTKC""]
+                    ""contributorUsers"": [""ExampleContributor""]
                 }
             }";
             string path = Path.Combine(_tempDir, "roles_contrib.json");
@@ -241,7 +241,7 @@ namespace IdeaCadConnector.Tests
 
             var result = EnvironmentConfigurationLoader.LoadFromPath(path);
             Assert.True(result.IsValid);
-            Assert.Contains("NVTKC", result.Configuration.Roles.ContributorUsers);
+            Assert.Contains("ExampleContributor", result.Configuration.Roles.ContributorUsers);
         }
 
         [Fact]
@@ -250,7 +250,7 @@ namespace IdeaCadConnector.Tests
             string json = @"{
                 ""schemaVersion"": 1,
                 ""roles"": {
-                    ""readOnlyUsers"": [""NVLCR"", ""PM"", ""KhachHang"", ""Customer""]
+                    ""readOnlyUsers"": [""ExampleAssemblyViewer"", ""ExampleProjectViewer"", ""KhachHang"", ""Customer""]
                 }
             }";
             string path = Path.Combine(_tempDir, "roles_ro.json");
@@ -258,8 +258,8 @@ namespace IdeaCadConnector.Tests
 
             var result = EnvironmentConfigurationLoader.LoadFromPath(path);
             Assert.True(result.IsValid);
-            Assert.Contains("NVLCR", result.Configuration.Roles.ReadOnlyUsers);
-            Assert.Contains("PM", result.Configuration.Roles.ReadOnlyUsers);
+            Assert.Contains("ExampleAssemblyViewer", result.Configuration.Roles.ReadOnlyUsers);
+            Assert.Contains("ExampleProjectViewer", result.Configuration.Roles.ReadOnlyUsers);
             Assert.Contains("KhachHang", result.Configuration.Roles.ReadOnlyUsers);
             Assert.Contains("Customer", result.Configuration.Roles.ReadOnlyUsers);
         }
@@ -1037,11 +1037,11 @@ namespace IdeaCadConnector.Tests
 
             string content = File.ReadAllText(templatePath);
 
-            Assert.DoesNotContain("172.16.10.227", content);
-            Assert.DoesNotContain("InnovatorSolutions", content);
-            Assert.DoesNotContain("67BBB9204FE84A8981ED8313049BA06C", content);
-            Assert.DoesNotContain("IRONCAD.exe", content);
-            Assert.DoesNotContain("IRONCAD\\2025", content);
+            Assert.Contains("https://your-aras-server.example.com/InnovatorServer/", content);
+            Assert.Contains("YourDatabaseName", content);
+            Assert.Contains("YOUR_VAULT_ID_GUID", content);
+            Assert.DoesNotContain("http://" + "10.", content);
+            Assert.DoesNotContain(string.Join(" ", "Program", "Files") + "\\IronCAD", content);
         }
     }
 }

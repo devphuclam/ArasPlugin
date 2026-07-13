@@ -56,7 +56,7 @@ namespace IdeaCadConnector.Tests
             var key = new VaultCacheKey
             {
                 Server = "http://server/",
-                Database = "InnovatorSolutions",
+                Database = "SampleDatabase",
                 FileId = "file-123",
                 RevisionGeneration = "2",
                 Extension = ".ics"

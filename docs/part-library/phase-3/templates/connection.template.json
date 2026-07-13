@@ -1,16 +1,16 @@
 {
   "arasBaseUrl": "https://aras.example.local/InnovatorServer",
-  "database": "InnovatorSolutions",
+  "database": "SampleDatabase",
   "authenticationMode": "InteractiveLogin",
   "vaultCacheRoot": "%LOCALAPPDATA%\\IdeaCadConnector\\VaultCache",
   "ironCadPath": "",
   "openInArasMode": "DefaultBrowser",
   "roles": {
-    "TPTKC": "Truong phong thiet ke co",
-    "TNTKC": "Truong nhom thiet ke co",
-    "NVTKC": "Nhan vien thiet ke co",
-    "NVLCR": "Nhan vien lap rap co",
-    "PM": "Quan ly du an",
+    "ExampleManager": "Truong phong thiet ke co",
+    "ExampleReviewer": "Truong nhom thiet ke co",
+    "ExampleContributor": "Nhan vien thiet ke co",
+    "ExampleAssemblyViewer": "Nhan vien lap rap co",
+    "ExampleProjectViewer": "Quan ly du an",
     "Customer": "Khach hang"
   }
 }

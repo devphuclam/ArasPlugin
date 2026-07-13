@@ -9,13 +9,13 @@ namespace IdeaCadConnector.Tests
     public class LibraryAuthorizationServiceTests
     {
         [Theory]
-        [InlineData("lamEngineer", false, true, false, true, false, false)]
-        [InlineData("lamPM", true, true, true, true, true, true)]
+        [InlineData("ExampleContributor", false, true, false, true, false, false)]
+        [InlineData("ExampleManager", true, true, true, true, true, true)]
         [InlineData("admin", true, true, true, true, true, true)]
         [InlineData("InnovatorAdmin", true, true, true, true, true, true)]
-        [InlineData("nvtkc", false, true, false, true, false, false)]
-        [InlineData("tntkc", false, true, true, true, true, true)]
-        [InlineData("tptkc", true, true, true, true, true, true)]
+        [InlineData("examplecontributor", false, true, false, true, false, false)]
+        [InlineData("examplereviewer", false, true, true, true, true, true)]
+        [InlineData("examplemanager", true, true, true, true, true, true)]
         [InlineData("unknown", false, false, false, false, false, false)]
         public void DefaultRoleMapping_IsConservativeAndMatchesUatUsers(
             string user,

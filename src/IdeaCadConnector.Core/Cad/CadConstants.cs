@@ -10,7 +10,7 @@ namespace IdeaCadConnector.Core.Cad
     //   idea_EnsurePrimaryIronCadPartCad on the server).
     //
     // IronCadPartClassification holds the CAD class-structure path used by the
-    // InnovatorSolutions database for an IronCAD part: CAD > Mechanical > Part,
+    // Example database for an IronCAD part: CAD > Mechanical > Part,
     // stored as "Mechanical/Part" in the CAD.classification property.
     public static class CadConstants
     {

@@ -24,11 +24,11 @@
 
 ## Role Smoke
 
-- [x] `TPTKC` manager behavior is acceptable.
-- [x] `TNTKC` reviewer behavior is acceptable.
-- [x] `NVTKC` contributor behavior is acceptable.
-- [x] `NVLCR` assembly/viewer behavior is acceptable where in scope.
-- [x] `PM` project viewer behavior is acceptable.
+- [x] `ExampleManager` manager behavior is acceptable.
+- [x] `ExampleReviewer` reviewer behavior is acceptable.
+- [x] `ExampleContributor` contributor behavior is acceptable.
+- [x] `ExampleAssemblyViewer` assembly/viewer behavior is acceptable where in scope.
+- [x] `ExampleProjectViewer` project viewer behavior is acceptable.
 - [x] Customer/unknown user behavior remains conservative and read-only.
 
 ## Sprint 3.2 Environment Config Smoke

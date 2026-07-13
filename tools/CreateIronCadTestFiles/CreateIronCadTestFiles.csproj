@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="interop.ICApiIronCAD">
-      <HintPath>C:\Program Files\IronCAD\2025\ICAPI\Samples\C#\References\interop.ICApiIronCAD.dll</HintPath>
+      <HintPath>$(ProgramFiles)\IronCAD\2025\ICAPI\Samples\C#\References\interop.ICApiIronCAD.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

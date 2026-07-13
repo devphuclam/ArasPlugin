@@ -13,11 +13,11 @@ This release candidate packages the IdeaCadConnector desktop app for internal UA
 - Live CAD lookup via `idea_GetPrimaryIronCadForPart`.
 - Filters and sorting.
 - Role alignment to actual organization roles:
-  - `TPTKC`
-  - `TNTKC`
-  - `NVTKC`
-  - `NVLCR`
-  - `PM`
+  - `ExampleManager`
+  - `ExampleReviewer`
+  - `ExampleContributor`
+  - `ExampleAssemblyViewer`
+  - `ExampleProjectViewer`
   - Customer
 - Release package script, docs, checksum, and rollback baseline.
 

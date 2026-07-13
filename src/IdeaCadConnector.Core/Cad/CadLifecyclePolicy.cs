@@ -45,7 +45,7 @@ namespace IdeaCadConnector.Core.Cad
                 return "CAD state is missing. Refresh from Aras before checkout.";
 
             if (IsState(state, InReview))
-                return "CAD is in review. Complete the NVTKC/TNTKC workflow in Aras before editing again.";
+                return "CAD is in review. Complete the ExampleContributor/ExampleReviewer workflow in Aras before editing again.";
 
             if (IsState(state, Released))
                 return "CAD is released. Start the approved Aras change process before editing.";

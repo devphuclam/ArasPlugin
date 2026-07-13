@@ -34,7 +34,7 @@ function Write-OK   { param([string]$m) Write-Host "  [OK] $m" -ForegroundColor 
 function Write-Warn { param([string]$m) Write-Host "  [!]  $m" -ForegroundColor Yellow }
 function Write-Fail { param([string]$m) Write-Host "  [X]  $m" -ForegroundColor Red }
 
-$script:IronCadInteropPath = "C:\Program Files\IronCAD\2025\ICAPI\Samples\C#\References\interop.ICApiIronCAD.dll"
+$script:IronCadInteropPath = Join-Path ${env:ProgramFiles} "IronCAD\2025\ICAPI\Samples\C#\References\interop.ICApiIronCAD.dll"
 $script:IronCadNativeBridgeReady = $false
 
 function Ensure-IronCadNativeBridge {

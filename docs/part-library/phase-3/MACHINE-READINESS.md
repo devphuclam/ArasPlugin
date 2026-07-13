@@ -29,11 +29,11 @@ The tester must belong to one of the following organization role identities:
 
 | ID | Role | Capability |
 |---|---|---|
-| `TPTKC` | Trưởng phòng thiết kế cơ | Manager — full access |
-| `TNTKC` | Trưởng nhóm thiết kế cơ | Reviewer — move/pin allowed |
-| `NVTKC` | Nhân viên thiết kế cơ | Contributor — view/use only |
-| `NVLCR` | Nhân viên lắp ráp cơ | Assembly viewer — read-only |
-| `PM` | Quản lý dự án | Project viewer — read-only |
+| `ExampleManager` | Trưởng phòng thiết kế cơ | Manager — full access |
+| `ExampleReviewer` | Trưởng nhóm thiết kế cơ | Reviewer — move/pin allowed |
+| `ExampleContributor` | Nhân viên thiết kế cơ | Contributor — view/use only |
+| `ExampleAssemblyViewer` | Nhân viên lắp ráp cơ | Assembly viewer — read-only |
+| `ExampleProjectViewer` | Quản lý dự án | Project viewer — read-only |
 | `Khách hàng` | Customer | External viewer — read-only |
 
 ## Aras Permission Checklist

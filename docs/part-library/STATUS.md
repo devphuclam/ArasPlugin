@@ -91,7 +91,7 @@ All Sprint 2.4 workstreams implemented:
 - **Text search**: Filters by item_number/name (already existed, hardened)
 - **Sorting**: 7 columns (Item Number, Name, Entry Status, Revision Policy, CAD Status, Usage Count, Last Used On) with Ascending/Descending
 - **Detail status UX hardening**: Loading, permission denied, server unavailable, operation cancelled states with localized messages
-- **Command state regression**: Verified NVTKC (contributor) cannot Move/Pin; TNTKC (reviewer) can; TPTKC (manager) can manage; viewer blocked
+- **Command state regression**: Verified ExampleContributor (contributor) cannot Move/Pin; ExampleReviewer (reviewer) can; ExampleManager (manager) can manage; viewer blocked
 - **Archived Libraries**: Remain hidden by default per D-03
 - **Localization**: 25 new keys in en-US, vi-VN, ja-JP
 - **New tests**: 11 (filter, sort, command state, detail hardening, regression)
@@ -103,14 +103,14 @@ All Sprint 2.4 workstreams implemented:
 
 Phase 2 closed after Sprint 2.4 final live App UAT accepted on 2026-07-08.
 
-Final live UAT performed on actual organization Aras environment. Roles tested: TPTKC (manager), TNTKC (reviewer), NVTKC (contributor), NVLCR (assembly viewer), PM (project viewer). All command states, filters, sorting, tabs, CAD actions, and Aras links verified and accepted. No P0/P1 blocker found.
+Final live UAT performed on actual organization Aras environment. Roles tested: ExampleManager (manager), ExampleReviewer (reviewer), ExampleContributor (contributor), ExampleAssemblyViewer (assembly viewer), ExampleProjectViewer (project viewer). All command states, filters, sorting, tabs, CAD actions, and Aras links verified and accepted. No P0/P1 blocker found.
 
 Final role alignment:
-- **TPTKC** — Trưởng phòng thiết kế cơ — Manager — Can manage Libraries, Move Entry, Pin Revision
-- **TNTKC** — Trưởng nhóm thiết kế cơ — Reviewer — Can Move Entry, Pin Revision
-- **NVTKC** — Nhân viên thiết kế cơ — Contributor — Cannot Move/Pin, can view/use Library
-- **NVLCR** — Nhân viên lắp ráp cơ — Assembly viewer — View-only
-- **PM** — Quản lý dự án — Project viewer — View-only
+- **ExampleManager** — Trưởng phòng thiết kế cơ — Manager — Can manage Libraries, Move Entry, Pin Revision
+- **ExampleReviewer** — Trưởng nhóm thiết kế cơ — Reviewer — Can Move Entry, Pin Revision
+- **ExampleContributor** — Nhân viên thiết kế cơ — Contributor — Cannot Move/Pin, can view/use Library
+- **ExampleAssemblyViewer** — Nhân viên lắp ráp cơ — Assembly viewer — View-only
+- **ExampleProjectViewer** — Quản lý dự án — Project viewer — View-only
 - **Khách hàng** — External viewer — View-only, read-only
 
 #### Remaining Known Limitations
@@ -170,7 +170,7 @@ Sprint 3.2 adds a non-secret environment configuration model for the desktop app
 - **Fallback**: missing/empty/corrupt config returns defaults with clear diagnostic, never crashes
 - **Template**: `IdeaCadConnector.environment.template.json` in docs and release package
 - **Packaging**: script validates no active config is included; template only
-- **Role defaults**: TPTKC (manager), TNTKC (reviewer), NVTKC (contributor), NVLCR/PM/Khách hàng (read-only)
+- **Role defaults**: ExampleManager (manager), ExampleReviewer (reviewer), ExampleContributor (contributor), ExampleAssemblyViewer/ExampleProjectViewer/Khách hàng (read-only)
 - **Tests**: 16 new; total 419/419 pass
 
 **Build:** Debug — 0 warnings, 0 errors; Release — 0 warnings, 0 errors
@@ -258,7 +258,7 @@ Phase 3 completed after all 4 sprints accepted:
 
 **Required Aras method:** `idea_GetPrimaryIronCadForPart`
 
-**Official roles:** TPTKC (manager), TNTKC (reviewer), NVTKC (contributor), NVLCR (assembly viewer), PM (project viewer), Khách hàng (external viewer).
+**Official roles:** ExampleManager (manager), ExampleReviewer (reviewer), ExampleContributor (contributor), ExampleAssemblyViewer (assembly viewer), ExampleProjectViewer (project viewer), Khách hàng (external viewer).
 
 **Known limitations:** Documented in [KNOWN-LIMITATIONS.md](phase-3/KNOWN-LIMITATIONS.md).
 

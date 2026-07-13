@@ -16,7 +16,7 @@
 | Field | Value |
 |---|---|
 | Tester name | |
-| Role identity | TPTKC / TNTKC / NVTKC / NVLCR / PM / Khách hàng |
+| Role identity | ExampleManager / ExampleReviewer / ExampleContributor / ExampleAssemblyViewer / ExampleProjectViewer / Khách hàng |
 | Environment | |
 | Test date | |
 

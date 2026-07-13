@@ -68,7 +68,7 @@ No source code or Aras schema was changed.
 
 Live Aras evidence:
 
-- Read-only AML evidence collected from `http://172.16.10.227/InnovatorServer/`, database `InnovatorSolutions`.
+- Read-only AML evidence collected from `https://<innovator-server-url>/InnovatorServer/`, database `SampleDatabase`.
 - Evidence files are under `.ai-work/verification/BASE-04-live-schema/`.
 - Token was used only from `.ai-work/live-token.local.txt` and is not recorded in evidence.
 

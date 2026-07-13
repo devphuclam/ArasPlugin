@@ -66,29 +66,29 @@
 
 ## Command State Hardening
 
-### NVTKC (contributor — Nhân viên thiết kế cơ)
+### ExampleContributor (contributor — Nhân viên thiết kế cơ)
 - [ ] Cannot Move Entry
 - [ ] Cannot Pin Revision
 - [ ] Can view Revision Browser
 - [ ] Can view Library
 
-### TNTKC (reviewer — Trưởng nhóm thiết kế cơ)
+### ExampleReviewer (reviewer — Trưởng nhóm thiết kế cơ)
 - [ ] Can Move Entry
 - [ ] Can Pin Revision
 - [ ] Can view Revision Browser
 - [ ] Can view Library
 
-### TPTKC (manager — Trưởng phòng thiết kế cơ)
+### ExampleManager (manager — Trưởng phòng thiết kế cơ)
 - [ ] Can Move Entry
 - [ ] Can Pin Revision
 - [ ] Can manage Libraries
 - [ ] Can view Revision Browser
 
-### NVLCR (assembly viewer — Nhân viên lắp ráp cơ)
+### ExampleAssemblyViewer (assembly viewer — Nhân viên lắp ráp cơ)
 - [ ] View-only Library
 - [ ] Cannot Add/Move/Pin/Admin
 
-### PM (project viewer — Quản lý dự án)
+### ExampleProjectViewer (project viewer — Quản lý dự án)
 - [ ] View-only Library
 - [ ] Cannot Add/Move/Pin/Admin
 
