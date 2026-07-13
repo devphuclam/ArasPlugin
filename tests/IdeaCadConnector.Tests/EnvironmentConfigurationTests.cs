@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Configuration;
 using Xunit;
 
@@ -266,6 +268,307 @@ namespace IdeaCadConnector.Tests
             var result = EnvironmentConfigurationLoader.LoadFromPath(path);
             Assert.True(result.IsValid);
             Assert.Empty(result.Configuration.Local.IronCadExecutablePath);
+        }
+
+        [Fact]
+        public void Factory_FromFullValidConfig_MapsEveryField()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""environmentName"": ""UAT"",
+                ""aras"": {
+                    ""baseUrl"": ""https://aras.example.com/InnovatorServer"",
+                    ""database"": ""MyDatabase"",
+                    ""vaultId"": ""ABC123DEF456"",
+                    ""oAuthClientId"": ""MyApp"",
+                    ""oAuthScope"": ""MyScope"",
+                    ""defaultMaxSearchResults"": 50,
+                    ""timeoutSeconds"": 60
+                },
+                ""local"": {
+                    ""ironCadExecutablePath"": ""C:\\IronCAD\\IRONCAD.exe""
+                }
+            }";
+            string path = Path.Combine(_tempDir, "full.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            Assert.True(configResult.IsValid);
+            Assert.Empty(configResult.Errors);
+
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Equal("https://aras.example.com/InnovatorServer", options.BaseUri?.AbsoluteUri.TrimEnd('/'));
+            Assert.Equal("MyDatabase", options.Database);
+            Assert.Equal("ABC123DEF456", options.VaultId);
+            Assert.Equal("MyApp", options.OAuthClientId);
+            Assert.Equal("MyScope", options.OAuthScope);
+            Assert.Equal(50, options.DefaultMaxSearchResults);
+            Assert.Equal(60, (int)options.Timeout.TotalSeconds);
+            Assert.Equal(@"C:\IronCAD\IRONCAD.exe", options.IronCadExecutablePath);
+        }
+
+        [Fact]
+        public void Factory_FromMissingConfig_ReturnsSafeDefaults()
+        {
+            var configResult = new EnvironmentConfigurationResult
+            {
+                Configuration = new EnvironmentConfiguration(),
+                SourcePath = "built-in defaults"
+            };
+
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Null(options.BaseUri);
+            Assert.Null(options.Database);
+            Assert.Null(options.VaultId);
+        }
+
+        [Fact]
+        public void Factory_MissingBaseUri_ProducesError()
+        {
+            string json = @"{ ""schemaVersion"": 1, ""aras"": { ""database"": ""Db"" } }";
+            string path = Path.Combine(_tempDir, "nobaseurl.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Null(options.BaseUri);
+            Assert.Contains(configResult.Errors, e => e.Contains("baseUrl"));
+        }
+
+        [Fact]
+        public void Factory_MissingDatabase_ProducesError()
+        {
+            string json = @"{ ""schemaVersion"": 1, ""aras"": { ""baseUrl"": ""https://example.com"" } }";
+            string path = Path.Combine(_tempDir, "nodatabase.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Null(options.Database);
+            Assert.Contains(configResult.Errors, e => e.Contains("database"));
+        }
+
+        [Fact]
+        public void Factory_MissingVaultId_ProducesWarningNotError()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://example.com"",
+                    ""database"": ""Db""
+                }
+            }";
+            string path = Path.Combine(_tempDir, "novault.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            Assert.Empty(configResult.Errors);
+
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Null(options.VaultId);
+            Assert.Contains(configResult.Warnings, w => w.Contains("vaultId"));
+        }
+
+        [Fact]
+        public void Factory_MalformedBaseUri_ProducesError()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""not a uri at all"",
+                    ""database"": ""Db""
+                }
+            }";
+            string path = Path.Combine(_tempDir, "baduri.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Null(options.BaseUri);
+            Assert.Contains(configResult.Errors, e => e.Contains("valid absolute URI"));
+        }
+
+        [Fact]
+        public void Factory_TimeoutSeconds_MapsCorrectly()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://example.com"",
+                    ""database"": ""Db"",
+                    ""timeoutSeconds"": 45
+                }
+            }";
+            string path = Path.Combine(_tempDir, "timeout.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Equal(45, (int)options.Timeout.TotalSeconds);
+        }
+
+        [Fact]
+        public void Factory_InvalidTimeoutSeconds_UsesDefaultAndWarns()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://example.com"",
+                    ""database"": ""Db"",
+                    ""timeoutSeconds"": -5
+                }
+            }";
+            string path = Path.Combine(_tempDir, "badtimeout.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Equal(30, (int)options.Timeout.TotalSeconds);
+            Assert.Contains(configResult.Warnings, w => w.Contains("timeoutSeconds"));
+        }
+
+        [Fact]
+        public void Factory_DefaultMaxSearchResults_MapsCorrectly()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://example.com"",
+                    ""database"": ""Db"",
+                    ""defaultMaxSearchResults"": 100
+                }
+            }";
+            string path = Path.Combine(_tempDir, "maxresults.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Equal(100, options.DefaultMaxSearchResults);
+        }
+
+        [Fact]
+        public void Factory_InvalidDefaultMaxSearchResults_UsesDefaultAndWarns()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://example.com"",
+                    ""database"": ""Db"",
+                    ""defaultMaxSearchResults"": 0
+                }
+            }";
+            string path = Path.Combine(_tempDir, "badmaxresults.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Equal(20, options.DefaultMaxSearchResults);
+            Assert.Contains(configResult.Warnings, w => w.Contains("defaultMaxSearchResults"));
+        }
+
+        [Fact]
+        public void Factory_IronCadExecutablePath_MapsCorrectly()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""local"": {
+                    ""ironCadExecutablePath"": ""D:\\Tools\\IRONCAD.exe""
+                }
+            }";
+            string path = Path.Combine(_tempDir, "ironcadpath.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var options = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            Assert.Equal(@"D:\Tools\IRONCAD.exe", options.IronCadExecutablePath);
+        }
+
+        [Fact]
+        public void Factory_WithLoginOverrides_PreservesNonLoginFields()
+        {
+            string json = @"{
+                ""schemaVersion"": 1,
+                ""aras"": {
+                    ""baseUrl"": ""https://original.com"",
+                    ""database"": ""OriginalDb"",
+                    ""vaultId"": ""VAULT-ORIG"",
+                    ""oAuthClientId"": ""OrigApp"",
+                    ""oAuthScope"": ""OrigScope"",
+                    ""defaultMaxSearchResults"": 25,
+                    ""timeoutSeconds"": 15
+                },
+                ""local"": {
+                    ""ironCadExecutablePath"": ""C:\\orig\\ironcad.exe""
+                }
+            }";
+            string path = Path.Combine(_tempDir, "override.json");
+            File.WriteAllText(path, json);
+
+            var configResult = EnvironmentConfigurationLoader.LoadFromPath(path);
+            var original = ArasClientOptionsFactory.FromConfiguration(configResult);
+
+            var overridden = original.WithLoginOverrides("https://login.com", "LoginDb");
+
+            Assert.Equal("https://login.com/", overridden.BaseUri?.AbsoluteUri);
+            Assert.Equal("LoginDb", overridden.Database);
+            Assert.Equal("VAULT-ORIG", overridden.VaultId);
+            Assert.Equal("OrigApp", overridden.OAuthClientId);
+            Assert.Equal("OrigScope", overridden.OAuthScope);
+            Assert.Equal(25, overridden.DefaultMaxSearchResults);
+            Assert.Equal(15, (int)overridden.Timeout.TotalSeconds);
+            Assert.Equal(@"C:\orig\ironcad.exe", overridden.IronCadExecutablePath);
+        }
+
+        [Fact]
+        public void ArasClientOptions_Defaults_DoNotContainRealEnvironmentValues()
+        {
+            var options = new ArasClientOptions();
+
+            Assert.Null(options.BaseUri);
+            Assert.Null(options.Database);
+            Assert.Null(options.VaultId);
+            Assert.Null(options.IronCadExecutablePath);
+        }
+
+        [Fact]
+        public void TemplateFile_DoesNotContainRealInternalValues()
+        {
+            var templateDir = Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "..", "..", "..", "..", "..",
+                "src", "IdeaCadConnector.Desktop");
+            var templatePath = Path.Combine(
+                Path.GetFullPath(templateDir),
+                "IdeaCadConnector.environment.template.json");
+
+            if (!File.Exists(templatePath))
+            {
+                templatePath = Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "IdeaCadConnector.environment.template.json");
+            }
+
+            Assert.True(File.Exists(templatePath),
+                $"Template not found at {templatePath}. Test may need path adjustment.");
+
+            string content = File.ReadAllText(templatePath);
+
+            Assert.DoesNotContain("172.16.10.227", content);
+            Assert.DoesNotContain("InnovatorSolutions", content);
+            Assert.DoesNotContain("67BBB9204FE84A8981ED8313049BA06C", content);
+            Assert.DoesNotContain("IRONCAD.exe", content);
+            Assert.DoesNotContain("IRONCAD\\2025", content);
         }
     }
 }

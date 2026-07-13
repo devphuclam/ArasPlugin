@@ -75,7 +75,7 @@ namespace IdeaCadConnector.Desktop
         private string _searchRevisionReadinessText;
 
         public MainViewModel()
-            : this(new ArasClientOptions(), null, new WorkspaceService(new WorkspaceOptions()))
+            : this(ArasClientOptionsFactory.Current ?? new ArasClientOptions(), null, new WorkspaceService(new WorkspaceOptions()))
         {
         }
 

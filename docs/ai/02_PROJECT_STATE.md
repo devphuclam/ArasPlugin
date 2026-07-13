@@ -221,3 +221,28 @@ The Verifier updates this document after each merged ticket:
 - Schema changes: none (no Aras ItemType/property/relationship touched)
 - Behavior change: Document files now carry relative/absolute path, SHA256 content identity, and stream-counted size; missing/unreadable files block readiness
 - Working tree: DOC-02 files verified; unrelated staged `tests/IdeaCadConnector.Tests/TestResults/BASE-02-test-debug.trx` remains outside this patch.
+
+## SEC-00 completion record
+
+- Completed: 2026-07-13
+- Scope: remove hardcoded environment-specific Aras configuration from source code
+- Changes:
+  - EDIT: `src/IdeaCadConnector.Aras/ArasClientOptions.cs` — removed real IP, DB name, Vault ID, IronCAD path from defaults; added `ArasClientOptionsFactory` with `FromConfiguration()`, `WithLoginOverrides()`, and `Initialize()` static methods
+  - EDIT: `src/IdeaCadConnector.Core/Configuration/EnvironmentConfiguration.cs` — added `VaultId`, `OAuthClientId`, `OAuthScope`, `DefaultMaxSearchResults`, `TimeoutSeconds` to `ArasConfiguration`
+  - EDIT: `src/IdeaCadConnector.Desktop/App.xaml.cs` — calls `ArasClientOptionsFactory.Initialize()` at startup to load environment config
+  - EDIT: `src/IdeaCadConnector.Desktop/MainViewModel.cs` — parameterless constructor reads from `ArasClientOptionsFactory.Current`
+  - EDIT: `src/IdeaCadConnector.IronCAD/IronCadAddin.cs` — login flow reads from `ArasClientOptionsFactory.Current`
+  - EDIT: `src/IdeaCadConnector.Ui/Views/LoginDialog.xaml.cs` — stores supplied options; `TestConnectionAsync` uses `_options` instead of `new ArasClientOptions()`
+  - EDIT: `src/IdeaCadConnector.Desktop/IdeaCadConnector.environment.template.json` — added new fields with placeholder values
+  - EDIT: `src/IdeaCadConnector.Desktop/IdeaCadConnector.Desktop.csproj` — template copied to output directory
+  - EDIT: `.gitignore` — ignore `IdeaCadConnector.environment.json`
+  - EDIT: `tests/IdeaCadConnector.Tests/EnvironmentConfigurationTests.cs` — 14 new tests
+- Build Debug: Succeeded (0 warnings, 0 errors)
+- Build Release: Succeeded (0 warnings, 0 errors)
+- Test Debug: 447 passed (433 prior + 14 new), 0 failed, 0 skipped
+- Test Release: 447 passed, 0 failed, 0 skipped
+- Application source changes: 8 files
+- Test changes: 14 new tests (full config mapping, missing BaseUri/Database/VaultId, malformed URI, TimeoutSeconds, DefaultMaxSearchResults, IronCadExecutablePath, login overrides, safe defaults, template integrity)
+- Schema changes: none (no Aras ItemType/property/relationship touched)
+- Behavior change: Aras server URL, database, Vault ID, and IronCAD path must now be provided via local config file or login form, not from hardcoded source defaults
+- Working tree: clean
