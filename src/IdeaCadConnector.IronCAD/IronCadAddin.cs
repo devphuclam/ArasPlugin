@@ -200,6 +200,20 @@ namespace IdeaCadConnector.IronCAD
             get { return _addinSite; }
         }
 
+#if DEBUG
+        /// <summary>
+        /// Developer-only, read-only diagnostic seam. It is not registered as a user command.
+        /// </summary>
+        internal string RunBomDiagnosticProbe(string outputFolder, string reportName)
+        {
+            var result = new BomDiagnostic.IronCadBomDiagnosticProbe().Run(
+                IronCADApp,
+                outputFolder,
+                reportName);
+            return result.ReportPath;
+        }
+#endif
+
         // ---- Button states ----------------------------------------------------
 
         private void UpdateButtonStates()
