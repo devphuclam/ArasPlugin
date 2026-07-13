@@ -2,7 +2,7 @@
 
 | ID | Epic | Title | Dependencies | Risk | Initial status |
 |---|---|---|---|---|---|---|
-| [SEC-00](tickets/SEC-00-externalize-aras-environment-config.md) | Security | Externalize Aras environment config from source control | None | High | Ready |
+| [SEC-00](tickets/SEC-00-externalize-aras-environment-config.md) | Security | Externalize Aras environment config from source control | None | High | Completed |
 | [BASE-00](tickets/BASE-00-establish-clean-backed-up-baseline.md) | Baseline | Establish clean backed-up baseline | None | High | Ready |
 | [BASE-01](tickets/BASE-01-build-baseline.md) | Baseline | Build baseline | BASE-00 | High | Blocked |
 | [BASE-02](tickets/BASE-02-test-baseline.md) | Baseline | Test baseline | BASE-01 | Medium | Blocked |

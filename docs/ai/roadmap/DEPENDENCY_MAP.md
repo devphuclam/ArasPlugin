@@ -1,7 +1,7 @@
 # Dependency Map
 
 ```text
-SEC-00 — Security baseline
+SEC-00 ✓ — Security baseline (completed)
 BASE-00
   └─ BASE-01 ─ BASE-02
        └─ BASE-04 ─ BASE-05
