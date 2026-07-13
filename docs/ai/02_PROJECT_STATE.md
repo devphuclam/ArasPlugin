@@ -224,34 +224,41 @@ The Verifier updates this document after each merged ticket:
 
 ## SEC-00 completion record
 
-_Updated 2026-07-13 with PRE-01 through PRE-05 review-fix pass._
+_Updated 2026-07-13 with review-fix pass 2 (F-01, F-03, F-04, F-06)._
 
 - Completed: 2026-07-13
 - Scope: remove hardcoded environment-specific Aras configuration from source code
 - HEAD commit (initial): `fd9081d` (15 files, +614/−19)
-- HEAD commit (review fixes): `7f588c9` (6 files, +500/−7)
+- HEAD commit (review-fix 1): `7f588c9` (6 files, +500/−7)
+- HEAD commit (review-fix 2): `5f4c38d` (7 files, +38/−24)
 - Changes:
-  - EDIT: `src/IdeaCadConnector.Aras/ArasClientOptions.cs` — removed real IP, DB name, Vault ID, IronCAD path from defaults; added `ArasClientOptionsFactory` with `FromConfiguration()`, `WithLoginOverrides()`, `Initialize()`, `Reset()`, `IsInitialized`, lazy init, and `Clone()` snapshot semantics
-  - EDIT: `src/IdeaCadConnector.Aras/VaultClient.cs` — added VaultId null/empty validation in `UploadFileAsync` that throws clear `ArasOperationException`
-  - EDIT: `src/IdeaCadConnector.Core/Configuration/EnvironmentConfiguration.cs` — added `VaultId`, `OAuthClientId`, `OAuthScope`, `DefaultMaxSearchResults`, `TimeoutSeconds` to `ArasConfiguration`
-  - EDIT: `src/IdeaCadConnector.Desktop/App.xaml.cs` — calls `ArasClientOptionsFactory.Initialize()` at startup to load environment config
-  - EDIT: `src/IdeaCadConnector.Desktop/MainViewModel.cs` — parameterless constructor reads from `ArasClientOptionsFactory.Current`
-  - EDIT: `src/IdeaCadConnector.Desktop/IronCadExternalAdapter.cs` — removed machine-specific default from constructor parameter (`null` now)
-  - EDIT: `src/IdeaCadConnector.Desktop/Services/IronCadOpenService.cs` — removed machine-specific default from constructor parameter (`null` now)
-  - EDIT: `src/IdeaCadConnector.IronCAD/IronCadAddin.cs` — calls `ArasClientOptionsFactory.Initialize()` before reading `Current`; removed `?? new ArasClientOptions()` fallback
-  - EDIT: `src/IdeaCadConnector.Ui/Views/LoginDialog.xaml.cs` — stores supplied options; `TestConnectionAsync` uses `_options` instead of `new ArasClientOptions()`
-  - EDIT: `src/IdeaCadConnector.Desktop/IdeaCadConnector.environment.template.json` — added new fields with placeholder values
-  - EDIT: `src/IdeaCadConnector.Desktop/IdeaCadConnector.Desktop.csproj` — template copied to output directory
-  - EDIT: `.gitignore` — ignore `IdeaCadConnector.environment.json`
-  - EDIT: `tests/IdeaCadConnector.Tests/EnvironmentConfigurationTests.cs` — 32 tests total (14 initial + 18 new)
+  - Aras project:
+    - `ArasClientOptions.cs` — removed real IP, DB name, Vault ID, IronCAD path from defaults; added `ArasClientOptionsFactory` with `FromConfiguration()`, `WithLoginOverrides()`, `Initialize()`, `Reset()`, `IsInitialized`, lazy init, `Clone()` snapshot semantics, `EnsureValid()` validation
+    - `VaultClient.cs` — VaultId null/empty validation in `UploadFileAsync` throws clear `ArasOperationException`
+    - `ArasAuthenticator.cs` — calls `_options.EnsureValid()` before login to prevent NRE on missing BaseUri
+    - `HttpArasCadClient.cs` — calls `_options.EnsureValid()` before login to prevent NRE on missing BaseUri
+  - Core project: `EnvironmentConfiguration.cs` — added `VaultId`, `OAuthClientId`, `OAuthScope`, `DefaultMaxSearchResults`, `TimeoutSeconds`
+  - Desktop project:
+    - `App.xaml.cs` — calls `ArasClientOptionsFactory.Initialize()` at startup
+    - `MainViewModel.cs` — login uses `ArasClientOptionsFactory.Current.WithLoginOverrides()` so VaultId/OAuth/Timeout survive
+    - `IronCadExternalAdapter.cs` — removed machine-specific default (`null` now)
+    - `Services/IronCadOpenService.cs` — removed machine-specific default (`null` now)
+    - `IdeaCadConnector.environment.template.json` — added all fields with placeholder values
+    - `IdeaCadConnector.Desktop.csproj` — template copy-to-output
+  - IronCAD project: `IronCadAddin.cs` — calls `Initialize()`; uses `WithLoginOverrides()` for user URL
+  - Ui project: `LoginDialog.xaml.cs` — uses `_options.WithLoginOverrides()` so configured VaultId/OAuth survive login
+  - `.gitignore` — ignores `IdeaCadConnector.environment.json`
+  - Tests: 32 tests total (config mapping, missing/malformed fields, precedence, loader errors, login overrides, VaultId validation, IronCAD null path, entry paths, snapshot isolation, template/gitignore integrity)
+  - Secondary template: `docs/part-library/phase-3/templates/IdeaCadConnector.environment.template.json` — cleaned of real database name and user IDs
 - Build Debug: Succeeded (0 warnings, 0 errors)
 - Build Release: Succeeded (0 warnings, 0 errors)
-- Test Debug: 465 passed (447 prior + 18 new), 0 failed, 0 skipped
+- Test Debug: 465 passed, 0 failed, 0 skipped
 - Test Release: 465 passed, 0 failed, 0 skipped
-- Application source changes: 8 + 3 = 11 files (8 initial SEC-00 + 3 review-fix: VaultClient.cs, IronCadExternalAdapter.cs, IronCadOpenService.cs)
-- Test changes: 32 tests total (config mapping, missing fields, malformed URI, precedence, loader errors, login overrides, VaultId validation, IronCAD null path, entry path verification, Clone snapshot, Reset/isolation, template/gitignore integrity)
-- Schema changes: none (no Aras ItemType/property/relationship touched)
-- Behavior change: Aras server URL, database, Vault ID, and IronCAD path must now be provided via local config file or login form, not from hardcoded source defaults; missing VaultId blocks upload with typed error; missing IronCAD path disables Open in IronCAD
-- Check-AiScope: passed (6 review-fix files, total 21 across both commits)
-- Verify-AiTicket: pre-existing infrastructure issue (`build-solution.ps1` wrong path) — not a regression
+- Application source changes: 13 files across all passes
+- Test changes: 32 tests (14 initial + 18 new)
+- Schema changes: none
+- Behavior change: Aras URL, database, Vault ID, and IronCAD path from config or login form; loaded VaultId/OAuth/Timeout/Search/IronCAD path now carried through all production login paths; missing BaseUri/Database/VaultId produce clear typed errors
+- Check-AiScope: passed
+- Verify-AiTicket: pre-existing `build-solution.ps1` path issue — not a regression
 - Working tree: clean
+- Follow-up: `PdmProjectsViewModel.cs` uses `new IronCadExternalAdapter()` with null path (PDM scope, excluded); old real values remain in Git history
