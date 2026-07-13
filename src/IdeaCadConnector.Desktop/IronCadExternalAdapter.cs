@@ -21,6 +21,8 @@ namespace IdeaCadConnector.Desktop
     {
         private readonly string _ironCadExecutablePath;
 
+        internal string ConfiguredExecutablePath => _ironCadExecutablePath;
+
         public IronCadExternalAdapter(string ironCadExecutablePath = null)
         {
             _ironCadExecutablePath = ironCadExecutablePath;
