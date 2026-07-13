@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Core.Dto;
@@ -97,11 +97,15 @@ namespace IdeaCadConnector.Core.Contracts
     public sealed class PdmDocumentRequest
     {
         public string SourceFileName { get; set; }
+        public string RelativePath { get; set; }
         public string LogicalCode { get; set; }
         public string DocumentNumber { get; set; }
         public string Classification { get; set; }
         public string LinkTargetType { get; set; }
         public string LinkedPartLogicalCode { get; set; }
+        public string SourceFilePath { get; set; }
+        public string FileHash { get; set; }
+        public long FileSize { get; set; }
     }
 
     public sealed class PdmBomPushResult

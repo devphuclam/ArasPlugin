@@ -50,6 +50,8 @@ namespace IdeaCadConnector.Aras
             if (string.IsNullOrWhiteSpace(password))
                 throw new ArasOperationException(ArasErrorCode.ValidationFailed, "Password is required.");
 
+            _options.EnsureValid();
+
             var serverUrl = _options.BaseUri.ToString().TrimEnd('/');
             var tokenEndpoint = _options.BaseUri + "oauthserver/connect/token";
 

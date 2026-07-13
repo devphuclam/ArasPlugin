@@ -17,6 +17,11 @@ namespace IdeaCadConnector.Core.Configuration
         public string BaseUrl { get; set; } = "";
         public string Database { get; set; } = "";
         public string OpenInArasBaseUrl { get; set; } = "";
+        public string VaultId { get; set; } = "";
+        public string OAuthClientId { get; set; } = "IOMApp";
+        public string OAuthScope { get; set; } = "Innovator";
+        public int? DefaultMaxSearchResults { get; set; }
+        public int? TimeoutSeconds { get; set; }
     }
 
     public sealed class LocalConfiguration

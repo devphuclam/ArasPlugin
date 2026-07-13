@@ -846,7 +846,11 @@ namespace IdeaCadConnector.Desktop
                 Documents = _pushPreview.Documents.Select(d => new PdmDocumentRequest
                 {
                     SourceFileName = d.SourceFileName,
+                    RelativePath = d.RelativePath,
                     LogicalCode = d.LogicalCode,
+                    SourceFilePath = d.SourceFilePath,
+                    FileHash = d.FileHash,
+                    FileSize = d.FileSize,
                     DocumentNumber = d.DocumentNumber,
                     Classification = d.Classification,
                     LinkTargetType = d.LinkTargetType,
@@ -3780,7 +3784,11 @@ namespace IdeaCadConnector.Desktop
                     PreviewDocuments.Add(new DocumentPreviewRow
                     {
                         SourceFileName = doc.SourceFileName,
+                        RelativePath = doc.RelativePath,
                         LogicalCode = doc.LogicalCode,
+                        SourceFilePath = doc.SourceFilePath,
+                        FileHash = doc.FileHash,
+                        FileSize = doc.FileSize,
                         DocumentNumber = doc.DocumentNumber,
                         Classification = doc.Classification,
                         LinkTargetType = doc.LinkTargetType,

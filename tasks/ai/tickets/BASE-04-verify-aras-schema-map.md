@@ -5,7 +5,7 @@
 - Epic: Baseline
 - Dependencies: BASE-01
 - Risk: Critical
-- Status: Not Started
+- Status: Partially verified - remaining live permission/version blockers
 
 ## Goal
 
@@ -58,3 +58,48 @@ Stop and report `BLOCKED` if:
 - Acceptance criteria mapping.
 - Schema/manual test impact.
 - Remaining limitations/follow-ups.
+
+## BASE-04 execution note - 2026-07-10
+
+Planner scope was approved exactly as written. Implementation updated
+`docs/ai/04_ARAS_SCHEMA_MAP.md` with explicit live-verification blockers.
+
+No source code or Aras schema was changed.
+
+Live Aras evidence:
+
+- Read-only AML evidence collected from `http://172.16.10.227/InnovatorServer/`, database `InnovatorSolutions`.
+- Evidence files are under `.ai-work/verification/BASE-04-live-schema/`.
+- Token was used only from `.ai-work/live-token.local.txt` and is not recorded in evidence.
+
+Verification:
+
+- `dotnet build IdeaCadConnector.sln --configuration Debug --no-restore`: passed, 0 warnings, 0 errors.
+- `dotnet build IdeaCadConnector.sln --configuration Release --no-restore`: passed, 0 warnings, 0 errors.
+- `dotnet test .\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj --configuration Debug --no-restore --no-build`: passed, 419/419.
+
+Live confirmed:
+
+- Core ItemTypes and relationships currently used by clone/push.
+- `Document File` relationship exists and links `Document` to `File`.
+- Part Library ItemTypes and key properties exist.
+- All eight listed server methods exist on live.
+
+Live confirmed absent:
+
+- `PDM Commit`.
+- `PDM Commit File`.
+- `PDM Branch`.
+
+Blocked items still remaining:
+
+- Document File write/version/permission behavior.
+- Role-specific permission matrix.
+- Lifecycle transition map details.
+- Any ticket that requires server-side PDM Branch/Commit schema.
+
+Required to unblock:
+
+- decode live permission and lifecycle configuration; or
+- perform approved non-destructive UAT for Document File add/version behavior; and
+- plan/deploy the missing PDM Branch/Commit schema before Branch/Commit server-side tickets.

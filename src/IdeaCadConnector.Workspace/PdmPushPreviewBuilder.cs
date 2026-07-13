@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -150,6 +150,10 @@ namespace IdeaCadConnector.Workspace
                 rows.Add(new DocumentPreviewRow
                 {
                     SourceFileName = System.IO.Path.GetFileName(doc.SourcePath),
+                    RelativePath = doc.RelativePath,
+                    SourceFilePath = doc.SourcePath,
+                    FileHash = doc.Fingerprint,
+                    FileSize = doc.FileSize,
                     LogicalCode = doc.LogicalCode,
                     DocumentNumber = GenerateDocumentNumber(result.RepositoryCode, doc),
                     Classification = classification,
