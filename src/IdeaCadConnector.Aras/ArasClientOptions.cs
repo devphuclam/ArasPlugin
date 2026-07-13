@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using IdeaCadConnector.Core.Configuration;
+using IdeaCadConnector.Core.Errors;
 
 namespace IdeaCadConnector.Aras
 {
@@ -35,6 +36,18 @@ namespace IdeaCadConnector.Aras
                 IronCadExecutablePath = IronCadExecutablePath,
                 DefaultMaxSearchResults = DefaultMaxSearchResults
             };
+        }
+
+        internal void EnsureValid()
+        {
+            if (BaseUri == null)
+                throw new ArasOperationException(
+                    ArasErrorCode.ValidationFailed,
+                    "Aras server URL (BaseUri) is not configured. Set 'aras.baseUrl' in the environment configuration or provide it in the login form.");
+            if (string.IsNullOrWhiteSpace(Database))
+                throw new ArasOperationException(
+                    ArasErrorCode.ValidationFailed,
+                    "Aras database is not configured. Set 'aras.database' in the environment configuration or provide it in the login form.");
         }
     }
 

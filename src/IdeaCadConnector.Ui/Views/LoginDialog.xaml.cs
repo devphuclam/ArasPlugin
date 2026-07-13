@@ -113,7 +113,8 @@ namespace IdeaCadConnector.Ui.Views
             {
                 DisposeAuthenticatedClient();
 
-                _arasClient = new ArasCadClient(_options);
+                var mergedOptions = _options.WithLoginOverrides(LoginRequest.ServerUrl, LoginRequest.Database);
+                _arasClient = new ArasCadClient(mergedOptions);
 
                 var loginResult = await _arasClient.LoginAsync(LoginRequest, CancellationToken.None).ConfigureAwait(true);
                 ViewModel.IsConnected = true;

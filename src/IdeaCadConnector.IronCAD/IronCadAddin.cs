@@ -269,7 +269,9 @@ namespace IdeaCadConnector.IronCAD
                 {
                     if (_arasClient != null) _arasClient.Dispose();
 
-                    _arasClient = new ArasCadClient(options);
+                    var mergedOptions = options.WithLoginOverrides(
+                        dialog.LoginRequest.ServerUrl, dialog.LoginRequest.Database);
+                    _arasClient = new ArasCadClient(mergedOptions);
                     _loginResult = _arasClient.LoginAsync(
                         dialog.LoginRequest, System.Threading.CancellationToken.None)
                         .GetAwaiter().GetResult();

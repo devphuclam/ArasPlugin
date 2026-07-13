@@ -583,11 +583,8 @@ namespace IdeaCadConnector.Desktop
                 _arasClient = null;
                 SharedArasCadClient = null;
 
-                _arasClient = new HttpArasCadClient(new ArasClientOptions
-                {
-                    BaseUri = new Uri(request.ServerUrl),
-                    Database = request.Database
-                });
+                var loginOptions = ArasClientOptionsFactory.Current.WithLoginOverrides(request.ServerUrl, request.Database);
+                _arasClient = new HttpArasCadClient(loginOptions);
                 SharedArasCadClient = _arasClient;
 
                 _loginResult = await _arasClient.LoginAsync(request, CancellationToken.None);
@@ -601,19 +598,11 @@ namespace IdeaCadConnector.Desktop
                 StatusMessage = string.Format(Loc(TranslationKeys.StatusConnected), _loginResult.UserName);
 
                 (SharedPdmClient as IDisposable)?.Dispose();
-                var pdmClient = new HttpPdmRepositoryClient(new ArasClientOptions
-                {
-                    BaseUri = new Uri(request.ServerUrl),
-                    Database = request.Database
-                });
+                var pdmClient = new HttpPdmRepositoryClient(loginOptions);
                 pdmClient.SetSession(_loginResult.SessionToken, null, request.Database);
                 SharedPdmClient = pdmClient;
                 (SharedPartLibraryClient as IDisposable)?.Dispose();
-                var partLibraryClient = new HttpPartLibraryClient(new ArasClientOptions
-                {
-                    BaseUri = new Uri(request.ServerUrl),
-                    Database = request.Database
-                });
+                var partLibraryClient = new HttpPartLibraryClient(loginOptions);
                 partLibraryClient.SetSession(_loginResult.SessionToken, null, request.Database);
                 SharedPartLibraryClient = partLibraryClient;
                 AppSessionContext.Current.NotifyLibraryDataChanged();
