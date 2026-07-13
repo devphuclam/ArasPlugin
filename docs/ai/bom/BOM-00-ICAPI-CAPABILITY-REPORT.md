@@ -1,17 +1,17 @@
 # BOM-00 — IronCAD ICAPI capability report
 
-Status: `BLOCKED_RUNTIME_VERIFICATION`
+Status: `BLOCKED_ADDIN_LOAD`
 
 ## Baseline and environment
 
 | Item | Evidence |
 |---|---|
-| Repository baseline | `origin/main` commit `ee23a38` |
+| Repository baseline | `origin/main` commit `3ff125d` |
 | IronCAD executable | `C:\Program Files\IronCAD\2025\bin\IRONCAD.exe`, file version `27.0.26.19811` |
 | Primary interop | `interop.ICApiIronCAD.dll`, assembly/file version `27.0.0.0` |
 | Companion interop | `IronCADCOMInterop.dll`, assembly version `27.0.0.0` |
 | Study | `PDM_StudyCase_260713-1.ics` exists locally; original was not opened for writing, modified, renamed, or committed |
-| Runtime probe | `BLOCKED_RUNTIME_VERIFICATION`; disposable study copy opened and legacy `IronCAD.Application` was active, but the project add-in was not loaded, so no `_addinSite.Application`/`IZBaseApp` seam was available |
+| Runtime probe | `BLOCKED_ADDIN_LOAD`; `<study-copy.ics>` opened and legacy `IronCAD.Application` was active, but the project add-in was not loaded, so no `_addinSite.Application`/`IZBaseApp` seam was available |
 
 Reflection and SDK sample evidence establishes only `API_PRESENT`. It does not establish runtime behavior, persistence, occurrence reuse, quantity semantics, or equivalence to UI externalization.
 
@@ -62,6 +62,11 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 - `IronCadAddin.RunBomDiagnosticProbe(...)` is a DEBUG-only internal seam, not a production command or ribbon feature.
 - The reader requires an active scene, reads only the approved read operations, and records optional COM failures as warnings.
 - Local raw output includes a proprietary-metadata warning and uses `FileMode.CreateNew`. Committed/public evidence is aggregate-only.
+- ICAPI `Z_ELEMENT_*` values are mapped to provider-neutral `Part`, `Assembly`, or `TechnicalOrUnknown` before entering Workspace.
+- `IZElement.Id` is retained only as runtime/occurrence identity candidate; document `FileGUID`, model-link paths, and link comparison APIs are not promoted to definition identity without runtime evidence, so live quantity remains `IdentityUnavailable`.
+- Reader traversal has reference-identity cycle protection plus finite depth/node limits; repeated occurrences are not collapsed by definition identity.
+- Raw JSON is UTF-8 valid JSON with the warning as a property. Public sanitizer emits stable warning categories and strips raw warning text.
+- Raw output path policy rejects repository, `.git`, source/test/docs/tasks, build, `.vs`, `.ai-work`, TestResults, study, and application-data roots when supplied.
 
 ## RED/GREEN evidence
 
@@ -69,7 +74,9 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 |---|---|
 | RED | `dotnet build tests/IdeaCadConnector.Tests/IdeaCadConnector.Tests.csproj --configuration Debug --no-restore -m:1` failed because `BomDiagnostic` types did not exist; 3 expected compiler errors |
 | GREEN analyzer | Same serialized build passed, 0 errors |
-| GREEN focused | `dotnet test ... --no-restore --no-build --filter FullyQualifiedName~BomDiagnosticTreeAnalyzerTests` passed: 14/14 |
+| GREEN focused | `dotnet test ... --no-restore --no-build --filter FullyQualifiedName~BomDiagnostic` passed: 26/26 |
+| GREEN full Debug | `dotnet test ... --configuration Debug --no-restore --no-build` passed: 508/508 |
+| GREEN full Release | `dotnet test ... --configuration Release --no-restore --no-build` passed: 508/508 |
 | Runtime probe attempt | `BLOCKED_RUNTIME_VERIFICATION`; study copy opened successfully, but `IdeaCadConnector.IronCAD` was absent from the IronCAD process and no active add-in-provided `IZBaseApp` was available |
 
 ## Runtime verification record
@@ -78,7 +85,7 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 Runtime probe status: BLOCKED_RUNTIME_VERIFICATION
 IronCAD version: 27.0.26.19811
 Interop assembly version: 27.0.0.0
-Active legacy page: `C:\Users\TD-999\Research\ArasInnovator\copilot-worktrees\ARAS-Plugin\IdeaCadConnector\.ai-work\BOM-00-runtime\study-copy.ics`
+Active legacy page: `<study-copy.ics>`
 Active document type: NOT OBSERVED (add-in not loaded)
 Top element available: NOT OBSERVED
 Total traversed nodes: NOT OBSERVED
@@ -94,6 +101,28 @@ Hidden nodes: NOT OBSERVED
 Excluded-from-BOM nodes: NOT OBSERVED
 Warnings: study copy was open through legacy `IronCAD.Application`, but the project add-in was not loaded; direct legacy COM `ZIronCADApp` access could not substitute for the add-in's typed `_addinSite.Application` (`TYPE_E_LIBNOTREGISTERED`/no `IZBaseApp` QI)
 ```
+
+## Add-in loading-chain evidence
+
+| Layer | Expected mechanism | Observed evidence | Result | Root cause / correction / rollback |
+|---|---|---|---|---|
+| IronCAD startup | IronCAD 2025 x64 starts and opens `<study-copy.ics>` | Process responsive; legacy active page is the disposable copy | Passed | No rollback required |
+| Add-in discovery | Per-user `HKCU\Software\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector` entry | GUID, `LoadOnStartup=1`, and `ShowInList=1` present | Partially verified | SDK-style COM categories were added to the build registration; delete the per-user application and CLSID keys to roll back |
+| COM activation | CLSID/ProgId resolves the managed add-in | `IdeaCadConnector.IronCAD.AddIn` instantiated successfully outside IronCAD | Passed | Confirms registration and assembly path, not host discovery |
+| Assembly load in IronCAD | Host loads the intended Debug x64 `IdeaCadConnector.IronCAD.dll` | Module/managed load evidence and DEBUG seam callback were absent | Failed | Host Add-In Manager activation remains required; no legacy COM replacement was introduced |
+| Dependency resolution | Manifest and `.hid`/dependency preload resolve the add-in | Not reached because host discovery did not instantiate the class | Not verified | Re-test after Add-In Manager activation |
+| `IronCadAddin` constructor/static initialization | Constructor runs before `InitSelf` | No host-load evidence | Not verified | Re-test after Add-In Manager activation |
+| `InitSelf` / `_addinSite` | Host supplies `ZAddinSite`, then `_addinSite.Application` supplies `IZBaseApp` | No callback or typed application observed | Failed | Runtime remains `BLOCKED_ADDIN_LOAD` |
+
+Registration correction used by the Debug build is per-user and does not require administrator rights. The affected keys are the application entry, the add-in CLSID/`InprocServer32`, ProgId, and IronCAD application/required COM categories. Rollback is:
+
+```text
+reg delete "HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector" /f
+reg delete "HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}" /f
+reg delete "HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn" /f
+```
+
+The IronCAD SDK guidance requires selecting the add-in in the Add-In Manager once before subsequent auto-load. That host-side selection was not observed in this session, so live ICAPI traversal remains blocked.
 
 ## Safety and out-of-scope
 
