@@ -145,7 +145,7 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void Analyze_SkipsUnidentifiableChildFromQuantityRowsWithoutInventingOne()
+        public void Analyze_DoesNotEmitPartialQuantityRowsWhenAnySiblingIdentityIsMissing()
         {
             var root = Node("root", "Assembly", "root-def",
                 Node("known", "Part", "known-def"), Node("unknown", "Part", null));
@@ -153,9 +153,7 @@ namespace IdeaCadConnector.Tests
             var result = BomDiagnosticTreeAnalyzer.Analyze(root);
 
             Assert.Equal(BomDiagnosticQuantityStatus.IdentityUnavailable, result.QuantityStatus);
-            var quantity = Assert.Single(result.Quantities);
-            Assert.Equal("known-def", quantity.DefinitionIdentity);
-            Assert.Equal(1, quantity.Quantity);
+            Assert.Empty(result.Quantities);
         }
 
         [Fact]

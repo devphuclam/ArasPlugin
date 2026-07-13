@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\IdeaCadConnector.Workspace\IdeaCadConnector.Workspace.csproj" />
     <ProjectReference Include="..\..\src\IdeaCadConnector.Aras\IdeaCadConnector.Aras.csproj" />
     <ProjectReference Include="..\..\src\IdeaCadConnector.Desktop\IdeaCadConnector.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\IdeaCadConnector.IronCAD\IdeaCadConnector.IronCAD.csproj" />
   </ItemGroup>
 
   <ItemGroup>
