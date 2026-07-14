@@ -78,7 +78,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             var display = NormalizeDisplayName(displayName);
             if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(display))
                 throw new ArgumentException("Item code and display name are required.");
-            return name + "__" + normalizedType + "__" + code + "__" + display + ".ics";
+            return name + "__" + code + "__" + display + ".ics";
         }
 
         public static string NormalizeCode(string value)

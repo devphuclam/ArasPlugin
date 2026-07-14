@@ -49,7 +49,7 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(1, plan.Parts.Count);
             Assert.Equal("ASM-001", plan.Assemblies.Single().ItemCode);
             Assert.Equal("PRT-001", plan.Parts.Single().ItemCode);
-            Assert.Equal("PDM-STUDYCASE__ASM__ASM-001__ASSEMBLY-001.ics", plan.Assemblies.Single().CanonicalFileName);
+            Assert.Equal("PDM-STUDYCASE__ASM-001__ASSEMBLY-001.ics", plan.Assemblies.Single().CanonicalFileName);
         }
 
         [Fact]
@@ -187,7 +187,16 @@ namespace IdeaCadConnector.Tests
             Assert.Equal("PDM-NEW", finalPlan.ProjectCode);
             Assert.Equal("B", finalPlan.Revision);
             Assert.Equal("B02_NEW-NAME", finalPlan.Parts.Single().SceneName);
-            Assert.Equal("PDM-NEW__PRT__B02__NEW-NAME.ics", finalPlan.Parts.Single().CanonicalFileName);
+            Assert.Equal("PDM-NEW__B02__NEW-NAME.ics", finalPlan.Parts.Single().CanonicalFileName);
+        }
+
+        [Theory]
+        [InlineData("ASM")]
+        [InlineData("PRT")]
+        public void CanonicalFileName_OmitsItemTypeToken(string itemType)
+        {
+            Assert.Equal("PDM-DEMO__A01__MAIN-BODY.ics",
+                PdmNameNormalizer.CreateCanonicalFileName("PDM-DEMO", itemType, "A01", "MAIN-BODY"));
         }
 
         [Fact]
