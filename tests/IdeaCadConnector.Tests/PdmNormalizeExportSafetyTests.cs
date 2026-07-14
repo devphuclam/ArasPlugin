@@ -64,6 +64,12 @@ namespace IdeaCadConnector.Tests
             Assert.Contains(
                 "EnsurePackageValid(pendingDirectory, manifest, \"PENDING_PACKAGE_VALIDATION_FAILED\");\n\n                publication.CommitPendingReplacingFinal();",
                 source.Replace("\r\n", "\n"));
+            Assert.Contains(
+                "var stagedRootFile = _writer.Export(stagedScene, stagedSnapshot, stagedPlan, packageStaging);\n                stagedScene.SaveAs(stagedSourcePath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);",
+                source.Replace("\r\n", "\n"));
+            Assert.Contains(
+                "successMessage = null;\n                    WriteRuntimeFailureLog(failure);",
+                source.Replace("\r\n", "\n"));
         }
 
         [Theory]

@@ -101,6 +101,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
 
                 _writer.Apply(stagedSnapshot, stagedPlan);
                 var stagedRootFile = _writer.Export(stagedScene, stagedSnapshot, stagedPlan, packageStaging);
+                stagedScene.SaveAs(stagedSourcePath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);
                 var manifest = PdmManifestV2Factory.Create(stagedPlan);
                 File.WriteAllText(Path.Combine(packageStaging, "pdm-bom-manifest.json"), new PdmPackageManifestWriter().Serialize(manifest));
                 EnsurePackageValid(packageStaging, manifest, "PACKAGE_VALIDATION_FAILED");
@@ -157,6 +158,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                     failure = Fail("STAGING_CLEANUP_FAILED", "Không thể hoàn tất cleanup transaction.",
                         string.Join(Environment.NewLine, cleanupFailures.Select(e => e.ToString())));
                     successMessage = null;
+                    WriteRuntimeFailureLog(failure);
                 }
                 if (failure != null) MessageBox.Show(PdmNormalizeExportErrorFormatter.Format(failure), "Chuẩn hóa & Xuất PDM", MessageBoxButton.OK, MessageBoxImage.Error);
                 else if (!string.IsNullOrWhiteSpace(successMessage)) MessageBox.Show(successMessage, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Information);
