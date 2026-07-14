@@ -12,8 +12,13 @@
                 <TextBox x:Name="RevisionBox" Width="60" Margin="0,0,16,0"/>
                 <TextBlock Text="Output Folder" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <TextBox x:Name="OutputFolderBox" Width="420"/>
+                <Button Content="Browse" Margin="6,0,0,0" Click="BrowseOutput_Click"/>
             </WrapPanel>
             <TextBlock x:Name="SummaryText" Margin="0,0,0,8"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="Tick all" Width="90" Margin="0,0,6,0" Click="SelectAllNames_Click"/>
+                <Button Content="Bỏ tick all" Width="90" Click="ClearAllNames_Click"/>
+            </StackPanel>
         </StackPanel>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
             <Button Content="Hủy" Width="100" Margin="0,0,8,0" Click="Cancel_Click"/>
@@ -23,7 +28,8 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Depth" Binding="{Binding Depth}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Type" Binding="{Binding ItemType}" IsReadOnly="True"/>
-                <DataGridTextColumn Header="Current Scene Name" Binding="{Binding SourceNode.Name}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Current Scene Name" Binding="{Binding CurrentSceneName}" IsReadOnly="True"/>
+                <DataGridCheckBoxColumn Header="Xác nhận tên" Binding="{Binding GenericNameConfirmed, UpdateSourceTrigger=PropertyChanged}"/>
                 <DataGridTextColumn Header="Item Code" Binding="{Binding ItemCode, UpdateSourceTrigger=PropertyChanged}"/>
                 <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"/>
                 <DataGridTextColumn Header="Canonical Filename" Binding="{Binding CanonicalFileName}" IsReadOnly="True"/>

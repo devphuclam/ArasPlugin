@@ -338,6 +338,9 @@ namespace IdeaCadConnector.Aras
                 var partIdByCode = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 string projectId = null;
 
+                if ((request.Cads ?? Array.Empty<PdmCadRequest>()).Any(c => !string.IsNullOrWhiteSpace(c.SourceFilePath)))
+                    await EnsureVaultConfiguredAsync(ct).ConfigureAwait(false);
+
                 foreach (var part in request.Parts ?? Array.Empty<PdmPartRequest>())
                 {
                     var id = await CreateOrGetPartAsync(part, ct);
@@ -477,7 +480,7 @@ namespace IdeaCadConnector.Aras
                 var docsSucceeded = docResults.All(r => r.Success);
                 var cadsMetadataSucceeded = cadResults.All(r => r.Success);
                 var hasBomFailure = bomFailures.Count > 0;
-                var allBusinessSuccess = partsSucceeded && docsSucceeded && !hasBomFailure;
+                var allBusinessSuccess = partsSucceeded && docsSucceeded && cadsMetadataSucceeded && !hasBomFailure;
 
                 if (allBusinessSuccess)
                 {
@@ -1748,6 +1751,42 @@ namespace IdeaCadConnector.Aras
             public string Classification { get; set; }
             public string AuthoringTool { get; set; }
             public string NativeFileId { get; set; }
+        }
+
+        private async Task EnsureVaultConfiguredAsync(CancellationToken ct)
+        {
+            if (!string.IsNullOrWhiteSpace(_options.VaultId))
+                return;
+
+            var response = await _aml.ApplyAmlAsync(
+                "<Item type=\"Vault\" action=\"get\" select=\"id,name,is_default\" />",
+                "get", "Vault", null, ct).ConfigureAwait(false);
+            var vaultId = ResolveVaultId(response);
+            if (string.IsNullOrWhiteSpace(vaultId))
+                throw new ArasOperationException(
+                    ArasErrorCode.ValidationFailed,
+                    "No Aras Vault is available for native CAD file upload. Configure 'aras.vaultId' or grant read access to the default Vault.");
+
+            _options.VaultId = vaultId;
+            if (_http != null)
+                _vault = new VaultClient(_http, _options);
+            _logger.LogInformation("Resolved the default Aras Vault for native CAD upload.");
+        }
+
+        internal static string ResolveVaultId(JObject response)
+        {
+            var items = response?["Items"] as JArray;
+            var candidates = items != null
+                ? items.OfType<JObject>().ToList()
+                : response == null ? new List<JObject>() : new List<JObject> { response };
+
+            var selected = candidates.FirstOrDefault(v =>
+                    string.Equals(v["is_default"]?.ToString(), "1", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(v["is_default"]?.ToString(), "true", StringComparison.OrdinalIgnoreCase))
+                ?? candidates.FirstOrDefault(v =>
+                    string.Equals(v["name"]?.ToString(), "Default", StringComparison.OrdinalIgnoreCase))
+                ?? candidates.FirstOrDefault();
+            return selected?["id"]?.ToString();
         }
 
         private void EnsureAuthenticated()

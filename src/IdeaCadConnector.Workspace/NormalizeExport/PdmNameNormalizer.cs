@@ -57,7 +57,8 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             return new PdmNameParts
             {
                 DisplayName = NormalizeDisplayName(source),
-                IsGeneric = true
+                IsGeneric = string.IsNullOrWhiteSpace(source) ||
+                    Regex.IsMatch(source, @"^(unnamed|unknown|new part|new assembly)$", RegexOptions.IgnoreCase)
             };
         }
 
@@ -77,12 +78,17 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             var display = NormalizeDisplayName(displayName);
             if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(display))
                 throw new ArgumentException("Item code and display name are required.");
-            return name + "__" + normalizedType + "__" + code + "__" + display + ".ics";
+            return name + "__" + code + "__" + display + ".ics";
         }
 
         public static string NormalizeCode(string value)
         {
             return NormalizeSlug(value).Trim('-');
+        }
+
+        public static bool IsCanonicalCode(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) && Regex.IsMatch(value, @"^[A-Z0-9][A-Z0-9.-]{0,31}$");
         }
 
         private static string NormalizeSlug(string value)

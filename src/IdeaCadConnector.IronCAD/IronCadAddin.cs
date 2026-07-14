@@ -8,6 +8,7 @@ using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Ui.Views;
 using IdeaCadConnector.Workspace;
+using IdeaCadConnector.Workspace.NormalizeExport;
 using IdeaCadConnector.IronCAD.NormalizeExport;
 
 namespace IdeaCadConnector.IronCAD
@@ -244,7 +245,6 @@ namespace IdeaCadConnector.IronCAD
 
         private void UpdateButtonStates()
         {
-            if (_normalizeExportButton != null) _normalizeExportButton.Enabled = true;
             bool loggedIn = _arasClient != null && _loginResult != null;
             bool hasCad = !string.IsNullOrWhiteSpace(_selectedCadId);
             bool hasLock = !string.IsNullOrWhiteSpace(_lockToken);

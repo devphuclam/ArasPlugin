@@ -79,18 +79,28 @@
     <Exec Command="reg add &quot;HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector&quot; /v ShowInList /t REG_DWORD /d 1 /f" />
     <!-- 2. CLSID: tells .NET COM how to instantiate the class via registry -->
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot; /ve /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Description&quot; /ve /d &quot;IdeaCadConnector&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Name&quot; /ve /d &quot;IdeaCadConnector&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\ProgId&quot; /ve /d &quot;IdeaCadConnector.IronCAD.AddIn&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /ve /d &quot;C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscoree.dll&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v Assembly /d &quot;IdeaCadConnector.IronCAD, Version=1.0.0.0, Culture=neutral, PublicKeyToken=e5b42e4710b1ef8a&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v Class /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v RuntimeVersion /d &quot;v4.0.30319&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v CodeBase /d &quot;file:///$(TargetPath.Replace('\','/'))&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32&quot; /v ThreadingModel /d &quot;Both&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32\1.0.0.0&quot; /v Assembly /d &quot;IdeaCadConnector.IronCAD, Version=1.0.0.0, Culture=neutral, PublicKeyToken=e5b42e4710b1ef8a&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32\1.0.0.0&quot; /v Class /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32\1.0.0.0&quot; /v RuntimeVersion /d &quot;v4.0.30319&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\InprocServer32\1.0.0.0&quot; /v CodeBase /d &quot;file:///$(TargetPath.Replace('\','/'))&quot; /f" />
     <!-- 3. ProgId: allows COM to find the CLSID by progid string -->
     <Exec Command="reg add &quot;HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn&quot; /ve /d &quot;IdeaCadConnector.IronCAD.IronCadAddin&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn\CLSID&quot; /ve /d &quot;{B1A006AC-1386-4811-AA71-8CF55414ACEF}&quot; /f" />
     <!-- 4. COM categories required by IronCAD's application add-in discovery -->
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Implemented Categories\{35B059DB-BDA6-4d16-AF33-7309088286DC}&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Implemented Categories\{62C8FE65-4EBB-45E7-B440-6E39B2CDBF29}&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Implemented Categories\{6CA5004A-8CD0-454d-88BA-E9700C9789A6}&quot; /f" />
     <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Required Categories\{2D652377-6B3B-450e-840A-5DE09A48B464}&quot; /f" />
+    <Exec Command="reg add &quot;HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}\Required Categories\{35B059DB-BDA6-4d16-AF33-7309088286DC}&quot; /f" />
     <Message Importance="High" Text="Registration succeeded. Rollback: dotnet msbuild .\src\IdeaCadConnector.IronCAD\IdeaCadConnector.IronCAD.csproj -t:UnregisterIronCadAddin" />
   </Target>
 

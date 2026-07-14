@@ -7,7 +7,10 @@ namespace IdeaCadConnector.Workspace
 {
     public static class PushPreviewMapper
     {
-        public static AnalyzeResult ToAnalyzeResult(PdmFolderAnalysis folderAnalysis, PdmBusinessStructureAnalysis businessAnalysis)
+        public static AnalyzeResult ToAnalyzeResult(
+            PdmFolderAnalysis folderAnalysis,
+            PdmBusinessStructureAnalysis businessAnalysis,
+            string policyVersion = "aras01-draft-1")
         {
             if (folderAnalysis == null)
                 return null;
@@ -16,7 +19,8 @@ namespace IdeaCadConnector.Workspace
 
             var structureNodes = MapStructureNodes(folderAnalysis, businessAnalysis, projectCode);
             var cadFiles = MapCadFiles(folderAnalysis);
-            var documentFiles = MapDocumentFiles(businessAnalysis, folderAnalysis);
+            var isManifestV2 = string.Equals(policyVersion, "pdm-manifest-v2", StringComparison.OrdinalIgnoreCase);
+            var documentFiles = MapDocumentFiles(businessAnalysis, folderAnalysis, !isManifestV2);
             var ignoredFiles = MapIgnoredFiles(folderAnalysis);
             var warnings = MapWarnings(folderAnalysis, businessAnalysis, documentFiles);
             var summary = BuildSummary(structureNodes, cadFiles, documentFiles, ignoredFiles, warnings);
@@ -30,7 +34,7 @@ namespace IdeaCadConnector.Workspace
                 ProjectName = projectCode,
                 PackageSourcePath = businessAnalysis?.FolderPath,
                 CadSourcePath = folderAnalysis.FolderPath,
-                PolicyVersion = "aras01-draft-1",
+                PolicyVersion = policyVersion ?? "aras01-draft-1",
                 StructureNodes = structureNodes,
                 CadFiles = cadFiles,
                 DocumentFiles = documentFiles,
@@ -172,7 +176,8 @@ namespace IdeaCadConnector.Workspace
 
         private static IReadOnlyList<AnalyzedDocumentFile> MapDocumentFiles(
             PdmBusinessStructureAnalysis businessAnalysis,
-            PdmFolderAnalysis folderAnalysis = null)
+            PdmFolderAnalysis folderAnalysis = null,
+            bool includeBusinessStructureFiles = true)
         {
             var docs = new List<AnalyzedDocumentFile>();
             var businessSourcePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -213,7 +218,7 @@ namespace IdeaCadConnector.Workspace
                 }
             }
 
-            if (businessAnalysis == null)
+            if (businessAnalysis == null || !includeBusinessStructureFiles)
                 return docs;
 
             foreach (var rootNode in businessAnalysis.RootNodes)
