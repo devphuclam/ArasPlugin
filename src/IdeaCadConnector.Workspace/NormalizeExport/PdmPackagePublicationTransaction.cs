@@ -57,6 +57,8 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void CommitPendingReplacingFinal()
         {
+            if (string.Equals(Path.GetFullPath(PendingDirectory), Path.GetFullPath(FinalDirectory), StringComparison.OrdinalIgnoreCase))
+                throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Pending and final package directories must be different.");
             if (!Directory.Exists(PendingDirectory))
                 throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Pending package directory is missing.");
             try

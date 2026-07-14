@@ -175,6 +175,22 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public void CommitPendingReplacingFinal_WhenPendingAndFinalAreTheSame_PreservesOldPackageAndUsesStableCommitCode()
+        {
+            var root = Path.Combine(Path.GetTempPath(), "pdm-replace-" + Guid.NewGuid().ToString("N"));
+            var package = Path.Combine(root, "PDM-DEMO");
+            Directory.CreateDirectory(package);
+            File.WriteAllText(Path.Combine(package, "old.marker"), "old");
+
+            var transaction = new PdmPackagePublicationTransaction(package, package, package);
+            var error = Assert.Throws<PdmNormalizeExportException>(() => transaction.CommitPendingReplacingFinal());
+
+            Assert.Equal("PACKAGE_COMMIT_FAILED", error.Code);
+            Assert.True(File.Exists(Path.Combine(package, "old.marker")));
+            Directory.Delete(root, true);
+        }
+
+        [Fact]
         public void PublicationMoveFailure_UsesStablePackageCommitCode()
         {
             var root = Path.Combine(Path.GetTempPath(), "pdm-publish-" + Guid.NewGuid().ToString("N"));
