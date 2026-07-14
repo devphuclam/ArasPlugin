@@ -1,8 +1,56 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace IdeaCadConnector.Workspace.NormalizeExport
 {
+    public static class PdmFeatureFlags
+    {
+        public const string EnablePdmNormalizeExport = "EnablePdmNormalizeExport";
+
+        public static bool IsNormalizeExportEnabled(string value)
+        {
+            return string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    public sealed class NormalizeExportEdit
+    {
+        public PdmSourceNode SourceNode { get; set; }
+        public string EditKey { get; set; }
+        public string NodeId { get; set; }
+        public string ItemCode { get; set; }
+        public string DisplayName { get; set; }
+    }
+
+    public sealed class NormalizeExportDialogResult
+    {
+        public string ProjectCode { get; set; }
+        public string Revision { get; set; }
+        public string OutputFolder { get; set; }
+        public IEnumerable<NormalizeExportEdit> Edits { get; set; } = new NormalizeExportEdit[0];
+    }
+
+    public sealed class PdmNormalizationLimits
+    {
+        public int MaxDepth { get; set; } = 128;
+        public int MaxNodeCount { get; set; } = 100000;
+    }
+
+    public enum PdmPreflightIssue
+    {
+        InvalidProjectCode,
+        InvalidRevision,
+        EmptyItemCode,
+        EmptyDisplayName,
+        DuplicateItemCode,
+        DuplicateFileName,
+        DuplicateNodeId,
+        GenericNameNotConfirmed,
+        InvalidOutputFolder
+    }
+
     public enum PdmNodeKind
     {
         Technical,
@@ -38,6 +86,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
     public sealed class PdmPlanItem
     {
         public PdmSourceNode SourceNode { get; set; }
+        public string EditKey { get; set; }
         public string NodeId { get; set; }
         public PdmNodeKind SourceKind { get; set; }
         public string ItemType { get; set; }
@@ -125,5 +174,27 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
     {
         public IList<PdmPackageValidationIssue> Issues { get; } = new List<PdmPackageValidationIssue>();
         public bool IsValid { get { return Issues.Count == 0; } }
+    }
+
+    public sealed class PdmNormalizationPreflightValidator
+    {
+        public IList<PdmPreflightIssue> Validate(PdmNormalizationPlan plan, string outputFolder)
+        {
+            var issues = new List<PdmPreflightIssue>();
+            if (plan == null || string.IsNullOrWhiteSpace(plan.ProjectCode)) issues.Add(PdmPreflightIssue.InvalidProjectCode);
+            else { try { PdmNameNormalizer.NormalizeProjectCode(plan.ProjectCode); } catch { issues.Add(PdmPreflightIssue.InvalidProjectCode); } }
+            if (plan == null || string.IsNullOrWhiteSpace(plan.Revision) || plan.Revision.Length > 20) issues.Add(PdmPreflightIssue.InvalidRevision);
+            if (string.IsNullOrWhiteSpace(outputFolder) || !Directory.Exists(outputFolder)) issues.Add(PdmPreflightIssue.InvalidOutputFolder);
+            if (plan == null || plan.Root == null) return issues;
+            var items = plan.Items.ToList();
+            if (items.Any(i => string.IsNullOrWhiteSpace(i.ItemCode))) issues.Add(PdmPreflightIssue.EmptyItemCode);
+            if (items.Any(i => string.IsNullOrWhiteSpace(i.DisplayName))) issues.Add(PdmPreflightIssue.EmptyDisplayName);
+            if (items.Any(i => i.IsGeneric)) issues.Add(PdmPreflightIssue.GenericNameNotConfirmed);
+            if (items.GroupBy(i => i.ItemCode, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)) issues.Add(PdmPreflightIssue.DuplicateItemCode);
+            if (items.GroupBy(i => i.CanonicalFileName, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)) issues.Add(PdmPreflightIssue.DuplicateFileName);
+            var ids = items.Concat(new[] { plan.Root }).Select(i => i.NodeId).ToList();
+            if (ids.Any(string.IsNullOrWhiteSpace) || ids.Count != ids.Distinct(StringComparer.OrdinalIgnoreCase).Count()) issues.Add(PdmPreflightIssue.DuplicateNodeId);
+            return issues;
+        }
     }
 }

@@ -13,17 +13,15 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
         private readonly IronCadAddin _addin;
         private readonly IronCadSceneNormalizationReader _reader = new IronCadSceneNormalizationReader();
         private readonly IronCadSceneNormalizationWriter _writer = new IronCadSceneNormalizationWriter();
+        public bool IsRunning { get; private set; }
 
-        public IronCadNormalizeExportCommand(IronCadAddin addin)
-        {
-            _addin = addin ?? throw new ArgumentNullException(nameof(addin));
-        }
+        public IronCadNormalizeExportCommand(IronCadAddin addin) { _addin = addin ?? throw new ArgumentNullException(nameof(addin)); }
 
         public void Execute()
         {
-            string backup = null;
-            IronCadSceneSnapshot snapshot = null;
-            PdmNormalizationPlan plan = null;
+            if (IsRunning) return;
+            IsRunning = true;
+            string stagingDirectory = null;
             try
             {
                 var app = _addin.IronCADApp;
@@ -34,79 +32,85 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 if (scene == null) throw new InvalidOperationException("ACTIVE_DOCUMENT_NOT_SCENE");
                 var activePath = doc.Name;
                 if (string.IsNullOrWhiteSpace(activePath) || !Path.IsPathRooted(activePath) ||
-                    !string.Equals(Path.GetExtension(activePath), ".ics", StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(Path.GetExtension(activePath), ".ics", StringComparison.OrdinalIgnoreCase) || doc.Modified)
                     throw new InvalidOperationException("ACTIVE_DOCUMENT_NOT_SAVED");
-                if (doc.Modified) throw new InvalidOperationException("ACTIVE_DOCUMENT_NOT_SAVED");
 
-                snapshot = _reader.Read(scene);
-                var suggestedProject = PdmNameNormalizer.DeriveProjectCodeFromRootFileName(activePath);
-                plan = new PdmNormalizationPlanner().CreatePlan(suggestedProject, "A", snapshot.Root);
-                if (plan.Root == null) throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
-                var defaultOutput = Path.Combine(Path.GetDirectoryName(activePath), plan.ProjectCode + "-export");
-                var dialog = new NormalizeExportDialog(plan, defaultOutput);
-                if (dialog.ShowDialog() != true) return;
+                var snapshot = _reader.Read(scene);
+                var initialPlan = new PdmNormalizationPlanner().CreatePlan(
+                    PdmNameNormalizer.DeriveProjectCodeFromRootFileName(activePath), "A", snapshot.Root);
+                if (initialPlan.Root == null) throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
+                var dialog = new NormalizeExportDialog(initialPlan,
+                    Path.Combine(Path.GetDirectoryName(activePath), initialPlan.ProjectCode + "-export"));
+                if (dialog.ShowDialog() != true || dialog.Result == null) return;
 
-                backup = _writer.CreateBackup(activePath);
-                var packageDirectory = Path.Combine(dialog.OutputFolder,
-                    dialog.ProjectCode + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-                _writer.Apply(snapshot, plan);
-                scene.SaveAs(activePath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);
-                var rootFile = _writer.Export(scene, snapshot, plan, packageDirectory);
-                var manifest = CreateManifest(plan);
-                File.WriteAllText(Path.Combine(packageDirectory, "pdm-bom-manifest.json"),
+                var finalPlan = new PdmNormalizationPlanner().CreateFinalPlan(snapshot.Root, dialog.Result);
+                var issues = new PdmNormalizationPreflightValidator().Validate(finalPlan, dialog.Result.OutputFolder);
+                if (issues.Count != 0) throw new InvalidOperationException("PREFLIGHT_VALIDATION_FAILED: " + string.Join(",", issues));
+
+                stagingDirectory = Path.Combine(Path.GetTempPath(), "IdeaCadConnector", "PDM-staging", Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(stagingDirectory);
+                var stagedSourcePath = Path.Combine(stagingDirectory, Path.GetFileName(activePath));
+                File.Copy(activePath, stagedSourcePath, false);
+                app.OpenFile(stagedSourcePath, false);
+                var stagedScene = app.ActiveDoc as IZSceneDoc;
+                if (stagedScene == null) throw new InvalidOperationException("STAGING_DOCUMENT_NOT_SCENE");
+                var stagedSnapshot = _reader.Read(stagedScene);
+                var stagedPlan = new PdmNormalizationPlanner().CreateFinalPlan(stagedSnapshot.Root, dialog.Result);
+                issues = new PdmNormalizationPreflightValidator().Validate(stagedPlan, dialog.Result.OutputFolder);
+                if (issues.Count != 0) throw new InvalidOperationException("PREFLIGHT_VALIDATION_FAILED: " + string.Join(",", issues));
+
+                var packageStaging = Path.Combine(stagingDirectory, "package");
+                var packageDirectory = Path.Combine(dialog.Result.OutputFolder,
+                    dialog.Result.ProjectCode + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+                _writer.Apply(stagedSnapshot, stagedPlan);
+                var stagedRootFile = _writer.Export(stagedScene, stagedSnapshot, stagedPlan, packageStaging);
+                var manifest = CreateManifest(stagedPlan);
+                File.WriteAllText(Path.Combine(packageStaging, "pdm-bom-manifest.json"),
                     new PdmPackageManifestWriter().Serialize(manifest));
-                var validation = new PdmPackageValidator().Validate(packageDirectory, manifest);
-                if (!validation.IsValid)
-                    throw new InvalidOperationException("MISSING_EXPORTED_FILE");
+                var validation = new PdmPackageValidator().Validate(packageStaging, manifest);
+                if (!validation.IsValid) throw new InvalidOperationException("MISSING_EXPORTED_FILE");
+                if (Directory.Exists(packageDirectory)) throw new InvalidOperationException("OUTPUT_PACKAGE_EXISTS");
+                Directory.Move(packageStaging, packageDirectory);
+                var rootFile = Path.Combine(packageDirectory, "cad", Path.GetFileName(stagedRootFile));
                 app.OpenFile(rootFile, false);
 
-                MessageBox.Show(
-                    "Chuẩn hóa và xuất PDM thành công.\n\nProject: " + plan.ProjectCode +
-                    "\nPackage: " + packageDirectory +
-                    "\nAssemblies: " + plan.Assemblies.Count +
-                    "\nParts: " + plan.Parts.Count +
-                    "\nExported .ics files: " + Directory.GetFiles(Path.Combine(packageDirectory, "cad"), "*.ics").Length +
-                    "\nBackup: " + backup,
+                MessageBox.Show("Chuẩn hóa và xuất PDM thành công.\n\nProject: " + stagedPlan.ProjectCode +
+                    "\nPackage: " + packageDirectory + "\nAssemblies: " + stagedPlan.Assemblies.Count +
+                    "\nParts: " + stagedPlan.Parts.Count + "\nSource remains unchanged.",
                     "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                if (snapshot != null && plan != null)
-                {
-                    try { _writer.Restore(snapshot, plan); } catch { }
-                }
                 MessageBox.Show(ToStableError(ex), "Chuẩn hóa & Xuất PDM", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                if (!string.IsNullOrWhiteSpace(stagingDirectory) && Directory.Exists(stagingDirectory))
+                {
+                    try { Directory.Delete(stagingDirectory, true); }
+                    catch (Exception cleanupError) { System.Diagnostics.Trace.WriteLine("PDM_CLEANUP_FAILED: " + cleanupError); }
+                }
+                IsRunning = false;
+            }
         }
-
 
         private static PdmPackageManifest CreateManifest(PdmNormalizationPlan plan)
         {
             var root = plan.Root;
             return new PdmPackageManifest
             {
-                ProjectCode = plan.ProjectCode,
-                Revision = plan.Revision,
-                RootNodeId = root.NodeId,
-                RootItemCode = root.ItemCode,
-                RootFile = "cad/" + root.CanonicalFileName,
+                ProjectCode = plan.ProjectCode, Revision = plan.Revision, RootNodeId = root.NodeId,
+                RootItemCode = root.ItemCode, RootFile = "cad/" + root.CanonicalFileName,
                 Items = plan.Items.Select(i => new PdmManifestItem
                 {
-                    NodeId = i.NodeId,
-                    ItemCode = i.ItemCode,
-                    ItemType = i.ItemType,
-                    DisplayName = i.DisplayName,
-                    SceneName = i.SceneName,
-                    FileName = "cad/" + i.CanonicalFileName,
-                    Revision = i.Revision
+                    NodeId = i.NodeId, ItemCode = i.ItemCode, ItemType = i.ItemType,
+                    DisplayName = i.DisplayName, SceneName = i.SceneName,
+                    FileName = "cad/" + i.CanonicalFileName, Revision = i.Revision
                 }).ToArray(),
                 Bom = plan.Items.Where(i => !string.IsNullOrWhiteSpace(i.ParentNodeId)).Select((i, index) => new PdmManifestBomEdge
                 {
-                    ParentNodeId = i.ParentNodeId,
-                    ChildNodeId = i.NodeId,
-                    FindNumber = (index + 1) * 10,
-                    Quantity = 1,
-                    QuantityStatus = "OccurrenceBased"
+                    ParentNodeId = i.ParentNodeId, ChildNodeId = i.NodeId, FindNumber = (index + 1) * 10,
+                    Quantity = 1, QuantityStatus = "IdentityUnavailable"
                 }).ToArray(),
                 Warnings = plan.Warnings.Select(w => w.ToString()).ToArray()
             };
@@ -114,8 +118,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
 
         private static string ToStableError(Exception ex)
         {
-            var category = ex as InvalidOperationException;
-            var value = category == null ? null : category.Message;
+            var value = (ex as InvalidOperationException)?.Message;
             return "Không thể chuẩn hóa và xuất PDM.\nMã lỗi: " +
                 (string.IsNullOrWhiteSpace(value) ? "EXTERNAL_EXPORT_FAILED" : value);
         }

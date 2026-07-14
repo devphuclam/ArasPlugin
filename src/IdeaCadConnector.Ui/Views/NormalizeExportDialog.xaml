@@ -23,7 +23,7 @@
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Depth" Binding="{Binding Depth}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Type" Binding="{Binding ItemType}" IsReadOnly="True"/>
-                <DataGridTextColumn Header="Current Scene Name" Binding="{Binding SourceNode.Name}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Current Scene Name" Binding="{Binding CurrentSceneName}" IsReadOnly="True"/>
                 <DataGridTextColumn Header="Item Code" Binding="{Binding ItemCode, UpdateSourceTrigger=PropertyChanged}"/>
                 <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"/>
                 <DataGridTextColumn Header="Canonical Filename" Binding="{Binding CanonicalFileName}" IsReadOnly="True"/>

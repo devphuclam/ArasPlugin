@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Windows;
 using IdeaCadConnector.Workspace.NormalizeExport;
@@ -9,6 +8,7 @@ namespace IdeaCadConnector.Ui.Views
     public partial class NormalizeExportDialog : Window
     {
         private readonly PdmNormalizationPlan _plan;
+        private readonly System.Collections.Generic.List<NormalizeExportEditRow> _rows;
 
         public NormalizeExportDialog(PdmNormalizationPlan plan, string defaultOutputFolder)
         {
@@ -17,26 +17,49 @@ namespace IdeaCadConnector.Ui.Views
             ProjectCodeBox.Text = plan.ProjectCode;
             RevisionBox.Text = string.IsNullOrWhiteSpace(plan.Revision) ? "A" : plan.Revision;
             OutputFolderBox.Text = defaultOutputFolder ?? string.Empty;
-            ItemsGrid.ItemsSource = plan.Items.ToList();
+            _rows = plan.Items.Select(i => new NormalizeExportEditRow
+            {
+                SourceNode = i.SourceNode,
+                EditKey = i.EditKey,
+                NodeId = i.NodeId,
+                CurrentSceneName = i.SourceNode == null ? string.Empty : i.SourceNode.Name,
+                ItemCode = i.ItemCode,
+                DisplayName = i.DisplayName,
+                CanonicalFileName = i.CanonicalFileName,
+                Depth = i.Depth,
+                ItemType = i.ItemType
+            }).ToList();
+            ItemsGrid.ItemsSource = _rows;
             SummaryText.Text = string.Format("Assemblies: {0} | Parts: {1} | Warnings: {2}",
                 plan.Assemblies.Count, plan.Parts.Count, plan.Warnings.Count);
         }
 
-        public string ProjectCode { get; private set; }
-        public string Revision { get; private set; }
-        public string OutputFolder { get; private set; }
+        public NormalizeExportDialogResult Result { get; private set; }
 
         private void Confirm_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                ProjectCode = PdmNameNormalizer.NormalizeProjectCode(ProjectCodeBox.Text);
-                Revision = string.IsNullOrWhiteSpace(RevisionBox.Text) ? "A" : RevisionBox.Text.Trim().ToUpperInvariant();
-                OutputFolder = OutputFolderBox.Text.Trim();
-                if (string.IsNullOrWhiteSpace(OutputFolder)) throw new InvalidOperationException("Output folder is required.");
-                foreach (var item in _plan.Items)
-                    item.CanonicalFileName = PdmNameNormalizer.CreateCanonicalFileName(
-                        ProjectCode, item.ItemType, item.ItemCode, item.DisplayName);
+                var projectCode = PdmNameNormalizer.NormalizeProjectCode(ProjectCodeBox.Text);
+                var revision = string.IsNullOrWhiteSpace(RevisionBox.Text) ? "A" : RevisionBox.Text.Trim().ToUpperInvariant();
+                var outputFolder = OutputFolderBox.Text.Trim();
+                if (string.IsNullOrWhiteSpace(outputFolder)) throw new InvalidOperationException("Output folder is required.");
+                if (_rows.Any(r => string.IsNullOrWhiteSpace(r.ItemCode) || string.IsNullOrWhiteSpace(r.DisplayName)))
+                    throw new InvalidOperationException("Item code and display name are required.");
+                Result = new NormalizeExportDialogResult
+                {
+                    ProjectCode = projectCode,
+                    Revision = revision,
+                    OutputFolder = outputFolder,
+                    Edits = _rows.Select(r => new NormalizeExportEdit
+                    {
+                        SourceNode = r.SourceNode,
+                        EditKey = r.EditKey,
+                        NodeId = r.NodeId,
+                        ItemCode = r.ItemCode,
+                        DisplayName = r.DisplayName
+                    }).ToArray()
+                };
                 DialogResult = true;
             }
             catch (Exception ex)
@@ -49,5 +72,18 @@ namespace IdeaCadConnector.Ui.Views
         {
             DialogResult = false;
         }
+    }
+
+    internal sealed class NormalizeExportEditRow
+    {
+        public PdmSourceNode SourceNode { get; set; }
+        public string EditKey { get; set; }
+        public string NodeId { get; set; }
+        public string CurrentSceneName { get; set; }
+        public string ItemCode { get; set; }
+        public string DisplayName { get; set; }
+        public string CanonicalFileName { get; set; }
+        public int Depth { get; set; }
+        public string ItemType { get; set; }
     }
 }

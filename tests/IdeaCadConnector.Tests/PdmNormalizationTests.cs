@@ -153,5 +153,73 @@ namespace IdeaCadConnector.Tests
             Assert.Contains(PdmPackageValidationIssue.MissingFile, result.Issues);
             Assert.Contains(PdmPackageValidationIssue.UnknownBomNode, result.Issues);
         }
+
+        [Fact]
+        public void FeatureFlag_IsDisabledUnlessExplicitlyEnabled()
+        {
+            Assert.False(PdmFeatureFlags.IsNormalizeExportEnabled(null));
+            Assert.False(PdmFeatureFlags.IsNormalizeExportEnabled("false"));
+            Assert.True(PdmFeatureFlags.IsNormalizeExportEnabled("true"));
+        }
+
+        [Fact]
+        public void FinalPlan_RebuildsAllDerivedValuesFromDialogEdits()
+        {
+            var source = new PdmSourceNode
+            {
+                Kind = PdmNodeKind.SceneRoot,
+                Name = "Root",
+                Children = new[] { new PdmSourceNode { Kind = PdmNodeKind.Part, Name = "A01_OldName" } }
+            };
+            var initial = new PdmNormalizationPlanner().CreatePlan("PDM-OLD", "A", source);
+            var item = initial.Parts.Single();
+            var result = new NormalizeExportDialogResult
+            {
+                ProjectCode = "PDM-NEW",
+                Revision = "B",
+                OutputFolder = "C:\\export",
+                Edits = new[] { new NormalizeExportEdit { SourceNode = item.SourceNode, NodeId = item.NodeId, ItemCode = "B02", DisplayName = "NEW-NAME" } }
+            };
+
+            var finalPlan = new PdmNormalizationPlanner().CreateFinalPlan(source, result);
+
+            Assert.Equal("PDM-NEW", finalPlan.ProjectCode);
+            Assert.Equal("B", finalPlan.Revision);
+            Assert.Equal("B02_NEW-NAME", finalPlan.Parts.Single().SceneName);
+            Assert.Equal("PDM-NEW__PRT__B02__NEW-NAME.ics", finalPlan.Parts.Single().CanonicalFileName);
+        }
+
+        [Fact]
+        public void Preflight_BlocksGenericNamesAndDuplicateIdsBeforeWrite()
+        {
+            var source = new PdmSourceNode
+            {
+                Kind = PdmNodeKind.SceneRoot,
+                Name = "Root",
+                Children = new[]
+                {
+                    new PdmSourceNode { Kind = PdmNodeKind.Part, Name = "Part1", Properties = new PdmSourceProperties { NodeId = "same" } },
+                    new PdmSourceNode { Kind = PdmNodeKind.Part, Name = "Part2", Properties = new PdmSourceProperties { NodeId = "same" } }
+                }
+            };
+            var plan = new PdmNormalizationPlanner().CreatePlan("PDM-NEW", "A", source);
+
+            var issues = new PdmNormalizationPreflightValidator().Validate(plan, "C:\\export");
+
+            Assert.Contains(PdmPreflightIssue.GenericNameNotConfirmed, issues);
+            Assert.Contains(PdmPreflightIssue.DuplicateNodeId, issues);
+        }
+
+        [Fact]
+        public void Planner_StopsCyclesAndExcessiveDepth()
+        {
+            var source = new PdmSourceNode { Kind = PdmNodeKind.SceneRoot, Name = "Root" };
+            source.Children = new[] { source };
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                new PdmNormalizationPlanner().CreatePlan("PDM-NEW", "A", source, new PdmNormalizationLimits { MaxDepth = 4, MaxNodeCount = 10 }));
+
+            Assert.Equal("PDM_TRAVERSAL_CYCLE", exception.Message);
+        }
     }
 }

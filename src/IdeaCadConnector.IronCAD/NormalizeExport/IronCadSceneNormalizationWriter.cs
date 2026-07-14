@@ -32,18 +32,6 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             if (rename) element.Name = item.SceneName;
         }
 
-        public string CreateBackup(string activePath)
-        {
-            if (string.IsNullOrWhiteSpace(activePath) || !File.Exists(activePath))
-                throw new InvalidOperationException("BACKUP_FAILED");
-            var folder = Path.Combine(Path.GetDirectoryName(activePath), ".pdm-backup",
-                DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-            Directory.CreateDirectory(folder);
-            var backup = Path.Combine(folder, Path.GetFileNameWithoutExtension(activePath) + ".pre-pdm.ics");
-            if (File.Exists(backup)) throw new IOException("BACKUP_FAILED");
-            File.Copy(activePath, backup, false);
-            return backup;
-        }
 
         public string Export(IZSceneDoc scene, IronCadSceneSnapshot snapshot, PdmNormalizationPlan plan, string outputFolder)
         {
@@ -54,43 +42,9 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             Directory.CreateDirectory(cad);
             var rootPath = Path.Combine(cad, plan.Root.CanonicalFileName);
             scene.SaveAs(rootPath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);
-            foreach (var item in plan.Items)
-            {
-                IZElement element;
-                if (!snapshot.Elements.TryGetValue(item.SourceNode, out element))
-                    throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
-                var part = element as IZPart;
-                var assembly = element as IZAssembly;
-                var filePath = Path.Combine(cad, item.CanonicalFileName);
-                if (part != null) part.SaveAs(filePath, true);
-                else if (assembly != null) assembly.SaveAs(filePath, true);
-                else throw new InvalidOperationException("EXTERNAL_EXPORT_FAILED");
-            }
+            // Use one externalization strategy only. Per-component SaveAs calls
+            // can produce links that still point to the active source.
             return rootPath;
-        }
-
-        public void Restore(IronCadSceneSnapshot snapshot, PdmNormalizationPlan plan)
-        {
-            if (snapshot == null || plan == null) return;
-            RestoreItem(snapshot, plan.Root);
-            foreach (var item in plan.Items) RestoreItem(snapshot, item);
-        }
-
-        private static void RestoreItem(IronCadSceneSnapshot snapshot, PdmPlanItem item)
-        {
-            if (item?.SourceNode == null) return;
-            IZElement element;
-            if (!snapshot.Elements.TryGetValue(item.SourceNode, out element)) return;
-            var manager = element.GetCustomPropManager(1);
-            if (manager == null) return;
-            var original = item.SourceNode.Properties ?? new PdmSourceProperties();
-            Set(manager, "PDM.NodeId", original.NodeId);
-            Set(manager, "PDM.ItemCode", original.ItemCode);
-            Set(manager, "PDM.ItemType", null);
-            Set(manager, "PDM.DisplayName", original.DisplayName);
-            Set(manager, "PDM.ProjectCode", original.ProjectCode);
-            Set(manager, "PDM.Revision", original.Revision);
-            element.Name = item.SourceNode.Name;
         }
 
         private static void Set(IZCustomPropMgr manager, string name, string value)
