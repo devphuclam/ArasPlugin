@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows;
 using interop.ICApiIronCAD;
 using IdeaCadConnector.Ui.Views;
@@ -29,9 +28,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             IZBaseApp app = null;
             IZDoc stagedSourceDoc = null;
             IZDoc exportedStagingDoc = null;
-            IZDoc pendingPackageDoc = null;
             IZDoc finalPackageDoc = null;
-            IZSceneDoc pendingScene = null;
             string stagingDirectory = null;
             string sourceStagingDirectory = null;
             string pendingDirectory = null;
@@ -114,15 +111,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
 
                 publication = new PdmPackagePublicationTransaction(packageStaging, pendingDirectory, finalDirectory);
                 publication.MoveToPending();
-                var pendingRootPath = Path.Combine(pendingDirectory, "cad", Path.GetFileName(stagedRootFile));
-                pendingPackageDoc = app.OpenFile(pendingRootPath, false);
-                EnsureTemporaryDocument(pendingPackageDoc, originalSourceDoc, "PENDING_PACKAGE_VALIDATION_FAILED");
-                pendingScene = _activationVerifier.VerifyScene(app, pendingRootPath, "PENDING_ROOT");
                 EnsurePackageValid(pendingDirectory, manifest, "PENDING_PACKAGE_VALIDATION_FAILED");
-                new IronCadExportPackageVerifier(_reader).Verify(pendingScene, stagedPlan, pendingDirectory,
-                    Path.GetDirectoryName(activePath), sourceStagingDirectory);
-                CloseDocumentOrThrow(app, ref pendingPackageDoc);
-                ReleaseComObjectBestEffort(ref pendingScene);
 
                 publication.CommitPendingReplacingFinal();
                 finalPackagePublished = true;
@@ -141,16 +130,14 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             finally
             {
                 if (failure != null) CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
-                CloseDocumentBestEffort(app, ref pendingPackageDoc, cleanupFailures);
-                ReleaseComObjectBestEffort(ref pendingScene);
                 CloseDocumentBestEffort(app, ref exportedStagingDoc, cleanupFailures);
                 CloseDocumentBestEffort(app, ref stagedSourceDoc, cleanupFailures);
 
-                if (publication != null && failure != null && pendingPackageDoc == null)
+                if (publication != null && failure != null)
                     TryCleanupDirectory(publication.PendingDirectory, "PENDING_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
                 if (publication != null && failure != null && finalPackagePublished && finalPackageDoc == null)
                     TryCleanupDirectory(publication.FinalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
-                if (stagedSourceDoc == null && exportedStagingDoc == null && pendingPackageDoc == null)
+                if (stagedSourceDoc == null && exportedStagingDoc == null)
                 {
                     TryCleanupDirectory(stagingDirectory, "STAGING_CLEANUP_FAILED", cleanupFailures);
                     TryCleanupDirectory(sourceStagingDirectory, "SOURCE_STAGING_CLEANUP_FAILED", cleanupFailures);
@@ -194,20 +181,6 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             if (document == null) return;
             try { app.CloseFile(document); document = null; }
             catch (Exception ex) { cleanupFailures.Add(Fail("DOCUMENT_CLOSE_FAILED", "Không thể đóng temporary IronCAD document.", ex.ToString(), ex)); }
-        }
-
-        private static void ReleaseComObjectBestEffort<T>(ref T value) where T : class
-        {
-            if (value == null) return;
-            try
-            {
-                if (Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
-            }
-            catch
-            {
-                // Closing the IronCAD document is authoritative; releasing the RCW only removes a stale folder lock.
-            }
-            finally { value = null; }
         }
 
         private static void TryCleanupDirectory(string directory, string errorCode, IList<Exception> cleanupFailures)

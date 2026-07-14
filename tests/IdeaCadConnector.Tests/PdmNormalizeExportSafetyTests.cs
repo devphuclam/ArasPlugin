@@ -60,8 +60,9 @@ namespace IdeaCadConnector.Tests
             Assert.Contains(
                 "publication.CommitPendingReplacingFinal();\n                finalPackagePublished = true;\n                var finalRootPath",
                 source.Replace("\r\n", "\n"));
+            Assert.DoesNotContain("pendingPackageDoc = app.OpenFile", source);
             Assert.Contains(
-                "CloseDocumentOrThrow(app, ref pendingPackageDoc);\n                ReleaseComObjectBestEffort(ref pendingScene);\n\n                publication.CommitPendingReplacingFinal();",
+                "EnsurePackageValid(pendingDirectory, manifest, \"PENDING_PACKAGE_VALIDATION_FAILED\");\n\n                publication.CommitPendingReplacingFinal();",
                 source.Replace("\r\n", "\n"));
         }
 
