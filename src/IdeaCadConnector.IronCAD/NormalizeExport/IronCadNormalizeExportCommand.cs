@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using interop.ICApiIronCAD;
 using IdeaCadConnector.Ui.Views;
@@ -30,6 +31,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             IZDoc exportedStagingDoc = null;
             IZDoc pendingPackageDoc = null;
             IZDoc finalPackageDoc = null;
+            IZSceneDoc pendingScene = null;
             string stagingDirectory = null;
             string sourceStagingDirectory = null;
             string pendingDirectory = null;
@@ -115,11 +117,12 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 var pendingRootPath = Path.Combine(pendingDirectory, "cad", Path.GetFileName(stagedRootFile));
                 pendingPackageDoc = app.OpenFile(pendingRootPath, false);
                 EnsureTemporaryDocument(pendingPackageDoc, originalSourceDoc, "PENDING_PACKAGE_VALIDATION_FAILED");
-                var pendingScene = _activationVerifier.VerifyScene(app, pendingRootPath, "PENDING_ROOT");
+                pendingScene = _activationVerifier.VerifyScene(app, pendingRootPath, "PENDING_ROOT");
                 EnsurePackageValid(pendingDirectory, manifest, "PENDING_PACKAGE_VALIDATION_FAILED");
                 new IronCadExportPackageVerifier(_reader).Verify(pendingScene, stagedPlan, pendingDirectory,
                     Path.GetDirectoryName(activePath), sourceStagingDirectory);
                 CloseDocumentOrThrow(app, ref pendingPackageDoc);
+                ReleaseComObjectBestEffort(ref pendingScene);
 
                 publication.CommitPendingReplacingFinal();
                 finalPackagePublished = true;
@@ -139,6 +142,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             {
                 if (failure != null) CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
                 CloseDocumentBestEffort(app, ref pendingPackageDoc, cleanupFailures);
+                ReleaseComObjectBestEffort(ref pendingScene);
                 CloseDocumentBestEffort(app, ref exportedStagingDoc, cleanupFailures);
                 CloseDocumentBestEffort(app, ref stagedSourceDoc, cleanupFailures);
 
@@ -190,6 +194,20 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             if (document == null) return;
             try { app.CloseFile(document); document = null; }
             catch (Exception ex) { cleanupFailures.Add(Fail("DOCUMENT_CLOSE_FAILED", "Không thể đóng temporary IronCAD document.", ex.ToString(), ex)); }
+        }
+
+        private static void ReleaseComObjectBestEffort<T>(ref T value) where T : class
+        {
+            if (value == null) return;
+            try
+            {
+                if (Marshal.IsComObject(value)) Marshal.FinalReleaseComObject(value);
+            }
+            catch
+            {
+                // Closing the IronCAD document is authoritative; releasing the RCW only removes a stale folder lock.
+            }
+            finally { value = null; }
         }
 
         private static void TryCleanupDirectory(string directory, string errorCode, IList<Exception> cleanupFailures)
