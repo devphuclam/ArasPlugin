@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using interop.ICApiIronCAD;
 using IdeaCadConnector.Workspace.BomDiagnostic;
 
@@ -37,7 +38,19 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
                 TopElementAvailable = read.TopElementAvailable,
                 Analysis = analysis
             };
-            var reportPath = BomDiagnosticOutput.WriteRawSnapshot(snapshot, outputFolder, reportName);
+            var studyDirectory = string.IsNullOrWhiteSpace(read.ActiveDocumentPath)
+                ? null
+                : Path.GetDirectoryName(read.ActiveDocumentPath);
+            if (string.IsNullOrWhiteSpace(studyDirectory))
+                throw new InvalidOperationException(
+                    "Active document path is unavailable; raw diagnostic output is blocked until the study directory can be protected.");
+            var context = new BomDiagnosticOutputContext
+            {
+                RepositoryRoot = BomDiagnosticOutputPathPolicy.TryFindRepositoryRoot(),
+                StudyDirectory = studyDirectory,
+                ApplicationDataDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
+            };
+            var reportPath = BomDiagnosticOutput.WriteRawSnapshot(snapshot, outputFolder, reportName, context);
             return new IronCadBomDiagnosticResult(snapshot, reportPath);
         }
     }

@@ -117,7 +117,7 @@ namespace CreateIronCadTestFiles
         {
             string outputDir = args.Length > 0
                 ? args[0]
-                : @"C:\Users\TD-999\Research\ArasInnovator\copilot-worktrees\StudyCase_0603\IRONCASE";
+                : Path.Combine(Path.GetTempPath(), "IronCadTestFiles");
 
             Directory.CreateDirectory(outputDir);
 

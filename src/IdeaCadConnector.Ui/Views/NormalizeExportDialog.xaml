@@ -1,0 +1,33 @@
+<Window x:Class="IdeaCadConnector.Ui.Views.NormalizeExportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Chuẩn hóa &amp; Xuất PDM" Height="650" Width="1050"
+        WindowStartupLocation="CenterScreen" ResizeMode="CanResize">
+    <DockPanel Margin="12">
+        <StackPanel DockPanel.Dock="Top">
+            <WrapPanel Margin="0,0,0,8">
+                <TextBlock Text="Project Code" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="ProjectCodeBox" Width="180" Margin="0,0,16,0"/>
+                <TextBlock Text="Revision" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="RevisionBox" Width="60" Margin="0,0,16,0"/>
+                <TextBlock Text="Output Folder" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="OutputFolderBox" Width="420"/>
+            </WrapPanel>
+            <TextBlock x:Name="SummaryText" Margin="0,0,0,8"/>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="Hủy" Width="100" Margin="0,0,8,0" Click="Cancel_Click"/>
+            <Button Content="Chuẩn hóa &amp; Xuất" Width="150" Click="Confirm_Click" IsDefault="True"/>
+        </StackPanel>
+        <DataGrid x:Name="ItemsGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Depth" Binding="{Binding Depth}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Type" Binding="{Binding ItemType}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Current Scene Name" Binding="{Binding SourceNode.Name}" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Item Code" Binding="{Binding ItemCode, UpdateSourceTrigger=PropertyChanged}"/>
+                <DataGridTextColumn Header="Display Name" Binding="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}"/>
+                <DataGridTextColumn Header="Canonical Filename" Binding="{Binding CanonicalFileName}" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

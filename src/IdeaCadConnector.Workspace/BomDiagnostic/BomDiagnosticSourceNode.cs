@@ -13,6 +13,8 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
 
         public string DefinitionIdentityCandidate { get; set; }
 
+        public bool DefinitionIdentityIsAmbiguous { get; set; }
+
         public string OccurrenceIdentityCandidate { get; set; }
 
         public string DisplayName { get; set; }

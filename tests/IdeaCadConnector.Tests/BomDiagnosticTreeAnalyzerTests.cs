@@ -27,15 +27,16 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void Analyze_TreatsNullChildrenAsEmptyAndUnsupportedKindsAsTechnical()
+        public void Analyze_TreatsNullChildrenAsEmptyAndSceneRootAsNonAssembly()
         {
-            var root = Node("root", "Scene", null);
+            var root = Node("root", "SceneRoot", null);
 
             var result = BomDiagnosticTreeAnalyzer.Analyze(root);
 
             Assert.Empty(result.RootNode.Children);
-            Assert.Equal("TechnicalOrUnknown", result.RootNode.NodeKind);
-            Assert.Equal(1, result.TechnicalOrUnknownCount);
+            Assert.Equal("SceneRoot", result.RootNode.NodeKind);
+            Assert.Equal(1, result.SceneRootCount);
+            Assert.Equal(0, result.TechnicalOrUnknownCount);
         }
 
         [Fact]
@@ -145,7 +146,7 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void Analyze_SkipsUnidentifiableChildFromQuantityRowsWithoutInventingOne()
+        public void Analyze_DoesNotEmitPartialQuantityRowsWhenAnySiblingIdentityIsMissing()
         {
             var root = Node("root", "Assembly", "root-def",
                 Node("known", "Part", "known-def"), Node("unknown", "Part", null));
@@ -153,9 +154,7 @@ namespace IdeaCadConnector.Tests
             var result = BomDiagnosticTreeAnalyzer.Analyze(root);
 
             Assert.Equal(BomDiagnosticQuantityStatus.IdentityUnavailable, result.QuantityStatus);
-            var quantity = Assert.Single(result.Quantities);
-            Assert.Equal("known-def", quantity.DefinitionIdentity);
-            Assert.Equal(1, quantity.Quantity);
+            Assert.Empty(result.Quantities);
         }
 
         [Fact]
@@ -185,10 +184,10 @@ namespace IdeaCadConnector.Tests
             try
             {
                 var snapshot = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
-                var path = BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study");
+                var path = BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study", TestContext());
 
                 Assert.True(File.Exists(path));
-                Assert.Throws<IOException>(() => BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study"));
+                Assert.Throws<IOException>(() => BomDiagnosticOutput.WriteRawSnapshot(snapshot, folder, "study", TestContext()));
             }
             finally
             {
@@ -202,9 +201,19 @@ namespace IdeaCadConnector.Tests
         {
             var analysis = BomDiagnosticTreeAnalyzer.Analyze(Node("root", "Assembly", "root-def"));
 
-            Assert.Throws<ArgumentException>(() => BomDiagnosticOutput.WriteRawSnapshot(analysis, null, "study"));
+            Assert.Throws<ArgumentException>(() => BomDiagnosticOutput.WriteRawSnapshot(analysis, null, "study", TestContext()));
             Assert.Throws<DirectoryNotFoundException>(() => BomDiagnosticOutput.WriteRawSnapshot(
-                analysis, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), "study"));
+                analysis, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")), "study", TestContext()));
+        }
+
+        private static BomDiagnosticOutputContext TestContext(string protectedRoot = null)
+        {
+            return new BomDiagnosticOutputContext
+            {
+                RepositoryRoot = protectedRoot ?? Path.Combine(Path.GetTempPath(), "bom-test-repo-" + Guid.NewGuid().ToString("N")),
+                StudyDirectory = Path.Combine(Path.GetTempPath(), "bom-test-study-" + Guid.NewGuid().ToString("N")),
+                ApplicationDataDirectory = Path.Combine(Path.GetTempPath(), "bom-test-appdata-" + Guid.NewGuid().ToString("N"))
+            };
         }
 
         [Fact]

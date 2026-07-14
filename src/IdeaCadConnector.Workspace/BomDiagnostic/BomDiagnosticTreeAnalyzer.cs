@@ -59,6 +59,7 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
             result.MaxDepth = Math.Max(result.MaxDepth, depth);
             if (node.NodeKind == "Assembly") result.AssemblyCount++;
             else if (node.NodeKind == "Part") result.PartCount++;
+            else if (node.NodeKind == "SceneRoot") result.SceneRootCount++;
             else result.TechnicalOrUnknownCount++;
 
             var children = source.Children;
@@ -101,6 +102,7 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
         {
             if (string.Equals(kind, "Assembly", StringComparison.OrdinalIgnoreCase)) return "Assembly";
             if (string.Equals(kind, "Part", StringComparison.OrdinalIgnoreCase)) return "Part";
+            if (string.Equals(kind, "SceneRoot", StringComparison.OrdinalIgnoreCase)) return "SceneRoot";
             return "TechnicalOrUnknown";
         }
 
@@ -120,16 +122,38 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
         {
             if (parent.Children == null || parent.Children.Count == 0) return;
             var groups = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var ambiguous = false;
+            var unavailable = false;
             foreach (var child in parent.Children)
             {
                 if (child == null || string.IsNullOrWhiteSpace(child.DefinitionIdentityCandidate))
                 {
-                    result.QuantityStatus = BomDiagnosticQuantityStatus.IdentityUnavailable;
+                    unavailable = true;
+                    continue;
+                }
+                if (child.DefinitionIdentityIsAmbiguous)
+                {
+                    ambiguous = true;
                     continue;
                 }
                 int count;
                 groups.TryGetValue(child.DefinitionIdentityCandidate, out count);
                 groups[child.DefinitionIdentityCandidate] = count + 1;
+            }
+            if (ambiguous)
+            {
+                result.QuantityStatus = BomDiagnosticQuantityStatus.AmbiguousDefinition;
+                result.Quantities.Add(new BomDiagnosticQuantityRow
+                {
+                    ParentRuntimeId = parent.RuntimeId,
+                    Status = BomDiagnosticQuantityStatus.AmbiguousDefinition
+                });
+                return;
+            }
+            if (unavailable)
+            {
+                result.QuantityStatus = BomDiagnosticQuantityStatus.IdentityUnavailable;
+                return;
             }
             foreach (var group in groups)
             {

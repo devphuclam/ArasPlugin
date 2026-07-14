@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using interop.ICApiIronCAD;
 using IdeaCadConnector.Workspace.BomDiagnostic;
 
@@ -10,13 +11,32 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
         public string DocumentName { get; set; }
         public string AuthoringToolVersion { get; set; }
         public string ActiveDocumentType { get; set; }
+        public string ActiveDocumentPath { get; set; }
         public bool TopElementAvailable { get; set; }
         public BomDiagnosticSourceNode RootNode { get; set; }
         public IList<string> Warnings { get; } = new List<string>();
     }
 
+    public sealed class IronCadBomDiagnosticReaderOptions
+    {
+        public int MaximumDepth { get; set; } = 256;
+        public int MaximumNodes { get; set; } = 100000;
+    }
+
     public sealed class IronCadBomDiagnosticReader
     {
+        private readonly IronCadBomDiagnosticReaderOptions _options;
+
+        public IronCadBomDiagnosticReader()
+            : this(new IronCadBomDiagnosticReaderOptions())
+        {
+        }
+
+        public IronCadBomDiagnosticReader(IronCadBomDiagnosticReaderOptions options)
+        {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+        }
+
         public IronCadBomDiagnosticReadResult Read(IZBaseApp application)
         {
             var result = new IronCadBomDiagnosticReadResult();
@@ -70,13 +90,19 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
                 return result;
             }
 
-            result.RootNode = ReadElement(top, null, result.Warnings);
+            result.RootNode = ReadElement(top, null, 0, result.Warnings,
+                new BomDiagnosticTraversalGuard(_options.MaximumDepth, _options.MaximumNodes));
             return result;
         }
 
         private static void TryReadDocumentInfo(IZDoc document, IronCadBomDiagnosticReadResult result)
         {
-            try { result.DocumentName = document.Name; }
+            try
+            {
+                result.DocumentName = document.Name;
+                if (!string.IsNullOrWhiteSpace(result.DocumentName) && Path.IsPathRooted(result.DocumentName))
+                    result.ActiveDocumentPath = result.DocumentName;
+            }
             catch (Exception ex) { result.Warnings.Add("Document name is unavailable: " + ex.Message); }
             try { result.ActiveDocumentType = document.Type.ToString(); }
             catch (Exception ex) { result.Warnings.Add("Document type is unavailable: " + ex.Message); }
@@ -85,15 +111,28 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
         private static BomDiagnosticSourceNode ReadElement(
             IZElement element,
             string parentRuntimeId,
-            IList<string> warnings)
+            int depth,
+            IList<string> warnings,
+            BomDiagnosticTraversalGuard guard)
         {
+            var decision = guard.TryEnter(element, depth);
+            if (decision != BomDiagnosticTraversalDecision.Entered)
+            {
+                warnings.Add(TraversalWarning(decision, element));
+                return null;
+            }
             var node = new BomDiagnosticSourceNode
             {
                 Children = new List<BomDiagnosticSourceNode>()
             };
-            node.RuntimeId = TryRead(() => element.Id.ToString(), "runtime ID", warnings);
+            try
+            {
+                node.RuntimeId = TryRead(() => element.Id.ToString(), "runtime ID", warnings);
+                node.PersistentIdCandidate = null;
+                node.OccurrenceIdentityCandidate = node.RuntimeId;
             node.DisplayName = TryRead(() => element.Name, "scene name", warnings);
-            node.NodeKind = TryRead(() => element.Type.ToString(), "element type", warnings);
+            node.NodeKind = IronCadBomDiagnosticNodeKindMapper.Map(
+                TryRead(() => element.Type.ToString(), "element type", warnings));
             node.IsSuppressed = TryReadNullable(() => element.GetStateStatus(eZElementState.Z_SUPPRESSED), "suppressed state", warnings);
 
             var part = element as IZPart;
@@ -156,7 +195,8 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
                             warnings.Add("Unsupported child object under node '" + (node.RuntimeId ?? "<missing>") + "'.");
                             continue;
                         }
-                        node.Children.Add(ReadElement(child, node.RuntimeId, warnings));
+                        var childNode = ReadElement(child, node.RuntimeId, depth + 1, warnings, guard);
+                        if (childNode != null) node.Children.Add(childNode);
                     }
                 }
             }
@@ -165,6 +205,28 @@ namespace IdeaCadConnector.IronCAD.BomDiagnostic
                 warnings.Add("Children unavailable for node '" + (node.RuntimeId ?? "<missing>") + "': " + ex.Message);
             }
             return node;
+            }
+            finally
+            {
+                guard.Exit(element);
+            }
+        }
+
+        private static string TraversalWarning(BomDiagnosticTraversalDecision decision, IZElement element)
+        {
+            string id = "<unavailable>";
+            try { id = element == null ? "<null>" : element.Id.ToString(); } catch { }
+            switch (decision)
+            {
+                case BomDiagnosticTraversalDecision.Cycle:
+                    return "CYCLE_DETECTED for runtime ID '" + id + "'.";
+                case BomDiagnosticTraversalDecision.MaxDepth:
+                    return "DEPTH_LIMIT_REACHED at runtime ID '" + id + "'.";
+                case BomDiagnosticTraversalDecision.MaxNodes:
+                    return "NODE_LIMIT_REACHED at runtime ID '" + id + "'.";
+                default:
+                    return "Traversal branch was not entered for runtime ID '" + id + "'.";
+            }
         }
 
         private static void ReadExternalInfo(IZPart part, BomDiagnosticSourceNode node, IList<string> warnings)

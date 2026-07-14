@@ -25,6 +25,7 @@ namespace IdeaCadConnector.Workspace.BomDiagnostic
         public IList<string> Warnings { get; } = new List<string>();
         public int AssemblyCount { get; set; }
         public int PartCount { get; set; }
+        public int SceneRootCount { get; set; }
         public int TechnicalOrUnknownCount { get; set; }
         public int MaxDepth { get; set; }
         public int RepeatedDefinitionCount { get; set; }

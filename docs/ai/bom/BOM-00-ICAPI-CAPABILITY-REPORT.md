@@ -1,17 +1,17 @@
 # BOM-00 — IronCAD ICAPI capability report
 
-Status: `BLOCKED_RUNTIME_VERIFICATION`
+Status: `BLOCKED_ADDIN_LOAD`
 
 ## Baseline and environment
 
 | Item | Evidence |
 |---|---|
-| Repository baseline | `origin/main` commit `ee23a38` |
+| Repository baseline | `origin/main` commit `3ff125d` |
 | IronCAD executable | `C:\Program Files\IronCAD\2025\bin\IRONCAD.exe`, file version `27.0.26.19811` |
 | Primary interop | `interop.ICApiIronCAD.dll`, assembly/file version `27.0.0.0` |
 | Companion interop | `IronCADCOMInterop.dll`, assembly version `27.0.0.0` |
 | Study | `PDM_StudyCase_260713-1.ics` exists locally; original was not opened for writing, modified, renamed, or committed |
-| Runtime probe | `BLOCKED_RUNTIME_VERIFICATION`; disposable study copy opened and legacy `IronCAD.Application` was active, but the project add-in was not loaded, so no `_addinSite.Application`/`IZBaseApp` seam was available |
+| Runtime probe | `BLOCKED_ADDIN_LOAD`; `<study-copy.ics>` opened and legacy `IronCAD.Application` was active, but the project add-in was not loaded, so no `_addinSite.Application`/`IZBaseApp` seam was available |
 
 Reflection and SDK sample evidence establishes only `API_PRESENT`. It does not establish runtime behavior, persistence, occurrence reuse, quantity semantics, or equivalence to UI externalization.
 
@@ -21,39 +21,39 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 
 | # | Capability | Classification | Interop type/member and exact signature | Compile-time evidence | Runtime evidence | Limit/follow-up |
 |---:|---|---|---|---|---|---|
-| 1 | Obtain active `IZSceneDoc` | API_PRESENT | `IZBaseApp.ActiveDoc : IZDoc` | Reflection and SDK sample `GetActiveDoc()` | BLOCKED_RUNTIME_VERIFICATION | Cast must be observed on active study |
-| 2 | Retrieve root/top element | API_PRESENT | `IZSceneDoc.GetTopElement() : IZElement` | Reflection and `BOMPropExample` | BLOCKED_RUNTIME_VERIFICATION | Top element availability unknown |
-| 3 | Enumerate direct children | API_PRESENT | `IZElement.GetChildrenZArray() : IZArray`; `IZArray.Count(out int) : void`; `IZArray.Get(int,out object) : void` | Reflection and SDK sample | BLOCKED_RUNTIME_VERIFICATION | Child collection behavior unknown |
-| 4 | Recursively enumerate descendants | API_PRESENT | Repeated `IZElement.GetChildrenZArray()` / `IZArray.Get(...)` | SDK sample recursively traverses assemblies | BLOCKED_RUNTIME_VERIFICATION | Cycle/reuse semantics unknown |
-| 5 | Distinguish assembly/part/technical nodes | API_PRESENT | `IZElement.Type : eZElementType`; enum includes `Z_ELEMENT_PART`, `Z_ELEMENT_ASSEMBLY`, BREP, wire, profile and technical types | Reflection enum values | BLOCKED_RUNTIME_VERIFICATION | Study distribution unknown |
-| 6 | Retrieve visible Scene Browser name | API_PRESENT | `IZElement.GetTreeViewDisplayShapeName(bool,bool,out string) : void`; also `Name : string` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Must compare with visible browser |
-| 7 | Retrieve source/external filename | API_PRESENT | `IZSceneElement.ModelLinkPath : string`; `IZPart.GetExternallyLinkedInfo(out bool) : string`; `IZAssembly.GetExternallyLinkedInfo(out bool) : string` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Authoritative member per node type unknown |
-| 8 | Retrieve parent | API_PRESENT | `IZElement.GetParent() : IZElement` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Root/linked parent behavior unknown |
-| 9 | Retrieve child order/find-number order | API_PRESENT | `IZArray.Get(int,out object) : void` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Indexed order is not proven BOM/find-number order |
-| 10 | Detect suppressed/hidden/excluded nodes | API_PRESENT | `IZElement.GetStateStatus(eZElementState) : bool`; `IZPart.IsHidden : bool`; `IZAssembly.IsHidden : bool`; `IncludedInBOM : bool` | Reflection | BLOCKED_RUNTIME_VERIFICATION | State semantics and combinations unknown |
-| 11 | Persistent ICAPI element identifier | API_PRESENT | `IZElement.Id : int` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Runtime ID persistence unknown |
-| 12 | ID survives save/close/reopen/rename/externalization | NOT_VERIFIED | No persistence contract; `IZElement.Id : int` is only a candidate | Reflection cannot prove persistence | BLOCKED_RUNTIME_VERIFICATION | Requires controlled manual study-copy procedure |
-| 13 | Custom properties on every node | API_PRESENT | `IZElement.GetCustomPropManager(int) : IZCustomPropMgr`; `IZCustomPropMgr.Count : int` | Reflection and SDK sample reads per element | BLOCKED_RUNTIME_VERIFICATION | Per-node availability/persistence unknown |
-| 14 | Store PDM custom properties safely | API_PRESENT | `IZCustomPropMgr.AddCustomPropString(string,string,eZPropPersFlag,bool) : void`; `AddCustomPropEx(...) : void` | Reflection only; probe does not call setters | BLOCKED_RUNTIME_VERIFICATION | No writes permitted in BOM-00; persistence unknown |
-| 15 | Distinguish reused occurrence from independent part | API_PRESENT | `IZSceneElement.IsSameModelByGUID(eZModelCompT,IZElement,eZModelCompT) : bool` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Applicability and identity semantics unknown |
-| 16 | Group repeated occurrences for quantity | API_PRESENT | `IZSceneElement.GetInternallyLinkedElements() : object`; `GetInternallyLinkedElementsCount() : int` | Reflection | BLOCKED_RUNTIME_VERIFICATION | No runtime repeated-occurrence evidence |
-| 17 | Separate definition identity from occurrence identity | NOT_VERIFIED | No explicit definition/occurrence pair found; `IZDoc.FileGUID : string` is document-level only | Reflection inventory | BLOCKED_RUNTIME_VERIFICATION | Must not derive from names or filenames |
+| 1 | Obtain active `IZSceneDoc` | API_PRESENT | `IZBaseApp.ActiveDoc : IZDoc` | Reflection and SDK sample `GetActiveDoc()` | BLOCKED_ADDIN_LOAD | Cast must be observed on active study |
+| 2 | Retrieve root/top element | API_PRESENT | `IZSceneDoc.GetTopElement() : IZElement` | Reflection and `BOMPropExample` | BLOCKED_ADDIN_LOAD | Top element availability unknown |
+| 3 | Enumerate direct children | API_PRESENT | `IZElement.GetChildrenZArray() : IZArray`; `IZArray.Count(out int) : void`; `IZArray.Get(int,out object) : void` | Reflection and SDK sample | BLOCKED_ADDIN_LOAD | Child collection behavior unknown |
+| 4 | Recursively enumerate descendants | API_PRESENT | Repeated `IZElement.GetChildrenZArray()` / `IZArray.Get(...)` | SDK sample recursively traverses assemblies | BLOCKED_ADDIN_LOAD | Cycle/reuse semantics unknown |
+| 5 | Distinguish assembly/part/technical nodes | API_PRESENT | `IZElement.Type : eZElementType`; enum includes `Z_ELEMENT_PART`, `Z_ELEMENT_ASSEMBLY`, `Z_ELEMENT_SCENE`, `Z_ELEMENT_ROOT`, BREP, wire, profile and technical types | Reflection enum values | BLOCKED_ADDIN_LOAD | Study distribution unknown; SceneRoot is tracked separately from Assembly |
+| 6 | Retrieve visible Scene Browser name | API_PRESENT | `IZElement.GetTreeViewDisplayShapeName(bool,bool,out string) : void`; also `Name : string` | Reflection | BLOCKED_ADDIN_LOAD | Must compare with visible browser |
+| 7 | Retrieve source/external filename | API_PRESENT | `IZSceneElement.ModelLinkPath : string`; `IZPart.GetExternallyLinkedInfo(out bool) : string`; `IZAssembly.GetExternallyLinkedInfo(out bool) : string` | Reflection | BLOCKED_ADDIN_LOAD | Authoritative member per node type unknown |
+| 8 | Retrieve parent | API_PRESENT | `IZElement.GetParent() : IZElement` | Reflection | BLOCKED_ADDIN_LOAD | Root/linked parent behavior unknown |
+| 9 | Retrieve child order/find-number order | API_PRESENT | `IZArray.Get(int,out object) : void` | Reflection | BLOCKED_ADDIN_LOAD | Indexed order is not proven BOM/find-number order |
+| 10 | Detect suppressed/hidden/excluded nodes | API_PRESENT | `IZElement.GetStateStatus(eZElementState) : bool`; `IZPart.IsHidden : bool`; `IZAssembly.IsHidden : bool`; `IncludedInBOM : bool` | Reflection | BLOCKED_ADDIN_LOAD | State semantics and combinations unknown |
+| 11 | Persistent ICAPI element identifier | API_PRESENT | `IZElement.Id : int` | Reflection | BLOCKED_ADDIN_LOAD | Runtime ID persistence unknown |
+| 12 | ID survives save/close/reopen/rename/externalization | NOT_VERIFIED | No persistence contract; `IZElement.Id : int` is only a candidate | Reflection cannot prove persistence | BLOCKED_ADDIN_LOAD | Requires controlled manual study-copy procedure |
+| 13 | Custom properties on every node | API_PRESENT | `IZElement.GetCustomPropManager(int) : IZCustomPropMgr`; `IZCustomPropMgr.Count : int` | Reflection and SDK sample reads per element | BLOCKED_ADDIN_LOAD | Per-node availability/persistence unknown |
+| 14 | Store PDM custom properties safely | API_PRESENT | `IZCustomPropMgr.AddCustomPropString(string,string,eZPropPersFlag,bool) : void`; `AddCustomPropEx(...) : void` | Reflection only; probe does not call setters | BLOCKED_ADDIN_LOAD | No writes permitted in BOM-00; persistence unknown |
+| 15 | Distinguish reused occurrence from independent part | API_PRESENT | `IZSceneElement.IsSameModelByGUID(eZModelCompT,IZElement,eZModelCompT) : bool` | Reflection | BLOCKED_ADDIN_LOAD | Applicability and identity semantics unknown |
+| 16 | Group repeated occurrences for quantity | API_PRESENT | `IZSceneElement.GetInternallyLinkedElements() : object`; `GetInternallyLinkedElementsCount() : int` | Reflection | BLOCKED_ADDIN_LOAD | No runtime repeated-occurrence evidence |
+| 17 | Separate definition identity from occurrence identity | NOT_VERIFIED | No explicit definition/occurrence pair found; `IZDoc.FileGUID : string` is document-level only | Reflection inventory | BLOCKED_ADDIN_LOAD | Must not derive from names or filenames |
 | 18 | Call “Save All as External” through ICAPI | API_PRESENT | `IZSceneDoc.SaveAs(string,eZLinksSaveOptions,bool) : void`; enum includes `Z_LINKS_SAVE_ALL` | Reflection | Not called by read-only probe | UI equivalence intentionally unverified; defer manual procedure |
 | 19 | Select output folder programmatically | API_PRESENT | `IZSceneDoc.SaveAs(string,eZLinksSaveOptions,bool) : void` accepts target path | Reflection | Not called | Child output-folder behavior unknown |
 | 20 | Control every external filename | NOT_VERIFIED | No per-child filename member found in inspected interfaces | Reflection inventory | Not called | Requires separate manual externalization test |
 | 21 | Filename derived from Scene Browser name | NOT_VERIFIED | No member proves this naming rule | Reflection inventory | Not called | Requires manual observation |
 | 22 | Overwrite/version/skip behavior | API_PRESENT | `SaveAs(...,bool vbForceOverwriteExisting)` exposes overwrite flag | Reflection | Not called | Child-file collision behavior unknown |
 | 23 | Preserve root/child references | API_PRESENT | `eZLinksSaveOptions.Z_LINKS_SAVE_ALL` is accepted by `SaveAs` | Reflection | Not called | Reference preservation unverified |
-| 24 | Relative/absolute/search-path references | API_PRESENT | `IZSceneElement.ModelLinkPath : string` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Path form unverified |
+| 24 | Relative/absolute/search-path references | API_PRESENT | `IZSceneElement.ModelLinkPath : string` | Reflection | BLOCKED_ADDIN_LOAD | Path form unverified |
 | 25 | Read reference path after externalization | API_PRESENT | `IZSceneElement.ModelLinkPath : string`; `GetExternallyLinkedInfo(out bool)` | Reflection | Not called | Requires disposable-copy manual test |
 | 26 | Relink missing external reference | API_PRESENT | `IZTDLinkedScene.ChangeSource(string,bool) : void` | Reflection | Not called | Applicability to scene nodes unverified |
 | 27 | Open pulled workspace from different root | NOT_VERIFIED | No repository or inspected single-method validator | Inventory | Not run | Defer to BOM-08-style relocation test |
 | 28 | Validate root assembly after relocation | NOT_VERIFIED | No inspected validator contract | Inventory | Not run | Requires aggregate tree comparison |
-| 29 | Read part number/description/material/revision/mass/state/type | API_PRESENT | `IZPart.BOMPartNumber : string`; `BOMDescription : string`; `BOMQuantityString : string`; `IZPartProperty.GetMaterialName(out string,out bool) : void`; `CalculatedMass : double`; `GetMassProperties(...) : void`; `IZElement.Type : eZElementType` | Reflection | BLOCKED_RUNTIME_VERIFICATION | Revision field not found in inspected part/assembly interfaces |
+| 29 | Read part number/description/material/revision/mass/state/type | API_PRESENT | `IZPart.BOMPartNumber : string`; `BOMDescription : string`; `BOMQuantityString : string`; `IZPartProperty.GetMaterialName(out string,out bool) : void`; `CalculatedMass : double`; `GetMassProperties(...) : void`; `IZElement.Type : eZElementType` | Reflection | BLOCKED_ADDIN_LOAD | Revision field not found in inspected part/assembly interfaces |
 | 30 | Native BOM table/API | API_PRESENT | `IZSceneDoc.ExportBOM(string) : void`; `IZSceneElement.ExportBOM(string) : void`; `ExportSelfBOM(...) : void`; `IZBaseApp.ExportBOMData(...) : void` | Reflection | Not called | Read-only probe deliberately does not export |
-| 31 | Construct accurate BOM from Scene Tree | API_PRESENT | `GetTopElement`, `GetChildrenZArray`, `Type`, parent/child APIs | Reflection and pure analyzer tests | BLOCKED_RUNTIME_VERIFICATION | Accuracy depends on identity/reuse evidence |
-| 32 | Preserve multi-level hierarchy | API_PRESENT | Recursive `GetChildrenZArray` traversal | Reflection and pure analyzer tests | BLOCKED_RUNTIME_VERIFICATION | Study hierarchy not observed |
-| 33 | Determine quantity per parent | NOT_VERIFIED | Pure analyzer supports it only with supplied definition identity | Reflection cannot prove definition identity | BLOCKED_RUNTIME_VERIFICATION | Quantity remains `IdentityUnavailable` without identity candidate |
+| 31 | Construct accurate BOM from Scene Tree | API_PRESENT | `GetTopElement`, `GetChildrenZArray`, `Type`, parent/child APIs | Reflection and pure analyzer tests | BLOCKED_ADDIN_LOAD | Accuracy depends on identity/reuse evidence |
+| 32 | Preserve multi-level hierarchy | API_PRESENT | Recursive `GetChildrenZArray` traversal | Reflection and pure analyzer tests | BLOCKED_ADDIN_LOAD | Study hierarchy not observed |
+| 33 | Determine quantity per parent | NOT_VERIFIED | Pure analyzer supports it only with supplied definition identity | Reflection cannot prove definition identity | BLOCKED_ADDIN_LOAD | Quantity remains `IdentityUnavailable` without identity candidate |
 
 ## Implemented diagnostic architecture
 
@@ -62,6 +62,12 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 - `IronCadAddin.RunBomDiagnosticProbe(...)` is a DEBUG-only internal seam, not a production command or ribbon feature.
 - The reader requires an active scene, reads only the approved read operations, and records optional COM failures as warnings.
 - Local raw output includes a proprietary-metadata warning and uses `FileMode.CreateNew`. Committed/public evidence is aggregate-only.
+- ICAPI `Z_ELEMENT_*` values are mapped to provider-neutral `Part`, `Assembly`, `SceneRoot`, or `TechnicalOrUnknown` before entering Workspace; SceneRoot is excluded from assembly counts and contributes `SceneRootCount`.
+- `IZElement.Id` is retained only as runtime/occurrence identity candidate; document `FileGUID`, model-link paths, and link comparison APIs are not promoted to definition identity without runtime evidence, so live quantity remains `IdentityUnavailable`.
+- Reader traversal has reference-identity cycle protection plus finite depth/node limits; repeated occurrences are not collapsed by definition identity.
+- Raw JSON is UTF-8 valid JSON with the warning as a property. Public sanitizer emits stable warning categories and strips raw warning text.
+- Raw output path policy requires an explicit runtime context (active study directory, discovered repository root when available, and AppData) and rejects those protected roots; missing active study context fails closed.
+- Registry registration is opt-in via `RegisterIronCadAddin=true`; normal builds do not mutate HKCU. Explicit registration fails on registry errors and requires IronCAD closed. Direct rollback is `dotnet msbuild .\src\IdeaCadConnector.IronCAD\IdeaCadConnector.IronCAD.csproj -t:UnregisterIronCadAddin`; it removes the application, CLSID, and ProgId keys and exits 0 when verification succeeds.
 
 ## RED/GREEN evidence
 
@@ -69,16 +75,19 @@ Classification values are exactly: `API_PRESENT`, `RUNTIME_VERIFIED`, `PARTIALLY
 |---|---|
 | RED | `dotnet build tests/IdeaCadConnector.Tests/IdeaCadConnector.Tests.csproj --configuration Debug --no-restore -m:1` failed because `BomDiagnostic` types did not exist; 3 expected compiler errors |
 | GREEN analyzer | Same serialized build passed, 0 errors |
-| GREEN focused | `dotnet test ... --no-restore --no-build --filter FullyQualifiedName~BomDiagnosticTreeAnalyzerTests` passed: 14/14 |
-| Runtime probe attempt | `BLOCKED_RUNTIME_VERIFICATION`; study copy opened successfully, but `IdeaCadConnector.IronCAD` was absent from the IronCAD process and no active add-in-provided `IZBaseApp` was available |
+| GREEN focused Debug | `dotnet test ... --configuration Debug --no-restore --no-build --filter FullyQualifiedName~BomDiagnostic` passed: 31/31 |
+| GREEN focused Release | `dotnet test ... --configuration Release --no-restore --no-build --filter FullyQualifiedName~BomDiagnostic` passed: 31/31 |
+| GREEN full Debug | `dotnet test ... --configuration Debug --no-restore --no-build` passed: 513/513 |
+| GREEN full Release | `dotnet test ... --configuration Release --no-restore --no-build` passed: 513/513 |
+| Runtime probe attempt | `BLOCKED_ADDIN_LOAD`; study copy opened successfully, but `IdeaCadConnector.IronCAD` was absent from the IronCAD process and no active add-in-provided `IZBaseApp` was available |
 
 ## Runtime verification record
 
 ```text
-Runtime probe status: BLOCKED_RUNTIME_VERIFICATION
+Runtime probe status: BLOCKED_ADDIN_LOAD
 IronCAD version: 27.0.26.19811
 Interop assembly version: 27.0.0.0
-Active legacy page: `C:\Users\TD-999\Research\ArasInnovator\copilot-worktrees\ARAS-Plugin\IdeaCadConnector\.ai-work\BOM-00-runtime\study-copy.ics`
+Active legacy page: `<study-copy.ics>`
 Active document type: NOT OBSERVED (add-in not loaded)
 Top element available: NOT OBSERVED
 Total traversed nodes: NOT OBSERVED
@@ -94,6 +103,28 @@ Hidden nodes: NOT OBSERVED
 Excluded-from-BOM nodes: NOT OBSERVED
 Warnings: study copy was open through legacy `IronCAD.Application`, but the project add-in was not loaded; direct legacy COM `ZIronCADApp` access could not substitute for the add-in's typed `_addinSite.Application` (`TYPE_E_LIBNOTREGISTERED`/no `IZBaseApp` QI)
 ```
+
+## Add-in loading-chain evidence
+
+| Layer | Expected mechanism | Observed evidence | Result | Root cause / correction / rollback |
+|---|---|---|---|---|
+| IronCAD startup | IronCAD 2025 x64 starts and opens `<study-copy.ics>` | Process responsive; legacy active page is the disposable copy | Passed | No rollback required |
+| Add-in discovery | Per-user `HKCU\Software\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector` entry | GUID, `LoadOnStartup=1`, and `ShowInList=1` present | Partially verified | SDK-style COM categories were added to the build registration; delete the per-user application and CLSID keys to roll back |
+| COM activation | CLSID/ProgId resolves the managed add-in | `IdeaCadConnector.IronCAD.AddIn` instantiated successfully outside IronCAD | Passed | Confirms registration and assembly path, not host discovery |
+| Assembly load in IronCAD | Host loads the intended Debug x64 `IdeaCadConnector.IronCAD.dll` | Module/managed load evidence and DEBUG seam callback were absent | Failed | Host Add-In Manager activation remains required; no legacy COM replacement was introduced |
+| Dependency resolution | Manifest and `.hid`/dependency preload resolve the add-in | Not reached because host discovery did not instantiate the class | Not verified | Re-test after Add-In Manager activation |
+| `IronCadAddin` constructor/static initialization | Constructor runs before `InitSelf` | No host-load evidence | Not verified | Re-test after Add-In Manager activation |
+| `InitSelf` / `_addinSite` | Host supplies `ZAddinSite`, then `_addinSite.Application` supplies `IZBaseApp` | No callback or typed application observed | Failed | Runtime remains `BLOCKED_ADDIN_LOAD` |
+
+Registration correction used by the Debug build is per-user and does not require administrator rights. The affected keys are the application entry, the add-in CLSID/`InprocServer32`, ProgId, and IronCAD application/required COM categories. Rollback is:
+
+```text
+reg delete "HKCU\SOFTWARE\IronCAD\IRONCAD 27.0\Applications\IdeaCadConnector" /f
+reg delete "HKCU\Software\Classes\CLSID\{B1A006AC-1386-4811-AA71-8CF55414ACEF}" /f
+reg delete "HKCU\Software\Classes\IdeaCadConnector.IronCAD.AddIn" /f
+```
+
+The IronCAD SDK guidance requires selecting the add-in in the Add-In Manager once before subsequent auto-load. That host-side selection was not observed in this session, so live ICAPI traversal remains blocked.
 
 ## Safety and out-of-scope
 
