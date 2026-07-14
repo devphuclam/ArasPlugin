@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using IdeaCadConnector.Workspace.NormalizeExport;
 using interop.ICApiIronCAD;
 
@@ -67,7 +68,11 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             try
             {
                 var sceneElement = element as IZSceneElement;
-                if (sceneElement != null) link = sceneElement.ModelLinkPath;
+                if (sceneElement != null)
+                {
+                    try { link = sceneElement.ModelLinkPath; }
+                    catch (Exception ex) when (IsIgnorableModelLinkPathFailure(ex)) { link = null; }
+                }
                 var part = element as IZPart;
                 var assembly = element as IZAssembly;
                 bool linked;
@@ -88,7 +93,9 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                     LinkPath = link, ResolvedSourcePath = resolved, ParentOccurrencePath = parentPath
                 });
             }
-            IZArray children = element.GetChildrenZArray();
+            IZArray children;
+            try { children = element.GetChildrenZArray(); }
+            catch (Exception ex) when (IsIgnorableModelLinkPathFailure(ex)) { children = null; }
             int count = 0;
             if (children == null) { active.Remove(element); return; }
             children.Count(out count);
@@ -101,6 +108,12 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             public static readonly ReferenceComparer<T> Instance = new ReferenceComparer<T>();
             public bool Equals(T x, T y) { return object.ReferenceEquals(x, y); }
             public int GetHashCode(T obj) { return RuntimeHelpers.GetHashCode(obj); }
+        }
+
+        public static bool IsIgnorableModelLinkPathFailure(Exception exception)
+        {
+            var com = exception as COMException;
+            return com != null && unchecked((uint)com.ErrorCode) == 0x80004005u;
         }
 
         private static bool IsWithin(string path, string root)

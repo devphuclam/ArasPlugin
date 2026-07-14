@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using IdeaCadConnector.IronCAD.NormalizeExport;
 using IdeaCadConnector.Workspace.NormalizeExport;
 using Xunit;
 
@@ -8,6 +10,15 @@ namespace IdeaCadConnector.Tests
 {
     public sealed class PdmNormalizeExportSafetyTests
     {
+        [Fact]
+        public void ModelLinkPath_EFailIsTreatedAsUnavailableProperty()
+        {
+            Assert.True(IronCadDependencyDiscovery.IsIgnorableModelLinkPathFailure(
+                new COMException("not a model link", unchecked((int)0x80004005))));
+            Assert.False(IronCadDependencyDiscovery.IsIgnorableModelLinkPathFailure(
+                new COMException("other COM failure", unchecked((int)0x80004002))));
+        }
+
         [Fact]
         public void RelativeLink_ResolvesAgainstDocumentDirectory()
         {

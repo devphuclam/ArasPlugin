@@ -264,6 +264,19 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public void SourceFingerprintCanReadFileSharedByCadHost()
+        {
+            var file = Path.Combine(Path.GetTempPath(), "pdm-source-shared-" + System.Guid.NewGuid().ToString("N") + ".ics");
+            File.WriteAllText(file, "one");
+            using (var hostLock = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete))
+            {
+                var fingerprint = PdmSourceIntegrity.Capture(file);
+                Assert.Equal(3, fingerprint.Length);
+            }
+            File.Delete(file);
+        }
+
+        [Fact]
         public void OutputInsideSourceRootIsRejected()
         {
             var sourceRoot = Path.Combine(Path.GetTempPath(), "pdm-source-root-" + System.Guid.NewGuid().ToString("N"));

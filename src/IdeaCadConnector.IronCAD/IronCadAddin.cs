@@ -145,23 +145,18 @@ namespace IdeaCadConnector.IronCAD
                 var cControlBar = cEnv.AddControlBar(piAddinSite, "IDEA PDM");
                 var cControls = cControlBar.Controls;
 
-                var normalizeExportEnabled = PdmFeatureFlags.IsNormalizeExportEnabled(
-                    Environment.GetEnvironmentVariable(PdmFeatureFlags.EnablePdmNormalizeExport));
-                if (normalizeExportEnabled)
-                {
-                    _normalizeExportCommand = new IronCadNormalizeExportCommand(this);
-                    _normalizeExportButton = piAddinSite.CreateCommandHandler(
-                        "IdeaPdm_NormalizeAndExport",
-                        "Chuẩn hóa & Xuất PDM",
-                        "Standardize the active IronCAD model and export a complete PDM package.",
-                        "Chuẩn hóa tên Assembly/Part, ghi thuộc tính PDM và xuất toàn bộ mô hình thành các file .ics liên kết.",
-                        null, null);
-                    _normalizeExportButton.Enabled = true;
-                    cControls.Add(ezControlType.Z_CONTROL_BUTTON, _normalizeExportButton.ControlDescriptor, null);
-                    cRibbonBar.AddButton(_normalizeExportButton.ControlDescriptor);
-                    _normalizeExportButton.OnClick += () => _normalizeExportCommand.Execute();
-                    _normalizeExportButton.OnUpdate += UpdateNormalizeExportButton;
-                }
+                _normalizeExportCommand = new IronCadNormalizeExportCommand(this);
+                _normalizeExportButton = piAddinSite.CreateCommandHandler(
+                    "IdeaPdm_NormalizeAndExport",
+                    "Chuẩn hóa & Xuất PDM",
+                    "Standardize the active IronCAD model and export a complete PDM package.",
+                    "Chuẩn hóa tên Assembly/Part, ghi thuộc tính PDM và xuất toàn bộ mô hình thành các file .ics liên kết.",
+                    null, null);
+                _normalizeExportButton.Enabled = true;
+                cControls.Add(ezControlType.Z_CONTROL_BUTTON, _normalizeExportButton.ControlDescriptor, null);
+                cRibbonBar.AddButton(_normalizeExportButton.ControlDescriptor);
+                _normalizeExportButton.OnClick += () => _normalizeExportCommand.Execute();
+                _normalizeExportButton.OnUpdate += () => _normalizeExportButton.Enabled = true;
 
                 if (!ShowLegacyPdmCommands)
                     return;
@@ -276,19 +271,6 @@ namespace IdeaCadConnector.IronCAD
                     _ => false
                 };
             }
-        }
-
-        private void UpdateNormalizeExportButton()
-        {
-            if (_normalizeExportButton == null) return;
-            var doc = IronCADApp?.ActiveDoc;
-            _normalizeExportButton.Enabled = _normalizeExportCommand != null
-                && !_normalizeExportCommand.IsRunning
-                && doc != null
-                && doc is IZSceneDoc
-                && !string.IsNullOrWhiteSpace(doc.Name)
-                && string.Equals(System.IO.Path.GetExtension(doc.Name), ".ics", StringComparison.OrdinalIgnoreCase)
-                && !doc.Modified;
         }
 
         private void UpdateCadStateFlags(CadSummary cad)

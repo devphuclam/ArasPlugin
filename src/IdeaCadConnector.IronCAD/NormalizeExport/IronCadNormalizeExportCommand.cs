@@ -70,16 +70,19 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 var preflight = new PdmNormalizationPreflightValidator().Validate(finalPlan, dialog.Result.OutputFolder);
                 if (preflight.Count != 0) throw Fail("PREFLIGHT_VALIDATION_FAILED", "Kế hoạch xuất PDM chưa đạt kiểm tra an toàn.", string.Join(",", preflight));
 
-                var packageName = dialog.Result.ProjectCode + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + "-" + Guid.NewGuid().ToString("N");
+                var packageName = "PDM-" + DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
                 finalDirectory = Path.Combine(dialog.Result.OutputFolder, packageName);
-                pendingDirectory = finalDirectory + ".pending";
+                // IronCAD keeps SaveAs-created files open, so the package cannot
+                // be moved from a temporary directory on Windows. Publish into
+                // the already preflighted final directory directly instead.
+                pendingDirectory = finalDirectory;
                 var outputIssues = new PdmOutputSafetyValidator().Validate(dialog.Result.OutputFolder, activePath, finalDirectory);
                 if (outputIssues.Count != 0) throw Fail("PREFLIGHT_VALIDATION_FAILED", "Thư mục xuất không đạt kiểm tra an toàn.", string.Join(",", outputIssues));
                 if (Directory.Exists(pendingDirectory)) throw Fail("PACKAGE_COMMIT_FAILED", "Thư mục package đang chờ đã tồn tại.");
 
                 stagingDirectory = Path.Combine(Path.GetTempPath(), "IdeaCadConnector", "PDM-staging", Guid.NewGuid().ToString("N"));
-                sourceStagingDirectory = Path.Combine(stagingDirectory, "source");
-                var packageStaging = Path.Combine(stagingDirectory, "package");
+                sourceStagingDirectory = stagingDirectory + "-source";
+                var packageStaging = finalDirectory;
                 Directory.CreateDirectory(sourceStagingDirectory);
                 var stagedSourcePath = Path.Combine(sourceStagingDirectory, Path.GetFileName(activePath));
                 File.Copy(activePath, stagedSourcePath, false);
@@ -103,12 +106,6 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 EnsurePackageValid(packageStaging, manifest, "PACKAGE_VALIDATION_FAILED");
 
                 CloseDocumentOrThrow(app, ref stagedSourceDoc);
-                exportedStagingDoc = app.OpenFile(stagedRootFile, false);
-                EnsureTemporaryDocument(exportedStagingDoc, originalSourceDoc, "EXPORTED_ROOT_OPEN_FAILED");
-                var stagingPackageScene = _activationVerifier.VerifyScene(app, stagedRootFile, "EXPORTED_ROOT");
-                new IronCadExportPackageVerifier(_reader).Verify(stagingPackageScene, stagedPlan, packageStaging,
-                    Path.GetDirectoryName(activePath), sourceStagingDirectory);
-                CloseDocumentOrThrow(app, ref exportedStagingDoc);
                 if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
                     throw Fail("SOURCE_FILE_CHANGED", "File nguồn đã thay đổi trong quá trình xuất.");
 
@@ -120,7 +117,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 var pendingScene = _activationVerifier.VerifyScene(app, pendingRootPath, "PENDING_ROOT");
                 EnsurePackageValid(pendingDirectory, manifest, "PENDING_PACKAGE_VALIDATION_FAILED");
                 new IronCadExportPackageVerifier(_reader).Verify(pendingScene, stagedPlan, pendingDirectory,
-                    Path.GetDirectoryName(activePath), stagingDirectory);
+                    Path.GetDirectoryName(activePath), sourceStagingDirectory);
                 CloseDocumentOrThrow(app, ref pendingPackageDoc);
 
                 publication.CommitPending();
@@ -130,12 +127,12 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 var finalScene = _activationVerifier.VerifyScene(app, finalRootPath, "FINAL_ROOT");
                 EnsurePackageValid(finalDirectory, manifest, "FINAL_PACKAGE_VALIDATION_FAILED");
                 new IronCadExportPackageVerifier(_reader).Verify(finalScene, stagedPlan, finalDirectory,
-                    Path.GetDirectoryName(activePath), stagingDirectory);
+                    Path.GetDirectoryName(activePath), sourceStagingDirectory);
                 if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
                     throw Fail("SOURCE_FILE_CHANGED", "The source file changed during final package validation.");
                 successMessage = "Chuẩn hóa và xuất PDM thành công.\n\nPackage: " + finalDirectory + "\nSource files verified unchanged.";
             }
-            catch (Exception ex) { failure = ex; Trace.WriteLine(ex); }
+            catch (Exception ex) { failure = ex; Trace.WriteLine(ex); WriteRuntimeFailureLog(ex); }
             finally
             {
                 if (failure != null) CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
@@ -148,7 +145,10 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 if (publication != null && failure != null && finalPackageDoc == null)
                     TryCleanupDirectory(publication.FinalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
                 if (stagedSourceDoc == null && exportedStagingDoc == null && pendingPackageDoc == null)
+                {
                     TryCleanupDirectory(stagingDirectory, "STAGING_CLEANUP_FAILED", cleanupFailures);
+                    TryCleanupDirectory(sourceStagingDirectory, "SOURCE_STAGING_CLEANUP_FAILED", cleanupFailures);
+                }
                 else cleanupFailures.Add(Fail("DOCUMENT_CLOSE_FAILED", "Không thể đóng hết temporary document trước cleanup."));
 
                 IsRunning = false;
@@ -203,6 +203,21 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
         private static PdmNormalizeExportException Fail(string code, string userMessage, string details = null, Exception inner = null)
         {
             return new PdmNormalizeExportException(code, userMessage, details, inner);
+        }
+
+        private static void WriteRuntimeFailureLog(Exception exception)
+        {
+            try
+            {
+                var directory = Path.Combine(Path.GetTempPath(), "IdeaCadConnector");
+                Directory.CreateDirectory(directory);
+                File.WriteAllText(Path.Combine(directory, "pdm-last-failure.txt"),
+                    DateTime.UtcNow.ToString("O") + Environment.NewLine + exception);
+            }
+            catch
+            {
+                // Diagnostics must never replace the user-facing failure.
+            }
         }
 
     }

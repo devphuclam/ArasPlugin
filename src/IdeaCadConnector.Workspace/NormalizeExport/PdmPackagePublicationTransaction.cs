@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace IdeaCadConnector.Workspace.NormalizeExport
 {
@@ -19,9 +20,16 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void MoveToPending()
         {
+            if (string.Equals(StagingDirectory, PendingDirectory, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(PendingDirectory, FinalDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!Directory.Exists(StagingDirectory))
+                    throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Package staging directory is missing.");
+                return;
+            }
             if (!Directory.Exists(StagingDirectory) || Directory.Exists(PendingDirectory) || Directory.Exists(FinalDirectory))
                 throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Không thể tạo package đang chờ xác nhận.");
-            try { Directory.Move(StagingDirectory, PendingDirectory); }
+            try { MoveWithRetry(StagingDirectory, PendingDirectory); }
             catch (PdmNormalizeExportException) { throw; }
             catch (Exception ex)
             {
@@ -31,14 +39,46 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void CommitPending()
         {
+            if (string.Equals(StagingDirectory, PendingDirectory, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(PendingDirectory, FinalDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                if (!Directory.Exists(FinalDirectory))
+                    throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Final package directory is missing.");
+                return;
+            }
             if (!Directory.Exists(PendingDirectory) || Directory.Exists(FinalDirectory))
                 throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Không thể công bố package cuối cùng.");
-            try { Directory.Move(PendingDirectory, FinalDirectory); }
+            try { MoveWithRetry(PendingDirectory, FinalDirectory); }
             catch (PdmNormalizeExportException) { throw; }
             catch (Exception ex)
             {
                 throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Cannot publish the final package.", ex.ToString(), ex);
             }
+        }
+
+        private static void MoveWithRetry(string source, string destination)
+        {
+            IOException last = null;
+            for (var attempt = 0; attempt < 12; attempt++)
+            {
+                try
+                {
+                    Directory.Move(source, destination);
+                    return;
+                }
+                catch (IOException ex)
+                {
+                    last = ex;
+                    if (attempt == 11) throw;
+                    Thread.Sleep(250);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    if (attempt == 11) throw;
+                    Thread.Sleep(250);
+                }
+            }
+            if (last != null) throw last;
         }
 
         public void RollbackPending()

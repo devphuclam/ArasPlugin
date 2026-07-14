@@ -21,7 +21,8 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
                 throw new InvalidOperationException("SOURCE_FILE_MISSING");
             var full = System.IO.Path.GetFullPath(path);
-            using (var stream = File.OpenRead(full))
+            using (var stream = new FileStream(full, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete))
             using (var sha = SHA256.Create())
             {
                 return new PdmSourceFileFingerprint

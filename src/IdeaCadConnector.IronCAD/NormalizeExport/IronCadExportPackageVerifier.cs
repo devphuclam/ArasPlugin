@@ -90,7 +90,14 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             {
                 string link = null; bool linked = false;
                 var sceneElement = element as IZSceneElement;
-                if (sceneElement != null) link = sceneElement.ModelLinkPath;
+                if (sceneElement != null)
+                {
+                    try { link = sceneElement.ModelLinkPath; }
+                    catch (Exception ex) when (IronCadDependencyDiscovery.IsIgnorableModelLinkPathFailure(ex))
+                    {
+                        link = null;
+                    }
+                }
                 var part = element as IZPart; var assembly = element as IZAssembly;
                 if (part != null) { bool b; var p = part.GetExternallyLinkedInfo(out b); linked |= b; if (!string.IsNullOrWhiteSpace(p)) link = p; }
                 if (assembly != null) { bool b; var p = assembly.GetExternallyLinkedInfo(out b); linked |= b; if (!string.IsNullOrWhiteSpace(p)) link = p; }
@@ -112,7 +119,13 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                     result.ExternalReferences.Add(reference);
                     foreach (var issue in evaluation.Issues) result.Issues.Add(issue);
                 }
-                var children = element.GetChildrenZArray(); int count = 0; if (children == null) return; children.Count(out count);
+                IZArray children;
+                try { children = element.GetChildrenZArray(); }
+                catch (Exception ex) when (IronCadDependencyDiscovery.IsIgnorableModelLinkPathFailure(ex))
+                {
+                    return;
+                }
+                int count = 0; if (children == null) return; children.Count(out count);
                 for (var i = 0; i < count; i++)
                 {
                     object value; children.Get(i, out value); var child = value as IZElement;

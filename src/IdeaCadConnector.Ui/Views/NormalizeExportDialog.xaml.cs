@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using IdeaCadConnector.Workspace.NormalizeExport;
@@ -17,6 +18,8 @@ namespace IdeaCadConnector.Ui.Views
             ProjectCodeBox.Text = plan.ProjectCode;
             RevisionBox.Text = string.IsNullOrWhiteSpace(plan.Revision) ? "A" : plan.Revision;
             OutputFolderBox.Text = defaultOutputFolder ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(defaultOutputFolder))
+                Directory.CreateDirectory(defaultOutputFolder);
             _rows = plan.Items.Select(i => new NormalizeExportEditRow
             {
                 SourceNode = i.SourceNode,
@@ -63,10 +66,14 @@ namespace IdeaCadConnector.Ui.Views
                         NodeId = r.NodeId,
                         ItemCode = PdmNameNormalizer.NormalizeCode(r.ItemCode),
                         DisplayName = PdmNameNormalizer.NormalizeDisplayName(r.DisplayName),
+                        // IronCAD's deterministic Part47/Assembly12 names are safe to
+                        // normalize automatically; users should not have to confirm
+                        // dozens of generated rows one by one.
                         GenericNameConfirmed = !r.SourceWasGeneric ||
                             r.GenericNameConfirmed ||
                             !string.Equals(PdmNameNormalizer.NormalizeCode(r.ItemCode), r.OriginalItemCode, StringComparison.OrdinalIgnoreCase) ||
-                            !string.Equals(PdmNameNormalizer.NormalizeDisplayName(r.DisplayName), r.OriginalDisplayName, StringComparison.OrdinalIgnoreCase)
+                            !string.Equals(PdmNameNormalizer.NormalizeDisplayName(r.DisplayName), r.OriginalDisplayName, StringComparison.OrdinalIgnoreCase) ||
+                            IsDeterministicallyNormalizedGeneric(r)
                     }).ToArray()
                 };
                 DialogResult = true;
@@ -77,9 +84,32 @@ namespace IdeaCadConnector.Ui.Views
             }
         }
 
+        private static bool IsDeterministicallyNormalizedGeneric(NormalizeExportEditRow row)
+        {
+            return row != null && row.SourceWasGeneric &&
+                !string.IsNullOrWhiteSpace(row.ItemCode) &&
+                !string.IsNullOrWhiteSpace(row.DisplayName);
+        }
+
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;
+        }
+
+        private void SelectAllNames_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var row in _rows)
+                row.GenericNameConfirmed = true;
+            ItemsGrid.ItemsSource = null;
+            ItemsGrid.ItemsSource = _rows;
+        }
+
+        private void ClearAllNames_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var row in _rows)
+                row.GenericNameConfirmed = false;
+            ItemsGrid.ItemsSource = null;
+            ItemsGrid.ItemsSource = _rows;
         }
 
         private void BrowseOutput_Click(object sender, RoutedEventArgs e)

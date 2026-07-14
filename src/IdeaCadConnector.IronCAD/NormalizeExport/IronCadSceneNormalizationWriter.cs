@@ -42,8 +42,18 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             Directory.CreateDirectory(cad);
             var rootPath = Path.Combine(cad, plan.Root.CanonicalFileName);
             scene.SaveAs(rootPath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);
-            // Use one externalization strategy only. Per-component SaveAs calls
-            // can produce links that still point to the active source.
+            foreach (var item in plan.Items)
+            {
+                IZElement element;
+                if (!snapshot.Elements.TryGetValue(item.SourceNode, out element))
+                    throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
+                var part = element as IZPart;
+                var assembly = element as IZAssembly;
+                var filePath = Path.Combine(cad, item.CanonicalFileName);
+                if (part != null) part.SaveAs(filePath, true);
+                else if (assembly != null) assembly.SaveAs(filePath, true);
+                else throw new InvalidOperationException("EXTERNAL_EXPORT_FAILED");
+            }
             return rootPath;
         }
 

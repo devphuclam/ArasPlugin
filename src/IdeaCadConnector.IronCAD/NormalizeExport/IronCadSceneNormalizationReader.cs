@@ -57,6 +57,11 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             var children = (List<PdmSourceNode>)node.Children;
             IZArray array;
             try { array = element.GetChildrenZArray(); }
+            catch (Exception ex) when (IronCadDependencyDiscovery.IsIgnorableModelLinkPathFailure(ex))
+            {
+                active.Remove(element);
+                return node;
+            }
             catch (Exception ex)
             {
                 throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED", ex);
