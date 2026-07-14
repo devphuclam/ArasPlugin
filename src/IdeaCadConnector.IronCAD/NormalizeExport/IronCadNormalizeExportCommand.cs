@@ -84,7 +84,6 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 stagingDirectory = Path.Combine(Path.GetTempPath(), "IdeaCadConnector", "PDM-staging", Guid.NewGuid().ToString("N"));
                 sourceStagingDirectory = stagingDirectory + "-source";
                 var packageStaging = pendingDirectory;
-                publication = new PdmPackagePublicationTransaction(packageStaging, pendingDirectory, finalDirectory);
                 Directory.CreateDirectory(sourceStagingDirectory);
                 var stagedSourcePath = Path.Combine(sourceStagingDirectory, Path.GetFileName(activePath));
                 File.Copy(activePath, stagedSourcePath, false);
@@ -111,6 +110,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
                     throw Fail("SOURCE_FILE_CHANGED", "File nguồn đã thay đổi trong quá trình xuất.");
 
+                publication = new PdmPackagePublicationTransaction(packageStaging, pendingDirectory, finalDirectory);
                 publication.MoveToPending();
                 var pendingRootPath = Path.Combine(pendingDirectory, "cad", Path.GetFileName(stagedRootFile));
                 pendingPackageDoc = app.OpenFile(pendingRootPath, false);
@@ -143,9 +143,9 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 CloseDocumentBestEffort(app, ref stagedSourceDoc, cleanupFailures);
 
                 if (publication != null && failure != null && pendingPackageDoc == null)
-                    TryRollbackPending(publication, cleanupFailures);
+                    TryCleanupDirectory(publication.PendingDirectory, "PENDING_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
                 if (publication != null && failure != null && finalPackagePublished && finalPackageDoc == null)
-                    TryRollbackFinal(publication, cleanupFailures);
+                    TryCleanupDirectory(publication.FinalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
                 if (stagedSourceDoc == null && exportedStagingDoc == null && pendingPackageDoc == null)
                 {
                     TryCleanupDirectory(stagingDirectory, "STAGING_CLEANUP_FAILED", cleanupFailures);
@@ -160,7 +160,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                     {
                         CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
                         if (finalPackageDoc == null)
-                            TryRollbackFinal(publication, cleanupFailures);
+                            TryCleanupDirectory(finalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
                     }
                     foreach (var cleanupError in cleanupFailures) Trace.WriteLine(cleanupError);
                     failure = Fail("STAGING_CLEANUP_FAILED", "Không thể hoàn tất cleanup transaction.",
@@ -197,18 +197,6 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) return;
             try { Directory.Delete(directory, true); }
             catch (Exception ex) { cleanupFailures.Add(Fail(errorCode, "Không thể xóa thư mục transaction.", ex.ToString(), ex)); }
-        }
-
-        private static void TryRollbackPending(PdmPackagePublicationTransaction publication, IList<Exception> cleanupFailures)
-        {
-            try { publication.RollbackPending(); }
-            catch (Exception ex) { cleanupFailures.Add(Fail("PENDING_PACKAGE_ROLLBACK_FAILED", "Cannot remove the pending package.", ex.ToString(), ex)); }
-        }
-
-        private static void TryRollbackFinal(PdmPackagePublicationTransaction publication, IList<Exception> cleanupFailures)
-        {
-            try { publication.RollbackFinal(); }
-            catch (Exception ex) { cleanupFailures.Add(Fail("FINAL_PACKAGE_ROLLBACK_FAILED", "Cannot remove the failed final package.", ex.ToString(), ex)); }
         }
 
         private static void EnsurePackageValid(string directory, PdmPackageManifest manifest, string code)

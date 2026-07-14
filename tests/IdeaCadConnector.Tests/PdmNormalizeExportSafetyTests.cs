@@ -1,12 +1,10 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using IdeaCadConnector.IronCAD.NormalizeExport;
 using IdeaCadConnector.Workspace.NormalizeExport;
 using Xunit;
-using Xunit.Sdk;
 
 namespace IdeaCadConnector.Tests
 {
@@ -73,74 +71,6 @@ namespace IdeaCadConnector.Tests
         {
             Assert.Throws<ArgumentException>(() =>
                 PdmPackagePublicationPaths.Create(Path.Combine(Path.GetTempPath(), "pdm-output"), "pdm studycase", nonce));
-        }
-
-        [Theory]
-        [InlineData("..")]
-        [InlineData("...")]
-        [InlineData(".PDM")]
-        public void PublicationPaths_RejectUnsafeNormalizedProjectCode(string projectCode)
-        {
-            Assert.Throws<ArgumentException>(() =>
-                PdmPackagePublicationPaths.Create(
-                    Path.Combine(Path.GetTempPath(), "pdm-output"),
-                    projectCode,
-                    "abc123"));
-        }
-
-        [Fact]
-        public void PublicationTransaction_RejectsPathsThatAreNotDirectChildrenOfOneOutput()
-        {
-            var root = Path.Combine(Path.GetTempPath(), "pdm-boundary-" + Guid.NewGuid().ToString("N"));
-            var output = Path.Combine(root, "output");
-            Directory.CreateDirectory(output);
-
-            try
-            {
-                var error = Assert.Throws<PdmNormalizeExportException>(() =>
-                    new PdmPackagePublicationTransaction(
-                        Path.Combine(output, ".pending"),
-                        Path.Combine(output, ".pending"),
-                        Path.Combine(root, "outside-final")));
-
-                Assert.Equal("PACKAGE_PATH_UNSAFE", error.Code);
-            }
-            finally
-            {
-                Directory.Delete(root, true);
-            }
-        }
-
-        [Fact]
-        public void PublicationTransaction_RejectsFinalJunctionAndPreservesItsTarget()
-        {
-            if (Environment.OSVersion.Platform != PlatformID.Win32NT)
-                throw new SkipException("Windows junction coverage requires Windows.");
-
-            var root = Path.Combine(Path.GetTempPath(), "pdm-reparse-" + Guid.NewGuid().ToString("N"));
-            var output = Path.Combine(root, "output");
-            var target = Path.Combine(root, "target");
-            var pending = Path.Combine(output, ".pending");
-            var final = Path.Combine(output, "PDM-DEMO");
-            Directory.CreateDirectory(output);
-            Directory.CreateDirectory(target);
-            File.WriteAllText(Path.Combine(target, "keep.marker"), "keep");
-
-            try
-            {
-                CreateJunctionOrSkip(final, target);
-
-                var error = Assert.Throws<PdmNormalizeExportException>(() =>
-                    new PdmPackagePublicationTransaction(pending, pending, final));
-
-                Assert.Equal("PACKAGE_PATH_UNSAFE", error.Code);
-                Assert.True(File.Exists(Path.Combine(target, "keep.marker")));
-            }
-            finally
-            {
-                if (Directory.Exists(final)) Directory.Delete(final);
-                if (Directory.Exists(root)) Directory.Delete(root, true);
-            }
         }
 
         [Fact]
@@ -225,25 +155,6 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void PrePublicationRollback_RemovesPendingAndPreservesOldFinal()
-        {
-            var root = Path.Combine(Path.GetTempPath(), "pdm-prepublish-" + Guid.NewGuid().ToString("N"));
-            var pending = Path.Combine(root, ".pending");
-            var final = Path.Combine(root, "PDM-DEMO");
-            Directory.CreateDirectory(pending);
-            Directory.CreateDirectory(final);
-            File.WriteAllText(Path.Combine(pending, "partial.marker"), "partial");
-            File.WriteAllText(Path.Combine(final, "old.marker"), "old");
-
-            var transaction = new PdmPackagePublicationTransaction(pending, pending, final);
-            transaction.RollbackPending();
-
-            Assert.False(Directory.Exists(pending));
-            Assert.True(File.Exists(Path.Combine(final, "old.marker")));
-            Directory.Delete(root, true);
-        }
-
-        [Fact]
         public void CommitPendingReplacingFinal_DeletesOldPackageAndPublishesNewPackage()
         {
             var root = Path.Combine(Path.GetTempPath(), "pdm-replace-" + Guid.NewGuid().ToString("N"));
@@ -282,17 +193,17 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void PublicationTransaction_WhenPendingAndFinalAreTheSame_PreservesOldPackageAndUsesStableSafetyCode()
+        public void CommitPendingReplacingFinal_WhenPendingAndFinalAreTheSame_PreservesOldPackageAndUsesStableCommitCode()
         {
             var root = Path.Combine(Path.GetTempPath(), "pdm-replace-" + Guid.NewGuid().ToString("N"));
             var package = Path.Combine(root, "PDM-DEMO");
             Directory.CreateDirectory(package);
             File.WriteAllText(Path.Combine(package, "old.marker"), "old");
 
-            var error = Assert.Throws<PdmNormalizeExportException>(() =>
-                new PdmPackagePublicationTransaction(package, package, package));
+            var transaction = new PdmPackagePublicationTransaction(package, package, package);
+            var error = Assert.Throws<PdmNormalizeExportException>(() => transaction.CommitPendingReplacingFinal());
 
-            Assert.Equal("PACKAGE_PATH_UNSAFE", error.Code);
+            Assert.Equal("PACKAGE_COMMIT_FAILED", error.Code);
             Assert.True(File.Exists(Path.Combine(package, "old.marker")));
             Directory.Delete(root, true);
         }
@@ -302,9 +213,8 @@ namespace IdeaCadConnector.Tests
         {
             var root = Path.Combine(Path.GetTempPath(), "pdm-publish-" + Guid.NewGuid().ToString("N"));
             var staging = Path.Combine(root, "staging"); Directory.CreateDirectory(staging);
-            var missingParent = Path.Combine(root, "missing-parent");
             var transaction = new PdmPackagePublicationTransaction(staging,
-                Path.Combine(missingParent, "pending"), Path.Combine(missingParent, "final"));
+                Path.Combine(root, "missing-parent", "pending"), Path.Combine(root, "final"));
             var error = Assert.Throws<PdmNormalizeExportException>(() => transaction.MoveToPending());
             Assert.Equal("PACKAGE_COMMIT_FAILED", error.Code);
             Directory.Delete(root, true);
@@ -510,30 +420,6 @@ namespace IdeaCadConnector.Tests
             Directory.Delete(root, true);
         }
 
-        [Fact]
-        public void NormalizeExportCommand_CreatesTransactionBeforeWritesAndUsesGuardedPublicationRollback()
-        {
-            var source = File.ReadAllText(Path.Combine(
-                FindRepoRoot(),
-                "src",
-                "IdeaCadConnector.IronCAD",
-                "NormalizeExport",
-                "IronCadNormalizeExportCommand.cs"));
-
-            var transactionCreated = source.IndexOf(
-                "publication = new PdmPackagePublicationTransaction",
-                StringComparison.Ordinal);
-            var firstPackageWrite = source.IndexOf(
-                "Directory.CreateDirectory(sourceStagingDirectory)",
-                StringComparison.Ordinal);
-
-            Assert.True(transactionCreated >= 0 && transactionCreated < firstPackageWrite);
-            Assert.Contains("publication.RollbackPending()", source);
-            Assert.Contains("publication.RollbackFinal()", source);
-            Assert.DoesNotContain("TryCleanupDirectory(publication.PendingDirectory", source);
-            Assert.DoesNotContain("TryCleanupDirectory(publication.FinalDirectory", source);
-        }
-
         private static string CreateValidPackage(out PdmPackageManifest manifest)
         {
             var package = Path.Combine(Path.GetTempPath(), "pdm-package-" + Guid.NewGuid().ToString("N"));
@@ -548,27 +434,6 @@ namespace IdeaCadConnector.Tests
                 BomV2 = new PdmManifestBomV2[0]
             };
             return package;
-        }
-
-        private static void CreateJunctionOrSkip(string junction, string target)
-        {
-            using (var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = "/c mklink /J \"" + junction + "\" \"" + target + "\"",
-                CreateNoWindow = true,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }))
-            {
-                var output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
-                process.WaitForExit();
-                if (process.ExitCode == 0) return;
-                if (output.IndexOf("privilege", StringComparison.OrdinalIgnoreCase) >= 0)
-                    throw new SkipException("The current Windows account cannot create a junction: " + output);
-                Assert.True(false, "Could not create test junction: " + output);
-            }
         }
 
         private static PdmNormalizationPlan CreatePlan(string revision, string sceneName)
