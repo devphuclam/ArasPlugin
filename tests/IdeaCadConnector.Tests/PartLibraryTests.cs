@@ -698,6 +698,40 @@ namespace IdeaCadConnector.Tests
             Assert.DoesNotContain("Bearer", result);
         }
 
+        [Fact]
+        public void ResolveVaultId_PrefersDefaultVault()
+        {
+            var response = JObject.Parse(@"{
+              'Items': [
+                { 'id': 'SECONDARY', 'name': 'Secondary', 'is_default': '0' },
+                { 'id': 'DEFAULT-ID', 'name': 'Default', 'is_default': '1' }
+              ]
+            }");
+
+            Assert.Equal("DEFAULT-ID", HttpPdmRepositoryClient.ResolveVaultId(response));
+        }
+
+        [Fact]
+        public void Push_RequiresCadNativeFileSuccess()
+        {
+            var repoRoot = FindRepoRoot();
+            var source = File.ReadAllText(Path.Combine(repoRoot, "src", "IdeaCadConnector.Aras", "HttpPdmRepositoryClient.cs"));
+
+            Assert.Contains("partsSucceeded && docsSucceeded && cadsMetadataSucceeded && !hasBomFailure", source);
+            Assert.Contains("EnsureVaultConfiguredAsync", source);
+        }
+
+        private static string FindRepoRoot()
+        {
+            var current = new DirectoryInfo(AppContext.BaseDirectory);
+            while (current != null)
+            {
+                if (File.Exists(Path.Combine(current.FullName, "IdeaCadConnector.sln"))) return current.FullName;
+                current = current.Parent;
+            }
+            throw new DirectoryNotFoundException("Repository root not found.");
+        }
+
         // ── Shared helpers ──────────────────────────────────────────────
 
         private sealed class TempFolder : IDisposable
