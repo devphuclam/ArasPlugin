@@ -7,11 +7,15 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 {
     public sealed class PdmPackagePublicationTransaction
     {
+        private readonly string _outputDirectory;
+
         public PdmPackagePublicationTransaction(string stagingDirectory, string pendingDirectory, string finalDirectory)
         {
             StagingDirectory = Path.GetFullPath(stagingDirectory ?? throw new ArgumentNullException(nameof(stagingDirectory)));
             PendingDirectory = Path.GetFullPath(pendingDirectory ?? throw new ArgumentNullException(nameof(pendingDirectory)));
             FinalDirectory = Path.GetFullPath(finalDirectory ?? throw new ArgumentNullException(nameof(finalDirectory)));
+            _outputDirectory = Path.GetDirectoryName(FinalDirectory);
+            PdmPackagePublicationPathGuard.Validate(_outputDirectory, PendingDirectory, FinalDirectory);
         }
 
         public string StagingDirectory { get; private set; }
@@ -20,6 +24,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void MoveToPending()
         {
+            PdmPackagePublicationPathGuard.Validate(_outputDirectory, PendingDirectory, FinalDirectory);
             if (string.Equals(StagingDirectory, PendingDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 if (!Directory.Exists(StagingDirectory))
@@ -38,6 +43,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void CommitPending()
         {
+            PdmPackagePublicationPathGuard.Validate(_outputDirectory, PendingDirectory, FinalDirectory);
             if (string.Equals(StagingDirectory, PendingDirectory, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(PendingDirectory, FinalDirectory, StringComparison.OrdinalIgnoreCase))
             {
@@ -57,13 +63,18 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void CommitPendingReplacingFinal()
         {
+            PdmPackagePublicationPathGuard.Validate(_outputDirectory, PendingDirectory, FinalDirectory);
             if (string.Equals(Path.GetFullPath(PendingDirectory), Path.GetFullPath(FinalDirectory), StringComparison.OrdinalIgnoreCase))
                 throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Pending and final package directories must be different.");
             if (!Directory.Exists(PendingDirectory))
                 throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Pending package directory is missing.");
             try
             {
-                if (Directory.Exists(FinalDirectory)) Directory.Delete(FinalDirectory, true);
+                if (Directory.Exists(FinalDirectory))
+                {
+                    PdmPackagePublicationPathGuard.ValidateRecursiveDelete(_outputDirectory, FinalDirectory);
+                    Directory.Delete(FinalDirectory, true);
+                }
                 MoveWithRetry(PendingDirectory, FinalDirectory);
             }
             catch (PdmNormalizeExportException) { throw; }
@@ -100,12 +111,20 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void RollbackPending()
         {
-            if (Directory.Exists(PendingDirectory)) Directory.Delete(PendingDirectory, true);
+            if (Directory.Exists(PendingDirectory))
+            {
+                PdmPackagePublicationPathGuard.ValidateRecursiveDelete(_outputDirectory, PendingDirectory);
+                Directory.Delete(PendingDirectory, true);
+            }
         }
 
         public void RollbackFinal()
         {
-            if (Directory.Exists(FinalDirectory)) Directory.Delete(FinalDirectory, true);
+            if (Directory.Exists(FinalDirectory))
+            {
+                PdmPackagePublicationPathGuard.ValidateRecursiveDelete(_outputDirectory, FinalDirectory);
+                Directory.Delete(FinalDirectory, true);
+            }
         }
     }
 

@@ -15,7 +15,11 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         {
             var result = NormalizeSlug(value).Trim('-');
             if (result.Length > 31) result = result.Substring(0, 31).Trim('-');
-            if (result.Length < 2) throw new ArgumentException("Project code is invalid.", nameof(value));
+            if (result.Length < 2 ||
+                result == "." ||
+                result == ".." ||
+                !Regex.IsMatch(result, @"^[A-Z0-9]"))
+                throw new ArgumentException("Project code is invalid.", nameof(value));
             return result;
         }
 
