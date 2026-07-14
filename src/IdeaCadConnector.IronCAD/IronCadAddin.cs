@@ -8,6 +8,7 @@ using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Ui.Views;
 using IdeaCadConnector.Workspace;
+using IdeaCadConnector.IronCAD.NormalizeExport;
 
 namespace IdeaCadConnector.IronCAD
 {
@@ -100,7 +101,14 @@ namespace IdeaCadConnector.IronCAD
 
         private const int ButtonCount = 6;
         private ZCommandHandler[] _buttons = new ZCommandHandler[ButtonCount];
+        private ZCommandHandler _normalizeExportButton;
+        private IronCadNormalizeExportCommand _normalizeExportCommand;
         private string[] _buttonIds = { "IdeaPdm_Login", "IdeaPdm_SearchPart", "IdeaPdm_Checkout", "IdeaPdm_OpenReadOnly", "IdeaPdm_Checkin", "IdeaPdm_CancelCheckout" };
+
+        private static bool ShowLegacyPdmCommands
+        {
+            get { return string.Equals(Environment.GetEnvironmentVariable("ShowLegacyPdmCommands"), "true", StringComparison.OrdinalIgnoreCase); }
+        }
 
         private ArasCadClient _arasClient;
         private IronCadCadAdapter _cadAdapter;
@@ -135,6 +143,22 @@ namespace IdeaCadConnector.IronCAD
                 var cRibbonBar = cEnv.GetRibbonBar(eZRibbonBarType.Z_RIBBONBAR);
                 var cControlBar = cEnv.AddControlBar(piAddinSite, "IDEA PDM");
                 var cControls = cControlBar.Controls;
+
+                _normalizeExportCommand = new IronCadNormalizeExportCommand(this);
+                _normalizeExportButton = piAddinSite.CreateCommandHandler(
+                    "IdeaPdm_NormalizeAndExport",
+                    "Chuẩn hóa & Xuất PDM",
+                    "Standardize the active IronCAD model and export a complete PDM package.",
+                    "Chuẩn hóa tên Assembly/Part, ghi thuộc tính PDM và xuất toàn bộ mô hình thành các file .ics liên kết.",
+                    null, null);
+                _normalizeExportButton.Enabled = true;
+                cControls.Add(ezControlType.Z_CONTROL_BUTTON, _normalizeExportButton.ControlDescriptor, null);
+                cRibbonBar.AddButton(_normalizeExportButton.ControlDescriptor);
+                _normalizeExportButton.OnClick += () => _normalizeExportCommand.Execute();
+                _normalizeExportButton.OnUpdate += () => _normalizeExportButton.Enabled = true;
+
+                if (!ShowLegacyPdmCommands)
+                    return;
 
                 string[] names = { "Login", "Search Part", "Checkout", "Open Read-Only", "Check-in", "Cancel Checkout" };
                 string[] descs = {
@@ -177,6 +201,8 @@ namespace IdeaCadConnector.IronCAD
             {
                 _buttons[i] = null;
             }
+            _normalizeExportButton = null;
+            _normalizeExportCommand = null;
 
             if (_arasClient != null)
             {
@@ -218,6 +244,7 @@ namespace IdeaCadConnector.IronCAD
 
         private void UpdateButtonStates()
         {
+            if (_normalizeExportButton != null) _normalizeExportButton.Enabled = true;
             bool loggedIn = _arasClient != null && _loginResult != null;
             bool hasCad = !string.IsNullOrWhiteSpace(_selectedCadId);
             bool hasLock = !string.IsNullOrWhiteSpace(_lockToken);
