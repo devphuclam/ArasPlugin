@@ -44,6 +44,17 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(Path.Combine(output, ".PDM-STUDYCASE.pending-abc123"), paths.PendingDirectory);
         }
 
+        [Theory]
+        [InlineData("abc123\\suffix")]
+        [InlineData("abc123/suffix")]
+        [InlineData("C:\\outside")]
+        [InlineData("..\\outside")]
+        public void PublicationPaths_RejectUnsafeNonce(string nonce)
+        {
+            Assert.Throws<ArgumentException>(() =>
+                PdmPackagePublicationPaths.Create(Path.Combine(Path.GetTempPath(), "pdm-output"), "pdm studycase", nonce));
+        }
+
         [Fact]
         public void PackageValidator_RejectsOrphanIcsFile()
         {

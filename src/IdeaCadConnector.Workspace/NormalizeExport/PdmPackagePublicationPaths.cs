@@ -17,7 +17,10 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public static PdmPackagePublicationPaths Create(string outputFolder, string projectCode, string nonce)
         {
-            if (string.IsNullOrWhiteSpace(nonce))
+            if (string.IsNullOrWhiteSpace(nonce) ||
+                Path.IsPathRooted(nonce) ||
+                nonce.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                nonce.IndexOf("..", StringComparison.Ordinal) >= 0)
                 throw new ArgumentException("Nonce is required.", nameof(nonce));
 
             var normalizedProjectCode = PdmNameNormalizer.NormalizeProjectCode(projectCode);
