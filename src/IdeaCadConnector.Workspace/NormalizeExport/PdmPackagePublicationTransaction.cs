@@ -20,8 +20,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
         public void MoveToPending()
         {
-            if (string.Equals(StagingDirectory, PendingDirectory, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(PendingDirectory, FinalDirectory, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(StagingDirectory, PendingDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 if (!Directory.Exists(StagingDirectory))
                     throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Package staging directory is missing.");
@@ -53,6 +52,22 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             catch (Exception ex)
             {
                 throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Cannot publish the final package.", ex.ToString(), ex);
+            }
+        }
+
+        public void CommitPendingReplacingFinal()
+        {
+            if (!Directory.Exists(PendingDirectory))
+                throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Pending package directory is missing.");
+            try
+            {
+                if (Directory.Exists(FinalDirectory)) Directory.Delete(FinalDirectory, true);
+                MoveWithRetry(PendingDirectory, FinalDirectory);
+            }
+            catch (PdmNormalizeExportException) { throw; }
+            catch (Exception ex)
+            {
+                throw new PdmNormalizeExportException("PACKAGE_COMMIT_FAILED", "Cannot replace the final package.", ex.ToString(), ex);
             }
         }
 

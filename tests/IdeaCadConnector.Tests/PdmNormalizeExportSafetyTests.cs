@@ -137,6 +137,44 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public void CommitPendingReplacingFinal_DeletesOldPackageAndPublishesNewPackage()
+        {
+            var root = Path.Combine(Path.GetTempPath(), "pdm-replace-" + Guid.NewGuid().ToString("N"));
+            var pending = Path.Combine(root, ".pending");
+            var final = Path.Combine(root, "PDM-DEMO");
+            Directory.CreateDirectory(pending);
+            Directory.CreateDirectory(final);
+            File.WriteAllText(Path.Combine(pending, "new.marker"), "new");
+            File.WriteAllText(Path.Combine(final, "old.marker"), "old");
+
+            var transaction = new PdmPackagePublicationTransaction(pending, pending, final);
+            transaction.MoveToPending();
+            transaction.CommitPendingReplacingFinal();
+
+            Assert.False(Directory.Exists(pending));
+            Assert.False(File.Exists(Path.Combine(final, "old.marker")));
+            Assert.True(File.Exists(Path.Combine(final, "new.marker")));
+            Directory.Delete(root, true);
+        }
+
+        [Fact]
+        public void CommitPendingReplacingFinal_WhenPendingIsMissing_PreservesOldPackageAndUsesStableCommitCode()
+        {
+            var root = Path.Combine(Path.GetTempPath(), "pdm-replace-" + Guid.NewGuid().ToString("N"));
+            var pending = Path.Combine(root, ".pending");
+            var final = Path.Combine(root, "PDM-DEMO");
+            Directory.CreateDirectory(final);
+            File.WriteAllText(Path.Combine(final, "old.marker"), "old");
+
+            var transaction = new PdmPackagePublicationTransaction(pending, pending, final);
+            var error = Assert.Throws<PdmNormalizeExportException>(() => transaction.CommitPendingReplacingFinal());
+
+            Assert.Equal("PACKAGE_COMMIT_FAILED", error.Code);
+            Assert.True(File.Exists(Path.Combine(final, "old.marker")));
+            Directory.Delete(root, true);
+        }
+
+        [Fact]
         public void PublicationMoveFailure_UsesStablePackageCommitCode()
         {
             var root = Path.Combine(Path.GetTempPath(), "pdm-publish-" + Guid.NewGuid().ToString("N"));
