@@ -19,6 +19,7 @@ using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Desktop.Services;
 using IdeaCadConnector.Workspace;
+using IdeaCadConnector.Workspace.NormalizeExport;
 using Newtonsoft.Json;
 using WinForms = System.Windows.Forms;
 
@@ -1139,22 +1140,40 @@ namespace IdeaCadConnector.Desktop
                 NamingPolicyVersion = policy.PolicyVersion;
 
                 var sources = ResolveAnalysisSources(FolderPath);
-                _latestSources = sources;
-                if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
+                var packageReader = new PdmPackageImportReader();
+                var manifestPath = packageReader.FindManifest(FolderPath);
+                if (!string.IsNullOrWhiteSpace(manifestPath))
                 {
-                    _latestAnalysis = new Aras01FolderAnalyzer(policy).Analyze(sources.CadFolder);
+                    var imported = packageReader.Read(manifestPath);
+                    NamingPolicyVersion = "pdm-manifest-v2";
+                    sources = new PdmAnalysisSources
+                    {
+                        SelectedFolder = FolderPath,
+                        PackageFolder = imported.PackageDirectory,
+                        CadFolder = Path.Combine(imported.PackageDirectory, "cad")
+                    };
+                    _latestAnalysis = imported.FolderAnalysis;
+                    _latestBusinessStructure = imported.BusinessStructure;
                 }
                 else
                 {
-                    _latestAnalysis = new PdmFolderAnalysis
+                    if (!string.IsNullOrWhiteSpace(sources.CadFolder) && Directory.Exists(sources.CadFolder))
                     {
-                        FolderPath = FolderPath
-                    };
-                }
+                        _latestAnalysis = new Aras01FolderAnalyzer(policy).Analyze(sources.CadFolder);
+                    }
+                    else
+                    {
+                        _latestAnalysis = new PdmFolderAnalysis
+                        {
+                            FolderPath = FolderPath
+                        };
+                    }
 
-                _latestBusinessStructure = new StudyCase0603StructureParser().Analyze(
-                    sources.PackageFolder,
-                    _latestAnalysis.ProjectCode);
+                    _latestBusinessStructure = new StudyCase0603StructureParser().Analyze(
+                        sources.PackageFolder,
+                        _latestAnalysis.ProjectCode);
+                }
+                _latestSources = sources;
 
                 if (string.IsNullOrWhiteSpace(_latestAnalysis.ProjectCode) &&
                     !string.IsNullOrWhiteSpace(_latestBusinessStructure?.ProjectCode))
@@ -3024,6 +3043,13 @@ namespace IdeaCadConnector.Desktop
                 return map;
             }
 
+            foreach (var detail in analysis.TrackedFiles.Where(file => file != null))
+            {
+                if (!string.IsNullOrWhiteSpace(detail.FileName)) map[detail.FileName] = detail;
+                if (!string.IsNullOrWhiteSpace(detail.RelativePath)) map[detail.RelativePath] = detail;
+                if (!string.IsNullOrWhiteSpace(detail.LogicalPartCode)) map[detail.LogicalPartCode] = detail;
+            }
+
             var businessDetails = businessStructure.RootNodes
                 .SelectMany(group => group.Children)
                 .ToList();
@@ -3060,8 +3086,7 @@ namespace IdeaCadConnector.Desktop
                 return "-";
             }
 
-            if (businessNode.NodeType == "Component" &&
-                !string.IsNullOrWhiteSpace(businessNode.SourceFileName) &&
+            if (!string.IsNullOrWhiteSpace(businessNode.SourceFileName) &&
                 detailCadMap != null &&
                 detailCadMap.TryGetValue(businessNode.SourceFileName, out var detailCad))
             {
@@ -3159,6 +3184,19 @@ namespace IdeaCadConnector.Desktop
 
             if (analysis.IsValid)
             {
+                if (string.Equals(NamingPolicyVersion, "pdm-manifest-v2", StringComparison.OrdinalIgnoreCase))
+                {
+                    AnalysisSummary = string.Format(
+                        "{0} loaded from normalized PDM manifest: {1} assembly file(s), {2} part file(s), {3} BOM node(s).",
+                        analysis.ProjectCode ?? "Package",
+                        analysis.AssemblyFiles.Count,
+                        analysis.DetailFiles.Count,
+                        analysis.TrackedFiles.Count);
+                    StatusMessage = string.Format(
+                        "Manifest v2 loaded successfully. Primary assembly: {0}.",
+                        analysis.PrimaryAssembly?.FileName ?? "-");
+                    return;
+                }
                 if (businessStructure != null && businessStructure.HasStructure)
                 {
                     var componentCount = businessStructure.RootNodes.Sum(node => node.Children.Count);
@@ -3196,7 +3234,10 @@ namespace IdeaCadConnector.Desktop
 
         private void BuildPushPreview(PdmFolderAnalysis folderAnalysis, PdmBusinessStructureAnalysis businessAnalysis)
         {
-            var analyzeResult = PushPreviewMapper.ToAnalyzeResult(folderAnalysis, businessAnalysis);
+            var analyzeResult = PushPreviewMapper.ToAnalyzeResult(
+                folderAnalysis,
+                businessAnalysis,
+                NamingPolicyVersion);
             if (analyzeResult == null)
                 return;
 

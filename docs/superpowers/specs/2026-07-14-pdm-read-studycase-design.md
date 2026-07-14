@@ -1,56 +1,52 @@
-# IDEA PDM StudyCase BOM Reader Design
+# IDEA PDM Manifest BOM Migration Design
 
 ## Goal
 
-Read the active normalized IronCAD `.ics` scene without modifying it and display its complete BOM in a read-only IDEA PDM viewer.
+Move IDEA PDM Desktop from the legacy filename/folder naming policy to the normalized package policy by reading `pdm-bom-manifest.json` and rendering its BOM in the existing PDM project tree.
 
 ## Scope
 
-- Add an IronCAD command named `Đọc dữ liệu PDM`.
-- Read Scene Root, Assembly, and Part nodes plus the six `PDM.*` custom properties.
-- Build a UI-independent snapshot and validation result.
-- Display all nodes, including invalid nodes, in `PDM Model Viewer`.
-- Verify active path, document `Modified`, and source SHA-256 remain unchanged.
-- Do not call Aras, Normalize Export, save APIs, write APIs, rename APIs, or `CloseFile`.
+- IDEA PDM Desktop is the consumer.
+- Normalize Export remains the producer and is not changed.
+- Read `pdm-bom-manifest.json` schema version 2 and its referenced CAD files.
+- Reuse the existing `PdmProjectsView` and `PdmStructure` tree.
+- Preserve legacy `Aras01FolderAnalyzer` behavior as fallback when no new manifest exists.
+- Do not parse binary `.ics`, write CAD files, rename files, or push to Aras.
 
 ## Architecture
 
-### Workspace model and validation
+### Manifest reader
 
-`IdeaCadConnector.Workspace/PdmModel` owns `PdmModelSnapshot`, `PdmModelNode`, validation issues, summary counts, traversal limits, and the pure validator. It has no IronCAD or WPF dependencies.
+`PdmPackageImportReader` lives in Workspace. It finds the newest manifest below the selected folder, deserializes it, runs the existing `PdmPackageValidator`, and maps definitions/occurrences/BOM edges into the legacy-neutral `PdmFolderAnalysis` and `PdmBusinessStructureAnalysis` models already consumed by IDEA PDM Desktop.
 
-Validation marks missing properties, duplicate NodeId/ItemCode, inconsistent ProjectCode/Revision, ItemType-kind mismatch, invalid parent/path relationships, and SceneName mismatch. Validation never suppresses nodes from the viewer.
+The mapper keeps all readable definitions and occurrences even when validation reports issues. Validation issues become blocking `PdmNamingIssue` entries so the BOM remains visible but unsafe downstream actions stay blocked.
 
-### IronCAD read adapter
+### Desktop integration
 
-`IdeaCadConnector.IronCAD/PdmModel/IronCadPdmModelReader` traverses `IZElement` deterministically. It reads custom properties and element metadata only. A cycle guard, maximum depth, and maximum node count stop unsafe traversal.
+`PdmProjectsViewModel.AnalyzeFolder()` first asks the manifest reader for a normalized package. When found, it uses manifest-derived analysis and sets policy version `pdm-manifest-v2`. When no manifest exists, it executes the unchanged legacy analyzer/parser path.
 
-`IronCadReadPdmCommand` captures the active document path, modified state, and SHA-256 before reading; reads and validates the snapshot; verifies the three invariants again; then opens the viewer. A changed invariant raises `SOURCE_FILE_CHANGED_DURING_READ` and does not show stale data.
+The existing `BuildPdmStructure`, `BuildCadStructure`, document list, summary, and UI bindings display the imported BOM. No separate viewer or IronCAD ribbon command is added.
 
-### Viewer
+## Mapping
 
-`IdeaCadConnector.Ui` owns `PdmModelViewerViewModel` and `PdmModelViewer`. The view model projects the workspace snapshot into rows and summary values. The WPF window is read-only and shows Level, Type, Item Code, Display Name, Scene Name, Revision, Node ID, Parent, Occurrence Path, and Status.
+- Manifest `ProjectCode` -> project/repository code.
+- Manifest `Revision` and definition `Revision` -> displayed revision.
+- Definition `ItemCode` -> logical part code.
+- Definition `DisplayName` -> node name.
+- Definition `ItemType` (`ASM`/`PRT`) -> Assembly/Component.
+- Definition `FileName` -> primary CAD/source document.
+- Occurrence parent relationships -> BOM tree.
+- Occurrence multiplicity/BOM edges -> displayed quantities where available.
 
-## Data flow
+## Safety
 
-1. User opens a saved `.ics` Scene and clicks `Đọc dữ liệu PDM`.
-2. Command captures path, modified state, and file hash.
-3. Reader traverses the active Scene and creates a snapshot.
-4. Pure validator attaches issues and computes summary counts.
-5. Command verifies path, modified state, and hash are unchanged.
-6. Viewer displays every node and the aggregate summary.
-
-## Failure behavior
-
-- Missing or non-scene active document: show a stable read error.
-- Traversal cycle/limit: fail with a stable traversal code; never recurse indefinitely.
-- Missing/duplicate business metadata: show the viewer and mark affected nodes.
-- Changed path, modified state, or hash: fail with `SOURCE_FILE_CHANGED_DURING_READ`.
-- COM `E_FAIL` for unavailable optional properties is treated as unavailable data; other COM failures remain visible errors.
+- Manifest paths are validated by `PdmPackageValidator` before integration.
+- Invalid or missing referenced files remain visible as issues and block push.
+- The reader never opens or writes `.ics` files.
+- Absolute private paths and CAD names are not committed as fixtures.
 
 ## Verification
 
-- Pure unit tests cover validation, stable paths, cycle/depth/node limits, and view-model projection.
-- Reader contract tests verify the production reader contains no forbidden write API calls.
-- Debug and Release solution builds and tests must pass.
-- Runtime uses only a StudyCase copy and records counts, validation totals, hash equality, and modified-state equality.
+- Unit tests cover manifest discovery, mapping, hierarchy, quantities, validation propagation, latest-package selection, and legacy fallback.
+- Debug and Release solution builds/tests pass.
+- Runtime selects the exported StudyCase package in IDEA PDM Desktop and confirms the existing BOM tree shows root, assemblies, and parts from the manifest.

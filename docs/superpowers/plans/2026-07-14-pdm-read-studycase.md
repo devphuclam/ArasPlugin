@@ -1,103 +1,71 @@
-# IDEA PDM StudyCase BOM Reader Implementation Plan
+# IDEA PDM Manifest BOM Migration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Read the active normalized IronCAD StudyCase without writes and display its complete validated BOM in a read-only IDEA PDM viewer.
+**Goal:** Make IDEA PDM Desktop read normalized package manifests and display their BOM in its existing project tree while retaining legacy naming fallback.
 
-**Architecture:** Pure BOM models and validation live in Workspace, the COM-only traversal adapter lives in IronCAD, and WPF projection/view live in Ui. The command captures and verifies path, modified state, and SHA-256 around the read before showing the viewer.
+**Architecture:** A pure Workspace reader validates and maps manifest v2 into the existing folder/business analysis models. `PdmProjectsViewModel` chooses manifest-v2 analysis when available and otherwise preserves the old analyzer path.
 
-**Tech Stack:** C#/.NET Framework 4.8, IronCAD ICAPI COM interop, WPF, xUnit.
+**Tech Stack:** C#/.NET Framework 4.8, Newtonsoft.Json, WPF/MVVM, xUnit.
 
 ## Global Constraints
 
-- Never call Save, SaveAs, `element.Name =`, AddCustomPropString, SetProperty, or CloseFile.
-- Never modify the source `.ics` or document Modified state.
-- Do not call Aras or change Normalize Export.
-- Traversal must have cycle, depth, and node-count guards with deterministic occurrence paths.
-- Validation marks nodes but never removes invalid nodes from display.
+- Do not modify Normalize Export or IronCAD add-in behavior.
+- Do not parse, write, rename, save, or open `.ics` files.
+- Do not call or push to Aras.
+- Display readable BOM nodes even when manifest validation reports issues.
+- Preserve legacy naming behavior when no manifest exists.
 
 ---
 
-### Task 1: Pure BOM model and validator
+### Task 1: Manifest discovery and mapping
 
 **Files:**
-- Create: `src/IdeaCadConnector.Workspace/PdmModel/PdmModelModels.cs`
-- Create: `src/IdeaCadConnector.Workspace/PdmModel/PdmModelValidator.cs`
-- Create: `tests/IdeaCadConnector.Tests/PdmModelValidatorTests.cs`
+- Create: `src/IdeaCadConnector.Workspace/NormalizeExport/PdmPackageImportReader.cs`
+- Create: `tests/IdeaCadConnector.Tests/PdmPackageImportReaderTests.cs`
 
 **Interfaces:**
-- Produces: `PdmModelNode`, `PdmModelSnapshot`, `PdmModelValidationResult`, `PdmModelValidator.Validate(PdmModelSnapshot)`.
+- Produces: `PdmPackageImportReader.FindManifest(string)`, `TryRead(string, out PdmPackageImportResult)`, and analyses consumed by Desktop.
 
-- [ ] Write failing tests for complete metadata, missing fields, duplicate IDs/codes, inconsistent project/revision, wrong item type, invalid parent/path, and SceneName mismatch.
-- [ ] Run `dotnet test .\tests\IdeaCadConnector.Tests\IdeaCadConnector.Tests.csproj --configuration Debug --no-restore --filter FullyQualifiedName~PdmModelValidatorTests` and confirm missing-type failures.
-- [ ] Implement models with the exact properties from the specification and validator issue strings used by the viewer.
-- [ ] Re-run the focused tests and confirm pass.
-
-### Task 2: Deterministic guarded traversal core
-
-**Files:**
-- Create: `src/IdeaCadConnector.Workspace/PdmModel/PdmModelTraversal.cs`
-- Create: `tests/IdeaCadConnector.Tests/PdmModelTraversalTests.cs`
-
-**Interfaces:**
-- Consumes: `PdmModelNode`.
-- Produces: `PdmModelTraversalLimits`, `PdmModelTraversalGuard<T>`, deterministic path helper using `0`, `0/0`, `0/1`.
-
-- [ ] Write failing tests for stable occurrence paths, cycle detection, max depth, and max node count.
-- [ ] Run focused tests and confirm expected missing-type failures.
-- [ ] Implement the minimal guard and path helper.
+- [ ] Write failing tests for discovery, project/revision mapping, definitions, occurrence hierarchy, and latest manifest selection.
+- [ ] Run focused tests and confirm missing-type failures.
+- [ ] Implement safe deserialization, existing validator invocation, and deterministic mapping.
 - [ ] Re-run focused tests and confirm pass.
 
-### Task 3: IronCAD read-only reader and integrity command
+### Task 2: Validation and malformed-package behavior
 
 **Files:**
-- Create: `src/IdeaCadConnector.IronCAD/PdmModel/IronCadPdmModelReader.cs`
-- Create: `src/IdeaCadConnector.IronCAD/PdmModel/IronCadReadPdmCommand.cs`
-- Modify: `src/IdeaCadConnector.IronCAD/IronCadAddin.cs`
-- Create: `tests/IdeaCadConnector.Tests/IronCadPdmReadOnlyContractTests.cs`
+- Modify: `src/IdeaCadConnector.Workspace/NormalizeExport/PdmPackageImportReader.cs`
+- Modify: `tests/IdeaCadConnector.Tests/PdmPackageImportReaderTests.cs`
 
 **Interfaces:**
-- Consumes: active `IZSceneDoc`, `PdmModelTraversalLimits`, `PdmSourceIntegrity`.
-- Produces: `IronCadPdmModelReader.Read(IZSceneDoc)` and `IronCadReadPdmCommand.Execute()`.
+- Produces: validation issues represented as blocking `PdmNamingIssue` while retaining readable nodes.
 
-- [ ] Write a source-contract test that rejects forbidden write API tokens in the two new production files.
-- [ ] Run the contract test and confirm it fails because files/types do not exist.
-- [ ] Implement traversal that only calls getters, custom-property reads, and child enumeration.
-- [ ] Implement before/after path, Modified, and SHA-256 checks with `SOURCE_FILE_CHANGED_DURING_READ`.
-- [ ] Add a ribbon command `Đọc dữ liệu PDM` beside the existing Normalize Export command.
-- [ ] Re-run contract and model tests.
-
-### Task 4: Read-only PDM Model Viewer
-
-**Files:**
-- Create: `src/IdeaCadConnector.Ui/ViewModels/PdmModelViewerViewModel.cs`
-- Create: `src/IdeaCadConnector.Ui/Views/PdmModelViewer.xaml`
-- Create: `src/IdeaCadConnector.Ui/Views/PdmModelViewer.xaml.cs`
-- Create: `tests/IdeaCadConnector.Tests/PdmModelViewerViewModelTests.cs`
-
-**Interfaces:**
-- Consumes: validated `PdmModelSnapshot`.
-- Produces: summary properties and read-only row collection for WPF binding.
-
-- [ ] Write failing projection tests asserting valid and invalid nodes remain visible and summary counts are correct.
-- [ ] Run focused tests and confirm missing-view-model failure.
-- [ ] Implement the view model projection.
-- [ ] Implement a read-only DataGrid with required columns and summary header.
+- [ ] Write failing tests for missing files, duplicate codes/IDs, invalid hierarchy, malformed JSON, and invalid schema.
+- [ ] Implement non-destructive issue propagation and stable error messages.
 - [ ] Re-run focused tests and confirm pass.
 
-### Task 5: Verification and runtime evidence
+### Task 3: IDEA PDM Desktop integration
 
 **Files:**
-- Create outside Git: runtime evidence under the existing PDM runtime test directory.
+- Modify: `src/IdeaCadConnector.Desktop/PdmProjectsViewModel.cs`
+- Create: `tests/IdeaCadConnector.Tests/PdmProjectsManifestIntegrationTests.cs`
 
 **Interfaces:**
-- Consumes: built add-in and a disposable StudyCase copy.
-- Produces: counts, validation totals, hash equality, modified-state equality, and viewer screenshot/runtime description.
+- Consumes: `PdmPackageImportResult`.
+- Produces: existing `PdmStructure`, `CadStructure`, documents, summary, and `NamingPolicyVersion` populated from manifest v2.
 
-- [ ] Run Debug solution build and tests.
-- [ ] Run Release solution build and tests.
-- [ ] Open only the runtime copy in IronCAD and click `Đọc dữ liệu PDM`.
-- [ ] Record root/project/revision/count/depth/validity values without committing private paths or CAD names.
-- [ ] Verify SHA-256 and Modified state are unchanged.
-- [ ] Commit with `feat(pdm): read normalized IronCAD model into IDEA PDM`.
-- [ ] Push branch and create draft PR titled `feat: read normalized StudyCase into IDEA PDM`; do not merge.
+- [ ] Write failing integration tests showing manifest-v2 BOM roots/children and legacy fallback.
+- [ ] Update `AnalyzeFolder()` to prefer manifest analysis without changing legacy analyzer code.
+- [ ] Re-run focused tests and confirm pass.
+
+### Task 4: Full verification and runtime
+
+**Files:**
+- No committed private runtime artifacts.
+
+- [ ] Build/test Debug and Release.
+- [ ] Launch IDEA PDM Desktop and select the exported StudyCase package.
+- [ ] Confirm existing PDM structure shows root, assemblies, and parts from the manifest.
+- [ ] Commit `feat(pdm): read normalized IronCAD model into IDEA PDM`.
+- [ ] Push branch and create draft PR; do not merge.
