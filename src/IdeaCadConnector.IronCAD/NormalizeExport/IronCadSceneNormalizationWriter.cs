@@ -41,7 +41,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             var cad = Path.Combine(outputFolder, "cad");
             Directory.CreateDirectory(cad);
             var rootPath = Path.Combine(cad, plan.Root.CanonicalFileName);
-            scene.SaveAs(rootPath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);
+            scene.SaveAsCopy(rootPath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);
             foreach (var item in plan.Items)
             {
                 IZElement element;
