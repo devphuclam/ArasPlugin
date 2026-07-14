@@ -45,7 +45,7 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void NormalizeExportCommand_UsesReadableReplacementPaths()
+        public void NormalizeExportCommand_PublishesDirectlyToReadableFinalPath()
         {
             var repoRoot = FindRepoRoot();
             var commandPath = Path.Combine(repoRoot, "src", "IdeaCadConnector.IronCAD", "NormalizeExport",
@@ -53,20 +53,13 @@ namespace IdeaCadConnector.Tests
             var source = File.ReadAllText(commandPath);
 
             Assert.Contains("PdmPackagePublicationPaths.Create", source);
-            Assert.Contains("CommitPendingReplacingFinal", source);
+            Assert.DoesNotContain("CommitPendingReplacingFinal", source);
             Assert.DoesNotContain("var packageName = \"PDM-\"", source);
-            Assert.Contains("publication != null && failure != null && finalPackagePublished && finalPackageDoc == null", source);
-            Assert.Contains("if (finalPackagePublished)", source);
-            Assert.Contains(
-                "publication.CommitPendingReplacingFinal();\n                finalPackagePublished = true;\n                var finalRootPath",
-                source.Replace("\r\n", "\n"));
+            Assert.Contains("var packageStaging = finalDirectory;", source);
+            Assert.Contains("stagedScene.DisableDirtyCounter();", source);
             Assert.DoesNotContain("pendingPackageDoc = app.OpenFile", source);
-            Assert.Contains(
-                "EnsurePackageValid(pendingDirectory, manifest, \"PENDING_PACKAGE_VALIDATION_FAILED\");\n\n                publication.CommitPendingReplacingFinal();",
-                source.Replace("\r\n", "\n"));
-            Assert.Contains(
-                "successMessage = null;\n                    WriteRuntimeFailureLog(failure);",
-                source.Replace("\r\n", "\n"));
+            Assert.Contains("failureDetails.Add(\"PRIMARY FAILURE:\"", source);
+            Assert.Contains("WriteRuntimeFailureLog(cleanupFailure);", source);
 
             var writerPath = Path.Combine(repoRoot, "src", "IdeaCadConnector.IronCAD", "NormalizeExport",
                 "IronCadSceneNormalizationWriter.cs");

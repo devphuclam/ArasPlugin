@@ -31,13 +31,12 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             IZDoc finalPackageDoc = null;
             string stagingDirectory = null;
             string sourceStagingDirectory = null;
-            string pendingDirectory = null;
             string finalDirectory = null;
             string successMessage = null;
             Exception failure = null;
+            bool finalPackageStarted = false;
             bool finalPackagePublished = false;
             var cleanupFailures = new List<Exception>();
-            PdmPackagePublicationTransaction publication = null;
             try
             {
                 app = _addin.IronCADApp;
@@ -75,14 +74,13 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                     finalPlan.ProjectCode,
                     Guid.NewGuid().ToString("N"));
                 finalDirectory = publicationPaths.FinalDirectory;
-                pendingDirectory = publicationPaths.PendingDirectory;
-                var outputIssues = new PdmOutputSafetyValidator().Validate(dialog.Result.OutputFolder, activePath, pendingDirectory);
+                var outputIssues = new PdmOutputSafetyValidator().Validate(dialog.Result.OutputFolder, activePath, finalDirectory);
                 if (outputIssues.Count != 0) throw Fail("PREFLIGHT_VALIDATION_FAILED", "Thư mục xuất không đạt kiểm tra an toàn.", string.Join(",", outputIssues));
-                if (Directory.Exists(pendingDirectory)) throw Fail("PACKAGE_COMMIT_FAILED", "Thư mục package đang chờ đã tồn tại.");
+                if (Directory.Exists(finalDirectory)) Directory.Delete(finalDirectory, true);
 
                 stagingDirectory = Path.Combine(Path.GetTempPath(), "IdeaCadConnector", "PDM-staging", Guid.NewGuid().ToString("N"));
                 sourceStagingDirectory = stagingDirectory + "-source";
-                var packageStaging = pendingDirectory;
+                var packageStaging = finalDirectory;
                 Directory.CreateDirectory(sourceStagingDirectory);
                 var stagedSourcePath = Path.Combine(sourceStagingDirectory, Path.GetFileName(activePath));
                 File.Copy(activePath, stagedSourcePath, false);
@@ -99,22 +97,19 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 preflight = new PdmNormalizationPreflightValidator().Validate(stagedPlan, dialog.Result.OutputFolder);
                 if (preflight.Count != 0) throw Fail("PREFLIGHT_VALIDATION_FAILED", "Staged plan không đạt kiểm tra an toàn.", string.Join(",", preflight));
 
+                stagedScene.DisableDirtyCounter();
                 _writer.Apply(stagedSnapshot, stagedPlan);
+                finalPackageStarted = true;
                 var stagedRootFile = _writer.Export(stagedScene, stagedSnapshot, stagedPlan, packageStaging);
                 var manifest = PdmManifestV2Factory.Create(stagedPlan);
                 File.WriteAllText(Path.Combine(packageStaging, "pdm-bom-manifest.json"), new PdmPackageManifestWriter().Serialize(manifest));
                 EnsurePackageValid(packageStaging, manifest, "PACKAGE_VALIDATION_FAILED");
+                finalPackagePublished = true;
 
                 CloseDocumentOrThrow(app, ref stagedSourceDoc);
                 if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
                     throw Fail("SOURCE_FILE_CHANGED", "File nguồn đã thay đổi trong quá trình xuất.");
 
-                publication = new PdmPackagePublicationTransaction(packageStaging, pendingDirectory, finalDirectory);
-                publication.MoveToPending();
-                EnsurePackageValid(pendingDirectory, manifest, "PENDING_PACKAGE_VALIDATION_FAILED");
-
-                publication.CommitPendingReplacingFinal();
-                finalPackagePublished = true;
                 var finalRootPath = Path.Combine(finalDirectory, "cad", Path.GetFileName(stagedRootFile));
                 finalPackageDoc = app.OpenFile(finalRootPath, false);
                 EnsureTemporaryDocument(finalPackageDoc, originalSourceDoc, "FINAL_ROOT_OPEN_FAILED");
@@ -133,10 +128,8 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 CloseDocumentBestEffort(app, ref exportedStagingDoc, cleanupFailures);
                 CloseDocumentBestEffort(app, ref stagedSourceDoc, cleanupFailures);
 
-                if (publication != null && failure != null)
-                    TryCleanupDirectory(publication.PendingDirectory, "PENDING_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
-                if (publication != null && failure != null && finalPackagePublished && finalPackageDoc == null)
-                    TryCleanupDirectory(publication.FinalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
+                if (failure != null && finalPackageStarted && finalPackageDoc == null)
+                    TryCleanupDirectory(finalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
                 if (stagedSourceDoc == null && exportedStagingDoc == null)
                 {
                     TryCleanupDirectory(stagingDirectory, "STAGING_CLEANUP_FAILED", cleanupFailures);
@@ -147,17 +140,18 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 IsRunning = false;
                 if (cleanupFailures.Count != 0)
                 {
-                    if (finalPackagePublished)
-                    {
-                        CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
-                        if (finalPackageDoc == null)
-                            TryCleanupDirectory(finalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
-                    }
                     foreach (var cleanupError in cleanupFailures) Trace.WriteLine(cleanupError);
-                    failure = Fail("STAGING_CLEANUP_FAILED", "Không thể hoàn tất cleanup transaction.",
-                        string.Join(Environment.NewLine, cleanupFailures.Select(e => e.ToString())));
-                    successMessage = null;
-                    WriteRuntimeFailureLog(failure);
+                    var failureDetails = new List<string>();
+                    if (failure != null) failureDetails.Add("PRIMARY FAILURE:" + Environment.NewLine + failure);
+                    failureDetails.AddRange(cleanupFailures.Select(e => e.ToString()));
+                    var cleanupFailure = Fail("STAGING_CLEANUP_FAILED", "Không thể hoàn tất cleanup transaction.",
+                        string.Join(Environment.NewLine, failureDetails));
+                    WriteRuntimeFailureLog(cleanupFailure);
+                    if (failure != null || !finalPackagePublished)
+                    {
+                        failure = cleanupFailure;
+                        successMessage = null;
+                    }
                 }
                 if (failure != null) MessageBox.Show(PdmNormalizeExportErrorFormatter.Format(failure), "Chuẩn hóa & Xuất PDM", MessageBoxButton.OK, MessageBoxImage.Error);
                 else if (!string.IsNullOrWhiteSpace(successMessage)) MessageBox.Show(successMessage, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Information);
