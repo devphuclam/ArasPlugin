@@ -84,6 +84,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
                     EditKey = occurrencePath,
                     OccurrencePath = occurrencePath
                 };
+                currentParent = plan.Root.NodeId;
             }
             if (source.Kind == PdmNodeKind.Assembly || source.Kind == PdmNodeKind.Part)
             {

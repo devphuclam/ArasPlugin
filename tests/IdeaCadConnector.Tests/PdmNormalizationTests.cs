@@ -143,13 +143,15 @@ namespace IdeaCadConnector.Tests
             var manifest = new PdmPackageManifest
             {
                 RootFile = "cad/root.ics",
-                Items = new[] { new PdmManifestItem { NodeId = "child", FileName = "cad/missing.ics" } },
-                BomV2 = new[] { new PdmManifestBomV2 { ParentOccurrenceId = "occ-root", ChildDefinitionId = "unknown" } }
+                RootOccurrenceId = "occ-root",
+                Definitions = new[] { new PdmManifestDefinition { DefinitionId = "def-child", NodeId = "child", ItemCode = "A01", FileName = "cad/missing.ics" } },
+                Occurrences = new[] { new PdmManifestOccurrence { OccurrenceId = "occ-root", OccurrencePath = "0", DefinitionId = "def-child" } },
+                BomV2 = new[] { new PdmManifestBomV2 { ParentOccurrenceId = "occ-root", ChildDefinitionId = "unknown", Quantity = 1, QuantityStatus = "IdentityUnavailable" } }
             };
 
             var result = new PdmPackageValidator().Validate(root, manifest);
 
-            Assert.Contains(PdmPackageValidationIssue.MissingFile, result.Issues);
+            Assert.Contains(PdmPackageValidationIssue.MissingDefinitionFile, result.Issues);
             Assert.Contains(PdmPackageValidationIssue.UnknownBomNode, result.Issues);
         }
 

@@ -68,6 +68,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
     {
         public string NodeId { get; set; }
         public string ItemCode { get; set; }
+        public string ItemType { get; set; }
         public string Revision { get; set; }
         public string DisplayName { get; set; }
         public string ProjectCode { get; set; }
@@ -149,6 +150,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         public IEnumerable<PdmManifestOccurrence> Occurrences { get; set; } = new PdmManifestOccurrence[0];
         [JsonProperty("legacyItemsProjection")]
         public IEnumerable<PdmManifestItem> Items { get; set; } = new PdmManifestItem[0];
+        public bool ShouldSerializeItems() { return Items != null && Items.Any(); }
         [JsonIgnore]
         public IEnumerable<PdmManifestBomEdge> Bom { get; set; } = new PdmManifestBomEdge[0];
         [JsonProperty("bom")]

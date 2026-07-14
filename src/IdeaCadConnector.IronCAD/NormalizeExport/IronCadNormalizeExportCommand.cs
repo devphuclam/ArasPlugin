@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -23,126 +25,185 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
         {
             if (IsRunning) return;
             IsRunning = true;
+            IZBaseApp app = null;
+            IZDoc stagedSourceDoc = null;
+            IZDoc exportedStagingDoc = null;
+            IZDoc pendingPackageDoc = null;
+            IZDoc finalPackageDoc = null;
             string stagingDirectory = null;
+            string sourceStagingDirectory = null;
+            string pendingDirectory = null;
+            string finalDirectory = null;
             string successMessage = null;
             Exception failure = null;
-            Exception cleanupFailure = null;
+            var cleanupFailures = new List<Exception>();
+            PdmPackagePublicationTransaction publication = null;
             try
             {
-                var app = _addin.IronCADApp;
-                if (app == null) throw new InvalidOperationException("ACTIVE_DOCUMENT_UNAVAILABLE");
-                var sourceDoc = app.ActiveDoc;
-                var sourceScene = sourceDoc as IZSceneDoc;
-                if (sourceDoc == null) throw new InvalidOperationException("ACTIVE_DOCUMENT_UNAVAILABLE");
-                if (sourceScene == null) throw new InvalidOperationException("ACTIVE_DOCUMENT_NOT_SCENE");
-                var activePath = sourceDoc.Name;
+                app = _addin.IronCADApp;
+                if (app == null) throw Fail("ACTIVE_DOCUMENT_UNAVAILABLE", "Không tìm thấy phiên IronCAD đang hoạt động.");
+                var originalSourceDocument = app.ActiveDoc;
+                var originalSourceDoc = originalSourceDocument as IZDoc;
+                var sourceScene = originalSourceDocument as IZSceneDoc;
+                if (originalSourceDocument == null) throw Fail("ACTIVE_DOCUMENT_UNAVAILABLE", "Không có tài liệu IronCAD đang hoạt động.");
+                if (originalSourceDoc == null) throw Fail("ACTIVE_DOCUMENT_UNAVAILABLE", "Không thể nhận diện source document an toàn.");
+                if (sourceScene == null) throw Fail("ACTIVE_DOCUMENT_NOT_SCENE", "Tài liệu đang mở không phải IronCAD Scene.");
+                var activePath = originalSourceDocument.Name;
                 if (string.IsNullOrWhiteSpace(activePath) || !Path.IsPathRooted(activePath) ||
-                    !string.Equals(Path.GetExtension(activePath), ".ics", StringComparison.OrdinalIgnoreCase) || sourceDoc.Modified)
-                    throw new InvalidOperationException("ACTIVE_DOCUMENT_NOT_SAVED");
+                    !string.Equals(Path.GetExtension(activePath), ".ics", StringComparison.OrdinalIgnoreCase) || originalSourceDocument.Modified)
+                    throw Fail("ACTIVE_DOCUMENT_NOT_SAVED", "Hãy lưu Scene .ics và bảo đảm tài liệu không có thay đổi chưa lưu.");
 
                 var dependencies = _dependencyDiscovery.Discover(sourceScene, Path.GetDirectoryName(activePath));
                 if (!dependencies.DiscoveryComplete || dependencies.ExternalDependencyCount != 0)
-                    throw new InvalidOperationException("BLOCKED_SOURCE_DEPENDENCY_ISOLATION");
+                    throw Fail("BLOCKED_SOURCE_DEPENDENCY_ISOLATION", "Package có external dependency chưa được hỗ trợ an toàn.");
                 var sourceFingerprints = new[] { PdmSourceIntegrity.Capture(activePath) }.ToList();
                 var snapshot = _reader.Read(sourceScene);
                 var initialPlan = new PdmNormalizationPlanner().CreatePlan(
                     PdmNameNormalizer.DeriveProjectCodeFromRootFileName(activePath), "A", snapshot.Root);
-                if (initialPlan.Root == null) throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
+                if (initialPlan.Root == null) throw Fail("SCENE_TRAVERSAL_FAILED", "Không thể đọc Scene Tree.");
 
-                var defaultOutput = Path.Combine(Directory.GetParent(Path.GetDirectoryName(activePath)).FullName,
-                    initialPlan.ProjectCode + "-PDM-Export");
+                var sourceParent = Directory.GetParent(Path.GetDirectoryName(activePath));
+                var defaultOutput = sourceParent == null ? string.Empty : Path.Combine(sourceParent.FullName, initialPlan.ProjectCode + "-PDM-Export");
                 var dialog = new NormalizeExportDialog(initialPlan, defaultOutput);
                 if (dialog.ShowDialog() != true || dialog.Result == null) return;
                 var finalPlan = new PdmNormalizationPlanner().CreateFinalPlan(snapshot.Root, dialog.Result);
-                var issues = new PdmNormalizationPreflightValidator().Validate(finalPlan, dialog.Result.OutputFolder);
-                if (issues.Count != 0) throw new InvalidOperationException("PREFLIGHT_VALIDATION_FAILED");
-                var requestedPackage = Path.Combine(dialog.Result.OutputFolder,
-                    dialog.Result.ProjectCode + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + "-" + Guid.NewGuid().ToString("N"));
-                var outputIssues = new PdmOutputSafetyValidator().Validate(dialog.Result.OutputFolder, activePath, requestedPackage);
-                if (outputIssues.Count != 0) throw new InvalidOperationException("PREFLIGHT_VALIDATION_FAILED");
+                var preflight = new PdmNormalizationPreflightValidator().Validate(finalPlan, dialog.Result.OutputFolder);
+                if (preflight.Count != 0) throw Fail("PREFLIGHT_VALIDATION_FAILED", "Kế hoạch xuất PDM chưa đạt kiểm tra an toàn.", string.Join(",", preflight));
+
+                var packageName = dialog.Result.ProjectCode + "-" + DateTime.Now.ToString("yyyyMMdd-HHmmssfff") + "-" + Guid.NewGuid().ToString("N");
+                finalDirectory = Path.Combine(dialog.Result.OutputFolder, packageName);
+                pendingDirectory = finalDirectory + ".pending";
+                var outputIssues = new PdmOutputSafetyValidator().Validate(dialog.Result.OutputFolder, activePath, finalDirectory);
+                if (outputIssues.Count != 0) throw Fail("PREFLIGHT_VALIDATION_FAILED", "Thư mục xuất không đạt kiểm tra an toàn.", string.Join(",", outputIssues));
+                if (Directory.Exists(pendingDirectory)) throw Fail("PACKAGE_COMMIT_FAILED", "Thư mục package đang chờ đã tồn tại.");
 
                 stagingDirectory = Path.Combine(Path.GetTempPath(), "IdeaCadConnector", "PDM-staging", Guid.NewGuid().ToString("N"));
-                var sourceStagingDirectory = Path.Combine(stagingDirectory, "source");
+                sourceStagingDirectory = Path.Combine(stagingDirectory, "source");
+                var packageStaging = Path.Combine(stagingDirectory, "package");
                 Directory.CreateDirectory(sourceStagingDirectory);
                 var stagedSourcePath = Path.Combine(sourceStagingDirectory, Path.GetFileName(activePath));
                 File.Copy(activePath, stagedSourcePath, false);
-                app.OpenFile(stagedSourcePath, false);
+                stagedSourceDoc = app.OpenFile(stagedSourcePath, false);
+                EnsureTemporaryDocument(stagedSourceDoc, originalSourceDoc, "STAGING_DOCUMENT_OPEN_FAILED");
                 var stagedScene = _activationVerifier.VerifyScene(app, stagedSourcePath, "STAGING_DOCUMENT");
-                var stagedDoc = app.ActiveDoc as IZDoc;
-                if (stagedDoc == null) throw new InvalidOperationException("STAGING_DOCUMENT_OPEN_FAILED");
+
                 var stagedSnapshot = _reader.Read(stagedScene);
                 if (stagedSnapshot.Root.Properties == null) stagedSnapshot.Root.Properties = new PdmSourceProperties();
                 if (string.IsNullOrWhiteSpace(stagedSnapshot.Root.Properties.NodeId)) stagedSnapshot.Root.Properties.NodeId = finalPlan.Root.NodeId;
                 var stagedPlan = new PdmNormalizationPlanner().CreateFinalPlan(stagedSnapshot.Root, dialog.Result);
-                var finalByPath = finalPlan.Items.ToDictionary(i => i.OccurrencePath, StringComparer.Ordinal);
-                var stagedByPath = stagedPlan.Items.ToDictionary(i => i.OccurrencePath, StringComparer.Ordinal);
-                if (finalByPath.Count != stagedByPath.Count || finalByPath.Keys.Any(path => !stagedByPath.ContainsKey(path) || stagedByPath[path].SourceKind != finalByPath[path].SourceKind))
-                    throw new InvalidOperationException("STAGED_TREE_MISMATCH");
-                issues = new PdmNormalizationPreflightValidator().Validate(stagedPlan, dialog.Result.OutputFolder);
-                if (issues.Count != 0) throw new InvalidOperationException("PREFLIGHT_VALIDATION_FAILED");
+                if (PdmRoundTripPlanComparer.Compare(finalPlan, stagedPlan).Count != 0)
+                    throw Fail("STAGED_TREE_MISMATCH", "Staged Scene Tree không khớp preview đã phê duyệt.");
+                preflight = new PdmNormalizationPreflightValidator().Validate(stagedPlan, dialog.Result.OutputFolder);
+                if (preflight.Count != 0) throw Fail("PREFLIGHT_VALIDATION_FAILED", "Staged plan không đạt kiểm tra an toàn.", string.Join(",", preflight));
 
-                var packageStaging = Path.Combine(stagingDirectory, "package");
                 _writer.Apply(stagedSnapshot, stagedPlan);
                 var stagedRootFile = _writer.Export(stagedScene, stagedSnapshot, stagedPlan, packageStaging);
-                var manifest = CreateManifest(stagedPlan);
+                var manifest = PdmManifestV2Factory.Create(stagedPlan);
                 File.WriteAllText(Path.Combine(packageStaging, "pdm-bom-manifest.json"), new PdmPackageManifestWriter().Serialize(manifest));
-                var validation = new PdmPackageValidator().Validate(packageStaging, manifest);
-                if (!validation.IsValid) throw new InvalidOperationException("PACKAGE_VALIDATION_FAILED");
+                EnsurePackageValid(packageStaging, manifest, "PACKAGE_VALIDATION_FAILED");
 
-                _activationVerifier.Close(app, stagedDoc, "DOCUMENT_CLOSE_FAILED");
-                app.OpenFile(stagedRootFile, false);
-                var exportedScene = _activationVerifier.VerifyScene(app, stagedRootFile, "EXPORTED_ROOT");
-                new IronCadExportPackageVerifier(_reader).Verify(exportedScene, stagedPlan, packageStaging, Path.GetDirectoryName(activePath), sourceStagingDirectory);
-                var exportedDoc = app.ActiveDoc as IZDoc;
-                if (exportedDoc == null) throw new InvalidOperationException("EXPORTED_ROOT_OPEN_FAILED");
-                _activationVerifier.Close(app, exportedDoc, "DOCUMENT_CLOSE_FAILED");
-                if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f))) throw new InvalidOperationException("SOURCE_FILE_CHANGED");
+                CloseDocumentOrThrow(app, ref stagedSourceDoc);
+                exportedStagingDoc = app.OpenFile(stagedRootFile, false);
+                EnsureTemporaryDocument(exportedStagingDoc, originalSourceDoc, "EXPORTED_ROOT_OPEN_FAILED");
+                var stagingPackageScene = _activationVerifier.VerifyScene(app, stagedRootFile, "EXPORTED_ROOT");
+                new IronCadExportPackageVerifier(_reader).Verify(stagingPackageScene, stagedPlan, packageStaging,
+                    Path.GetDirectoryName(activePath), sourceStagingDirectory);
+                CloseDocumentOrThrow(app, ref exportedStagingDoc);
+                if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
+                    throw Fail("SOURCE_FILE_CHANGED", "File nguồn đã thay đổi trong quá trình xuất.");
 
-                var packageDirectory = requestedPackage;
-                if (Directory.Exists(packageDirectory)) throw new InvalidOperationException("PACKAGE_COMMIT_FAILED");
-                try { Directory.Move(packageStaging, packageDirectory); }
-                catch (Exception ex) { throw new InvalidOperationException("PACKAGE_COMMIT_FAILED", ex); }
-                var finalRootPath = Path.Combine(packageDirectory, "cad", Path.GetFileName(stagedRootFile));
-                app.OpenFile(finalRootPath, false);
+                publication = new PdmPackagePublicationTransaction(packageStaging, pendingDirectory, finalDirectory);
+                publication.MoveToPending();
+                var pendingRootPath = Path.Combine(pendingDirectory, "cad", Path.GetFileName(stagedRootFile));
+                pendingPackageDoc = app.OpenFile(pendingRootPath, false);
+                EnsureTemporaryDocument(pendingPackageDoc, originalSourceDoc, "PENDING_PACKAGE_VALIDATION_FAILED");
+                var pendingScene = _activationVerifier.VerifyScene(app, pendingRootPath, "PENDING_ROOT");
+                EnsurePackageValid(pendingDirectory, manifest, "PENDING_PACKAGE_VALIDATION_FAILED");
+                new IronCadExportPackageVerifier(_reader).Verify(pendingScene, stagedPlan, pendingDirectory,
+                    Path.GetDirectoryName(activePath), stagingDirectory);
+                CloseDocumentOrThrow(app, ref pendingPackageDoc);
+
+                publication.CommitPending();
+                var finalRootPath = Path.Combine(finalDirectory, "cad", Path.GetFileName(stagedRootFile));
+                finalPackageDoc = app.OpenFile(finalRootPath, false);
+                EnsureTemporaryDocument(finalPackageDoc, originalSourceDoc, "FINAL_ROOT_OPEN_FAILED");
                 var finalScene = _activationVerifier.VerifyScene(app, finalRootPath, "FINAL_ROOT");
-                new IronCadExportPackageVerifier(_reader).Verify(finalScene, stagedPlan, packageDirectory, Path.GetDirectoryName(activePath), stagingDirectory);
-                successMessage = "Chuẩn hóa và xuất PDM thành công.\n\nPackage: " + packageDirectory + "\nSource files verified unchanged.";
+                EnsurePackageValid(finalDirectory, manifest, "FINAL_PACKAGE_VALIDATION_FAILED");
+                new IronCadExportPackageVerifier(_reader).Verify(finalScene, stagedPlan, finalDirectory,
+                    Path.GetDirectoryName(activePath), stagingDirectory);
+                if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
+                    throw Fail("SOURCE_FILE_CHANGED", "The source file changed during final package validation.");
+                successMessage = "Chuẩn hóa và xuất PDM thành công.\n\nPackage: " + finalDirectory + "\nSource files verified unchanged.";
             }
-            catch (Exception ex) { failure = ex; }
+            catch (Exception ex) { failure = ex; Trace.WriteLine(ex); }
             finally
             {
-                if (!string.IsNullOrWhiteSpace(stagingDirectory) && Directory.Exists(stagingDirectory))
-                    try { Directory.Delete(stagingDirectory, true); } catch (Exception ex) { cleanupFailure = ex; }
+                if (failure != null) CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
+                CloseDocumentBestEffort(app, ref pendingPackageDoc, cleanupFailures);
+                CloseDocumentBestEffort(app, ref exportedStagingDoc, cleanupFailures);
+                CloseDocumentBestEffort(app, ref stagedSourceDoc, cleanupFailures);
+
+                if (publication != null && failure != null && pendingPackageDoc == null)
+                    TryCleanupDirectory(publication.PendingDirectory, "PENDING_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
+                if (publication != null && failure != null && finalPackageDoc == null)
+                    TryCleanupDirectory(publication.FinalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
+                if (stagedSourceDoc == null && exportedStagingDoc == null && pendingPackageDoc == null)
+                    TryCleanupDirectory(stagingDirectory, "STAGING_CLEANUP_FAILED", cleanupFailures);
+                else cleanupFailures.Add(Fail("DOCUMENT_CLOSE_FAILED", "Không thể đóng hết temporary document trước cleanup."));
+
                 IsRunning = false;
-                if (cleanupFailure != null) MessageBox.Show("Không thể dọn staging an toàn.\nMã lỗi: STAGING_CLEANUP_FAILED", "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Error);
-                else if (failure != null) MessageBox.Show(ToStableError(failure), "Chuẩn hóa & Xuất PDM", MessageBoxButton.OK, MessageBoxImage.Error);
+                if (cleanupFailures.Count != 0)
+                {
+                    CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
+                    if (finalPackageDoc == null)
+                        TryCleanupDirectory(finalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
+                    foreach (var cleanupError in cleanupFailures) Trace.WriteLine(cleanupError);
+                    failure = Fail("STAGING_CLEANUP_FAILED", "Không thể hoàn tất cleanup transaction.",
+                        string.Join(Environment.NewLine, cleanupFailures.Select(e => e.ToString())));
+                    successMessage = null;
+                }
+                if (failure != null) MessageBox.Show(PdmNormalizeExportErrorFormatter.Format(failure), "Chuẩn hóa & Xuất PDM", MessageBoxButton.OK, MessageBoxImage.Error);
                 else if (!string.IsNullOrWhiteSpace(successMessage)) MessageBox.Show(successMessage, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
-        private static PdmPackageManifest CreateManifest(PdmNormalizationPlan plan)
+        private static void CloseDocumentOrThrow(IZBaseApp app, ref IZDoc document)
         {
-            var root = plan.Root;
-            var allItems = new[] { root }.Concat(plan.Items).ToArray();
-            var occurrenceIds = allItems.ToDictionary(i => i.OccurrencePath, i => "occ-" + i.OccurrencePath.Replace('/', '-'), StringComparer.Ordinal);
-            return new PdmPackageManifest
-            {
-                ProjectCode = plan.ProjectCode, Revision = plan.Revision, RootNodeId = root.NodeId,
-                RootItemCode = root.ItemCode, RootFile = "cad/" + root.CanonicalFileName, RootOccurrenceId = "occ-0",
-                Definitions = allItems.Select(i => new PdmManifestDefinition { DefinitionId = "def-" + i.OccurrencePath.Replace('/', '-'), NodeId = i.NodeId, ItemCode = i.ItemCode, ItemType = i.ItemType, DisplayName = i.DisplayName, Revision = i.Revision, FileName = "cad/" + i.CanonicalFileName }).ToArray(),
-                Occurrences = allItems.Select(i => new PdmManifestOccurrence { OccurrenceId = occurrenceIds[i.OccurrencePath], OccurrencePath = i.OccurrencePath, ParentOccurrenceId = string.IsNullOrWhiteSpace(i.ParentNodeId) ? null : occurrenceIds[allItems.Single(p => p.NodeId == i.ParentNodeId).OccurrencePath], DefinitionId = "def-" + i.OccurrencePath.Replace('/', '-'), FindNumber = GetFindNumber(i.OccurrencePath) }).ToArray(),
-                BomV2 = plan.Items.Where(i => !string.IsNullOrWhiteSpace(i.ParentNodeId)).Select(i => new PdmManifestBomV2 { ParentOccurrenceId = occurrenceIds[allItems.Single(p => p.NodeId == i.ParentNodeId).OccurrencePath], ChildDefinitionId = "def-" + i.OccurrencePath.Replace('/', '-'), Quantity = 1, QuantityStatus = "IdentityUnavailable" }).ToArray(),
-                Warnings = plan.Warnings.Select(w => w.ToString()).ToArray()
-            };
+            if (document == null) return;
+            try { app.CloseFile(document); document = null; }
+            catch (Exception ex) { throw Fail("DOCUMENT_CLOSE_FAILED", "Không thể đóng temporary IronCAD document.", ex.ToString(), ex); }
         }
 
-        private static int GetFindNumber(string occurrencePath) { return (int.Parse(occurrencePath.Split('/').Last()) + 1) * 10; }
-        private static string ToStableError(Exception ex)
+        private static void EnsureTemporaryDocument(IZDoc openedDocument, IZDoc originalSourceDocument, string errorCode)
         {
-            var structured = ex as PdmNormalizeExportException;
-            var code = structured == null ? ex.Message : structured.Code;
-            if (string.IsNullOrWhiteSpace(code) || code.IndexOf(':') >= 0) code = "EXTERNAL_EXPORT_FAILED";
-            return code + "\nKhông thể chuẩn hóa và xuất PDM an toàn.";
+            if (openedDocument == null || object.ReferenceEquals(openedDocument, originalSourceDocument))
+                throw Fail(errorCode, "IronCAD không activate temporary document vừa mở.");
         }
+
+        private static void CloseDocumentBestEffort(IZBaseApp app, ref IZDoc document, IList<Exception> cleanupFailures)
+        {
+            if (document == null) return;
+            try { app.CloseFile(document); document = null; }
+            catch (Exception ex) { cleanupFailures.Add(Fail("DOCUMENT_CLOSE_FAILED", "Không thể đóng temporary IronCAD document.", ex.ToString(), ex)); }
+        }
+
+        private static void TryCleanupDirectory(string directory, string errorCode, IList<Exception> cleanupFailures)
+        {
+            if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory)) return;
+            try { Directory.Delete(directory, true); }
+            catch (Exception ex) { cleanupFailures.Add(Fail(errorCode, "Không thể xóa thư mục transaction.", ex.ToString(), ex)); }
+        }
+
+        private static void EnsurePackageValid(string directory, PdmPackageManifest manifest, string code)
+        {
+            var validation = new PdmPackageValidator().Validate(directory, manifest);
+            if (!validation.IsValid) throw Fail(code, "Package không đạt kiểm tra an toàn.", string.Join(",", validation.Issues));
+        }
+
+        private static PdmNormalizeExportException Fail(string code, string userMessage, string details = null, Exception inner = null)
+        {
+            return new PdmNormalizeExportException(code, userMessage, details, inner);
+        }
+
     }
 }

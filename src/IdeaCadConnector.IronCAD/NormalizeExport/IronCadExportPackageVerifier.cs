@@ -27,7 +27,12 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
     public sealed class IronCadExportPackageVerifier
     {
         private readonly IronCadSceneNormalizationReader _reader;
-        public IronCadExportPackageVerifier(IronCadSceneNormalizationReader reader) { _reader = reader ?? throw new ArgumentNullException(nameof(reader)); }
+        private readonly PdmNormalizationLimits _limits;
+        public IronCadExportPackageVerifier(IronCadSceneNormalizationReader reader, PdmNormalizationLimits limits = null)
+        {
+            _reader = reader ?? throw new ArgumentNullException(nameof(reader));
+            _limits = limits ?? new PdmNormalizationLimits();
+        }
 
         public IronCadRoundTripValidationResult Verify(IZSceneDoc exportedScene, PdmNormalizationPlan plan)
         {
@@ -42,72 +47,81 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             {
                 var snapshot = _reader.Read(exportedScene);
                 var actual = new PdmNormalizationPlanner().CreatePlan(plan.ProjectCode, plan.Revision, snapshot.Root);
-                var expected = plan.Items.ToDictionary(i => i.OccurrencePath, StringComparer.Ordinal);
-                var observed = actual.Items.ToDictionary(i => i.OccurrencePath, StringComparer.Ordinal);
-                if (!expected.Keys.OrderBy(x => x).SequenceEqual(observed.Keys.OrderBy(x => x))) result.Issues.Add("STAGED_TREE_MISMATCH");
-                foreach (var path in expected.Keys.Intersect(observed.Keys))
-                {
-                    var e = expected[path]; var a = observed[path];
-                    if (!string.Equals(e.NodeId, a.NodeId, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(e.ItemCode, a.ItemCode, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(e.DisplayName, a.DisplayName, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(e.ItemType, a.ItemType, StringComparison.OrdinalIgnoreCase))
-                        result.Issues.Add("ROUND_TRIP_VALIDATION_FAILED");
-                }
-                if (!string.IsNullOrWhiteSpace(packageRoot)) VerifyExternalReferences(exportedScene, packageRoot, sourceRoot, stagingRoot, plan, result);
+                ApplyObservedProperties(actual.Root, snapshot.Root);
+                foreach (var item in actual.Items) ApplyObservedProperties(item, item.SourceNode);
+                foreach (var issue in PdmRoundTripPlanComparer.Compare(plan, actual)) result.Issues.Add(issue);
+                if (!string.IsNullOrWhiteSpace(packageRoot)) VerifyExternalReferences(exportedScene, packageRoot, sourceRoot, stagingRoot, plan, result, _limits);
             }
-            catch (Exception ex) { result.Issues.Add("EXPORTED_ROOT_OPEN_FAILED"); System.Diagnostics.Trace.WriteLine(ex); }
+            catch (PdmNormalizeExportException) { throw; }
+            catch (Exception ex) { throw new PdmNormalizeExportException("ROUND_TRIP_VALIDATION_FAILED", "Không thể xác minh package sau khi mở lại.", ex.ToString(), ex); }
             result.IsValid = result.Issues.Count == 0;
-            if (!result.IsValid) throw new InvalidOperationException(result.Issues.First());
+            if (!result.IsValid) throw new PdmNormalizeExportException("ROUND_TRIP_VALIDATION_FAILED", "Package mở lại không khớp kế hoạch đã phê duyệt.", string.Join(",", result.Issues));
             return result;
         }
 
-        private static void VerifyExternalReferences(IZSceneDoc scene, string packageRoot, string sourceRoot, string stagingRoot, PdmNormalizationPlan plan, IronCadRoundTripValidationResult result)
+        private static void ApplyObservedProperties(PdmPlanItem item, PdmSourceNode source)
+        {
+            if (item == null || source == null) return;
+            var properties = source.Properties ?? new PdmSourceProperties();
+            item.NodeId = properties.NodeId;
+            item.ItemCode = properties.ItemCode;
+            item.ItemType = properties.ItemType;
+            item.DisplayName = properties.DisplayName;
+            item.ProjectCode = properties.ProjectCode;
+            item.Revision = properties.Revision;
+            item.SceneName = source.Name;
+        }
+
+        private static void VerifyExternalReferences(IZSceneDoc scene, string packageRoot, string sourceRoot, string stagingRoot,
+            PdmNormalizationPlan plan, IronCadRoundTripValidationResult result, PdmNormalizationLimits limits)
         {
             var cadRoot = System.IO.Path.Combine(System.IO.Path.GetFullPath(packageRoot), "cad");
             var root = scene.GetTopElement();
-            VerifyElement(root, "0", cadRoot, sourceRoot, stagingRoot, plan, result);
+            var guard = new PdmReferenceTraversalGuard<IZElement>(limits);
+            VerifyElement(root, "0", 0, cadRoot, sourceRoot, stagingRoot, plan, result, guard);
         }
 
-        private static void VerifyElement(IZElement element, string occurrencePath, string cadRoot, string sourceRoot, string stagingRoot, PdmNormalizationPlan plan, IronCadRoundTripValidationResult result)
+        private static void VerifyElement(IZElement element, string occurrencePath, int depth, string cadRoot, string sourceRoot,
+            string stagingRoot, PdmNormalizationPlan plan, IronCadRoundTripValidationResult result,
+            PdmReferenceTraversalGuard<IZElement> guard)
         {
-            string link = null; bool linked = false;
-            var sceneElement = element as IZSceneElement;
-            if (sceneElement != null) link = sceneElement.ModelLinkPath;
-            var part = element as IZPart; var assembly = element as IZAssembly;
-            if (part != null) { bool b; var p = part.GetExternallyLinkedInfo(out b); linked |= b; if (!string.IsNullOrWhiteSpace(p)) link = p; }
-            if (assembly != null) { bool b; var p = assembly.GetExternallyLinkedInfo(out b); linked |= b; if (!string.IsNullOrWhiteSpace(p)) link = p; }
-            if (linked || !string.IsNullOrWhiteSpace(link))
+            guard.Enter(element, depth);
+            try
             {
-                var reference = new IronCadExternalReferenceRecord { OccurrencePath = occurrencePath, ReportedLinkPath = link };
-                result.ExternalReferences.Add(reference);
-                if (string.IsNullOrWhiteSpace(link)) { result.Issues.Add("EXTERNAL_REFERENCE_MISSING"); }
-                else
+                string link = null; bool linked = false;
+                var sceneElement = element as IZSceneElement;
+                if (sceneElement != null) link = sceneElement.ModelLinkPath;
+                var part = element as IZPart; var assembly = element as IZAssembly;
+                if (part != null) { bool b; var p = part.GetExternallyLinkedInfo(out b); linked |= b; if (!string.IsNullOrWhiteSpace(p)) link = p; }
+                if (assembly != null) { bool b; var p = assembly.GetExternallyLinkedInfo(out b); linked |= b; if (!string.IsNullOrWhiteSpace(p)) link = p; }
+                if (linked || !string.IsNullOrWhiteSpace(link))
                 {
-                    var target = System.IO.Path.GetFullPath(link);
-                    reference.ResolvedTargetPath = target;
-                    reference.Exists = System.IO.File.Exists(target);
-                    reference.InsidePackage = IsWithin(target, cadRoot);
-                    reference.PointsToSource = IsWithin(target, sourceRoot) || (!string.IsNullOrWhiteSpace(stagingRoot) && IsWithin(target, stagingRoot));
-                    reference.CanonicalFileNameMatch = reference.InsidePackage && string.Equals(System.IO.Path.GetExtension(target), ".ics", StringComparison.OrdinalIgnoreCase);
-                    var expected = plan.Items.FirstOrDefault(i => string.Equals(i.OccurrencePath, occurrencePath, StringComparison.Ordinal));
-                    if (expected != null) reference.CanonicalFileNameMatch = string.Equals(System.IO.Path.GetFileName(target), expected.CanonicalFileName, StringComparison.OrdinalIgnoreCase);
-                    if (!reference.Exists) result.Issues.Add("EXTERNAL_REFERENCE_MISSING");
-                    if (!reference.InsidePackage) result.Issues.Add("EXTERNAL_REFERENCE_OUTSIDE_PACKAGE");
-                    if (reference.PointsToSource) result.Issues.Add("EXTERNAL_REFERENCE_POINTS_TO_SOURCE");
-                    if (!reference.CanonicalFileNameMatch) result.Issues.Add("CANONICAL_REFERENCE_MISMATCH");
-                    if (!string.Equals(System.IO.Path.GetExtension(target), ".ics", StringComparison.OrdinalIgnoreCase)) result.Issues.Add("EXTERNAL_REFERENCE_OUTSIDE_PACKAGE");
+                    var expected = new[] { plan.Root }.Concat(plan.Items)
+                        .FirstOrDefault(i => string.Equals(i.OccurrencePath, occurrencePath, StringComparison.Ordinal));
+                    var evaluation = PdmExternalReferencePolicy.Evaluate(link, cadRoot, cadRoot, sourceRoot, stagingRoot,
+                        expected == null ? null : expected.CanonicalFileName);
+                    var reference = new IronCadExternalReferenceRecord
+                    {
+                        OccurrencePath = occurrencePath, ReportedLinkPath = link,
+                        ResolvedTargetPath = evaluation.ResolvedTargetPath,
+                        Exists = !evaluation.Issues.Contains("EXTERNAL_REFERENCE_MISSING"),
+                        InsidePackage = !evaluation.Issues.Contains("EXTERNAL_REFERENCE_OUTSIDE_PACKAGE"),
+                        PointsToSource = evaluation.Issues.Contains("EXTERNAL_REFERENCE_POINTS_TO_SOURCE"),
+                        CanonicalFileNameMatch = !evaluation.Issues.Contains("CANONICAL_REFERENCE_MISMATCH")
+                    };
+                    result.ExternalReferences.Add(reference);
+                    foreach (var issue in evaluation.Issues) result.Issues.Add(issue);
+                }
+                var children = element.GetChildrenZArray(); int count = 0; if (children == null) return; children.Count(out count);
+                for (var i = 0; i < count; i++)
+                {
+                    object value; children.Get(i, out value); var child = value as IZElement;
+                    if (child == null) throw new PdmNormalizeExportException("ROUND_TRIP_VALIDATION_FAILED", "Không thể đọc child occurrence trong package.");
+                    VerifyElement(child, occurrencePath + "/" + i, depth + 1, cadRoot, sourceRoot, stagingRoot,
+                        plan, result, guard);
                 }
             }
-            var children = element.GetChildrenZArray(); int count = 0; if (children == null) return; children.Count(out count);
-            for (var i = 0; i < count; i++) { object value; children.Get(i, out value); var child = value as IZElement; if (child != null) VerifyElement(child, occurrencePath + "/" + i, cadRoot, sourceRoot, stagingRoot, plan, result); }
-        }
-
-        private static bool IsWithin(string path, string root)
-        {
-            if (string.IsNullOrWhiteSpace(root)) return false;
-            var boundary = System.IO.Path.GetFullPath(root).TrimEnd(System.IO.Path.DirectorySeparatorChar) + System.IO.Path.DirectorySeparatorChar;
-            return string.Equals(path, root, StringComparison.OrdinalIgnoreCase) || path.StartsWith(boundary, StringComparison.OrdinalIgnoreCase);
+            finally { guard.Exit(element); }
         }
     }
 }

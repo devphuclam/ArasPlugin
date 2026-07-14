@@ -106,6 +106,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             if (manager == null) return result;
             result.NodeId = Read(manager, "PDM.NodeId");
             result.ItemCode = Read(manager, "PDM.ItemCode");
+            result.ItemType = Read(manager, "PDM.ItemType");
             result.Revision = Read(manager, "PDM.Revision");
             result.DisplayName = Read(manager, "PDM.DisplayName");
             result.ProjectCode = Read(manager, "PDM.ProjectCode");
