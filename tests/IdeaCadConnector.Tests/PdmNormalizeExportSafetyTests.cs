@@ -44,6 +44,19 @@ namespace IdeaCadConnector.Tests
             Assert.Equal(Path.Combine(output, ".PDM-STUDYCASE.pending-abc123"), paths.PendingDirectory);
         }
 
+        [Fact]
+        public void NormalizeExportCommand_UsesReadableReplacementPaths()
+        {
+            var repoRoot = FindRepoRoot();
+            var commandPath = Path.Combine(repoRoot, "src", "IdeaCadConnector.IronCAD", "NormalizeExport",
+                "IronCadNormalizeExportCommand.cs");
+            var source = File.ReadAllText(commandPath);
+
+            Assert.Contains("PdmPackagePublicationPaths.Create", source);
+            Assert.Contains("CommitPendingReplacingFinal", source);
+            Assert.DoesNotContain("var packageName = \"PDM-\"", source);
+        }
+
         [Theory]
         [InlineData("abc123\\suffix")]
         [InlineData("abc123/suffix")]
@@ -424,6 +437,24 @@ namespace IdeaCadConnector.Tests
             plan.Root = new PdmPlanItem { OccurrencePath = "0", NodeId = "root", ItemCode = "ROOT", ItemType = "ASM", DisplayName = "ROOT", SceneName = sceneName, ProjectCode = "PDM-TEST", Revision = revision, SourceKind = PdmNodeKind.SceneRoot };
             plan.Parts.Add(new PdmPlanItem { OccurrencePath = "0/0", ParentNodeId = "root", NodeId = "child", ItemCode = "A01", ItemType = "PRT", DisplayName = "CHILD", SceneName = sceneName, ProjectCode = "PDM-TEST", Revision = revision, SourceKind = PdmNodeKind.Part, Depth = 1 });
             return plan;
+        }
+
+        private static string FindRepoRoot()
+        {
+            var directory = AppDomain.CurrentDomain.BaseDirectory;
+            while (!string.IsNullOrWhiteSpace(directory))
+            {
+                if (File.Exists(Path.Combine(directory, "IdeaCadConnector.sln")) &&
+                    Directory.Exists(Path.Combine(directory, "src")) &&
+                    Directory.Exists(Path.Combine(directory, "tests")))
+                {
+                    return directory;
+                }
+
+                directory = Path.GetDirectoryName(directory);
+            }
+
+            throw new DirectoryNotFoundException("Could not locate repository root.");
         }
     }
 }
