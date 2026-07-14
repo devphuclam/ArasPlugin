@@ -55,6 +55,11 @@ namespace IdeaCadConnector.Tests
             Assert.Contains("PdmPackagePublicationPaths.Create", source);
             Assert.Contains("CommitPendingReplacingFinal", source);
             Assert.DoesNotContain("var packageName = \"PDM-\"", source);
+            Assert.Contains("publication != null && failure != null && finalPackagePublished && finalPackageDoc == null", source);
+            Assert.Contains("if (finalPackagePublished)", source);
+            Assert.Contains(
+                "publication.CommitPendingReplacingFinal();\n                finalPackagePublished = true;\n                var finalRootPath",
+                source.Replace("\r\n", "\n"));
         }
 
         [Theory]

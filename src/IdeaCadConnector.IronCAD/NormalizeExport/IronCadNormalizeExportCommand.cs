@@ -122,6 +122,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 CloseDocumentOrThrow(app, ref pendingPackageDoc);
 
                 publication.CommitPendingReplacingFinal();
+                finalPackagePublished = true;
                 var finalRootPath = Path.Combine(finalDirectory, "cad", Path.GetFileName(stagedRootFile));
                 finalPackageDoc = app.OpenFile(finalRootPath, false);
                 EnsureTemporaryDocument(finalPackageDoc, originalSourceDoc, "FINAL_ROOT_OPEN_FAILED");
@@ -132,7 +133,6 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
                     throw Fail("SOURCE_FILE_CHANGED", "The source file changed during final package validation.");
                 successMessage = "Chuẩn hóa và xuất PDM thành công.\n\nPackage: " + finalDirectory + "\nSource files verified unchanged.";
-                finalPackagePublished = true;
             }
             catch (Exception ex) { failure = ex; Trace.WriteLine(ex); WriteRuntimeFailureLog(ex); }
             finally
@@ -144,7 +144,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
 
                 if (publication != null && failure != null && pendingPackageDoc == null)
                     TryCleanupDirectory(publication.PendingDirectory, "PENDING_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
-                if (publication != null && failure != null && !finalPackagePublished && finalPackageDoc == null)
+                if (publication != null && failure != null && finalPackagePublished && finalPackageDoc == null)
                     TryCleanupDirectory(publication.FinalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
                 if (stagedSourceDoc == null && exportedStagingDoc == null && pendingPackageDoc == null)
                 {
@@ -156,7 +156,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 IsRunning = false;
                 if (cleanupFailures.Count != 0)
                 {
-                    if (!finalPackagePublished)
+                    if (finalPackagePublished)
                     {
                         CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
                         if (finalPackageDoc == null)
