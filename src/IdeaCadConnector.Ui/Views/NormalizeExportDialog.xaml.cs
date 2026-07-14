@@ -81,6 +81,16 @@ namespace IdeaCadConnector.Ui.Views
         {
             DialogResult = false;
         }
+
+        private void BrowseOutput_Click(object sender, RoutedEventArgs e)
+        {
+            using (var picker = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                picker.SelectedPath = OutputFolderBox.Text;
+                if (picker.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                    OutputFolderBox.Text = picker.SelectedPath;
+            }
+        }
     }
 
     internal sealed class NormalizeExportEditRow

@@ -115,13 +115,12 @@ namespace IdeaCadConnector.Tests
                         Revision = "A"
                     }
                 },
-                Bom = new[]
+                BomV2 = new[]
                 {
-                    new PdmManifestBomEdge
+                    new PdmManifestBomV2
                     {
-                        ParentNodeId = "root",
-                        ChildNodeId = "child",
-                        FindNumber = 10,
+                        ParentOccurrenceId = "occ-0",
+                        ChildDefinitionId = "def-child",
                         Quantity = 1,
                         QuantityStatus = "IdentityUnavailable"
                     }
@@ -145,7 +144,7 @@ namespace IdeaCadConnector.Tests
             {
                 RootFile = "cad/root.ics",
                 Items = new[] { new PdmManifestItem { NodeId = "child", FileName = "cad/missing.ics" } },
-                Bom = new[] { new PdmManifestBomEdge { ParentNodeId = "root", ChildNodeId = "unknown" } }
+                BomV2 = new[] { new PdmManifestBomV2 { ParentOccurrenceId = "occ-root", ChildDefinitionId = "unknown" } }
             };
 
             var result = new PdmPackageValidator().Validate(root, manifest);

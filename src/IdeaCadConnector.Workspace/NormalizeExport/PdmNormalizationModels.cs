@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace IdeaCadConnector.Workspace.NormalizeExport
 {
@@ -146,8 +147,12 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         public string RootOccurrenceId { get; set; }
         public IEnumerable<PdmManifestDefinition> Definitions { get; set; } = new PdmManifestDefinition[0];
         public IEnumerable<PdmManifestOccurrence> Occurrences { get; set; } = new PdmManifestOccurrence[0];
+        [JsonProperty("legacyItemsProjection")]
         public IEnumerable<PdmManifestItem> Items { get; set; } = new PdmManifestItem[0];
+        [JsonIgnore]
         public IEnumerable<PdmManifestBomEdge> Bom { get; set; } = new PdmManifestBomEdge[0];
+        [JsonProperty("bom")]
+        public IEnumerable<PdmManifestBomV2> BomV2 { get; set; } = new PdmManifestBomV2[0];
         public IEnumerable<string> Warnings { get; set; } = new string[0];
     }
 
@@ -186,12 +191,31 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         UnknownOccurrence,
         InvalidQuantity,
         MissingDefinition
+        ,RootOccurrenceInvalid, OrphanDefinition, ParentPathMismatch, OccurrenceCycle,
+        MissingDefinitionFile, OrphanFile
     }
 
     public sealed class PdmPackageValidationResult
     {
         public IList<PdmPackageValidationIssue> Issues { get; } = new List<PdmPackageValidationIssue>();
         public bool IsValid { get { return Issues.Count == 0; } }
+    }
+
+    public sealed class PdmManifestBomV2
+    {
+        public string ParentOccurrenceId { get; set; }
+        public string ChildDefinitionId { get; set; }
+        public decimal Quantity { get; set; }
+        public string QuantityStatus { get; set; }
+    }
+
+    public sealed class PdmNormalizeExportException : Exception
+    {
+        public string Code { get; private set; }
+        public string UserMessage { get; private set; }
+        public string InternalDetails { get; private set; }
+        public PdmNormalizeExportException(string code, string userMessage, string internalDetails = null, Exception inner = null)
+            : base(internalDetails, inner) { Code = code; UserMessage = userMessage; InternalDetails = internalDetails; }
     }
 
     public sealed class PdmManifestDefinition

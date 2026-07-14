@@ -8,5 +8,6 @@
     <ProjectReference Include="..\IdeaCadConnector.Aras\IdeaCadConnector.Aras.csproj" />
     <ProjectReference Include="..\IdeaCadConnector.Workspace\IdeaCadConnector.Workspace.csproj" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 </Project>

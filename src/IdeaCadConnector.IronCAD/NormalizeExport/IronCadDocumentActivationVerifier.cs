@@ -6,6 +6,13 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
 {
     public sealed class IronCadDocumentActivationVerifier
     {
+        public void Close(IZBaseApp app, IZDoc document, string errorCode)
+        {
+            if (app == null || document == null) throw new InvalidOperationException(errorCode);
+            try { app.CloseFile(document); }
+            catch (Exception ex) { throw new InvalidOperationException(errorCode, ex); }
+        }
+
         public IZSceneDoc VerifyScene(IZBaseApp app, string expectedPath, string errorPrefix)
         {
             if (app == null) throw new InvalidOperationException(errorPrefix + "_OPEN_FAILED");

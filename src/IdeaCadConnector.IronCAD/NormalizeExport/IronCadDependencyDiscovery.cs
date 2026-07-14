@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using IdeaCadConnector.Workspace.NormalizeExport;
 using interop.ICApiIronCAD;
 
 namespace IdeaCadConnector.IronCAD.NormalizeExport
@@ -28,13 +30,21 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
     {
         public IronCadDependencySet Discover(IZSceneDoc scene, string sourceRoot)
         {
+            return Discover(scene, sourceRoot, new PdmNormalizationLimits());
+        }
+
+        public IronCadDependencySet Discover(IZSceneDoc scene, string sourceRoot, PdmNormalizationLimits limits)
+        {
             if (scene == null) throw new InvalidOperationException("DEPENDENCY_DISCOVERY_FAILED");
             if (string.IsNullOrWhiteSpace(sourceRoot)) throw new InvalidOperationException("DEPENDENCY_DISCOVERY_FAILED");
+            if (limits == null) throw new ArgumentNullException(nameof(limits));
             var set = new IronCadDependencySet();
             try
             {
                 var root = scene.GetTopElement();
-                Walk(root, null, "0", Path.GetFullPath(sourceRoot), set);
+                var active = new HashSet<IZElement>(ReferenceComparer<IZElement>.Instance);
+                var nodeCount = 0;
+                Walk(root, null, "0", 0, Path.GetFullPath(sourceRoot), set, limits, active, ref nodeCount);
                 foreach (var group in set.Records.GroupBy(r => r.ResolvedSourcePath, StringComparer.OrdinalIgnoreCase))
                     if (group.Select(r => r.NodeKind).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
                         throw new InvalidOperationException("BLOCKED_SOURCE_DEPENDENCY_ISOLATION");
@@ -46,9 +56,12 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             catch (Exception ex) { throw new InvalidOperationException("DEPENDENCY_DISCOVERY_FAILED", ex); }
         }
 
-        private static void Walk(IZElement element, string parentPath, string occurrencePath, string sourceRoot, IronCadDependencySet set)
+        private static void Walk(IZElement element, string parentPath, string occurrencePath, int depth, string sourceRoot, IronCadDependencySet set, PdmNormalizationLimits limits, ISet<IZElement> active, ref int nodeCount)
         {
             if (element == null) throw new InvalidOperationException("DEPENDENCY_DISCOVERY_FAILED");
+            if (depth > limits.MaxDepth || nodeCount >= limits.MaxNodeCount) throw new InvalidOperationException("DEPENDENCY_TRAVERSAL_LIMIT_EXCEEDED");
+            if (!active.Add(element)) throw new InvalidOperationException("DEPENDENCY_TRAVERSAL_CYCLE");
+            nodeCount++;
             string link = null;
             bool external = false;
             try
@@ -77,9 +90,17 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             }
             IZArray children = element.GetChildrenZArray();
             int count = 0;
-            if (children == null) return;
+            if (children == null) { active.Remove(element); return; }
             children.Count(out count);
-            for (var i = 0; i < count; i++) { object value; children.Get(i, out value); Walk(value as IZElement, occurrencePath, occurrencePath + "/" + i, sourceRoot, set); }
+            for (var i = 0; i < count; i++) { object value; children.Get(i, out value); Walk(value as IZElement, occurrencePath, occurrencePath + "/" + i, depth + 1, sourceRoot, set, limits, active, ref nodeCount); }
+            active.Remove(element);
+        }
+
+        private sealed class ReferenceComparer<T> : IEqualityComparer<T> where T : class
+        {
+            public static readonly ReferenceComparer<T> Instance = new ReferenceComparer<T>();
+            public bool Equals(T x, T y) { return object.ReferenceEquals(x, y); }
+            public int GetHashCode(T obj) { return RuntimeHelpers.GetHashCode(obj); }
         }
 
         private static bool IsWithin(string path, string root)
