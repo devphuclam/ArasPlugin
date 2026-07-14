@@ -12,6 +12,24 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             if (manifest == null) throw new ArgumentNullException(nameof(manifest));
             var result = new PdmPackageValidationResult();
             var items = (manifest.Items ?? Enumerable.Empty<PdmManifestItem>()).ToList();
+            if (manifest.SchemaVersion != 2) result.Issues.Add(PdmPackageValidationIssue.InvalidSchemaVersion);
+            var definitions = (manifest.Definitions ?? Enumerable.Empty<PdmManifestDefinition>()).ToList();
+            var occurrences = (manifest.Occurrences ?? Enumerable.Empty<PdmManifestOccurrence>()).ToList();
+            var manifestIds = definitions.Select(d => d.DefinitionId).Concat(occurrences.Select(o => o.OccurrenceId)).ToList();
+            if (manifestIds.Any(string.IsNullOrWhiteSpace) || manifestIds.Count != manifestIds.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+                result.Issues.Add(PdmPackageValidationIssue.DuplicateManifestId);
+            if (occurrences.GroupBy(o => o.OccurrencePath ?? string.Empty, StringComparer.Ordinal).Any(g => g.Count() > 1))
+                result.Issues.Add(PdmPackageValidationIssue.DuplicateOccurrencePath);
+            var definitionIds = new HashSet<string>(definitions.Select(d => d.DefinitionId ?? string.Empty), StringComparer.OrdinalIgnoreCase);
+            if (occurrences.Any(o => string.IsNullOrWhiteSpace(o.DefinitionId) || !definitionIds.Contains(o.DefinitionId)))
+                result.Issues.Add(PdmPackageValidationIssue.MissingDefinition);
+            var occurrenceIds = new HashSet<string>(occurrences.Select(o => o.OccurrenceId ?? string.Empty), StringComparer.OrdinalIgnoreCase);
+            if (occurrences.Any(o => !string.IsNullOrWhiteSpace(o.ParentOccurrenceId) && !occurrenceIds.Contains(o.ParentOccurrenceId)))
+                result.Issues.Add(PdmPackageValidationIssue.UnknownOccurrence);
+            if (manifest.Bom != null && manifest.Bom.Any(e => e.Quantity <= 0 || !string.Equals(e.QuantityStatus, "IdentityUnavailable", StringComparison.OrdinalIgnoreCase)))
+                result.Issues.Add(PdmPackageValidationIssue.InvalidQuantity);
+            foreach (var path in definitions.Select(d => d.FileName).Concat(new[] { manifest.RootFile }))
+                if (!IsSafeRelativePath(path)) result.Issues.Add(PdmPackageValidationIssue.InvalidManifestPath);
             var known = new HashSet<string>(items.Select(i => i.NodeId ?? string.Empty), StringComparer.OrdinalIgnoreCase);
             known.Add(manifest.RootNodeId ?? string.Empty);
 
@@ -31,6 +49,13 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
                 result.Issues.Add(PdmPackageValidationIssue.UnknownBomNode);
             if (HasCycle(edges)) result.Issues.Add(PdmPackageValidationIssue.BomCycle);
             return result;
+        }
+
+        private static bool IsSafeRelativePath(string relativePath)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath) || Path.IsPathRooted(relativePath)) return false;
+            var normalized = relativePath.Replace('/', Path.DirectorySeparatorChar);
+            return !normalized.Split(Path.DirectorySeparatorChar).Any(p => p == ".." || p == ".");
         }
 
         private static void CheckFile(string directory, string relativePath,

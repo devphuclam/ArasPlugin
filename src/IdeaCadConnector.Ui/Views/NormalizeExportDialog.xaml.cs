@@ -21,10 +21,14 @@ namespace IdeaCadConnector.Ui.Views
             {
                 SourceNode = i.SourceNode,
                 EditKey = i.EditKey,
+                OccurrencePath = i.OccurrencePath,
                 NodeId = i.NodeId,
                 CurrentSceneName = i.SourceNode == null ? string.Empty : i.SourceNode.Name,
                 ItemCode = i.ItemCode,
                 DisplayName = i.DisplayName,
+                OriginalItemCode = i.ItemCode,
+                OriginalDisplayName = i.DisplayName,
+                SourceWasGeneric = i.SourceWasGeneric,
                 CanonicalFileName = i.CanonicalFileName,
                 Depth = i.Depth,
                 ItemType = i.ItemType
@@ -55,9 +59,14 @@ namespace IdeaCadConnector.Ui.Views
                     {
                         SourceNode = r.SourceNode,
                         EditKey = r.EditKey,
+                        OccurrencePath = r.OccurrencePath,
                         NodeId = r.NodeId,
-                        ItemCode = r.ItemCode,
-                        DisplayName = r.DisplayName
+                        ItemCode = PdmNameNormalizer.NormalizeCode(r.ItemCode),
+                        DisplayName = PdmNameNormalizer.NormalizeDisplayName(r.DisplayName),
+                        GenericNameConfirmed = !r.SourceWasGeneric ||
+                            r.GenericNameConfirmed ||
+                            !string.Equals(PdmNameNormalizer.NormalizeCode(r.ItemCode), r.OriginalItemCode, StringComparison.OrdinalIgnoreCase) ||
+                            !string.Equals(PdmNameNormalizer.NormalizeDisplayName(r.DisplayName), r.OriginalDisplayName, StringComparison.OrdinalIgnoreCase)
                     }).ToArray()
                 };
                 DialogResult = true;
@@ -78,10 +87,15 @@ namespace IdeaCadConnector.Ui.Views
     {
         public PdmSourceNode SourceNode { get; set; }
         public string EditKey { get; set; }
+        public string OccurrencePath { get; set; }
         public string NodeId { get; set; }
         public string CurrentSceneName { get; set; }
         public string ItemCode { get; set; }
         public string DisplayName { get; set; }
+        public bool GenericNameConfirmed { get; set; }
+        public string OriginalItemCode { get; set; }
+        public string OriginalDisplayName { get; set; }
+        public bool SourceWasGeneric { get; set; }
         public string CanonicalFileName { get; set; }
         public int Depth { get; set; }
         public string ItemType { get; set; }

@@ -19,9 +19,11 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
     {
         public PdmSourceNode SourceNode { get; set; }
         public string EditKey { get; set; }
+        public string OccurrencePath { get; set; }
         public string NodeId { get; set; }
         public string ItemCode { get; set; }
         public string DisplayName { get; set; }
+        public bool GenericNameConfirmed { get; set; }
     }
 
     public sealed class NormalizeExportDialogResult
@@ -49,6 +51,8 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         DuplicateNodeId,
         GenericNameNotConfirmed,
         InvalidOutputFolder
+        ,InvalidNodeId, InvalidSceneName, InvalidCanonicalFileName, DuplicateOccurrencePath,
+        OutputSourceOverlap, PathTraversal, InvalidOutputPath
     }
 
     public enum PdmNodeKind
@@ -74,6 +78,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         public string Name { get; set; }
         public PdmSourceProperties Properties { get; set; }
         public IEnumerable<PdmSourceNode> Children { get; set; }
+        public string OccurrencePath { get; set; }
     }
 
     public sealed class PdmNameParts
@@ -87,6 +92,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
     {
         public PdmSourceNode SourceNode { get; set; }
         public string EditKey { get; set; }
+        public string OccurrencePath { get; set; }
         public string NodeId { get; set; }
         public PdmNodeKind SourceKind { get; set; }
         public string ItemType { get; set; }
@@ -98,6 +104,8 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         public string CanonicalFileName { get; set; }
         public int Depth { get; set; }
         public bool IsGeneric { get; set; }
+        public bool SourceWasGeneric { get; set; }
+        public bool GenericNameConfirmed { get; set; }
         public string ParentNodeId { get; set; }
     }
 
@@ -129,12 +137,15 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
 
     public sealed class PdmPackageManifest
     {
-        public int SchemaVersion { get; set; } = 1;
+        public int SchemaVersion { get; set; } = 2;
         public string ProjectCode { get; set; }
         public string Revision { get; set; }
         public string RootNodeId { get; set; }
         public string RootItemCode { get; set; }
         public string RootFile { get; set; }
+        public string RootOccurrenceId { get; set; }
+        public IEnumerable<PdmManifestDefinition> Definitions { get; set; } = new PdmManifestDefinition[0];
+        public IEnumerable<PdmManifestOccurrence> Occurrences { get; set; } = new PdmManifestOccurrence[0];
         public IEnumerable<PdmManifestItem> Items { get; set; } = new PdmManifestItem[0];
         public IEnumerable<PdmManifestBomEdge> Bom { get; set; } = new PdmManifestBomEdge[0];
         public IEnumerable<string> Warnings { get; set; } = new string[0];
@@ -167,13 +178,40 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         UnknownBomNode,
         DuplicateItemCode,
         DuplicateFileName,
-        BomCycle
+        BomCycle,
+        InvalidSchemaVersion,
+        InvalidManifestPath,
+        DuplicateManifestId,
+        DuplicateOccurrencePath,
+        UnknownOccurrence,
+        InvalidQuantity,
+        MissingDefinition
     }
 
     public sealed class PdmPackageValidationResult
     {
         public IList<PdmPackageValidationIssue> Issues { get; } = new List<PdmPackageValidationIssue>();
         public bool IsValid { get { return Issues.Count == 0; } }
+    }
+
+    public sealed class PdmManifestDefinition
+    {
+        public string DefinitionId { get; set; }
+        public string NodeId { get; set; }
+        public string ItemCode { get; set; }
+        public string ItemType { get; set; }
+        public string DisplayName { get; set; }
+        public string Revision { get; set; }
+        public string FileName { get; set; }
+    }
+
+    public sealed class PdmManifestOccurrence
+    {
+        public string OccurrenceId { get; set; }
+        public string OccurrencePath { get; set; }
+        public string ParentOccurrenceId { get; set; }
+        public string DefinitionId { get; set; }
+        public int FindNumber { get; set; }
     }
 
     public sealed class PdmNormalizationPreflightValidator
@@ -184,16 +222,21 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             if (plan == null || string.IsNullOrWhiteSpace(plan.ProjectCode)) issues.Add(PdmPreflightIssue.InvalidProjectCode);
             else { try { PdmNameNormalizer.NormalizeProjectCode(plan.ProjectCode); } catch { issues.Add(PdmPreflightIssue.InvalidProjectCode); } }
             if (plan == null || string.IsNullOrWhiteSpace(plan.Revision) || plan.Revision.Length > 20) issues.Add(PdmPreflightIssue.InvalidRevision);
-            if (string.IsNullOrWhiteSpace(outputFolder) || !Directory.Exists(outputFolder)) issues.Add(PdmPreflightIssue.InvalidOutputFolder);
+            if (string.IsNullOrWhiteSpace(outputFolder) || !Path.IsPathRooted(outputFolder) || !Directory.Exists(outputFolder)) issues.Add(PdmPreflightIssue.InvalidOutputFolder);
             if (plan == null || plan.Root == null) return issues;
             var items = plan.Items.ToList();
-            if (items.Any(i => string.IsNullOrWhiteSpace(i.ItemCode))) issues.Add(PdmPreflightIssue.EmptyItemCode);
+            if (items.Any(i => string.IsNullOrWhiteSpace(i.ItemCode) || !PdmNameNormalizer.IsCanonicalCode(i.ItemCode))) issues.Add(PdmPreflightIssue.EmptyItemCode);
             if (items.Any(i => string.IsNullOrWhiteSpace(i.DisplayName))) issues.Add(PdmPreflightIssue.EmptyDisplayName);
-            if (items.Any(i => i.IsGeneric)) issues.Add(PdmPreflightIssue.GenericNameNotConfirmed);
+            if (items.Any(i => i.SourceWasGeneric && !i.GenericNameConfirmed)) issues.Add(PdmPreflightIssue.GenericNameNotConfirmed);
             if (items.GroupBy(i => i.ItemCode, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)) issues.Add(PdmPreflightIssue.DuplicateItemCode);
             if (items.GroupBy(i => i.CanonicalFileName, StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1)) issues.Add(PdmPreflightIssue.DuplicateFileName);
             var ids = items.Concat(new[] { plan.Root }).Select(i => i.NodeId).ToList();
-            if (ids.Any(string.IsNullOrWhiteSpace) || ids.Count != ids.Distinct(StringComparer.OrdinalIgnoreCase).Count()) issues.Add(PdmPreflightIssue.DuplicateNodeId);
+            if (ids.Any(id => string.IsNullOrWhiteSpace(id) || !Guid.TryParse(id, out _)) || ids.Count != ids.Distinct(StringComparer.OrdinalIgnoreCase).Count()) issues.Add(PdmPreflightIssue.DuplicateNodeId);
+            if (items.Select(i => i.OccurrencePath).Concat(new[] { plan.Root.OccurrencePath }).Any(string.IsNullOrWhiteSpace) ||
+                items.Select(i => i.OccurrencePath).Concat(new[] { plan.Root.OccurrencePath }).Distinct(StringComparer.Ordinal).Count() != items.Count() + 1)
+                issues.Add(PdmPreflightIssue.DuplicateOccurrencePath);
+            if (items.Any(i => string.IsNullOrWhiteSpace(i.SceneName) || i.SceneName.IndexOf("..", StringComparison.Ordinal) >= 0)) issues.Add(PdmPreflightIssue.InvalidSceneName);
+            if (items.Any(i => string.IsNullOrWhiteSpace(i.CanonicalFileName) || Path.IsPathRooted(i.CanonicalFileName) || i.CanonicalFileName.Contains(".."))) issues.Add(PdmPreflightIssue.InvalidCanonicalFileName);
             return issues;
         }
     }

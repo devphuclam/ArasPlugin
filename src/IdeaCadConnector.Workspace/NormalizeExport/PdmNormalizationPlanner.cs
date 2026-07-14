@@ -25,8 +25,8 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
                 .GroupBy(e => e.SourceNode)
                 .ToDictionary(g => g.Key, g => g.Last());
             var keyEdits = (result.Edits ?? Enumerable.Empty<NormalizeExportEdit>())
-                .Where(e => e != null && !string.IsNullOrWhiteSpace(e.EditKey))
-                .GroupBy(e => e.EditKey, StringComparer.Ordinal)
+                .Where(e => e != null && !string.IsNullOrWhiteSpace(e.OccurrencePath))
+                .GroupBy(e => e.OccurrencePath, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.Last(), StringComparer.Ordinal);
             return CreatePlan(result.ProjectCode, result.Revision, root, new PdmNormalizationLimits(), sourceEdits, keyEdits);
         }
@@ -44,12 +44,12 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
             };
             var counters = new Dictionary<PdmNodeKind, int>();
             var nodeCount = 0;
-            Visit(root, null, 0, plan, counters, limits, new HashSet<PdmSourceNode>(), edits, editsByKey, ref nodeCount);
+            Visit(root, null, 0, "0", plan, counters, limits, new HashSet<PdmSourceNode>(), edits, editsByKey, ref nodeCount);
             AddDuplicateWarnings(plan);
             return plan;
         }
 
-        private static void Visit(PdmSourceNode source, string parentId, int depth,
+        private static void Visit(PdmSourceNode source, string parentId, int depth, string occurrencePath,
             PdmNormalizationPlan plan, IDictionary<PdmNodeKind, int> counters,
             PdmNormalizationLimits limits, ISet<PdmSourceNode> active,
             IDictionary<PdmSourceNode, NormalizeExportEdit> edits,
@@ -80,7 +80,9 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
                     Revision = plan.Revision,
                     CanonicalFileName = PdmNameNormalizer.CreateCanonicalFileName(
                         plan.ProjectCode, "ASM", "ROOT", rootDisplayName),
-                    Depth = depth
+                    Depth = depth,
+                    EditKey = occurrencePath,
+                    OccurrencePath = occurrencePath
                 };
             }
             if (source.Kind == PdmNodeKind.Assembly || source.Kind == PdmNodeKind.Part)
@@ -89,22 +91,23 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
                 var properties = source.Properties ?? new PdmSourceProperties();
                 NormalizeExportEdit edit = null;
                 edits?.TryGetValue(source, out edit);
-                if (edit == null) editsByKey?.TryGetValue(CreateEditKey(source, depth), out edit);
+                if (edit == null) editsByKey?.TryGetValue(occurrencePath, out edit);
                 var code = edit != null && !string.IsNullOrWhiteSpace(edit.ItemCode) ? edit.ItemCode : string.IsNullOrWhiteSpace(properties.ItemCode)
                     ? parsed.ItemCode
                     : PdmNameNormalizer.NormalizeCode(properties.ItemCode);
                 if (string.IsNullOrWhiteSpace(code))
                     code = NextCode(source.Kind, counters);
-                var nodeId = string.IsNullOrWhiteSpace(properties.NodeId)
-                    ? Guid.NewGuid().ToString("D")
-                    : properties.NodeId;
+                var nodeId = edit != null && !string.IsNullOrWhiteSpace(edit.NodeId) ? edit.NodeId :
+                    (string.IsNullOrWhiteSpace(properties.NodeId) ? Guid.NewGuid().ToString("D") : properties.NodeId);
                 var type = source.Kind == PdmNodeKind.Assembly ? "ASM" : "PRT";
                 var displayName = edit != null && !string.IsNullOrWhiteSpace(edit.DisplayName)
                     ? PdmNameNormalizer.NormalizeDisplayName(edit.DisplayName) : parsed.DisplayName;
+                code = PdmNameNormalizer.NormalizeCode(code);
                 var item = new PdmPlanItem
                 {
                     SourceNode = source,
-                    EditKey = CreateEditKey(source, depth),
+                    EditKey = occurrencePath,
+                    OccurrencePath = occurrencePath,
                     NodeId = nodeId,
                     ParentNodeId = parentId,
                     SourceKind = source.Kind,
@@ -114,7 +117,9 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
                     SceneName = code + "_" + displayName,
                     ProjectCode = plan.ProjectCode,
                     Revision = plan.Revision,
-                    IsGeneric = parsed.IsGeneric,
+                    IsGeneric = parsed.IsGeneric && !(edit != null && edit.GenericNameConfirmed),
+                    SourceWasGeneric = parsed.IsGeneric,
+                    GenericNameConfirmed = edit != null && edit.GenericNameConfirmed,
                     Depth = depth,
                     CanonicalFileName = PdmNameNormalizer.CreateCanonicalFileName(
                         plan.ProjectCode, type, code, displayName)
@@ -125,14 +130,10 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
                 currentParent = nodeId;
             }
 
+            var childIndex = 0;
             foreach (var child in children)
-                Visit(child, currentParent, depth + 1, plan, counters, limits, active, edits, editsByKey, ref nodeCount);
+                Visit(child, currentParent, depth + 1, occurrencePath + "/" + childIndex++, plan, counters, limits, active, edits, editsByKey, ref nodeCount);
             active.Remove(source);
-        }
-
-        private static string CreateEditKey(PdmSourceNode source, int depth)
-        {
-            return depth + "|" + (source?.Kind.ToString() ?? string.Empty) + "|" + (source?.Name ?? string.Empty);
         }
 
         private static string NextCode(PdmNodeKind kind, IDictionary<PdmNodeKind, int> counters)

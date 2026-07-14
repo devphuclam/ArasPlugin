@@ -123,16 +123,16 @@ namespace IdeaCadConnector.Tests
                         ChildNodeId = "child",
                         FindNumber = 10,
                         Quantity = 1,
-                        QuantityStatus = "OccurrenceBased"
+                        QuantityStatus = "IdentityUnavailable"
                     }
                 }
             };
 
             var json = new PdmPackageManifestWriter().Serialize(manifest);
 
-            Assert.Contains("\"schemaVersion\": 1", json);
+            Assert.Contains("\"schemaVersion\": 2", json);
             Assert.Contains("\"rootFile\": \"cad/root.ics\"", json);
-            Assert.Contains("\"quantityStatus\": \"OccurrenceBased\"", json);
+            Assert.Contains("\"quantityStatus\": \"IdentityUnavailable\"", json);
         }
 
         [Fact]
@@ -220,6 +220,57 @@ namespace IdeaCadConnector.Tests
                 new PdmNormalizationPlanner().CreatePlan("PDM-NEW", "A", source, new PdmNormalizationLimits { MaxDepth = 4, MaxNodeCount = 10 }));
 
             Assert.Equal("PDM_TRAVERSAL_CYCLE", exception.Message);
+        }
+
+        [Fact]
+        public void DuplicateSiblingNames_GetUniqueOccurrencePaths_AndEditedNodeIdIsStable()
+        {
+            var root = new PdmSourceNode { Kind = PdmNodeKind.SceneRoot, Name = "Root", Children = new[] {
+                new PdmSourceNode { Kind = PdmNodeKind.Part, Name = "Part1" },
+                new PdmSourceNode { Kind = PdmNodeKind.Part, Name = "Part1" } } };
+            var initial = new PdmNormalizationPlanner().CreatePlan("PDM-NEW", "A", root);
+            var edit = new NormalizeExportEdit { SourceNode = initial.Parts[0].SourceNode, OccurrencePath = initial.Parts[0].OccurrencePath,
+                NodeId = initial.Parts[0].NodeId, ItemCode = "a 01", DisplayName = "MainBody", GenericNameConfirmed = true };
+            var finalPlan = new PdmNormalizationPlanner().CreateFinalPlan(root, new NormalizeExportDialogResult {
+                ProjectCode = "PDM-NEW", Revision = "A", OutputFolder = Path.GetTempPath(), Edits = new[] { edit } });
+            Assert.Equal("0/0", finalPlan.Parts[0].OccurrencePath);
+            Assert.Equal("0/1", finalPlan.Parts[1].OccurrencePath);
+            Assert.Equal(initial.Parts[0].NodeId, finalPlan.Parts[0].NodeId);
+            Assert.Equal("A-01", finalPlan.Parts[0].ItemCode);
+            Assert.Contains("A-01", finalPlan.Parts[0].SceneName);
+        }
+
+        [Fact]
+        public void DescriptiveNameIsNotGenericPlaceholder_ButUnconfirmedPartIsBlocked()
+        {
+            var descriptive = new PdmSourceNode { Kind = PdmNodeKind.Part, Name = "MainBodyBase" };
+            Assert.False(new PdmNormalizationPlanner().CreatePlan("PDM-NEW", "A", descriptive).Parts.Single().SourceWasGeneric);
+            var generic = new PdmSourceNode { Kind = PdmNodeKind.Part, Name = "Part1" };
+            var plan = new PdmNormalizationPlanner().CreatePlan("PDM-NEW", "A", generic);
+            Assert.Contains(PdmPreflightIssue.GenericNameNotConfirmed,
+                new PdmNormalizationPreflightValidator().Validate(plan, Path.GetTempPath()));
+        }
+
+        [Fact]
+        public void SourceFingerprintDetectsByteChange()
+        {
+            var file = Path.Combine(Path.GetTempPath(), "pdm-source-" + System.Guid.NewGuid().ToString("N") + ".ics");
+            File.WriteAllText(file, "one");
+            var fingerprint = PdmSourceIntegrity.Capture(file);
+            File.WriteAllText(file, "two");
+            Assert.False(PdmSourceIntegrity.Matches(fingerprint));
+            File.Delete(file);
+        }
+
+        [Fact]
+        public void OutputInsideSourceRootIsRejected()
+        {
+            var sourceRoot = Path.Combine(Path.GetTempPath(), "pdm-source-root-" + System.Guid.NewGuid().ToString("N"));
+            var output = Path.Combine(sourceRoot, "out");
+            Directory.CreateDirectory(output);
+            var issues = new PdmOutputSafetyValidator().Validate(output, Path.Combine(sourceRoot, "root.ics"), null);
+            Assert.Contains(PdmOutputSafetyIssue.SourceOverlap, issues);
+            Directory.Delete(sourceRoot, true);
         }
     }
 }
