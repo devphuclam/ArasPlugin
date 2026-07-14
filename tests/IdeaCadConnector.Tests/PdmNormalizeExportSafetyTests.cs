@@ -35,6 +35,16 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public void PublicationPaths_UseProjectCodeForFinalAndPrivateUniquePending()
+        {
+            var output = Path.Combine(Path.GetTempPath(), "pdm-output");
+            var paths = PdmPackagePublicationPaths.Create(output, "pdm studycase", "abc123");
+
+            Assert.Equal(Path.Combine(output, "PDM-STUDYCASE"), paths.FinalDirectory);
+            Assert.Equal(Path.Combine(output, ".PDM-STUDYCASE.pending-abc123"), paths.PendingDirectory);
+        }
+
+        [Fact]
         public void PackageValidator_RejectsOrphanIcsFile()
         {
             var package = CreateValidPackage(out var manifest);
