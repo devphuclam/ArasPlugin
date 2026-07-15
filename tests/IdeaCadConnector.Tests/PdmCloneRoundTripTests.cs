@@ -127,6 +127,20 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task CloneLatestToWorkspaceAsync_NoCadFound_ReportsFallbackNumbersTried()
+        {
+            using var folder = new TempFolder();
+            var aml = CloneAmlClient.CreateRoundTrip();
+            aml.RemoveCad("part-child", "cad-child");
+
+            var result = await CloneAsync(folder.Path, aml, CreateRoundTripVault());
+
+            Assert.False(result.Success);
+            Assert.Contains("PDM-STUDYCASE-CAD-01-01", result.ErrorMessage);
+            Assert.Contains("not found", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task CloneLatestToWorkspaceAsync_FailsAtomicallyWhenRootNativeFileIsMissing()
         {
             using var folder = new TempFolder();
@@ -565,6 +579,12 @@ namespace IdeaCadConnector.Tests
             public void SetCadName(string cadId, string name)
             {
                 _cads[cadId]["name"] = name == null ? JValue.CreateNull() : new JValue(name);
+            }
+
+            public void RemoveCad(string partId, string cadId)
+            {
+                _cads.Remove(cadId);
+                _cadIdsByPart[partId] = new JArray();
             }
 
             public void AddBomEdge(string parentPartId, string childPartId, string quantity, string sortOrder, string relationshipId)
