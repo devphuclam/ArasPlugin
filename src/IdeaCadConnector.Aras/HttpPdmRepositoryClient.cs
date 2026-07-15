@@ -171,6 +171,7 @@ namespace IdeaCadConnector.Aras
             var cadFolder = Path.Combine(projectFolder, "cad");
             var tempRoot = Path.Combine(Path.GetTempPath(), "IdeaPdmClone", Guid.NewGuid().ToString("N"));
             var tempCadFolder = Path.Combine(tempRoot, "cad");
+            string destinationStagingRoot = null;
 
             try
             {
@@ -276,7 +277,13 @@ namespace IdeaCadConnector.Aras
 
                 try
                 {
-                    PublishClonePackage(tempRoot, projectFolder);
+                    var projectParent = Directory.GetParent(projectFolder);
+                    if (projectParent == null)
+                        throw new IOException("Clone target must have a parent directory for atomic publication.");
+                    destinationStagingRoot = Path.Combine(
+                        projectParent.FullName,
+                        ".idea-pdm-clone-" + Guid.NewGuid().ToString("N"));
+                    PublishClonePackage(tempRoot, destinationStagingRoot, projectFolder);
                 }
                 catch (Exception ex)
                 {
@@ -307,8 +314,16 @@ namespace IdeaCadConnector.Aras
             }
             finally
             {
-                if (Directory.Exists(tempRoot))
-                    Directory.Delete(tempRoot, true);
+                try
+                {
+                    if (Directory.Exists(tempRoot))
+                        Directory.Delete(tempRoot, true);
+                }
+                finally
+                {
+                    if (!string.IsNullOrWhiteSpace(destinationStagingRoot) && Directory.Exists(destinationStagingRoot))
+                        Directory.Delete(destinationStagingRoot, true);
+                }
             }
         }
 
@@ -1353,26 +1368,36 @@ namespace IdeaCadConnector.Aras
             throw new InvalidOperationException("CAD classification must be Mechanical/Assembly or Mechanical/Part.");
         }
 
-        private static void PublishClonePackage(string tempRoot, string projectFolder)
+        private static void PublishClonePackage(
+            string tempRoot,
+            string destinationStagingRoot,
+            string projectFolder)
         {
             var publishedPaths = new List<string>();
             try
             {
+                if (Directory.Exists(destinationStagingRoot) || File.Exists(destinationStagingRoot))
+                    throw new IOException("Clone destination staging path already exists.");
+                Directory.CreateDirectory(destinationStagingRoot);
+                StageClonePackage(tempRoot, destinationStagingRoot);
+
                 foreach (var name in new[] { "cad", ".idea-pdm" })
                 {
-                    var source = Path.Combine(tempRoot, name);
+                    var source = Path.Combine(destinationStagingRoot, name);
                     var destination = Path.Combine(projectFolder, name);
                     if (Directory.Exists(destination) || File.Exists(destination))
                         throw new IOException("Clone destination already contains '" + name + "'.");
+                    Directory.Move(source, destination);
                     publishedPaths.Add(destination);
-                    CopyDirectory(source, destination);
                 }
 
                 var manifestDestination = Path.Combine(projectFolder, "pdm-bom-manifest.json");
                 if (Directory.Exists(manifestDestination) || File.Exists(manifestDestination))
                     throw new IOException("Clone destination already contains 'pdm-bom-manifest.json'.");
+                File.Move(
+                    Path.Combine(destinationStagingRoot, "pdm-bom-manifest.json"),
+                    manifestDestination);
                 publishedPaths.Add(manifestDestination);
-                File.Copy(Path.Combine(tempRoot, "pdm-bom-manifest.json"), manifestDestination, false);
             }
             catch
             {
@@ -1386,6 +1411,21 @@ namespace IdeaCadConnector.Aras
                 }
                 throw;
             }
+        }
+
+        private static void StageClonePackage(string tempRoot, string destinationStagingRoot)
+        {
+            foreach (var name in new[] { "cad", ".idea-pdm" })
+            {
+                CopyDirectory(
+                    Path.Combine(tempRoot, name),
+                    Path.Combine(destinationStagingRoot, name));
+            }
+
+            File.Copy(
+                Path.Combine(tempRoot, "pdm-bom-manifest.json"),
+                Path.Combine(destinationStagingRoot, "pdm-bom-manifest.json"),
+                false);
         }
 
         private static void CopyDirectory(string sourceDirectory, string destinationDirectory)

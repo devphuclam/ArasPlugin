@@ -283,21 +283,24 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public async Task CloneLatestToWorkspaceAsync_RollsBackPublishedPathsWhenLateConflictAppears()
+        public async Task CloneLatestToWorkspaceAsync_PreservesLateExternalContentAndRollsBackOwnedEntries()
         {
-            using var folder = new TempFolder();
-            var lateManifest = Path.Combine(folder.Path, "pdm-bom-manifest.json");
+            using var parent = new TempFolder();
+            var targetFolder = Path.Combine(parent.Path, "target");
+            Directory.CreateDirectory(targetFolder);
+            var lateManifest = Path.Combine(targetFolder, "pdm-bom-manifest.json");
             var vault = CreateRoundTripVault();
             vault.ExternalManifestPath = lateManifest;
 
-            var result = await CloneAsync(folder.Path, CloneAmlClient.CreateRoundTrip(), vault);
+            var result = await CloneAsync(targetFolder, CloneAmlClient.CreateRoundTrip(), vault);
 
             Assert.False(result.Success);
             Assert.Contains("publication failed", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
             Assert.Equal("external", File.ReadAllText(lateManifest));
-            Assert.False(Directory.Exists(Path.Combine(folder.Path, "cad")));
-            Assert.False(Directory.Exists(Path.Combine(folder.Path, ".idea-pdm")));
-            Assert.Empty(Directory.GetDirectories(folder.Path, ".pending-*", SearchOption.TopDirectoryOnly));
+            Assert.False(Directory.Exists(Path.Combine(targetFolder, "cad")));
+            Assert.False(Directory.Exists(Path.Combine(targetFolder, ".idea-pdm")));
+            Assert.Empty(Directory.GetDirectories(targetFolder, ".pending-*", SearchOption.TopDirectoryOnly));
+            Assert.Empty(Directory.GetDirectories(parent.Path, ".idea-pdm-clone-*", SearchOption.TopDirectoryOnly));
             Assert.All(vault.TargetDirectories, directory =>
                 Assert.False(Directory.Exists(Directory.GetParent(directory).FullName)));
         }
@@ -324,18 +327,40 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void ClonePublication_UsesRecursiveCopyWithoutDirectoryMove()
+        public void ClonePublication_StagesCopiesBeforeAtomicMovesAndRegistersOwnershipAfterMoves()
         {
             var flags = BindingFlags.NonPublic | BindingFlags.Static;
             var publish = typeof(HttpPdmRepositoryClient).GetMethod("PublishClonePackage", flags);
-            var copyDirectory = typeof(HttpPdmRepositoryClient).GetMethod("CopyDirectory", flags);
+            var stage = typeof(HttpPdmRepositoryClient).GetMethod("StageClonePackage", flags);
 
             Assert.NotNull(publish);
-            Assert.NotNull(copyDirectory);
-            Assert.DoesNotContain(GetCalledMethods(publish), method =>
-                method.DeclaringType == typeof(Directory) && method.Name == nameof(Directory.Move));
-            Assert.Contains(GetCalledMethods(copyDirectory), method =>
+            Assert.NotNull(stage);
+
+            var stageCalls = GetCalledMethods(stage).ToList();
+            var copyDirectoryIndex = stageCalls.FindIndex(method => method.Name == "CopyDirectory");
+            var copyManifestIndex = stageCalls.FindIndex(method =>
                 method.DeclaringType == typeof(File) && method.Name == nameof(File.Copy));
+            Assert.True(copyDirectoryIndex >= 0);
+            Assert.True(copyManifestIndex > copyDirectoryIndex);
+
+            var publishCalls = GetCalledMethods(publish).ToList();
+            var stageIndex = publishCalls.FindIndex(method => method.Name == "StageClonePackage");
+            var directoryMoveIndex = publishCalls.FindIndex(method =>
+                method.DeclaringType == typeof(Directory) && method.Name == nameof(Directory.Move));
+            var directoryOwnershipIndex = publishCalls.FindIndex(
+                directoryMoveIndex + 1,
+                method => IsPublishedPathRegistration(method));
+            var fileMoveIndex = publishCalls.FindIndex(method =>
+                method.DeclaringType == typeof(File) && method.Name == nameof(File.Move));
+            var fileOwnershipIndex = publishCalls.FindIndex(
+                fileMoveIndex + 1,
+                method => IsPublishedPathRegistration(method));
+
+            Assert.True(stageIndex >= 0);
+            Assert.True(directoryMoveIndex > stageIndex);
+            Assert.True(directoryOwnershipIndex > directoryMoveIndex);
+            Assert.True(fileMoveIndex > directoryOwnershipIndex);
+            Assert.True(fileOwnershipIndex > fileMoveIndex);
         }
 
         private static CloneVaultClient CreateRoundTripVault()
@@ -422,6 +447,13 @@ namespace IdeaCadConnector.Tests
                 default:
                     return 4;
             }
+        }
+
+        private static bool IsPublishedPathRegistration(MethodBase method)
+        {
+            return method.Name == "Add" && method.DeclaringType != null &&
+                method.DeclaringType.IsGenericType &&
+                method.DeclaringType.GetGenericTypeDefinition() == typeof(List<>);
         }
 
         private sealed class CloneAmlClient : IArasAmlClient
