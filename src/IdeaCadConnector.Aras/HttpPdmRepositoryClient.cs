@@ -200,6 +200,7 @@ namespace IdeaCadConnector.Aras
 
                 var partQueue = new Queue<ClonePartInfo>();
                 var partIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var canonicalPartIdByReference = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 var nodes = new List<PdmCloneNode>();
                 var edges = new List<PdmCloneBomEdge>();
                 var downloadedCadCount = 0;
@@ -207,6 +208,7 @@ namespace IdeaCadConnector.Aras
 
                 partQueue.Enqueue(rootPart);
                 partIdsSeen.Add(rootPart.Id);
+                canonicalPartIdByReference[rootPart.Id] = rootPart.Id;
 
                 while (partQueue.Count > 0)
                 {
@@ -244,21 +246,26 @@ namespace IdeaCadConnector.Aras
                     var childEdges = await GetChildPartEdgesAsync(part.Id, ct).ConfigureAwait(false);
                     foreach (var childEdge in childEdges)
                     {
+                        if (!canonicalPartIdByReference.TryGetValue(childEdge.ChildPartId, out var childNodeId))
+                        {
+                            var childPart = await GetPartByIdAsync(childEdge.ChildPartId, ct).ConfigureAwait(false);
+                            if (childPart == null || string.IsNullOrWhiteSpace(childPart.Id))
+                                return CloneFailure(repositoryCode, projectFolder, warnings, "Child Part id '" + childEdge.ChildPartId + "' could not be loaded during clone.", rootPart);
+
+                            childNodeId = childPart.Id;
+                            canonicalPartIdByReference[childEdge.ChildPartId] = childNodeId;
+                            canonicalPartIdByReference[childNodeId] = childNodeId;
+                            if (partIdsSeen.Add(childNodeId))
+                                partQueue.Enqueue(childPart);
+                        }
+
                         edges.Add(new PdmCloneBomEdge
                         {
                             ParentNodeId = part.Id,
-                            ChildNodeId = childEdge.ChildPartId,
+                            ChildNodeId = childNodeId,
                             Quantity = childEdge.Quantity,
                             SortOrder = childEdge.SortOrder
                         });
-
-                        if (!partIdsSeen.Add(childEdge.ChildPartId))
-                            continue;
-
-                        var childPart = await GetPartByIdAsync(childEdge.ChildPartId, ct).ConfigureAwait(false);
-                        if (childPart == null)
-                            return CloneFailure(repositoryCode, projectFolder, warnings, "Child Part id '" + childEdge.ChildPartId + "' could not be loaded during clone.", rootPart);
-                        partQueue.Enqueue(childPart);
                     }
                 }
 
@@ -868,8 +875,8 @@ namespace IdeaCadConnector.Aras
 
                 if (!string.IsNullOrWhiteSpace(cad.SourceFilePath))
                 {
-                    var uploadSuccess = await AttachNativeFileToCadAsync(cadId, cad.SourceFilePath, cad.SourceFileName, ct);
-                    if (uploadSuccess)
+                    var uploadError = await AttachNativeFileToCadAsync(cadId, cad.SourceFilePath, cad.SourceFileName, ct);
+                    if (uploadError == null)
                     {
                         actionTaken = isNew ? "Created+File" : "Reused+File";
                     }
@@ -883,7 +890,8 @@ namespace IdeaCadConnector.Aras
                             Success = false,
                             ActionTaken = actionTaken,
                             ErrorMessage = "CAD metadata " + actionTaken.ToLowerInvariant() +
-                                " but native file attach failed. Path: " + cad.SourceFilePath
+                                " but native file attach failed: " + uploadError +
+                                " Path: " + cad.SourceFilePath
                         };
                     }
                 }
@@ -922,34 +930,34 @@ namespace IdeaCadConnector.Aras
             await _aml.ApplyAmlAsync(aml, "edit", "CAD", cadId, ct).ConfigureAwait(false);
         }
 
-        private async Task<bool> AttachNativeFileToCadAsync(string cadId, string filePath, string fileName, CancellationToken ct)
+        private async Task<string> AttachNativeFileToCadAsync(string cadId, string filePath, string fileName, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(cadId) || string.IsNullOrWhiteSpace(filePath))
-                return false;
+                return "CAD id or native file path is missing.";
 
             try
             {
                 if (!System.IO.File.Exists(filePath))
                 {
                     _logger.LogWarning("Native file not found for CAD '{CadNumber}': {Path}", cadId, filePath);
-                    return false;
+                    return "Native file was not found.";
                 }
 
                 var fileId = await _vault.UploadFileAsync(filePath, fileName, ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(fileId))
-                    return false;
+                    return "Vault upload returned no File id.";
 
                 var aml = $"<Item type=\"CAD\" action=\"edit\" id=\"{EscapeAml(cadId)}\">" +
                     $"<native_file>{EscapeAml(fileId)}</native_file>" +
                     "</Item>";
 
                 await _aml.ApplyAmlAsync(aml, "edit", "CAD", cadId, ct).ConfigureAwait(false);
-                return true;
+                return null;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to attach native file to CAD '{CadNumber}'", cadId);
-                return false;
+                return SanitizeForUser(ex.Message);
             }
         }
 
@@ -1524,18 +1532,28 @@ namespace IdeaCadConnector.Aras
 
         private async Task<IReadOnlyList<CloneCadInfo>> GetPartCadCandidatesAsync(string partId, CancellationToken ct)
         {
-            try
+            var cads = new List<CloneCadInfo>();
+            foreach (var relationshipType in new[] { "Part CAD" })
             {
-                var relAml = $"<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
+                var relAml = $"<Item type=\"{relationshipType}\" action=\"get\" select=\"related_id\">" +
                     $"<source_id>{EscapeAml(partId)}</source_id>" +
                     "</Item>";
 
-                var response = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", null, ct).ConfigureAwait(false);
+                JObject response;
+                try
+                {
+                    response = await _aml.ApplyAmlAsync(relAml, "get", relationshipType, null, ct).ConfigureAwait(false);
+                }
+                catch (ArasOperationException ex) when (IsCadRelationshipTypeUnavailable(ex, relationshipType))
+                {
+                    _logger.LogDebug(ex, "CAD relationship type '{RelationshipType}' is unavailable; trying fallback lookup.", relationshipType);
+                    continue;
+                }
+
                 var items = response?["Items"];
                 if (items == null || !items.HasValues)
-                    return Array.Empty<CloneCadInfo>();
+                    continue;
 
-                var cads = new List<CloneCadInfo>();
                 foreach (var item in items)
                 {
                     var cadId = item?["related_id"]?.ToString();
@@ -1567,12 +1585,32 @@ namespace IdeaCadConnector.Aras
                     });
                 }
 
-                return cads;
+                if (cads.Count > 0)
+                    return cads;
             }
-            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
+
+            return cads;
+        }
+
+        private static bool IsCadRelationshipTypeUnavailable(ArasOperationException ex, string relationshipType)
+        {
+            if (ex == null || string.IsNullOrWhiteSpace(relationshipType))
+                return false;
+
+            if (ex.ErrorCode != ArasErrorCode.ValidationFailed &&
+                ex.ErrorCode != ArasErrorCode.CadNotFound &&
+                ex.ErrorCode != ArasErrorCode.UnexpectedServerError)
             {
-                return Array.Empty<CloneCadInfo>();
+                return false;
             }
+
+            var message = ex.Message ?? string.Empty;
+            return message.IndexOf(relationshipType, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                   (message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("not available", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("failed to get", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         private static ClonePartInfo MapPartInfo(Newtonsoft.Json.Linq.JToken token)
@@ -1698,6 +1736,15 @@ namespace IdeaCadConnector.Aras
             if (match.Success)
             {
                 result.Add(match.Groups["project"].Value + "-CAD-" + match.Groups["group"].Value + "-" + match.Groups["index"].Value);
+            }
+
+            var itemCodeMatch = System.Text.RegularExpressions.Regex.Match(
+                partNumber,
+                @"^(?<project>.+)-(?<code>(?:[A-Z]\d{2}|PRT-\d{3}))$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (itemCodeMatch.Success)
+            {
+                result.Add(itemCodeMatch.Groups["project"].Value + "-CAD-" + itemCodeMatch.Groups["code"].Value);
             }
 
             result.Add(partNumber + "-ICS");

@@ -88,6 +88,45 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public void BuildExpectedCadNumbers_UsesCurrentAlphaItemCodeNaming()
+        {
+            var method = typeof(HttpPdmRepositoryClient).GetMethod(
+                "BuildExpectedCadNumbers",
+                BindingFlags.Static | BindingFlags.NonPublic);
+
+            var values = (IReadOnlyList<string>)method.Invoke(null, new object[] { "DEMO-A01", false });
+
+            Assert.Contains("DEMO-CAD-A01", values);
+        }
+
+        [Fact]
+        public async Task CloneLatestToWorkspaceAsync_FallsBackToCadNumberWhenPartCadRelationshipIsEmpty()
+        {
+            using var folder = new TempFolder();
+            var aml = CloneAmlClient.CreateRoundTrip();
+            aml.PartCadRelationshipEmpty = true;
+
+            var result = await CloneAsync(folder.Path, aml, CreateRoundTripVault());
+
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.Equal(2, result.DownloadedCadFileCount);
+        }
+
+        [Fact]
+        public async Task CloneLatestToWorkspaceAsync_CanonicalizesVersionedBomRelatedPartId()
+        {
+            using var folder = new TempFolder();
+            var aml = CloneAmlClient.CreateRoundTrip();
+            aml.UseVersionedBomReference = true;
+
+            var result = await CloneAsync(folder.Path, aml, CreateRoundTripVault());
+
+            Assert.True(result.Success, result.ErrorMessage);
+            var package = new PdmPackageImportReader().Read(folder.Path);
+            Assert.Equal("part-child", package.Manifest.BomV2.Single().ChildDefinitionId);
+        }
+
+        [Fact]
         public async Task CloneLatestToWorkspaceAsync_FailsAtomicallyWhenRootNativeFileIsMissing()
         {
             using var folder = new TempFolder();
@@ -464,6 +503,8 @@ namespace IdeaCadConnector.Tests
             private readonly IDictionary<string, JArray> _cadIdsByPart;
 
             public string LastPartBomAml { get; private set; }
+            public bool PartCadRelationshipEmpty { get; set; }
+            public bool UseVersionedBomReference { get; set; }
 
             public CloneAmlClient()
                 : this(
@@ -559,6 +600,10 @@ namespace IdeaCadConnector.Tests
             {
                 if (string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase) && _parts.TryGetValue(itemId, out var part))
                     return Task.FromResult((JObject)part.DeepClone());
+                if (string.Equals(itemType, "Part", StringComparison.OrdinalIgnoreCase) &&
+                    UseVersionedBomReference &&
+                    string.Equals(itemId, "part-child-version", StringComparison.OrdinalIgnoreCase))
+                    return Task.FromResult((JObject)_parts["part-child"].DeepClone());
                 if (string.Equals(itemType, "CAD", StringComparison.OrdinalIgnoreCase) && _cads.TryGetValue(itemId, out var cad))
                     return Task.FromResult((JObject)cad.DeepClone());
                 return Task.FromResult(new JObject());
@@ -579,10 +624,27 @@ namespace IdeaCadConnector.Tests
                 if (string.Equals(itemType, "Part BOM", StringComparison.OrdinalIgnoreCase))
                 {
                     LastPartBomAml = amlBody;
-                    return Task.FromResult(new JObject { ["Items"] = CloneItems(_bomByParent, ExtractSourceId(amlBody)) });
+                    var bomItems = CloneItems(_bomByParent, ExtractSourceId(amlBody));
+                    if (UseVersionedBomReference && bomItems.Count > 0)
+                        bomItems[0]["related_id"] = "part-child-version";
+                    return Task.FromResult(new JObject { ["Items"] = bomItems });
+                }
+                if (string.Equals(itemType, "CAD", StringComparison.OrdinalIgnoreCase))
+                {
+                    var itemNumber = ExtractElementValue(amlBody, "item_number");
+                    var cad = _cads.Values.FirstOrDefault(candidate =>
+                        string.Equals(candidate["item_number"]?.ToString(), itemNumber, StringComparison.OrdinalIgnoreCase));
+                    return Task.FromResult(new JObject
+                    {
+                        ["Items"] = cad == null ? new JArray() : new JArray(cad.DeepClone())
+                    });
                 }
                 if (string.Equals(itemType, "Part CAD", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (PartCadRelationshipEmpty)
+                        return Task.FromResult(new JObject { ["Items"] = new JArray() });
                     return Task.FromResult(new JObject { ["Items"] = CloneItems(_cadIdsByPart, ExtractSourceId(amlBody)) });
+                }
                 return Task.FromResult(new JObject());
             }
 
@@ -613,8 +675,13 @@ namespace IdeaCadConnector.Tests
 
             private static string ExtractSourceId(string aml)
             {
-                const string startTag = "<source_id>";
-                const string endTag = "</source_id>";
+                return ExtractElementValue(aml, "source_id");
+            }
+
+            private static string ExtractElementValue(string aml, string elementName)
+            {
+                var startTag = "<" + elementName + ">";
+                var endTag = "</" + elementName + ">";
                 var start = aml?.IndexOf(startTag, StringComparison.OrdinalIgnoreCase) ?? -1;
                 if (start < 0)
                     return null;
