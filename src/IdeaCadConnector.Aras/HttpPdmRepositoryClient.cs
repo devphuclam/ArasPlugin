@@ -1263,6 +1263,10 @@ namespace IdeaCadConnector.Aras
 
         private static string ValidateDownloadedNativeFile(string downloadedPath, string targetDirectory, string storedCadName)
         {
+            if (string.IsNullOrWhiteSpace(storedCadName))
+                throw new InvalidOperationException("CAD Name must contain the canonical native filename.");
+            if (!IsCanonicalNativeFileName(storedCadName))
+                throw new InvalidOperationException("CAD Name must use <PROJECT>__<ITEMCODE>__<DISPLAY>.ics.");
             if (string.IsNullOrWhiteSpace(downloadedPath))
                 throw new InvalidOperationException("Vault download did not return a local native file path.");
 
@@ -1284,8 +1288,7 @@ namespace IdeaCadConnector.Aras
                 throw new InvalidOperationException("Vault native filename must be a filename-only safe .ics name.");
 
             ParseCanonicalNativeFileName(nativeFileName);
-            if (!string.IsNullOrWhiteSpace(storedCadName) && IsCanonicalNativeFileName(storedCadName) &&
-                !string.Equals(nativeFileName, storedCadName, StringComparison.Ordinal))
+            if (!string.Equals(nativeFileName, storedCadName, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     "Vault native filename '" + nativeFileName + "' does not match CAD Name '" + storedCadName + "'.");
@@ -1359,13 +1362,17 @@ namespace IdeaCadConnector.Aras
                 {
                     var source = Path.Combine(tempRoot, name);
                     var destination = Path.Combine(projectFolder, name);
-                    Directory.Move(source, destination);
+                    if (Directory.Exists(destination) || File.Exists(destination))
+                        throw new IOException("Clone destination already contains '" + name + "'.");
                     publishedPaths.Add(destination);
+                    CopyDirectory(source, destination);
                 }
 
                 var manifestDestination = Path.Combine(projectFolder, "pdm-bom-manifest.json");
-                File.Move(Path.Combine(tempRoot, "pdm-bom-manifest.json"), manifestDestination);
+                if (Directory.Exists(manifestDestination) || File.Exists(manifestDestination))
+                    throw new IOException("Clone destination already contains 'pdm-bom-manifest.json'.");
                 publishedPaths.Add(manifestDestination);
+                File.Copy(Path.Combine(tempRoot, "pdm-bom-manifest.json"), manifestDestination, false);
             }
             catch
             {
@@ -1378,6 +1385,25 @@ namespace IdeaCadConnector.Aras
                         Directory.Delete(path, true);
                 }
                 throw;
+            }
+        }
+
+        private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+        {
+            Directory.CreateDirectory(destinationDirectory);
+            foreach (var sourceFile in Directory.EnumerateFiles(sourceDirectory))
+            {
+                File.Copy(
+                    sourceFile,
+                    Path.Combine(destinationDirectory, Path.GetFileName(sourceFile)),
+                    false);
+            }
+
+            foreach (var sourceChildDirectory in Directory.EnumerateDirectories(sourceDirectory))
+            {
+                CopyDirectory(
+                    sourceChildDirectory,
+                    Path.Combine(destinationDirectory, Path.GetFileName(sourceChildDirectory)));
             }
         }
 
@@ -1437,7 +1463,7 @@ namespace IdeaCadConnector.Aras
 
                     if (!decimal.TryParse(item?["quantity"]?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var quantity) || quantity <= 0)
                         quantity = 1m;
-                    if (!int.TryParse(item?["sort_order"]?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sortOrder))
+                    if (!int.TryParse(item?["sort_order"]?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sortOrder) || sortOrder <= 0)
                         sortOrder = (index + 1) * 10;
 
                     edges.Add(new CloneBomEdge

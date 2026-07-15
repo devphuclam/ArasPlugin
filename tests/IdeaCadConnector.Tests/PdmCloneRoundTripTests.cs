@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Aras;
@@ -145,7 +146,7 @@ namespace IdeaCadConnector.Tests
         {
             using var folder = new TempFolder();
             var aml = CloneAmlClient.CreateRoundTrip();
-            aml.SetCadName("cad-child", null);
+            aml.SetCadName("cad-child", "PDM-STUDYCASE__ROOT__PDM-STUDYCASE.ics");
             var vault = CreateRoundTripVault();
             vault.SetFileName("file-child", "PDM-STUDYCASE__ROOT__PDM-STUDYCASE.ics");
 
@@ -153,6 +154,34 @@ namespace IdeaCadConnector.Tests
 
             AssertFailedClone(result, folder.Path, vault);
             Assert.Contains("duplicate", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task CloneLatestToWorkspaceAsync_FailsAtomicallyForBlankCadName()
+        {
+            using var folder = new TempFolder();
+            var aml = CloneAmlClient.CreateRoundTrip();
+            aml.SetCadName("cad-child", null);
+            var vault = CreateRoundTripVault();
+
+            var result = await CloneAsync(folder.Path, aml, vault);
+
+            AssertFailedClone(result, folder.Path, vault);
+            Assert.Contains("CAD Name", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public async Task CloneLatestToWorkspaceAsync_FailsAtomicallyForNonCanonicalCadName()
+        {
+            using var folder = new TempFolder();
+            var aml = CloneAmlClient.CreateRoundTrip();
+            aml.SetCadName("cad-child", "Base.ics");
+            var vault = CreateRoundTripVault();
+
+            var result = await CloneAsync(folder.Path, aml, vault);
+
+            AssertFailedClone(result, folder.Path, vault);
+            Assert.Contains("CAD Name", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -234,6 +263,25 @@ namespace IdeaCadConnector.Tests
                 .Select(occurrence => occurrence.FindNumber));
         }
 
+        [Theory]
+        [InlineData("0")]
+        [InlineData("-5")]
+        public async Task CloneLatestToWorkspaceAsync_DefaultsNonPositiveBomSortOrder(string sortOrder)
+        {
+            using var folder = new TempFolder();
+            var aml = CloneAmlClient.CreateRoundTrip();
+            aml.AddBomEdge("part-root", "part-child", "1", sortOrder, "bom-root-child-nonpositive");
+            var vault = CreateRoundTripVault();
+
+            var result = await CloneAsync(folder.Path, aml, vault);
+
+            Assert.True(result.Success, result.ErrorMessage);
+            var package = new PdmPackageImportReader().Read(folder.Path);
+            Assert.Equal(new[] { 10, 20 }, package.Manifest.Occurrences
+                .Where(occurrence => occurrence.ParentOccurrenceId != null)
+                .Select(occurrence => occurrence.FindNumber));
+        }
+
         [Fact]
         public async Task CloneLatestToWorkspaceAsync_RollsBackPublishedPathsWhenLateConflictAppears()
         {
@@ -252,6 +300,42 @@ namespace IdeaCadConnector.Tests
             Assert.Empty(Directory.GetDirectories(folder.Path, ".pending-*", SearchOption.TopDirectoryOnly));
             Assert.All(vault.TargetDirectories, directory =>
                 Assert.False(Directory.Exists(Directory.GetParent(directory).FullName)));
+        }
+
+        [Fact]
+        public async Task CloneLatestToWorkspaceAsync_RollsBackPartialCadWhenRecursiveCopyFails()
+        {
+            using var folder = new TempFolder();
+            var vault = CreateRoundTripVault();
+            vault.LockFileIdAgainstCopy = "file-child";
+
+            PdmCloneResult result;
+            try
+            {
+                result = await CloneAsync(folder.Path, CloneAmlClient.CreateRoundTrip(), vault);
+            }
+            finally
+            {
+                vault.ReleaseFileLocks();
+            }
+
+            AssertFailedClone(result, folder.Path, vault);
+            Assert.Contains("publication failed", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void ClonePublication_UsesRecursiveCopyWithoutDirectoryMove()
+        {
+            var flags = BindingFlags.NonPublic | BindingFlags.Static;
+            var publish = typeof(HttpPdmRepositoryClient).GetMethod("PublishClonePackage", flags);
+            var copyDirectory = typeof(HttpPdmRepositoryClient).GetMethod("CopyDirectory", flags);
+
+            Assert.NotNull(publish);
+            Assert.NotNull(copyDirectory);
+            Assert.DoesNotContain(GetCalledMethods(publish), method =>
+                method.DeclaringType == typeof(Directory) && method.Name == nameof(Directory.Move));
+            Assert.Contains(GetCalledMethods(copyDirectory), method =>
+                method.DeclaringType == typeof(File) && method.Name == nameof(File.Copy));
         }
 
         private static CloneVaultClient CreateRoundTripVault()
@@ -289,6 +373,55 @@ namespace IdeaCadConnector.Tests
             Assert.Empty(Directory.GetDirectories(targetFolder, ".pending-*", SearchOption.TopDirectoryOnly));
             Assert.All(vault.TargetDirectories, directory =>
                 Assert.False(Directory.Exists(Directory.GetParent(directory).FullName)));
+        }
+
+        private static IReadOnlyList<MethodBase> GetCalledMethods(MethodInfo method)
+        {
+            var calls = new List<MethodBase>();
+            var body = method.GetMethodBody();
+            var bytes = body?.GetILAsByteArray() ?? Array.Empty<byte>();
+            var opCodes = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
+                .Where(field => field.FieldType == typeof(OpCode))
+                .Select(field => (OpCode)field.GetValue(null))
+                .ToDictionary(opCode => unchecked((ushort)opCode.Value));
+
+            for (var index = 0; index < bytes.Length;)
+            {
+                ushort value = bytes[index++];
+                if (value == 0xfe)
+                    value = (ushort)(0xfe00 | bytes[index++]);
+                var opCode = opCodes[value];
+                if (opCode.OperandType == OperandType.InlineMethod)
+                {
+                    var token = BitConverter.ToInt32(bytes, index);
+                    calls.Add(method.Module.ResolveMethod(token));
+                }
+                index += GetOperandSize(opCode.OperandType, bytes, index);
+            }
+
+            return calls;
+        }
+
+        private static int GetOperandSize(OperandType operandType, byte[] bytes, int operandIndex)
+        {
+            switch (operandType)
+            {
+                case OperandType.InlineNone:
+                    return 0;
+                case OperandType.ShortInlineBrTarget:
+                case OperandType.ShortInlineI:
+                case OperandType.ShortInlineVar:
+                    return 1;
+                case OperandType.InlineVar:
+                    return 2;
+                case OperandType.InlineI8:
+                case OperandType.InlineR:
+                    return 8;
+                case OperandType.InlineSwitch:
+                    return 4 + BitConverter.ToInt32(bytes, operandIndex) * 4;
+                default:
+                    return 4;
+            }
         }
 
         private sealed class CloneAmlClient : IArasAmlClient
@@ -462,6 +595,7 @@ namespace IdeaCadConnector.Tests
         private sealed class CloneVaultClient : IVaultFileClient
         {
             private readonly IDictionary<string, string> _fileNames;
+            private readonly IList<FileStream> _fileLocks = new List<FileStream>();
 
             public CloneVaultClient()
                 : this(new Dictionary<string, string>())
@@ -474,6 +608,7 @@ namespace IdeaCadConnector.Tests
             }
 
             public string ThrowForFileId { get; set; }
+            public string LockFileIdAgainstCopy { get; set; }
             public bool CreateManifestDirectoryInTemp { get; set; }
             public string ExternalManifestPath { get; set; }
             public IList<string> TargetDirectories { get; } = new List<string>();
@@ -481,6 +616,13 @@ namespace IdeaCadConnector.Tests
             public void SetFileName(string fileId, string fileName)
             {
                 _fileNames[fileId] = fileName;
+            }
+
+            public void ReleaseFileLocks()
+            {
+                foreach (var fileLock in _fileLocks)
+                    fileLock.Dispose();
+                _fileLocks.Clear();
             }
 
             public Task<string> UploadFileAsync(
@@ -504,6 +646,8 @@ namespace IdeaCadConnector.Tests
                 var path = Path.Combine(targetDirectory, fileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
                 File.WriteAllText(path, fileId);
+                if (string.Equals(fileId, LockFileIdAgainstCopy, StringComparison.OrdinalIgnoreCase))
+                    _fileLocks.Add(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Delete));
                 if (CreateManifestDirectoryInTemp)
                     Directory.CreateDirectory(Path.Combine(Directory.GetParent(targetDirectory).FullName, "pdm-bom-manifest.json"));
                 if (!string.IsNullOrWhiteSpace(ExternalManifestPath))
