@@ -149,6 +149,7 @@ namespace IdeaCadConnector.Core.Contracts
         public string RootPartNumber { get; set; }
         public string ResolvedProjectFolder { get; set; }
         public string ResolvedCadFolder { get; set; }
+        public string RootCadFilePath { get; set; }
         public int DownloadedCadFileCount { get; set; }
         public int PlaceholderDocumentCount { get; set; }
         public IReadOnlyList<string> Warnings { get; set; }

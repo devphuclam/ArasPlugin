@@ -1,6 +1,11 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using IdeaCadConnector.Core.Contracts;
+using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Desktop;
+using IdeaCadConnector.Workspace;
 using IdeaCadConnector.Workspace.NormalizeExport;
 using Xunit;
 
@@ -39,6 +44,91 @@ namespace IdeaCadConnector.Tests
             finally
             {
                 Directory.Delete(folder, true);
+            }
+        }
+
+        [Fact]
+        public void CloneCommand_AnalyzesPublishedPackageWithoutDeletingMetadata()
+        {
+            var cloneRoot = CreatePackage();
+            var workspaceService = new WorkspaceService(new WorkspaceOptions());
+            workspaceService.SaveManifest(new WorkspaceManifest { ProjectFolder = cloneRoot });
+            workspaceService.SaveBranchRegistry(cloneRoot, new WorkspaceBranchRegistry
+            {
+                Branches = new System.Collections.Generic.List<WorkspaceBranch>
+                {
+                    new WorkspaceBranch { Name = "feature" }
+                }
+            });
+            var workspacePath = workspaceService.GetManifestFilePath(cloneRoot);
+            var branchesPath = workspaceService.GetBranchRegistryFilePath(cloneRoot);
+            var workspaceJson = File.ReadAllText(workspacePath);
+            var branchesJson = File.ReadAllText(branchesPath);
+            var previousClient = MainViewModel.SharedPdmClient;
+
+            try
+            {
+                MainViewModel.SharedPdmClient = new StubPdmRepositoryClient(new PdmCloneResult
+                {
+                    Success = true,
+                    ResolvedProjectFolder = cloneRoot,
+                    RootCadFilePath = Path.Combine(cloneRoot, "cad", "root.ics"),
+                    DownloadedCadFileCount = 2,
+                    PlaceholderDocumentCount = 99,
+                    Warnings = new[] { "one warning" }
+                });
+
+                var viewModel = new PdmProjectsViewModel
+                {
+                    FolderPath = Path.Combine(Path.GetTempPath(), "unused-clone-target"),
+                    SelectedRepository = "PDM-DEMO",
+                    SelectedBranch = "feature"
+                };
+
+                viewModel.CloneCommand.Execute(null);
+
+                Assert.Equal(cloneRoot, viewModel.FolderPath);
+                Assert.Equal("feature", viewModel.SelectedBranch);
+                Assert.Contains("2", viewModel.StatusMessage);
+                Assert.DoesNotContain("placeholder", viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("one warning", viewModel.StatusMessage);
+                Assert.Equal(workspaceJson, File.ReadAllText(workspacePath));
+                Assert.Equal(branchesJson, File.ReadAllText(branchesPath));
+                Assert.Equal("pdm-manifest-v2", viewModel.NamingPolicyVersion);
+            }
+            finally
+            {
+                MainViewModel.SharedPdmClient = previousClient;
+                Directory.Delete(cloneRoot, true);
+            }
+        }
+
+        private sealed class StubPdmRepositoryClient : IPdmRepositoryClient
+        {
+            private readonly PdmCloneResult _cloneResult;
+
+            public StubPdmRepositoryClient(PdmCloneResult cloneResult)
+            {
+                _cloneResult = cloneResult;
+            }
+
+            public Task<PdmCloneResult> CloneLatestToWorkspaceAsync(PdmCloneRequest request, CancellationToken ct)
+                => Task.FromResult(_cloneResult);
+
+            public Task<PdmPushResult> PushAsync(PdmPushRequest request, CancellationToken ct)
+                => Task.FromResult(new PdmPushResult());
+
+            public Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct)
+                => Task.FromResult(new PdmExistencePreview());
+
+            public Task<string> FindItemIdByNumberAsync(string itemType, string itemNumber, CancellationToken ct)
+                => Task.FromResult<string>(null);
+
+            public Task<PdmReviseResult> ReviseCadAsync(PdmReviseRequest request, CancellationToken ct)
+                => Task.FromResult(new PdmReviseResult());
+
+            public void Dispose()
+            {
             }
         }
 

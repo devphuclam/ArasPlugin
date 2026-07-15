@@ -712,6 +712,54 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public async Task PushAsync_VaultUploadFails_ReportsUnderlyingVaultError()
+        {
+            using var temp = new TempFolder();
+            var nativeFilePath = System.IO.Path.Combine(temp.Path, "DEMO__ROOT__DEMO.ics");
+            File.WriteAllText(nativeFilePath, "native-cad");
+
+            var fake = new FakeArasAmlClient();
+            fake.EnqueueItemFound("cad-1", "DEMO-CAD-ASM");
+            var options = new ArasClientOptions
+            {
+                BaseUri = new Uri("http://fake/"),
+                Database = "testdb",
+                VaultId = "vault-1"
+            };
+            using var client = new HttpPdmRepositoryClient(
+                options,
+                fake,
+                new FailingUploadVaultClient("Vault rejected upload with HTTP 413."),
+                NullLogger<HttpPdmRepositoryClient>.Instance);
+
+            var result = await client.PushAsync(new PdmPushRequest
+            {
+                RepositoryCode = "DEMO",
+                ProjectName = "Demo",
+                TargetBranch = "main",
+                PackageSourcePath = temp.Path,
+                CadSourcePath = temp.Path,
+                Parts = Array.Empty<PdmPartRequest>(),
+                Cads = new[]
+                {
+                    new PdmCadRequest
+                    {
+                        SourceFileName = "DEMO__ROOT__DEMO.ics",
+                        SourceFilePath = nativeFilePath,
+                        LogicalCode = "ROOT",
+                        CadNumber = "DEMO-CAD-ASM",
+                        Classification = "Mechanical/Assembly"
+                    }
+                },
+                Documents = Array.Empty<PdmDocumentRequest>()
+            }, CancellationToken.None);
+
+            var cadResult = Assert.Single(result.CadResults);
+            Assert.False(cadResult.Success);
+            Assert.Contains("HTTP 413", cadResult.ErrorMessage);
+        }
+
+        [Fact]
         public void Push_RequiresCadNativeFileSuccess()
         {
             var repoRoot = FindRepoRoot();
@@ -749,6 +797,26 @@ namespace IdeaCadConnector.Tests
             {
                 try { Directory.Delete(Path, true); }
                 catch { }
+            }
+        }
+
+        private sealed class FailingUploadVaultClient : IVaultFileClient
+        {
+            private readonly string _message;
+
+            public FailingUploadVaultClient(string message)
+            {
+                _message = message;
+            }
+
+            public Task<string> UploadFileAsync(string filePath, string fileName, CancellationToken ct)
+            {
+                throw new IOException(_message);
+            }
+
+            public Task<string> DownloadFileAsync(string fileId, string targetDirectory, CancellationToken ct)
+            {
+                throw new NotSupportedException();
             }
         }
     }

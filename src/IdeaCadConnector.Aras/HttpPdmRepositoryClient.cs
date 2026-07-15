@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Core.Cad;
@@ -11,6 +11,8 @@ using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Errors;
+using IdeaCadConnector.Workspace.Clone;
+using IdeaCadConnector.Workspace.NormalizeExport;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json.Linq;
 
@@ -23,7 +25,8 @@ namespace IdeaCadConnector.Aras
         private readonly ILogger<HttpPdmRepositoryClient> _logger;
         private ArasHttpClient _http;
         private IArasAmlClient _aml;
-        private VaultClient _vault;
+        private IVaultFileClient _vault;
+        private readonly bool _vaultClientInjected;
         private bool _disposed;
 
         public HttpPdmRepositoryClient(ArasClientOptions options, ILogger<HttpPdmRepositoryClient> logger = null)
@@ -42,6 +45,19 @@ namespace IdeaCadConnector.Aras
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPdmRepositoryClient>.Instance;
         }
 
+        internal HttpPdmRepositoryClient(
+            ArasClientOptions options,
+            IArasAmlClient amlClient,
+            IVaultFileClient vaultClient,
+            ILogger<HttpPdmRepositoryClient> logger = null)
+        {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _aml = amlClient ?? throw new ArgumentNullException(nameof(amlClient));
+            _vault = vaultClient ?? throw new ArgumentNullException(nameof(vaultClient));
+            _vaultClientInjected = true;
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPdmRepositoryClient>.Instance;
+        }
+
         public void SetSession(string accessToken, string tokenType, string database)
         {
             if (_http == null)
@@ -50,7 +66,10 @@ namespace IdeaCadConnector.Aras
             }
             _http.SetBearerToken(accessToken, tokenType ?? "Bearer");
             _aml = new ArasAmlClient(_http, database ?? _options.Database);
-            _vault = new VaultClient(_http, _options);
+            if (!_vaultClientInjected)
+            {
+                _vault = new VaultClient(_http, _options);
+            }
         }
 
         public async Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct)
@@ -148,142 +167,171 @@ namespace IdeaCadConnector.Aras
 
             var warnings = new List<string>();
             var repositoryCode = request.RepositoryCode.Trim();
-            var projectFolder = request.TargetFolder.Trim();
-            var cadFolder = projectFolder;
-            var drawingsFolder = Path.Combine(projectFolder, "ARAS01");
+            var projectFolder = Path.GetFullPath(request.TargetFolder.Trim());
+            var cadFolder = Path.Combine(projectFolder, "cad");
+            var tempRoot = Path.Combine(Path.GetTempPath(), "IdeaPdmClone", Guid.NewGuid().ToString("N"));
+            var tempCadFolder = Path.Combine(tempRoot, "cad");
+            string destinationStagingRoot = null;
 
-            Directory.CreateDirectory(projectFolder);
-            Directory.CreateDirectory(drawingsFolder);
-
-            var rootPart = await GetPartByNumberAsync(repositoryCode, ct).ConfigureAwait(false);
-            if (rootPart == null)
+            try
             {
+                Directory.CreateDirectory(projectFolder);
+                Directory.CreateDirectory(tempCadFolder);
+
+                var conflict = FindCloneDestinationConflict(projectFolder);
+                if (conflict != null)
+                    return CloneFailure(repositoryCode, projectFolder, warnings, "Clone destination already contains '" + conflict + "'.");
+
+                var rootPart = await GetPartByNumberAsync(repositoryCode, ct).ConfigureAwait(false);
+                if (rootPart == null)
+                {
+                    return CloneFailure(
+                        repositoryCode,
+                        projectFolder,
+                        warnings,
+                        "Root Part not found on Aras for repository '" + repositoryCode + "'.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.BranchName) &&
+                    !string.Equals(request.BranchName, "main", StringComparison.OrdinalIgnoreCase))
+                {
+                    warnings.Add("Clone currently uses latest live data on Aras. Branch '" + request.BranchName + "' is local-only and was not resolved on server.");
+                }
+
+                var partQueue = new Queue<ClonePartInfo>();
+                var partIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var canonicalPartIdByReference = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                var nodes = new List<PdmCloneNode>();
+                var edges = new List<PdmCloneBomEdge>();
+                var downloadedCadCount = 0;
+                string rootNativeFileName = null;
+
+                partQueue.Enqueue(rootPart);
+                partIdsSeen.Add(rootPart.Id);
+                canonicalPartIdByReference[rootPart.Id] = rootPart.Id;
+
+                while (partQueue.Count > 0)
+                {
+                    var part = partQueue.Dequeue();
+                    var isRootPart = string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase);
+                    var cadCandidates = await GetPartCadCandidatesAsync(part.Id, ct).ConfigureAwait(false);
+                    var selectedCad = SelectPreferredCad(cadCandidates, part.ItemNumber, isRootPart);
+                    if (selectedCad == null)
+                        selectedCad = await FindFallbackCadAsync(part.ItemNumber, isRootPart, ct).ConfigureAwait(false);
+
+                    if (selectedCad == null)
+                        return CloneFailure(repositoryCode, projectFolder, warnings, "No usable IronCAD record found for Part '" + part.ItemNumber + "'.", rootPart);
+                    if (string.IsNullOrWhiteSpace(selectedCad.NativeFileId))
+                        return CloneFailure(repositoryCode, projectFolder, warnings, "CAD '" + selectedCad.ItemNumber + "' exists but has no native file on Aras.", rootPart);
+
+                    var downloadedPath = await _vault.DownloadFileAsync(selectedCad.NativeFileId, tempCadFolder, ct).ConfigureAwait(false);
+                    var nativeFileName = ValidateDownloadedNativeFile(downloadedPath, tempCadFolder, selectedCad.Name);
+                    var nameParts = ParseCanonicalNativeFileName(nativeFileName);
+                    if (isRootPart && !string.Equals(nameParts.ItemCode, "ROOT", StringComparison.Ordinal))
+                        return CloneFailure(repositoryCode, projectFolder, warnings, "Root CAD native filename must use item code ROOT.", rootPart);
+
+                    nodes.Add(new PdmCloneNode
+                    {
+                        NodeId = part.Id,
+                        ItemCode = nameParts.ItemCode,
+                        ItemType = MapCloneItemType(selectedCad.Classification),
+                        DisplayName = nameParts.DisplayName,
+                        Revision = string.IsNullOrWhiteSpace(part.MajorRevision) ? "A" : part.MajorRevision,
+                        NativeFileName = nativeFileName
+                    });
+                    downloadedCadCount++;
+                    if (isRootPart)
+                        rootNativeFileName = nativeFileName;
+
+                    var childEdges = await GetChildPartEdgesAsync(part.Id, ct).ConfigureAwait(false);
+                    foreach (var childEdge in childEdges)
+                    {
+                        if (!canonicalPartIdByReference.TryGetValue(childEdge.ChildPartId, out var childNodeId))
+                        {
+                            var childPart = await GetPartByIdAsync(childEdge.ChildPartId, ct).ConfigureAwait(false);
+                            if (childPart == null || string.IsNullOrWhiteSpace(childPart.Id))
+                                return CloneFailure(repositoryCode, projectFolder, warnings, "Child Part id '" + childEdge.ChildPartId + "' could not be loaded during clone.", rootPart);
+
+                            childNodeId = childPart.Id;
+                            canonicalPartIdByReference[childEdge.ChildPartId] = childNodeId;
+                            canonicalPartIdByReference[childNodeId] = childNodeId;
+                            if (partIdsSeen.Add(childNodeId))
+                                partQueue.Enqueue(childPart);
+                        }
+
+                        edges.Add(new PdmCloneBomEdge
+                        {
+                            ParentNodeId = part.Id,
+                            ChildNodeId = childNodeId,
+                            Quantity = childEdge.Quantity,
+                            SortOrder = childEdge.SortOrder
+                        });
+                    }
+                }
+
+                var buildResult = new PdmClonePackageBuilder().Build(new PdmClonePackageInput
+                {
+                    PackageRoot = tempRoot,
+                    ProjectCode = repositoryCode,
+                    Revision = string.IsNullOrWhiteSpace(rootPart.MajorRevision) ? "A" : rootPart.MajorRevision,
+                    BranchName = string.IsNullOrWhiteSpace(request.BranchName) ? "main" : request.BranchName.Trim(),
+                    RootNodeId = rootPart.Id,
+                    Nodes = nodes,
+                    Edges = edges
+                });
+                if (!buildResult.Success)
+                    return CloneFailure(repositoryCode, projectFolder, warnings, buildResult.ErrorMessage, rootPart);
+
+                try
+                {
+                    var projectParent = Directory.GetParent(projectFolder);
+                    if (projectParent == null)
+                        throw new IOException("Clone target must have a parent directory for atomic publication.");
+                    destinationStagingRoot = Path.Combine(
+                        projectParent.FullName,
+                        ".idea-pdm-clone-" + Guid.NewGuid().ToString("N"));
+                    PublishClonePackage(tempRoot, destinationStagingRoot, projectFolder);
+                }
+                catch (Exception ex)
+                {
+                    return CloneFailure(repositoryCode, projectFolder, warnings, "Clone package publication failed: " + ex.Message, rootPart);
+                }
+
                 return new PdmCloneResult
                 {
-                    Success = false,
+                    Success = true,
                     RepositoryCode = repositoryCode,
+                    RootPartId = rootPart.Id,
+                    RootPartNumber = rootPart.ItemNumber,
                     ResolvedProjectFolder = projectFolder,
                     ResolvedCadFolder = cadFolder,
-                    ErrorMessage = "Root Part not found on Aras for repository '" + repositoryCode + "'."
+                    RootCadFilePath = Path.Combine(cadFolder, rootNativeFileName),
+                    DownloadedCadFileCount = downloadedCadCount,
+                    PlaceholderDocumentCount = 0,
+                    Warnings = warnings
                 };
             }
-
-            if (!string.IsNullOrWhiteSpace(request.BranchName) &&
-                !string.Equals(request.BranchName, "main", StringComparison.OrdinalIgnoreCase))
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                warnings.Add("Clone currently uses latest live data on Aras. Branch '" + request.BranchName + "' is local-only and was not resolved on server.");
+                throw;
             }
-
-            var partQueue = new Queue<ClonePartInfo>();
-            var partIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var cadFileIdsSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var documentNamesSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var clonedParts = new Dictionary<string, ClonePartInfo>(StringComparer.OrdinalIgnoreCase);
-            var selectedCadByPartId = new Dictionary<string, CloneCadInfo>(StringComparer.OrdinalIgnoreCase);
-            var downloadedCadCount = 0;
-            var placeholderDocumentCount = 0;
-
-            partQueue.Enqueue(rootPart);
-            partIdsSeen.Add(rootPart.Id);
-            clonedParts[rootPart.Id] = rootPart;
-
-            while (partQueue.Count > 0)
+            catch (Exception ex)
             {
-                var part = partQueue.Dequeue();
-                var cadExpected = IsCadExpectedForPart(part.ItemNumber, string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase));
-
-                var cadCandidates = await GetPartCadCandidatesAsync(part.Id, ct).ConfigureAwait(false);
-                var selectedCad = SelectPreferredCad(cadCandidates, part.ItemNumber, string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase));
-                if (selectedCad == null && cadExpected)
+                return CloneFailure(repositoryCode, projectFolder, warnings, "Clone failed: " + ex.Message);
+            }
+            finally
+            {
+                try
                 {
-                    selectedCad = await FindFallbackCadAsync(part.ItemNumber, string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase), ct).ConfigureAwait(false);
+                    if (Directory.Exists(tempRoot))
+                        Directory.Delete(tempRoot, true);
                 }
-                if (selectedCad != null)
+                finally
                 {
-                    selectedCadByPartId[part.Id] = selectedCad;
-                    if (string.IsNullOrWhiteSpace(selectedCad.NativeFileId))
-                    {
-                        warnings.Add("CAD '" + selectedCad.ItemNumber + "' exists but has no native file on Aras.");
-                    }
-                    else if (cadFileIdsSeen.Add(selectedCad.NativeFileId))
-                    {
-                        await _vault.DownloadFileAsync(selectedCad.NativeFileId, cadFolder, ct).ConfigureAwait(false);
-                        downloadedCadCount++;
-                    }
-                }
-                else if (cadExpected)
-                {
-                    warnings.Add("No usable IronCAD record found for Part '" + part.ItemNumber + "'.");
-                }
-
-                var partDocumentNames = await GetRelatedDocumentNamesAsync("Part Document", part.Id, ct).ConfigureAwait(false);
-                foreach (var documentName in partDocumentNames)
-                {
-                    if (documentNamesSeen.Add(documentName))
-                    {
-                        var targetPath = Path.Combine(projectFolder, documentName);
-                        EnsurePlaceholderFile(targetPath);
-                        placeholderDocumentCount++;
-                    }
-                }
-
-                var childIds = await GetChildPartIdsAsync(part.Id, ct).ConfigureAwait(false);
-                foreach (var childId in childIds)
-                {
-                    if (!partIdsSeen.Add(childId))
-                        continue;
-
-                    var childPart = await GetPartByIdAsync(childId, ct).ConfigureAwait(false);
-                    if (childPart == null)
-                    {
-                        warnings.Add("Child Part id '" + childId + "' could not be loaded during clone.");
-                        continue;
-                    }
-
-                    childPart.ParentId = part.Id;
-                    clonedParts[childPart.Id] = childPart;
-                    partQueue.Enqueue(childPart);
+                    if (!string.IsNullOrWhiteSpace(destinationStagingRoot) && Directory.Exists(destinationStagingRoot))
+                        Directory.Delete(destinationStagingRoot, true);
                 }
             }
-
-            var projectId = await FindItemByNumberAsync("Project", repositoryCode, ct).ConfigureAwait(false);
-            if (!string.IsNullOrWhiteSpace(projectId))
-            {
-                var projectDocumentNames = await GetRelatedDocumentNamesAsync("Project Document", projectId, ct).ConfigureAwait(false);
-                foreach (var documentName in projectDocumentNames)
-                {
-                    if (documentNamesSeen.Add(documentName))
-                    {
-                        var targetPath = Path.Combine(projectFolder, documentName);
-                        EnsurePlaceholderFile(targetPath);
-                        placeholderDocumentCount++;
-                    }
-                }
-            }
-
-            placeholderDocumentCount += GeneratePackageShapeFiles(
-                repositoryCode,
-                projectFolder,
-                drawingsFolder,
-                rootPart,
-                clonedParts.Values,
-                selectedCadByPartId);
-
-            return new PdmCloneResult
-            {
-                Success = downloadedCadCount > 0 || placeholderDocumentCount > 0,
-                RepositoryCode = repositoryCode,
-                RootPartId = rootPart.Id,
-                RootPartNumber = rootPart.ItemNumber,
-                ResolvedProjectFolder = projectFolder,
-                ResolvedCadFolder = cadFolder,
-                DownloadedCadFileCount = downloadedCadCount,
-                PlaceholderDocumentCount = placeholderDocumentCount,
-                Warnings = warnings,
-                ErrorMessage = downloadedCadCount == 0 && placeholderDocumentCount == 0
-                    ? "No CAD native files or related document placeholders could be cloned from Aras."
-                    : null
-            };
         }
 
         public async Task<PdmPushResult> PushAsync(PdmPushRequest request, CancellationToken ct)
@@ -827,8 +875,8 @@ namespace IdeaCadConnector.Aras
 
                 if (!string.IsNullOrWhiteSpace(cad.SourceFilePath))
                 {
-                    var uploadSuccess = await AttachNativeFileToCadAsync(cadId, cad.SourceFilePath, cad.SourceFileName, ct);
-                    if (uploadSuccess)
+                    var uploadError = await AttachNativeFileToCadAsync(cadId, cad.SourceFilePath, cad.SourceFileName, ct);
+                    if (uploadError == null)
                     {
                         actionTaken = isNew ? "Created+File" : "Reused+File";
                     }
@@ -842,7 +890,8 @@ namespace IdeaCadConnector.Aras
                             Success = false,
                             ActionTaken = actionTaken,
                             ErrorMessage = "CAD metadata " + actionTaken.ToLowerInvariant() +
-                                " but native file attach failed. Path: " + cad.SourceFilePath
+                                " but native file attach failed: " + uploadError +
+                                " Path: " + cad.SourceFilePath
                         };
                     }
                 }
@@ -881,34 +930,34 @@ namespace IdeaCadConnector.Aras
             await _aml.ApplyAmlAsync(aml, "edit", "CAD", cadId, ct).ConfigureAwait(false);
         }
 
-        private async Task<bool> AttachNativeFileToCadAsync(string cadId, string filePath, string fileName, CancellationToken ct)
+        private async Task<string> AttachNativeFileToCadAsync(string cadId, string filePath, string fileName, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(cadId) || string.IsNullOrWhiteSpace(filePath))
-                return false;
+                return "CAD id or native file path is missing.";
 
             try
             {
                 if (!System.IO.File.Exists(filePath))
                 {
                     _logger.LogWarning("Native file not found for CAD '{CadNumber}': {Path}", cadId, filePath);
-                    return false;
+                    return "Native file was not found.";
                 }
 
                 var fileId = await _vault.UploadFileAsync(filePath, fileName, ct).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(fileId))
-                    return false;
+                    return "Vault upload returned no File id.";
 
                 var aml = $"<Item type=\"CAD\" action=\"edit\" id=\"{EscapeAml(cadId)}\">" +
                     $"<native_file>{EscapeAml(fileId)}</native_file>" +
                     "</Item>";
 
                 await _aml.ApplyAmlAsync(aml, "edit", "CAD", cadId, ct).ConfigureAwait(false);
-                return true;
+                return null;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to attach native file to CAD '{CadNumber}'", cadId);
-                return false;
+                return SanitizeForUser(ex.Message);
             }
         }
 
@@ -1202,11 +1251,215 @@ namespace IdeaCadConnector.Aras
             }
         }
 
+        private static PdmCloneResult CloneFailure(
+            string repositoryCode,
+            string projectFolder,
+            IReadOnlyList<string> warnings,
+            string message,
+            ClonePartInfo rootPart = null)
+        {
+            return new PdmCloneResult
+            {
+                Success = false,
+                RepositoryCode = repositoryCode,
+                RootPartId = rootPart?.Id,
+                RootPartNumber = rootPart?.ItemNumber,
+                ResolvedProjectFolder = projectFolder,
+                ResolvedCadFolder = Path.Combine(projectFolder, "cad"),
+                PlaceholderDocumentCount = 0,
+                ErrorMessage = message,
+                Warnings = warnings
+            };
+        }
+
+        private static string FindCloneDestinationConflict(string projectFolder)
+        {
+            foreach (var name in new[] { "cad", ".idea-pdm", "pdm-bom-manifest.json" })
+            {
+                var path = Path.Combine(projectFolder, name);
+                if (Directory.Exists(path) || File.Exists(path))
+                    return name;
+            }
+
+            return null;
+        }
+
+        private static string ValidateDownloadedNativeFile(string downloadedPath, string targetDirectory, string storedCadName)
+        {
+            if (string.IsNullOrWhiteSpace(storedCadName))
+                throw new InvalidOperationException("CAD Name must contain the canonical native filename.");
+            if (!IsCanonicalNativeFileName(storedCadName))
+                throw new InvalidOperationException("CAD Name must use <PROJECT>__<ITEMCODE>__<DISPLAY>.ics.");
+            if (string.IsNullOrWhiteSpace(downloadedPath))
+                throw new InvalidOperationException("Vault download did not return a local native file path.");
+
+            var fullTargetDirectory = Path.GetFullPath(targetDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var fullDownloadedPath = Path.GetFullPath(downloadedPath);
+            var downloadedDirectory = Path.GetDirectoryName(fullDownloadedPath)?
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var nativeFileName = Path.GetFileName(fullDownloadedPath);
+
+            if (!string.Equals(downloadedDirectory, fullTargetDirectory, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(fullDownloadedPath, Path.Combine(fullTargetDirectory, nativeFileName), StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Vault download returned a path outside the temporary cad folder.");
+            }
+            if (!File.Exists(fullDownloadedPath))
+                throw new InvalidOperationException("Vault download did not create the native CAD file.");
+            if (!string.Equals(Path.GetExtension(nativeFileName), ".ics", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Vault native filename must be a filename-only safe .ics name.");
+
+            ParseCanonicalNativeFileName(nativeFileName);
+            if (!string.Equals(nativeFileName, storedCadName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Vault native filename '" + nativeFileName + "' does not match CAD Name '" + storedCadName + "'.");
+            }
+
+            return nativeFileName;
+        }
+
+        private static CloneNativeName ParseCanonicalNativeFileName(string nativeFileName)
+        {
+            if (string.IsNullOrWhiteSpace(nativeFileName) ||
+                !string.Equals(nativeFileName, Path.GetFileName(nativeFileName), StringComparison.Ordinal) ||
+                !string.Equals(Path.GetExtension(nativeFileName), ".ics", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Vault native filename must be a filename-only safe canonical .ics name.");
+            }
+
+            var stem = Path.GetFileNameWithoutExtension(nativeFileName);
+            var pieces = stem.Split(new[] { "__" }, StringSplitOptions.None);
+            if (pieces.Length != 3 || pieces.Any(string.IsNullOrWhiteSpace))
+                throw new InvalidOperationException("Vault native filename must use <PROJECT>__<ITEMCODE>__<DISPLAY>.ics.");
+
+            string canonical;
+            try
+            {
+                canonical = PdmNameNormalizer.CreateCanonicalFileName(pieces[0], "PRT", pieces[1], pieces[2]);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidOperationException("Vault native filename is not canonical: " + ex.Message, ex);
+            }
+
+            if (!string.Equals(canonical, nativeFileName, StringComparison.Ordinal))
+                throw new InvalidOperationException("Vault native filename is not canonical: " + nativeFileName);
+
+            return new CloneNativeName
+            {
+                ItemCode = pieces[1],
+                DisplayName = pieces[2]
+            };
+        }
+
+        private static bool IsCanonicalNativeFileName(string nativeFileName)
+        {
+            try
+            {
+                ParseCanonicalNativeFileName(nativeFileName);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        private static string MapCloneItemType(string classification)
+        {
+            if (string.Equals(classification, IronCadAssemblyClassification, StringComparison.OrdinalIgnoreCase))
+                return "ASM";
+            if (string.Equals(classification, CadConstants.IronCadPartClassification, StringComparison.OrdinalIgnoreCase))
+                return "PRT";
+            throw new InvalidOperationException("CAD classification must be Mechanical/Assembly or Mechanical/Part.");
+        }
+
+        private static void PublishClonePackage(
+            string tempRoot,
+            string destinationStagingRoot,
+            string projectFolder)
+        {
+            var publishedPaths = new List<string>();
+            try
+            {
+                if (Directory.Exists(destinationStagingRoot) || File.Exists(destinationStagingRoot))
+                    throw new IOException("Clone destination staging path already exists.");
+                Directory.CreateDirectory(destinationStagingRoot);
+                StageClonePackage(tempRoot, destinationStagingRoot);
+
+                foreach (var name in new[] { "cad", ".idea-pdm" })
+                {
+                    var source = Path.Combine(destinationStagingRoot, name);
+                    var destination = Path.Combine(projectFolder, name);
+                    if (Directory.Exists(destination) || File.Exists(destination))
+                        throw new IOException("Clone destination already contains '" + name + "'.");
+                    Directory.Move(source, destination);
+                    publishedPaths.Add(destination);
+                }
+
+                var manifestDestination = Path.Combine(projectFolder, "pdm-bom-manifest.json");
+                if (Directory.Exists(manifestDestination) || File.Exists(manifestDestination))
+                    throw new IOException("Clone destination already contains 'pdm-bom-manifest.json'.");
+                File.Move(
+                    Path.Combine(destinationStagingRoot, "pdm-bom-manifest.json"),
+                    manifestDestination);
+                publishedPaths.Add(manifestDestination);
+            }
+            catch
+            {
+                for (var index = publishedPaths.Count - 1; index >= 0; index--)
+                {
+                    var path = publishedPaths[index];
+                    if (File.Exists(path))
+                        File.Delete(path);
+                    else if (Directory.Exists(path))
+                        Directory.Delete(path, true);
+                }
+                throw;
+            }
+        }
+
+        private static void StageClonePackage(string tempRoot, string destinationStagingRoot)
+        {
+            foreach (var name in new[] { "cad", ".idea-pdm" })
+            {
+                CopyDirectory(
+                    Path.Combine(tempRoot, name),
+                    Path.Combine(destinationStagingRoot, name));
+            }
+
+            File.Copy(
+                Path.Combine(tempRoot, "pdm-bom-manifest.json"),
+                Path.Combine(destinationStagingRoot, "pdm-bom-manifest.json"),
+                false);
+        }
+
+        private static void CopyDirectory(string sourceDirectory, string destinationDirectory)
+        {
+            Directory.CreateDirectory(destinationDirectory);
+            foreach (var sourceFile in Directory.EnumerateFiles(sourceDirectory))
+            {
+                File.Copy(
+                    sourceFile,
+                    Path.Combine(destinationDirectory, Path.GetFileName(sourceFile)),
+                    false);
+            }
+
+            foreach (var sourceChildDirectory in Directory.EnumerateDirectories(sourceDirectory))
+            {
+                CopyDirectory(
+                    sourceChildDirectory,
+                    Path.Combine(destinationDirectory, Path.GetFileName(sourceChildDirectory)));
+            }
+        }
+
         private async Task<ClonePartInfo> GetPartByNumberAsync(string itemNumber, CancellationToken ct)
         {
             try
             {
-                var aml = $"<Item type=\"Part\" action=\"get\" select=\"id,item_number,name\">" +
+                var aml = $"<Item type=\"Part\" action=\"get\" select=\"id,item_number,name,major_rev\">" +
                     $"<item_number>{EscapeAml(itemNumber)}</item_number>" +
                     "</Item>";
 
@@ -1226,7 +1479,7 @@ namespace IdeaCadConnector.Aras
 
             try
             {
-                var response = await _aml.ApplyItemAsync("Part", partId, "get", "id,item_number,name", ct).ConfigureAwait(false);
+                var response = await _aml.ApplyItemAsync("Part", partId, "get", "id,item_number,name,major_rev", ct).ConfigureAwait(false);
                 return MapPartInfo(response);
             }
             catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
@@ -1235,51 +1488,72 @@ namespace IdeaCadConnector.Aras
             }
         }
 
-        private async Task<IReadOnlyList<string>> GetChildPartIdsAsync(string parentPartId, CancellationToken ct)
+        private async Task<IReadOnlyList<CloneBomEdge>> GetChildPartEdgesAsync(string parentPartId, CancellationToken ct)
         {
             try
             {
-                var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"related_id\">" +
+                var aml = $"<Item type=\"Part BOM\" action=\"get\" select=\"id,related_id,quantity,sort_order\">" +
                     $"<source_id>{EscapeAml(parentPartId)}</source_id>" +
                     "</Item>";
 
                 var response = await _aml.ApplyAmlAsync(aml, "get", "Part BOM", null, ct).ConfigureAwait(false);
                 var items = response?["Items"];
                 if (items == null || !items.HasValues)
-                    return Array.Empty<string>();
+                    return Array.Empty<CloneBomEdge>();
 
-                var ids = new List<string>();
-                foreach (var item in items)
+                var edges = new List<CloneBomEdge>();
+                for (var index = 0; index < items.Count(); index++)
                 {
+                    var item = items[index];
                     var relatedId = item?["related_id"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(relatedId))
+                    if (string.IsNullOrWhiteSpace(relatedId))
+                        continue;
+
+                    if (!decimal.TryParse(item?["quantity"]?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var quantity) || quantity <= 0)
+                        quantity = 1m;
+                    if (!int.TryParse(item?["sort_order"]?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var sortOrder) || sortOrder <= 0)
+                        sortOrder = (index + 1) * 10;
+
+                    edges.Add(new CloneBomEdge
                     {
-                        ids.Add(relatedId);
-                    }
+                        ChildPartId = relatedId,
+                        Quantity = quantity,
+                        SortOrder = sortOrder
+                    });
                 }
 
-                return ids;
+                return edges;
             }
             catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
             {
-                return Array.Empty<string>();
+                return Array.Empty<CloneBomEdge>();
             }
         }
 
         private async Task<IReadOnlyList<CloneCadInfo>> GetPartCadCandidatesAsync(string partId, CancellationToken ct)
         {
-            try
+            var cads = new List<CloneCadInfo>();
+            foreach (var relationshipType in new[] { "Part CAD" })
             {
-                var relAml = $"<Item type=\"Part CAD\" action=\"get\" select=\"related_id\">" +
+                var relAml = $"<Item type=\"{relationshipType}\" action=\"get\" select=\"related_id\">" +
                     $"<source_id>{EscapeAml(partId)}</source_id>" +
                     "</Item>";
 
-                var response = await _aml.ApplyAmlAsync(relAml, "get", "Part CAD", null, ct).ConfigureAwait(false);
+                JObject response;
+                try
+                {
+                    response = await _aml.ApplyAmlAsync(relAml, "get", relationshipType, null, ct).ConfigureAwait(false);
+                }
+                catch (ArasOperationException ex) when (IsCadRelationshipTypeUnavailable(ex, relationshipType))
+                {
+                    _logger.LogDebug(ex, "CAD relationship type '{RelationshipType}' is unavailable; trying fallback lookup.", relationshipType);
+                    continue;
+                }
+
                 var items = response?["Items"];
                 if (items == null || !items.HasValues)
-                    return Array.Empty<CloneCadInfo>();
+                    continue;
 
-                var cads = new List<CloneCadInfo>();
                 foreach (var item in items)
                 {
                     var cadId = item?["related_id"]?.ToString();
@@ -1311,61 +1585,32 @@ namespace IdeaCadConnector.Aras
                     });
                 }
 
-                return cads;
+                if (cads.Count > 0)
+                    return cads;
             }
-            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
-            {
-                return Array.Empty<CloneCadInfo>();
-            }
+
+            return cads;
         }
 
-        private async Task<IReadOnlyList<string>> GetRelatedDocumentNamesAsync(string relationshipType, string sourceId, CancellationToken ct)
+        private static bool IsCadRelationshipTypeUnavailable(ArasOperationException ex, string relationshipType)
         {
-            if (string.IsNullOrWhiteSpace(sourceId))
-                return Array.Empty<string>();
+            if (ex == null || string.IsNullOrWhiteSpace(relationshipType))
+                return false;
 
-            try
+            if (ex.ErrorCode != ArasErrorCode.ValidationFailed &&
+                ex.ErrorCode != ArasErrorCode.CadNotFound &&
+                ex.ErrorCode != ArasErrorCode.UnexpectedServerError)
             {
-                var relAml = $"<Item type=\"{EscapeAml(relationshipType)}\" action=\"get\" select=\"related_id\">" +
-                    $"<source_id>{EscapeAml(sourceId)}</source_id>" +
-                    "</Item>";
-
-                var response = await _aml.ApplyAmlAsync(relAml, "get", relationshipType, null, ct).ConfigureAwait(false);
-                var items = response?["Items"];
-                if (items == null || !items.HasValues)
-                    return Array.Empty<string>();
-
-                var names = new List<string>();
-                foreach (var item in items)
-                {
-                    var documentId = item?["related_id"]?.ToString();
-                    if (string.IsNullOrWhiteSpace(documentId))
-                        continue;
-
-                    JObject docResponse;
-                    try
-                    {
-                        docResponse = await _aml.ApplyItemAsync("Document", documentId, "get", "id,name,item_number", ct).ConfigureAwait(false);
-                    }
-                    catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
-                    {
-                        continue;
-                    }
-
-                    var docToken = docResponse;
-                    var documentName = docToken?["name"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(documentName))
-                    {
-                        names.Add(documentName);
-                    }
-                }
-
-                return names;
+                return false;
             }
-            catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
-            {
-                return Array.Empty<string>();
-            }
+
+            var message = ex.Message ?? string.Empty;
+            return message.IndexOf(relationshipType, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                   (message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("unknown", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("not available", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    message.IndexOf("failed to get", StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         private static ClonePartInfo MapPartInfo(Newtonsoft.Json.Linq.JToken token)
@@ -1377,7 +1622,8 @@ namespace IdeaCadConnector.Aras
             {
                 Id = token["id"]?.ToString(),
                 ItemNumber = token["item_number"]?.ToString(),
-                Name = token["name"]?.ToString()
+                Name = token["name"]?.ToString(),
+                MajorRevision = token["major_rev"]?.ToString()
             };
         }
 
@@ -1469,17 +1715,6 @@ namespace IdeaCadConnector.Aras
             return null;
         }
 
-        private static bool IsCadExpectedForPart(string partNumber, bool isRootPart)
-        {
-            if (string.IsNullOrWhiteSpace(partNumber))
-                return false;
-
-            if (isRootPart)
-                return true;
-
-            return partNumber.Count(ch => ch == '-') >= 2;
-        }
-
         private static IReadOnlyList<string> BuildExpectedCadNumbers(string partNumber, bool isRootPart)
         {
             var result = new List<string>();
@@ -1503,236 +1738,17 @@ namespace IdeaCadConnector.Aras
                 result.Add(match.Groups["project"].Value + "-CAD-" + match.Groups["group"].Value + "-" + match.Groups["index"].Value);
             }
 
+            var itemCodeMatch = System.Text.RegularExpressions.Regex.Match(
+                partNumber,
+                @"^(?<project>.+)-(?<code>(?:[A-Z]\d{2}|PRT-\d{3}))$",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (itemCodeMatch.Success)
+            {
+                result.Add(itemCodeMatch.Groups["project"].Value + "-CAD-" + itemCodeMatch.Groups["code"].Value);
+            }
+
             result.Add(partNumber + "-ICS");
             return result;
-        }
-
-        private static void EnsurePlaceholderFile(string path)
-        {
-            var directory = Path.GetDirectoryName(path);
-            if (!string.IsNullOrWhiteSpace(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            if (!File.Exists(path))
-            {
-                File.WriteAllBytes(path, Array.Empty<byte>());
-            }
-        }
-
-        private static int GeneratePackageShapeFiles(
-            string repositoryCode,
-            string projectFolder,
-            string drawingsFolder,
-            ClonePartInfo rootPart,
-            IEnumerable<ClonePartInfo> allParts,
-            IReadOnlyDictionary<string, CloneCadInfo> selectedCadByPartId)
-        {
-            var createdCount = 0;
-            var parts = allParts?.Where(p => p != null).ToList() ?? new List<ClonePartInfo>();
-            var partById = parts
-                .Where(p => !string.IsNullOrWhiteSpace(p.Id))
-                .GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-
-            string projectCode = repositoryCode;
-            string version = "1.0";
-
-            foreach (var cad in selectedCadByPartId?.Values ?? Array.Empty<CloneCadInfo>())
-            {
-                var fileName = cad?.Name ?? string.Empty;
-                if (TryParseAssemblyCadName(fileName, out var parsedProject, out var parsedVersion))
-                {
-                    projectCode = parsedProject;
-                    version = parsedVersion;
-                    break;
-                }
-
-                if (TryParseDetailCadName(fileName, out parsedProject, out parsedVersion, out _))
-                {
-                    projectCode = parsedProject;
-                    version = parsedVersion;
-                }
-            }
-
-            createdCount += EnsurePlaceholderFileCreated(Path.Combine(projectFolder, projectCode + "_Ver" + version + ".dwg"));
-
-            foreach (var cad in selectedCadByPartId?.Values ?? Array.Empty<CloneCadInfo>())
-            {
-                var fileName = cad?.Name;
-                if (string.IsNullOrWhiteSpace(fileName))
-                    continue;
-
-                var drawingName = Path.GetFileNameWithoutExtension(fileName) + ".dwg";
-                createdCount += EnsurePlaceholderFileCreated(Path.Combine(drawingsFolder, drawingName));
-            }
-
-            var rootChildren = parts
-                .Where(p => string.Equals(p.ParentId, rootPart.Id, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(p => ExtractPartNumberTuple(p.ItemNumber).group)
-                .ThenBy(p => ExtractPartNumberTuple(p.ItemNumber).index)
-                .ToList();
-
-            foreach (var groupPart in rootChildren)
-            {
-                var tuple = ExtractPartNumberTuple(groupPart.ItemNumber);
-                var groupNumber = tuple.group <= 0 ? 0 : tuple.group;
-                var groupName = NormalizePartDisplayName(groupPart.Name, groupPart.ItemNumber);
-                if (groupNumber > 0)
-                {
-                    createdCount += EnsurePlaceholderFileCreated(Path.Combine(
-                        projectFolder,
-                        groupNumber.ToString("00") + ". " + groupName + ".pdf"));
-                }
-
-                var children = parts
-                    .Where(p => string.Equals(p.ParentId, groupPart.Id, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(p => ExtractPartNumberTuple(p.ItemNumber).index)
-                    .ToList();
-
-                for (var i = 0; i < children.Count; i++)
-                {
-                    var child = children[i];
-                    var childTuple = ExtractPartNumberTuple(child.ItemNumber);
-                    var childNumber = childTuple.index <= 0 ? i + 1 : childTuple.index;
-                    var letter = (char)('A' + i);
-                    var childName = NormalizePartDisplayName(child.Name, child.ItemNumber);
-                    if (groupNumber > 0)
-                    {
-                        var pdfName = groupNumber.ToString("00") + letter + ". " +
-                            groupName + "_" + childNumber.ToString("00") + "_" + childName + ".pdf";
-                        createdCount += EnsurePlaceholderFileCreated(Path.Combine(projectFolder, pdfName));
-                    }
-                }
-            }
-
-            createdCount += EnsureStructureSummaryFile(projectFolder, projectCode, version, rootChildren, partById);
-            return createdCount;
-        }
-
-        private static int EnsureStructureSummaryFile(
-            string projectFolder,
-            string projectCode,
-            string version,
-            IReadOnlyList<ClonePartInfo> rootChildren,
-            IReadOnlyDictionary<string, ClonePartInfo> partById)
-        {
-            var path = Path.Combine(projectFolder, projectCode + "-STRUCTURE.txt");
-            if (File.Exists(path))
-                return 0;
-
-            var lines = new List<string>
-            {
-                "Project   : " + projectCode,
-                "Version   : " + version,
-                "Generated : " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                string.Empty,
-                "Business structure:"
-            };
-
-            foreach (var groupPart in rootChildren)
-            {
-                var tuple = ExtractPartNumberTuple(groupPart.ItemNumber);
-                lines.Add("  " + tuple.group.ToString("00") + ". " + NormalizePartDisplayName(groupPart.Name, groupPart.ItemNumber));
-
-                var childParts = partById.Values
-                    .Where(p => string.Equals(p.ParentId, groupPart.Id, StringComparison.OrdinalIgnoreCase))
-                    .OrderBy(p => ExtractPartNumberTuple(p.ItemNumber).index)
-                    .ToList();
-
-                for (var i = 0; i < childParts.Count; i++)
-                {
-                    var child = childParts[i];
-                    var childTuple = ExtractPartNumberTuple(child.ItemNumber);
-                    lines.Add("    " + tuple.group.ToString("00") + (char)('A' + i) + ". " +
-                        NormalizePartDisplayName(child.Name, child.ItemNumber) +
-                        " (" + childTuple.index.ToString("00") + ")");
-                }
-            }
-
-            File.WriteAllLines(path, lines);
-            return 1;
-        }
-
-        private static int EnsurePlaceholderFileCreated(string path)
-        {
-            if (File.Exists(path))
-                return 0;
-
-            EnsurePlaceholderFile(path);
-            return 1;
-        }
-
-        private static bool TryParseAssemblyCadName(string fileName, out string projectCode, out string version)
-        {
-            projectCode = null;
-            version = null;
-            if (string.IsNullOrWhiteSpace(fileName))
-                return false;
-
-            var match = Regex.Match(
-                fileName,
-                @"^Assembly-(?<project>.+)-Ver(?<version>\d+\.\d+)[A-Za-z].*\.ics$",
-                RegexOptions.IgnoreCase);
-
-            if (!match.Success)
-                return false;
-
-            projectCode = match.Groups["project"].Value;
-            version = match.Groups["version"].Value;
-            return true;
-        }
-
-        private static bool TryParseDetailCadName(string fileName, out string projectCode, out string version, out int sequence)
-        {
-            projectCode = null;
-            version = null;
-            sequence = 0;
-            if (string.IsNullOrWhiteSpace(fileName))
-                return false;
-
-            var match = Regex.Match(
-                fileName,
-                @"^(?<project>.+)_Ver(?<version>\d+\.\d+)_(?<sequence>\d{3})\.ics$",
-                RegexOptions.IgnoreCase);
-
-            if (!match.Success)
-                return false;
-
-            projectCode = match.Groups["project"].Value;
-            version = match.Groups["version"].Value;
-            int.TryParse(match.Groups["sequence"].Value, out sequence);
-            return true;
-        }
-
-        private static (int group, int index) ExtractPartNumberTuple(string partNumber)
-        {
-            if (string.IsNullOrWhiteSpace(partNumber))
-                return (0, 0);
-
-            var match = Regex.Match(partNumber, @"-(?<group>\d{2})(?:-(?<index>\d{2}))?$");
-            if (!match.Success)
-                return (0, 0);
-
-            var group = 0;
-            var index = 0;
-            int.TryParse(match.Groups["group"].Value, out group);
-            if (match.Groups["index"].Success)
-                int.TryParse(match.Groups["index"].Value, out index);
-
-            return (group, index);
-        }
-
-        private static string NormalizePartDisplayName(string name, string fallback)
-        {
-            var value = string.IsNullOrWhiteSpace(name) ? fallback : name;
-            if (string.IsNullOrWhiteSpace(value))
-                return "Part";
-
-            value = Regex.Replace(value, @"^\d+\s*", string.Empty).Trim();
-            value = value.Replace("/", "_").Replace("\\", "_").Replace(":", "_");
-            return value;
         }
 
         private sealed class ClonePartInfo
@@ -1740,7 +1756,20 @@ namespace IdeaCadConnector.Aras
             public string Id { get; set; }
             public string ItemNumber { get; set; }
             public string Name { get; set; }
-            public string ParentId { get; set; }
+            public string MajorRevision { get; set; }
+        }
+
+        private sealed class CloneBomEdge
+        {
+            public string ChildPartId { get; set; }
+            public decimal Quantity { get; set; }
+            public int SortOrder { get; set; }
+        }
+
+        private sealed class CloneNativeName
+        {
+            public string ItemCode { get; set; }
+            public string DisplayName { get; set; }
         }
 
         private sealed class CloneCadInfo
