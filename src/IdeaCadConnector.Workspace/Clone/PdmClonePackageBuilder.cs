@@ -56,10 +56,25 @@ namespace IdeaCadConnector.Workspace.Clone
     {
         public PdmClonePackageBuildResult Build(PdmClonePackageInput input)
         {
+            if (input == null)
+                return PdmClonePackageBuildResult.Fail("Clone package input is required.");
+
+            PdmCloneNode[] inputNodes;
+            PdmCloneBomEdge[] inputEdges;
             try
             {
-                var nodes = ValidateInput(input);
-                var orderedEdges = input.Edges
+                inputNodes = (input.Nodes ?? Array.Empty<PdmCloneNode>()).ToArray();
+                inputEdges = (input.Edges ?? Array.Empty<PdmCloneBomEdge>()).ToArray();
+            }
+            catch (Exception ex)
+            {
+                return PdmClonePackageBuildResult.Fail("Clone package input could not be enumerated: " + ex.Message);
+            }
+
+            try
+            {
+                var nodes = ValidateInput(input, inputNodes, inputEdges);
+                var orderedEdges = inputEdges
                     .OrderBy(edge => edge.ParentNodeId, StringComparer.OrdinalIgnoreCase)
                     .ThenBy(edge => edge.SortOrder)
                     .ThenBy(edge => edge.ChildNodeId, StringComparer.OrdinalIgnoreCase)
@@ -87,15 +102,24 @@ namespace IdeaCadConnector.Workspace.Clone
                     Warnings = new string[0]
                 };
 
+                var manifestPath = Path.Combine(input.PackageRoot, PdmPackageImportReader.ManifestFileName);
+                var metadataDirectory = Path.Combine(input.PackageRoot, ".idea-pdm");
+                var branchRegistryPath = Path.Combine(metadataDirectory, "branches.json");
+                var manifestCreated = !File.Exists(manifestPath);
+                var branchRegistryCreated = !File.Exists(branchRegistryPath);
+                var metadataDirectoryCreated = !Directory.Exists(metadataDirectory);
                 File.WriteAllText(
-                    Path.Combine(input.PackageRoot, PdmPackageImportReader.ManifestFileName),
+                    manifestPath,
                     new PdmPackageManifestWriter().Serialize(manifest));
                 WriteBranches(input.PackageRoot, input.BranchName);
 
                 var validation = new PdmPackageValidator().Validate(input.PackageRoot, manifest);
-                return validation.IsValid
-                    ? PdmClonePackageBuildResult.Ok(manifest)
-                    : PdmClonePackageBuildResult.Fail("Clone package validation failed: " + string.Join(", ", validation.Issues));
+                if (validation.IsValid)
+                    return PdmClonePackageBuildResult.Ok(manifest);
+
+                RemoveCreatedArtifacts(manifestPath, manifestCreated, branchRegistryPath, branchRegistryCreated,
+                    metadataDirectory, metadataDirectoryCreated);
+                return PdmClonePackageBuildResult.Fail("Clone package validation failed: " + string.Join(", ", validation.Issues));
             }
             catch (ArgumentException ex)
             {
@@ -107,9 +131,11 @@ namespace IdeaCadConnector.Workspace.Clone
             }
         }
 
-        private static IDictionary<string, PdmCloneNode> ValidateInput(PdmClonePackageInput input)
+        private static IDictionary<string, PdmCloneNode> ValidateInput(
+            PdmClonePackageInput input,
+            PdmCloneNode[] nodeList,
+            PdmCloneBomEdge[] edges)
         {
-            if (input == null) throw new ArgumentException("Clone package input is required.", nameof(input));
             if (string.IsNullOrWhiteSpace(input.PackageRoot) || !Directory.Exists(input.PackageRoot))
                 throw new ArgumentException("PackageRoot must be an existing directory.", nameof(input));
             if (string.IsNullOrWhiteSpace(input.ProjectCode))
@@ -121,8 +147,7 @@ namespace IdeaCadConnector.Workspace.Clone
             if (string.IsNullOrWhiteSpace(input.RootNodeId))
                 throw new ArgumentException("RootNodeId is required.", nameof(input));
 
-            var nodeList = (input.Nodes ?? Enumerable.Empty<PdmCloneNode>()).ToList();
-            if (nodeList.Count == 0 || nodeList.Any(node => node == null || string.IsNullOrWhiteSpace(node.NodeId)))
+            if (nodeList.Length == 0 || nodeList.Any(node => node == null || string.IsNullOrWhiteSpace(node.NodeId)))
                 throw new ArgumentException("Each clone node requires a NodeId.", nameof(input));
             if (nodeList.GroupBy(node => node.NodeId, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
                 throw new ArgumentException("Clone node NodeId values must be unique.", nameof(input));
@@ -144,15 +169,27 @@ namespace IdeaCadConnector.Workspace.Clone
             if (nodeList.GroupBy(node => node.NativeFileName, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
                 throw new ArgumentException("Clone node NativeFileName values must not be duplicate.", nameof(input));
 
-            var edges = (input.Edges ?? Enumerable.Empty<PdmCloneBomEdge>()).ToList();
             if (edges.Any(edge => edge == null || !nodes.ContainsKey(edge.ParentNodeId ?? string.Empty) || !nodes.ContainsKey(edge.ChildNodeId ?? string.Empty)))
                 throw new ArgumentException("Each BOM edge must refer to clone nodes.", nameof(input));
             if (edges.Any(edge => edge.Quantity <= 0))
                 throw new ArgumentException("Each BOM edge must have a positive quantity.", nameof(input));
+            if (HasDuplicateOrderingIdentity(edges))
+                throw new ArgumentException("BOM edge ordering identities must be unique.", nameof(input));
             if (HasCycle(input.RootNodeId, edges))
                 throw new ArgumentException("Clone BOM contains a cycle.", nameof(input));
 
             return nodes;
+        }
+
+        private static bool HasDuplicateOrderingIdentity(IEnumerable<PdmCloneBomEdge> edges)
+        {
+            return edges
+                .GroupBy(edge => edge.ParentNodeId, StringComparer.OrdinalIgnoreCase)
+                .Any(parent => parent
+                    .GroupBy(edge => edge.SortOrder)
+                    .Any(sortOrder => sortOrder
+                        .GroupBy(edge => edge.ChildNodeId, StringComparer.OrdinalIgnoreCase)
+                        .Any(child => child.Count() > 1)));
         }
 
         private static void ValidateNativeFileName(string nativeFileName)
@@ -265,6 +302,23 @@ namespace IdeaCadConnector.Workspace.Clone
             if (!string.Equals(branchName, "main", StringComparison.OrdinalIgnoreCase))
                 branches.Branches.Add(new WorkspaceBranch { Name = branchName, CreatedAt = DateTime.UtcNow });
             new WorkspaceService(new WorkspaceOptions()).SaveBranchRegistry(packageRoot, branches);
+        }
+
+        private static void RemoveCreatedArtifacts(
+            string manifestPath,
+            bool manifestCreated,
+            string branchRegistryPath,
+            bool branchRegistryCreated,
+            string metadataDirectory,
+            bool metadataDirectoryCreated)
+        {
+            if (manifestCreated && File.Exists(manifestPath))
+                File.Delete(manifestPath);
+            if (branchRegistryCreated && File.Exists(branchRegistryPath))
+                File.Delete(branchRegistryPath);
+            if (metadataDirectoryCreated && Directory.Exists(metadataDirectory) &&
+                !Directory.EnumerateFileSystemEntries(metadataDirectory).Any())
+                Directory.Delete(metadataDirectory);
         }
 
         private sealed class CloneOccurrence
