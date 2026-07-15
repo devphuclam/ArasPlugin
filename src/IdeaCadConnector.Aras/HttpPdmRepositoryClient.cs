@@ -24,6 +24,7 @@ namespace IdeaCadConnector.Aras
         private ArasHttpClient _http;
         private IArasAmlClient _aml;
         private IVaultFileClient _vault;
+        private readonly bool _vaultClientInjected;
         private bool _disposed;
 
         public HttpPdmRepositoryClient(ArasClientOptions options, ILogger<HttpPdmRepositoryClient> logger = null)
@@ -51,6 +52,7 @@ namespace IdeaCadConnector.Aras
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _aml = amlClient ?? throw new ArgumentNullException(nameof(amlClient));
             _vault = vaultClient ?? throw new ArgumentNullException(nameof(vaultClient));
+            _vaultClientInjected = true;
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPdmRepositoryClient>.Instance;
         }
 
@@ -62,7 +64,10 @@ namespace IdeaCadConnector.Aras
             }
             _http.SetBearerToken(accessToken, tokenType ?? "Bearer");
             _aml = new ArasAmlClient(_http, database ?? _options.Database);
-            _vault = new VaultClient(_http, _options);
+            if (!_vaultClientInjected)
+            {
+                _vault = new VaultClient(_http, _options);
+            }
         }
 
         public async Task<PdmExistencePreview> PreviewExistenceAsync(PdmPushRequest request, CancellationToken ct)

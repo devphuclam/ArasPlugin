@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IdeaCadConnector.Aras;
@@ -22,6 +23,26 @@ namespace IdeaCadConnector.Tests
                 options, aml, vault, NullLogger<HttpPdmRepositoryClient>.Instance);
 
             Assert.NotNull(client);
+        }
+
+        [Fact]
+        public void SetSession_DoesNotReplaceInjectedVaultDownloader()
+        {
+            var aml = new CloneAmlClient();
+            var vault = new CloneVaultClient();
+            var options = new ArasClientOptions { BaseUri = new Uri("http://fake/"), Database = "db" };
+
+            using var client = new HttpPdmRepositoryClient(
+                options, aml, vault, NullLogger<HttpPdmRepositoryClient>.Instance);
+
+            client.SetSession("token", "Bearer", "db");
+
+            var vaultField = typeof(HttpPdmRepositoryClient).GetField(
+                "_vault",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var fieldValue = vaultField.GetValue(client);
+
+            Assert.Same(vault, fieldValue);
         }
 
         private sealed class CloneAmlClient : IArasAmlClient
