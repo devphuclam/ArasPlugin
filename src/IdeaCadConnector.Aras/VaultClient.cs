@@ -14,7 +14,7 @@ namespace IdeaCadConnector.Aras
     /// Thin vault client for Aras Innovator file upload/download.
     /// Uses the common Aras 12/15 vault endpoints.
     /// </summary>
-    internal sealed class VaultClient
+    internal sealed class VaultClient : IVaultFileClient
     {
         private readonly ArasHttpClient _http;
         private readonly ArasClientOptions _options;

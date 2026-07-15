@@ -23,7 +23,7 @@ namespace IdeaCadConnector.Aras
         private readonly ILogger<HttpPdmRepositoryClient> _logger;
         private ArasHttpClient _http;
         private IArasAmlClient _aml;
-        private VaultClient _vault;
+        private IVaultFileClient _vault;
         private bool _disposed;
 
         public HttpPdmRepositoryClient(ArasClientOptions options, ILogger<HttpPdmRepositoryClient> logger = null)
@@ -39,6 +39,18 @@ namespace IdeaCadConnector.Aras
         {
             _options = options ?? throw new ArgumentNullException(nameof(options));
             _aml = amlClient ?? throw new ArgumentNullException(nameof(amlClient));
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPdmRepositoryClient>.Instance;
+        }
+
+        internal HttpPdmRepositoryClient(
+            ArasClientOptions options,
+            IArasAmlClient amlClient,
+            IVaultFileClient vaultClient,
+            ILogger<HttpPdmRepositoryClient> logger = null)
+        {
+            _options = options ?? throw new ArgumentNullException(nameof(options));
+            _aml = amlClient ?? throw new ArgumentNullException(nameof(amlClient));
+            _vault = vaultClient ?? throw new ArgumentNullException(nameof(vaultClient));
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<HttpPdmRepositoryClient>.Instance;
         }
 
