@@ -1,4 +1,3 @@
-using System.IO;
 using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Desktop.Services;
@@ -9,10 +8,6 @@ namespace IdeaCadConnector.Desktop
     {
         public static ICadApplicationAdapter Create(string executablePath)
         {
-            if (string.IsNullOrWhiteSpace(executablePath))
-                throw new FileNotFoundException(
-                    "IronCAD executable path is not configured. Set local.ironCadExecutablePath in the environment configuration.");
-
             return new IronCadExternalAdapter(executablePath);
         }
 

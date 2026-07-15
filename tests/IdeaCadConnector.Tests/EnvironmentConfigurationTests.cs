@@ -841,11 +841,11 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void IronCadExternalAdapter_DefaultConstructor_HasNullPath()
+        public void IronCadExternalAdapter_NoConfiguredOrDiscoveredPath_ThrowsOnOpen()
         {
             string testFile = Path.Combine(_tempDir, "test.ics");
             File.WriteAllText(testFile, "dummy");
-            var adapter = new IronCadExternalAdapter();
+            var adapter = new IronCadExternalAdapter(null, EmptyIronCadResolver());
             var ex = Assert.Throws<FileNotFoundException>(() =>
                 adapter.OpenDocumentAsync(testFile, CadOpenMode.ReadOnly, CancellationToken.None)
                     .GetAwaiter().GetResult());
@@ -854,11 +854,11 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void IronCadExternalAdapter_ExplicitNullPath_ThrowsOnOpen()
+        public void IronCadExternalAdapter_InvalidConfiguredAndNoDiscoveredPath_ThrowsOnOpen()
         {
             string testFile = Path.Combine(_tempDir, "test.ics");
             File.WriteAllText(testFile, "dummy");
-            var adapter = new IronCadExternalAdapter(null);
+            var adapter = new IronCadExternalAdapter(@"C:\missing\IRONCAD.exe", EmptyIronCadResolver());
             var ex = Assert.Throws<FileNotFoundException>(() =>
                 adapter.OpenDocumentAsync(testFile, CadOpenMode.ReadOnly, CancellationToken.None)
                     .GetAwaiter().GetResult());
@@ -867,19 +867,27 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void IronCadOpenService_DefaultConstructor_NullPath_ReturnsFalse()
+        public void IronCadOpenService_NoConfiguredOrDiscoveredPath_ReturnsFalse()
         {
             var adapter = new StubCadAdapter();
-            var service = new IronCadOpenService(adapter);
+            var service = new IronCadOpenService(adapter, null, EmptyIronCadResolver());
             Assert.False(service.IsIronCadAvailable);
         }
 
         [Fact]
-        public void IronCadOpenService_ExplicitNullPath_ReturnsFalse()
+        public void IronCadOpenService_InvalidConfiguredAndNoDiscoveredPath_ReturnsFalse()
         {
             var adapter = new StubCadAdapter();
-            var service = new IronCadOpenService(adapter, null);
+            var service = new IronCadOpenService(adapter, @"C:\missing\IRONCAD.exe", EmptyIronCadResolver());
             Assert.False(service.IsIronCadAvailable);
+        }
+
+        private static IronCadExecutableResolver EmptyIronCadResolver()
+        {
+            return new IronCadExecutableResolver(
+                () => Array.Empty<string>(),
+                () => Array.Empty<string>(),
+                () => Array.Empty<string>());
         }
 
         [Fact]

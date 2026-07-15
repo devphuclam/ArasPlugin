@@ -12,13 +12,23 @@ namespace IdeaCadConnector.Desktop.Services
     {
         private readonly ICadApplicationAdapter _adapter;
         private readonly string _ironCadExecutablePath;
+        private readonly IronCadExecutableResolver _executableResolver;
 
         public IronCadOpenService(
             ICadApplicationAdapter adapter,
             string ironCadExecutablePath = null)
+            : this(adapter, ironCadExecutablePath, new IronCadExecutableResolver())
+        {
+        }
+
+        internal IronCadOpenService(
+            ICadApplicationAdapter adapter,
+            string ironCadExecutablePath,
+            IronCadExecutableResolver executableResolver)
         {
             _adapter = adapter ?? throw new ArgumentNullException(nameof(adapter));
             _ironCadExecutablePath = ironCadExecutablePath;
+            _executableResolver = executableResolver ?? throw new ArgumentNullException(nameof(executableResolver));
         }
 
         public bool IsIronCadAvailable
@@ -27,8 +37,7 @@ namespace IdeaCadConnector.Desktop.Services
             {
                 try
                 {
-                    return !string.IsNullOrWhiteSpace(_ironCadExecutablePath)
-                        && File.Exists(_ironCadExecutablePath);
+                    return !string.IsNullOrWhiteSpace(_executableResolver.Resolve(_ironCadExecutablePath));
                 }
                 catch
                 {

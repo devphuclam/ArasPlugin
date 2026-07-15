@@ -7,6 +7,7 @@ using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Errors;
 using IdeaCadConnector.Core.Library;
+using IdeaCadConnector.Desktop;
 using IdeaCadConnector.Desktop.Services;
 using Xunit;
 
@@ -35,7 +36,7 @@ namespace IdeaCadConnector.Tests
         public void IsIronCadAvailable_ExecutableMissing_ReturnsFalse()
         {
             var adapter = new StubCadAdapter();
-            var service = new IronCadOpenService(adapter, @"C:\nonexistent\IronCAD.exe");
+            var service = new IronCadOpenService(adapter, @"C:\nonexistent\IronCAD.exe", EmptyResolver());
             Assert.False(service.IsIronCadAvailable);
         }
 
@@ -43,8 +44,29 @@ namespace IdeaCadConnector.Tests
         public void IsIronCadAvailable_NullPath_ReturnsFalse()
         {
             var adapter = new StubCadAdapter();
-            var service = new IronCadOpenService(adapter, null);
+            var service = new IronCadOpenService(adapter, null, EmptyResolver());
             Assert.False(service.IsIronCadAvailable);
+        }
+
+        [Fact]
+        public void IsIronCadAvailable_InvalidConfiguredPathUsesDiscoveredExecutable()
+        {
+            var path = GetTestExecutablePath();
+            try
+            {
+                CreateDummyFile(path);
+                var resolver = new IronCadExecutableResolver(
+                    () => Array.Empty<string>(),
+                    () => new[] { path },
+                    () => Array.Empty<string>());
+                var service = new IronCadOpenService(new StubCadAdapter(), @"C:\missing\IRONCAD.exe", resolver);
+
+                Assert.True(service.IsIronCadAvailable);
+            }
+            finally
+            {
+                DeleteIfExists(path);
+            }
         }
 
         [Fact]
@@ -165,7 +187,7 @@ namespace IdeaCadConnector.Tests
         public async Task OpenCadFileAsync_IronCadNotAvailable_ReturnsFileUploadNotFound()
         {
             var adapter = new StubCadAdapter();
-            var service = new IronCadOpenService(adapter, @"C:\nonexistent\IronCAD.exe");
+            var service = new IronCadOpenService(adapter, @"C:\nonexistent\IronCAD.exe", EmptyResolver());
             var tempFile = Path.GetTempFileName() + ".ics";
             try
             {
@@ -284,6 +306,14 @@ namespace IdeaCadConnector.Tests
         private static IronCadOpenService CreateService(ICadApplicationAdapter adapter)
         {
             return new IronCadOpenService(adapter, GetTestExecutablePath());
+        }
+
+        private static IronCadExecutableResolver EmptyResolver()
+        {
+            return new IronCadExecutableResolver(
+                () => Array.Empty<string>(),
+                () => Array.Empty<string>(),
+                () => Array.Empty<string>());
         }
 
         private static string GetTestExecutablePath()
