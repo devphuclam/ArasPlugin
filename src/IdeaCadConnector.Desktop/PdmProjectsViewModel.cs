@@ -1100,22 +1100,12 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 FolderPath = result.ResolvedProjectFolder ?? targetFolder;
-                _workspaceService.ClearManifest(FolderPath);
-                _workspaceService.EnsureMainBranch(FolderPath);
-                EnsureLocalBranchExists(FolderPath, selectedBranch);
                 LoadBranchesForFolder();
-                if (Branches.Contains(selectedBranch))
-                {
-                    SelectedBranch = selectedBranch;
-                }
+                SelectedBranch = Branches.Contains(selectedBranch) ? selectedBranch : "main";
 
                 AnalyzeFolder();
 
-                var cloneSummary = string.Format(
-                    Loc(TranslationKeys.PdmCloneComplete),
-                    result.DownloadedCadFileCount,
-                    result.PlaceholderDocumentCount,
-                    FolderPath);
+                var cloneSummary = $"Clone complete: {result.DownloadedCadFileCount} native CAD files, package {FolderPath}.";
 
                 if (result.Warnings?.Count > 0)
                 {
