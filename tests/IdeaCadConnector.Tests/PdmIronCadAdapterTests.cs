@@ -20,11 +20,32 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void Factory_MissingExecutablePathReturnsActionableFailure()
+        public void Factory_MissingExecutablePathCreatesDiscoveringAdapter()
         {
-            var ex = Assert.Throws<FileNotFoundException>(() => IronCadAdapterFactory.Create(null));
+            var adapter = Assert.IsType<IronCadExternalAdapter>(IronCadAdapterFactory.Create(null));
 
-            Assert.Contains("IronCAD executable path is not configured", ex.Message);
+            Assert.Null(adapter.ConfiguredExecutablePath);
+        }
+
+        [Fact]
+        public void ExternalAdapter_InvalidConfiguredPathUsesDiscoveredExecutable()
+        {
+            var executablePath = CreateTestExecutable();
+            try
+            {
+                var resolver = new IronCadExecutableResolver(
+                    () => Array.Empty<string>(),
+                    () => Array.Empty<string>(),
+                    () => new[] { executablePath });
+                var adapter = new IronCadExternalAdapter(@"C:\missing\IRONCAD.exe", resolver);
+
+                Assert.Equal(executablePath, adapter.ResolvedExecutablePath);
+            }
+            finally
+            {
+                File.Delete(executablePath);
+                Directory.Delete(Path.GetDirectoryName(executablePath));
+            }
         }
 
         [Fact]
@@ -55,6 +76,15 @@ namespace IdeaCadConnector.Tests
             string source = File.ReadAllText(sourcePath);
 
             Assert.DoesNotContain("new IronCadExternalAdapter()", source);
+        }
+
+        private static string CreateTestExecutable()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "PdmIronCadAdapterTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, "IRONCAD.exe");
+            File.WriteAllText(path, "test");
+            return path;
         }
     }
 }

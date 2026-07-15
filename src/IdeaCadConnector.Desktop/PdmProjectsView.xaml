@@ -1036,6 +1036,8 @@
                             Foreground="#FF109A93"
                             FontWeight="SemiBold"
                             Command="{Binding OpenInIronCadCommand}"
+                            ToolTip="{Binding OpenInIronCadToolTip}"
+                            ToolTipService.ShowOnDisabled="True"
                             Visibility="{Binding HasOpenInIronCadAction, Converter={StaticResource BoolToVisibilityConverter}}"
                             Content="{Binding OpenInIronCadModeText}" />
                     <Button Grid.Column="2"

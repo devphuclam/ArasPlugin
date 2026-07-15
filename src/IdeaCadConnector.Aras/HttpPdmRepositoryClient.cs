@@ -214,13 +214,17 @@ namespace IdeaCadConnector.Aras
                 {
                     var part = partQueue.Dequeue();
                     var isRootPart = string.Equals(part.Id, rootPart.Id, StringComparison.OrdinalIgnoreCase);
+                    var cadLookupDiagnostics = new List<string>();
                     var cadCandidates = await GetPartCadCandidatesAsync(part.Id, ct).ConfigureAwait(false);
+                    cadLookupDiagnostics.Add("Part CAD candidates: " + cadCandidates.Count + ".");
                     var selectedCad = SelectPreferredCad(cadCandidates, part.ItemNumber, isRootPart);
                     if (selectedCad == null)
-                        selectedCad = await FindFallbackCadAsync(part.ItemNumber, isRootPart, ct).ConfigureAwait(false);
+                        selectedCad = await FindFallbackCadAsync(part.ItemNumber, isRootPart, cadLookupDiagnostics, ct).ConfigureAwait(false);
 
                     if (selectedCad == null)
-                        return CloneFailure(repositoryCode, projectFolder, warnings, "No usable IronCAD record found for Part '" + part.ItemNumber + "'.", rootPart);
+                        return CloneFailure(repositoryCode, projectFolder, warnings,
+                            "No usable IronCAD record found for Part '" + part.ItemNumber + "'. " +
+                            string.Join(" ", cadLookupDiagnostics), rootPart);
                     if (string.IsNullOrWhiteSpace(selectedCad.NativeFileId))
                         return CloneFailure(repositoryCode, projectFolder, warnings, "CAD '" + selectedCad.ItemNumber + "' exists but has no native file on Aras.", rootPart);
 
@@ -1226,7 +1230,11 @@ namespace IdeaCadConnector.Aras
             await _aml.ApplyAmlAsync(fileAml, "add", "PDM Commit File", null, ct);
         }
 
-        private async Task<string> FindItemByNumberAsync(string itemType, string itemNumber, CancellationToken ct)
+        private async Task<string> FindItemByNumberAsync(
+            string itemType,
+            string itemNumber,
+            CancellationToken ct,
+            ICollection<string> diagnostics = null)
         {
             if (string.IsNullOrWhiteSpace(itemNumber))
                 return null;
@@ -1240,13 +1248,19 @@ namespace IdeaCadConnector.Aras
                 var response = await _aml.ApplyAmlAsync(aml, "get", itemType, null, ct);
                 var items = response?["Items"];
                 if (items != null && items.HasValues)
-                    return items[0]?["id"]?.ToString();
+                {
+                    var resolvedId = items[0]?["id"]?.ToString();
+                    diagnostics?.Add(itemType + " '" + itemNumber + "' resolved to id '" + (resolvedId ?? "(blank)") + "'.");
+                    return resolvedId;
+                }
 
+                diagnostics?.Add(itemType + " '" + itemNumber + "' was not found.");
                 return null;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "FindItemByNumberAsync failed for itemType={ItemType} itemNumber={ItemNumber}", itemType, itemNumber);
+                diagnostics?.Add(itemType + " '" + itemNumber + "' lookup failed: " + SanitizeForUser(ex.Message));
                 return null;
             }
         }
@@ -1682,11 +1696,15 @@ namespace IdeaCadConnector.Aras
                 .FirstOrDefault();
         }
 
-        private async Task<CloneCadInfo> FindFallbackCadAsync(string partNumber, bool isRootPart, CancellationToken ct)
+        private async Task<CloneCadInfo> FindFallbackCadAsync(
+            string partNumber,
+            bool isRootPart,
+            ICollection<string> diagnostics,
+            CancellationToken ct)
         {
             foreach (var cadNumber in BuildExpectedCadNumbers(partNumber, isRootPart))
             {
-                var cadId = await FindItemByNumberAsync("CAD", cadNumber, ct).ConfigureAwait(false);
+                var cadId = await FindItemByNumberAsync("CAD", cadNumber, ct, diagnostics).ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(cadId))
                     continue;
 
@@ -1694,7 +1712,10 @@ namespace IdeaCadConnector.Aras
                 {
                     var cadToken = await _aml.ApplyItemAsync("CAD", cadId, "get", "id,item_number,name,classification,authoring_tool,native_file,generation", ct).ConfigureAwait(false);
                     if (cadToken == null)
+                    {
+                        diagnostics?.Add("CAD id '" + cadId + "' returned no item data.");
                         continue;
+                    }
 
                     return new CloneCadInfo
                     {
@@ -1708,6 +1729,7 @@ namespace IdeaCadConnector.Aras
                 }
                 catch (ArasOperationException ex) when (ex.ErrorCode == ArasErrorCode.CadNotFound)
                 {
+                    diagnostics?.Add("CAD id '" + cadId + "' could not be loaded: " + SanitizeForUser(ex.Message));
                     continue;
                 }
             }

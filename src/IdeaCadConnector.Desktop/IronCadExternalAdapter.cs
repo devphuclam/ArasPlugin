@@ -20,12 +20,22 @@ namespace IdeaCadConnector.Desktop
     public sealed class IronCadExternalAdapter : ICadApplicationAdapter
     {
         private readonly string _ironCadExecutablePath;
+        private readonly IronCadExecutableResolver _executableResolver;
 
         internal string ConfiguredExecutablePath => _ironCadExecutablePath;
+        internal string ResolvedExecutablePath => _executableResolver.Resolve(_ironCadExecutablePath);
 
         public IronCadExternalAdapter(string ironCadExecutablePath = null)
+            : this(ironCadExecutablePath, new IronCadExecutableResolver())
+        {
+        }
+
+        internal IronCadExternalAdapter(
+            string ironCadExecutablePath,
+            IronCadExecutableResolver executableResolver)
         {
             _ironCadExecutablePath = ironCadExecutablePath;
+            _executableResolver = executableResolver ?? throw new ArgumentNullException(nameof(executableResolver));
         }
 
         public string AuthoringTool
@@ -104,10 +114,7 @@ namespace IdeaCadConnector.Desktop
 
         private string ResolveIronCadExecutable()
         {
-            if (!string.IsNullOrWhiteSpace(_ironCadExecutablePath) && File.Exists(_ironCadExecutablePath))
-                return _ironCadExecutablePath;
-
-            return null;
+            return ResolvedExecutablePath;
         }
     }
 }
