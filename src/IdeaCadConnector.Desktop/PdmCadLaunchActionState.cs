@@ -1,4 +1,5 @@
 using System;
+using IdeaCadConnector.Core.Localization;
 
 namespace IdeaCadConnector.Desktop
 {
@@ -28,7 +29,7 @@ namespace IdeaCadConnector.Desktop
 
     internal sealed class PdmCadLaunchActionState
     {
-        private const string UnavailableLabelKey = "PdmCadLaunchUnavailable";
+        private const string UnavailableLabelKey = TranslationKeys.PdmCadLaunchUnavailable;
 
         private PdmCadLaunchActionState(
             PdmCadLaunchMode mode,
@@ -59,30 +60,30 @@ namespace IdeaCadConnector.Desktop
                 return new PdmCadLaunchActionState(PdmCadLaunchMode.Hidden, false, false, UnavailableLabelKey);
 
             if (context.IsBusy)
-                return Unavailable("PdmCadLaunchBusy");
+                return Unavailable(TranslationKeys.PdmCadLaunchBusy);
             if (!context.IsConnected)
-                return Unavailable("PdmCadLaunchConnectToAras");
+                return Unavailable(TranslationKeys.PdmCadLaunchConnectToAras);
             if (!context.HasLiveCadId)
-                return Unavailable("PdmCadLaunchRefreshCad");
+                return Unavailable(TranslationKeys.PdmCadLaunchRefreshCad);
             if (!context.HasLifecycleState)
-                return Unavailable("PdmCadLaunchRefreshState");
+                return Unavailable(TranslationKeys.PdmCadLaunchRefreshState);
 
             if (context.HasValidLocalCheckout)
-                return Enabled(PdmCadLaunchMode.OpenCheckedOut, "PdmOpenCheckedOutIronCad");
+                return Enabled(PdmCadLaunchMode.OpenCheckedOut, TranslationKeys.PdmOpenCheckedOutIronCad);
 
             if (context.IsLockedByOther)
             {
                 return context.HasNativeFile
-                    ? Enabled(PdmCadLaunchMode.OpenReadOnly, "PdmOpenIronCadReadOnly")
-                    : Unavailable("PdmCadLaunchNoReadableFile");
+                    ? Enabled(PdmCadLaunchMode.OpenReadOnly, TranslationKeys.PdmOpenIronCadReadOnly)
+                    : Unavailable(TranslationKeys.PdmCadLaunchNoReadableFile);
             }
 
             if (context.CanCheckout)
-                return Enabled(PdmCadLaunchMode.CheckoutAndOpen, "PdmCheckoutAndOpenIronCad");
+                return Enabled(PdmCadLaunchMode.CheckoutAndOpen, TranslationKeys.PdmCheckoutAndOpenIronCad);
 
             return context.HasNativeFile
-                ? Enabled(PdmCadLaunchMode.OpenReadOnly, "PdmOpenIronCadReadOnly")
-                : Unavailable("PdmCadLaunchNoReadableFile");
+                ? Enabled(PdmCadLaunchMode.OpenReadOnly, TranslationKeys.PdmOpenIronCadReadOnly)
+                : Unavailable(TranslationKeys.PdmCadLaunchNoReadableFile);
         }
 
         private static PdmCadLaunchActionState Enabled(PdmCadLaunchMode mode, string labelKey)

@@ -843,6 +843,14 @@ namespace IdeaCadConnector.Core.Localization
         public const string PdmPushModePreview = "PdmPushModePreview";
         public const string PdmOpenIronCadReadOnly = "PdmOpenIronCadReadOnly";
         public const string PdmOpenIronCad = "PdmOpenIronCad";
+        public const string PdmCheckoutAndOpenIronCad = "PdmCheckoutAndOpenIronCad";
+        public const string PdmOpenCheckedOutIronCad = "PdmOpenCheckedOutIronCad";
+        public const string PdmCadLaunchUnavailable = "PdmCadLaunchUnavailable";
+        public const string PdmCadLaunchBusy = "PdmCadLaunchBusy";
+        public const string PdmCadLaunchConnectToAras = "PdmCadLaunchConnectToAras";
+        public const string PdmCadLaunchRefreshCad = "PdmCadLaunchRefreshCad";
+        public const string PdmCadLaunchRefreshState = "PdmCadLaunchRefreshState";
+        public const string PdmCadLaunchNoReadableFile = "PdmCadLaunchNoReadableFile";
         public const string PdmNoCommitsYet = "PdmNoCommitsYet";
         public const string PdmNoCommitsBranch = "PdmNoCommitsBranch";
         public const string PdmCommitLocalPrefix = "PdmCommitLocalPrefix";

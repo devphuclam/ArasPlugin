@@ -291,12 +291,10 @@ namespace IdeaCadConnector.Desktop
                 if (SetField(ref _selectedNode, value))
                 {
                     OnPropertyChanged(nameof(HasSelectedNode));
-                    OnPropertyChanged(nameof(CanOpenInIronCad));
-                    OnPropertyChanged(nameof(HasOpenInIronCadAction));
+                    RefreshCanOpenInIronCad();
                     OnPropertyChanged(nameof(HasSaveToLibraryAction));
                     OnPropertyChanged(nameof(HasRemoveLibraryReferenceAction));
                     OnPropertyChanged(nameof(CanSaveSelectedNodeToLibrary));
-                    ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
                     ((RelayCommand)SaveSelectedNodeToLibraryCommand).RaiseCanExecuteChanged();
                     ((RelayCommand)RemoveSelectedLibraryReferenceCommand).RaiseCanExecuteChanged();
                     RefreshSelectedDocuments();
@@ -360,11 +358,7 @@ namespace IdeaCadConnector.Desktop
             set
             {
                 if (SetField(ref _isOpeningInIronCad, value))
-                {
-                    OnPropertyChanged(nameof(CanOpenInIronCad));
-                    OnPropertyChanged(nameof(HasOpenInIronCadAction));
-                    ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
-                }
+                    RefreshCanOpenInIronCad();
             }
         }
 
@@ -436,23 +430,39 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        public bool CanOpenInIronCad =>
-            !IsOpeningInIronCad &&
-            SelectedNode != null &&
-            !IsSelectedRootAssemblyNode() &&
-            !string.IsNullOrWhiteSpace(SelectedNode.PrimaryCad) &&
-            SelectedNode.PrimaryCad != "-" &&
-            MainViewModel.SharedArasCadClient != null &&
-            !string.IsNullOrWhiteSpace(_liveCadId) &&
-            (_liveHasNativeFile || CadLifecyclePolicy.CanCheckout(_liveCadState));
+        private PdmCadLaunchActionState CadLaunchActionState =>
+            PdmCadLaunchActionState.Create(new PdmCadLaunchActionContext
+            {
+                HasSelection = SelectedNode != null,
+                IsRootAssembly = IsSelectedRootAssemblyNode(),
+                HasPrimaryCad = !string.IsNullOrWhiteSpace(SelectedNode?.PrimaryCad) && SelectedNode.PrimaryCad != "-",
+                IsConnected = MainViewModel.SharedArasCadClient != null,
+                HasLiveCadId = !string.IsNullOrWhiteSpace(_liveCadId),
+                HasLifecycleState = !string.IsNullOrWhiteSpace(_liveCadState),
+                CanCheckout = CadLifecyclePolicy.CanCheckout(_liveCadState),
+                HasValidLocalCheckout = IsCheckedOutByMe && CanCheckIn,
+                IsLockedByOther = IsCheckedOutByOther,
+                HasNativeFile = _liveHasNativeFile,
+                IsBusy = IsOpeningInIronCad
+            });
+
+        public bool CanOpenInIronCad => CadLaunchActionState.IsEnabled;
 
         public bool CanStartNewRevision =>
             SelectedNode != null &&
             (_revisionPreconditions?.CanRevise ?? false) &&
             MainViewModel.SharedArasCadClient != null;
 
-        public string OpenInIronCadModeText =>
-            IsReleasedCad() ? Loc(TranslationKeys.PdmOpenIronCadReadOnly) : Loc(TranslationKeys.PdmOpenIronCad);
+        public string OpenInIronCadModeText => Loc(CadLaunchActionState.LabelKey);
+
+        public string OpenInIronCadToolTip
+        {
+            get
+            {
+                var key = CadLaunchActionState.DisabledReasonKey;
+                return string.IsNullOrWhiteSpace(key) ? null : Loc(key);
+            }
+        }
 
         public string CommitMessage
         {
@@ -618,14 +628,7 @@ namespace IdeaCadConnector.Desktop
         public bool HasCadRevisionEntryPoint =>
             GuidanceRevisionService.ShouldShowRevisionEntryPoint(_liveCadId, CadRevisionReadinessText);
 
-        public bool HasOpenInIronCadAction =>
-            SelectedNode != null &&
-            !IsSelectedRootAssemblyNode() &&
-            !string.IsNullOrWhiteSpace(SelectedNode.PrimaryCad) &&
-            SelectedNode.PrimaryCad != "-" &&
-            MainViewModel.SharedArasCadClient != null &&
-            !string.IsNullOrWhiteSpace(_liveCadId) &&
-            (_liveHasNativeFile || CadLifecyclePolicy.CanCheckout(_liveCadState));
+        public bool HasOpenInIronCadAction => CadLaunchActionState.IsVisible;
 
         public bool HasCheckInCadAction => IsCheckedOutByMe || CanCheckIn;
 
@@ -656,6 +659,7 @@ namespace IdeaCadConnector.Desktop
                     OnPropertyChanged(nameof(HasCancelCheckoutCadAction));
                     ((RelayCommand)CheckInCommand).RaiseCanExecuteChanged();
                     ((RelayCommand)CancelCheckoutCommand).RaiseCanExecuteChanged();
+                    RefreshCanOpenInIronCad();
                 }
             }
         }
@@ -663,7 +667,11 @@ namespace IdeaCadConnector.Desktop
         public bool IsCheckedOutByOther
         {
             get => _isCheckedOutByOther;
-            set => SetField(ref _isCheckedOutByOther, value);
+            set
+            {
+                if (SetField(ref _isCheckedOutByOther, value))
+                    RefreshCanOpenInIronCad();
+            }
         }
 
         public bool IsAvailable
@@ -681,6 +689,7 @@ namespace IdeaCadConnector.Desktop
                 {
                     OnPropertyChanged(nameof(HasCheckInCadAction));
                     ((RelayCommand)CheckInCommand).RaiseCanExecuteChanged();
+                    RefreshCanOpenInIronCad();
                 }
             }
         }
@@ -2446,6 +2455,7 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(CanOpenInIronCad));
             OnPropertyChanged(nameof(HasOpenInIronCadAction));
             OnPropertyChanged(nameof(OpenInIronCadModeText));
+            OnPropertyChanged(nameof(OpenInIronCadToolTip));
             OnPropertyChanged(nameof(HasCadRevisionEntryPoint));
             ((RelayCommand)OpenInIronCadCommand).RaiseCanExecuteChanged();
             OnPropertyChanged(nameof(CanStartNewRevision));
