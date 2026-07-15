@@ -66,3 +66,36 @@ Warnings remain appended to that status. No IronCAD launch was added.
 ## Concern
 
 The brief's suggested filter `Clone*PdmProjects*` matched zero tests because the test method name does not contain `PdmProjects` after `Clone`; the exact class filter above was used for focused evidence.
+
+## Review-fix evidence
+
+The Clone path now calls `AnalyzeFolder(false)` once. `AnalyzeFolder` passes the flag to `LoadBranchesForFolder`, whose default remains `ensureMainBranch = true` for existing callers. Clone therefore reloads the builder-owned registry without invoking `EnsureMainBranch`; normal folder analysis behavior is unchanged.
+
+The regression fixture uses a valid builder-owned registry containing only `feature`, requests `feature`, and asserts the exact serialized `branches.json` is unchanged after Clone. The selected branch remains `feature`.
+
+RED:
+
+```text
+Focused class before the review fix: Failed 1, Passed 1, Total 2.
+Failure: Clone added a `main` branch to the feature-only registry.
+```
+
+GREEN:
+
+```powershell
+dotnet test tests/IdeaCadConnector.Tests/IdeaCadConnector.Tests.csproj -c Debug --filter "FullyQualifiedName~PdmProjectsManifestIntegrationTests"
+```
+
+```text
+Passed: 2, Failed: 0, Skipped: 0, Total: 2
+```
+
+Desktop build:
+
+```powershell
+dotnet build src/IdeaCadConnector.Desktop/IdeaCadConnector.Desktop.csproj -c Debug
+```
+
+```text
+Build succeeded. 0 Warning(s), 0 Error(s).
+```

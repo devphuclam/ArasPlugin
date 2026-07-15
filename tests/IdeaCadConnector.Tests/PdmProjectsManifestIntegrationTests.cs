@@ -57,8 +57,7 @@ namespace IdeaCadConnector.Tests
             {
                 Branches = new System.Collections.Generic.List<WorkspaceBranch>
                 {
-                    new WorkspaceBranch { Name = "main" },
-                    new WorkspaceBranch { Name = "release" }
+                    new WorkspaceBranch { Name = "feature" }
                 }
             });
             var workspacePath = workspaceService.GetManifestFilePath(cloneRoot);
@@ -83,13 +82,13 @@ namespace IdeaCadConnector.Tests
                 {
                     FolderPath = Path.Combine(Path.GetTempPath(), "unused-clone-target"),
                     SelectedRepository = "PDM-DEMO",
-                    SelectedBranch = "main"
+                    SelectedBranch = "feature"
                 };
 
                 viewModel.CloneCommand.Execute(null);
 
                 Assert.Equal(cloneRoot, viewModel.FolderPath);
-                Assert.Equal("main", viewModel.SelectedBranch);
+                Assert.Equal("feature", viewModel.SelectedBranch);
                 Assert.Contains("2", viewModel.StatusMessage);
                 Assert.DoesNotContain("placeholder", viewModel.StatusMessage, StringComparison.OrdinalIgnoreCase);
                 Assert.Contains("one warning", viewModel.StatusMessage);

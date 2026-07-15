@@ -1100,10 +1100,8 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 FolderPath = result.ResolvedProjectFolder ?? targetFolder;
-                LoadBranchesForFolder();
+                AnalyzeFolder(false);
                 SelectedBranch = Branches.Contains(selectedBranch) ? selectedBranch : "main";
-
-                AnalyzeFolder();
 
                 var cloneSummary = $"Clone complete: {result.DownloadedCadFileCount} native CAD files, package {FolderPath}.";
 
@@ -1120,12 +1118,12 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        private void AnalyzeFolder()
+        private void AnalyzeFolder(bool ensureMainBranch = true)
         {
             IsAnalyzing = true;
             try
             {
-                LoadBranchesForFolder();
+                LoadBranchesForFolder(ensureMainBranch);
                 var policy = LoadPolicy();
                 NamingPolicyVersion = policy.PolicyVersion;
 
@@ -3485,10 +3483,11 @@ namespace IdeaCadConnector.Desktop
             return warnings;
         }
 
-        private void LoadBranchesForFolder()
+        private void LoadBranchesForFolder(bool ensureMainBranch = true)
         {
             Branches.Clear();
-            _workspaceService.EnsureMainBranch(FolderPath);
+            if (ensureMainBranch)
+                _workspaceService.EnsureMainBranch(FolderPath);
             var registry = _workspaceService.LoadBranchRegistry(FolderPath);
             foreach (var b in registry.Branches)
                 Branches.Add(b.Name);
