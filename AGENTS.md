@@ -24,6 +24,28 @@
 - Feature research: use the feature's `research.md`.
 - Do not create new feature tickets in `docs/archive/legacy-ai-work-kit/tasks/ai/`.
 
+## Supporting skills
+
+Spec Kit owns feature requirements, plans, and tasks. Matt Pocock Skills are
+supporting tools loaded on demand from `.agents/skills/`.
+
+- `grill-with-docs`: clarify requirements and terminology before or during specification.
+- `domain-modeling`: maintain `CONTEXT.md` and ADRs.
+- `codebase-design`: support technical design without replacing `plan.md`.
+- `research`: produce evidence for feature `research.md`.
+- `tdd`: implement an approved task through red-green-refactor.
+- `diagnosing-bugs`: investigate approved bugs and regressions.
+- `code-review`: review implementation against standards and the approved spec.
+- `handoff`: create session handoff information outside canonical feature artifacts.
+
+No skill may create a competing feature spec, plan, or task source.
+
+Feature workflow: Spec Kit.
+Bug/hotfix/chore: approved GitHub Issue, with `diagnosing-bugs` or `tdd` when appropriate.
+Domain: `domain-modeling`.
+Design support: `grill-with-docs`, `codebase-design`, or `research`.
+Review: `code-review`.
+
 ## Safety constraints
 
 - Never guess Aras schema or live product behavior.
@@ -46,10 +68,7 @@ Report the exact command and result. `Build not available` is not `Build passed`
 
 ## Review and verification
 
-- `idea-planner`: readiness and consistency checker.
-- `idea-implementer`: implements only approved `tasks.md` or approved issue scope.
-- `idea-reviewer`: reviews changes and does not modify source.
-- `idea-verifier`: runs verification and does not modify source.
+- Use `code-review` after each group of changes.
 - Resolve BLOCKER/HIGH findings before completion; distinguish environment failures from regressions.
 
 ## Legacy transition

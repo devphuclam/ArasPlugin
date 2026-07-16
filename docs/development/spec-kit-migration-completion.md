@@ -6,7 +6,7 @@
 SPEC KIT WORKFLOW MIGRATION COMPLETE
 ```
 
-The repository migration work is complete through canonical routing, taxonomy, pilot traceability, issue projection policy, GitHub CLI authentication, and legacy retirement. GitHub Issues projection is available for future reviewed open Spec Kit tasks; the completed pilot has no eligible open task, so no issue was created.
+The repository uses Spec Kit as the canonical feature workflow, Matt Pocock Skills as on-demand supporting engineering skills, OpenCode as the runtime and command/skill host, and `AGENTS.md` as repository operating instructions. GitHub Issues projection is available for future reviewed open Spec Kit tasks; the completed pilot has no eligible open task, so no issue was created.
 
 ## Completed areas
 
@@ -18,7 +18,8 @@ The repository migration work is complete through canonical routing, taxonomy, p
 - Pilot consistency analysis: PASS; no CRITICAL/HIGH findings; all requirements covered and all historical tasks marked completed.
 - GitHub Issues projection policy documented; no issue created because the pilot has no eligible open task.
 - Legacy AI workflow artifacts archived under `docs/archive/legacy-ai-work-kit/` with `MIGRATION_INDEX.md`.
-- Legacy ticket commands/scripts retained only as compatibility/deprecation adapters.
+- Legacy workflow commands, provider-specific workflow files, repository-specific agents, and root compatibility entry points have been removed.
+- Eight curated Matt Pocock supporting skills are installed under `.agents/skills/`; source and commit are recorded in `MATT_POCOCK_SKILLS_SOURCE.md`.
 
 ## Canonical workflow
 
@@ -62,7 +63,7 @@ The former `docs/ai/`, `docs/plans/`, `docs/superpowers/`, `.superpowers/`, and 
 - Pilot: `specs/001-pdm-cad-launch-action/`.
 - Build: `dotnet build IdeaCadConnector.sln` — 0 warnings, 0 errors.
 - Tests: `dotnet test IdeaCadConnector.sln` — 645 passed, 0 failed, 0 skipped.
-- Git status: clean after the completion-report commit.
+- Git status: clean after the final routing commit.
 - No product source/test behavior changes were made by migration.
 
 ## Projection status

@@ -26,7 +26,7 @@
 
 ## Analyze result
 
-OpenCode `/speckit.analyze` was invoked with `opencode run --command speckit.analyze --agent idea-planner --format json`. OpenCode stopped before analysis because its permission policy rejected the prerequisite subprocess `check-prerequisites.ps1`; this is recorded as an invocation-environment limitation. The prerequisite command was then run directly with `SPECIFY_FEATURE_DIRECTORY` set to this feature directory and returned exit code `0` with `tasks.md` available. A read-only consistency analysis was performed against `spec.md`, `plan.md`, `tasks.md`, and the constitution. Result: PASS with no CRITICAL or HIGH findings. All six functional requirements map to completed tasks; all completed work is marked `[x]`; no open implementation task or uncovered requirement was created.
+OpenCode `/speckit.analyze` was invoked with `opencode run --command speckit.analyze --format json`. OpenCode stopped before analysis because its permission policy rejected the prerequisite subprocess `check-prerequisites.ps1`; this is recorded as an invocation-environment limitation. The prerequisite command was then run directly with `SPECIFY_FEATURE_DIRECTORY` set to this feature directory and returned exit code `0` with `tasks.md` available. A read-only consistency analysis was performed against `spec.md`, `plan.md`, `tasks.md`, and the constitution. Result: PASS with no CRITICAL or HIGH findings. All six functional requirements map to completed tasks; all completed work is marked `[x]`; no open implementation task or uncovered requirement was created.
 
 Coverage summary:
 

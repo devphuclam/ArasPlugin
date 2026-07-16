@@ -2,7 +2,7 @@
 
 ## Secrets
 
-Never commit or paste Aras passwords, OAuth/access/refresh tokens, DeepSeek API keys, production connection strings, private customer files, or temporary credential-bearing URLs. Use placeholders and process-scoped environment variables.
+Never commit or paste Aras passwords, OAuth/access/refresh tokens, LLM provider API keys, production connection strings, private customer files, or temporary credential-bearing URLs. Use placeholders and process-scoped environment variables.
 
 ## Destructive operations
 
