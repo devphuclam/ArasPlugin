@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory=$true)]
     [ValidatePattern('^[A-Za-z0-9._/-]+$')]
-    [string]$TicketId,
+    [string]$WorkItemId,
     [string]$ApprovedSource,
     [ValidateSet('Debug','Release')]
     [string]$Configuration = 'Debug'
@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Continue'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $repoRoot
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-$outDir = Join-Path $repoRoot ".ai-work\verification\$TicketId-$stamp"
+$outDir = Join-Path $repoRoot ".ai-work\verification\$WorkItemId-$stamp"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 $source = if ([string]::IsNullOrWhiteSpace($ApprovedSource)) { 'Approved source not provided' } else { $ApprovedSource }
 
@@ -57,7 +57,7 @@ if ($dotnet) {
 }
 
 $summary = @"
-Ticket: $TicketId
+Work item: $WorkItemId
 Approved source: $source
 HEAD: $(Get-Content (Join-Path $outDir 'head.txt') -Raw)
 Branch: $(Get-Content (Join-Path $outDir 'branch.txt') -Raw)

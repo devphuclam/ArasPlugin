@@ -10,7 +10,7 @@ $count = $files.Count
 Write-Host "Changed files: $count"
 $files | ForEach-Object { Write-Host " - $_" }
 if ($count -gt $MaxFiles) {
-    Write-Host "Scope warning: more than $MaxFiles files changed. Stop and review/split the ticket." -ForegroundColor Red
+    Write-Host "Scope warning: more than $MaxFiles files changed. Stop and review/split the approved work item." -ForegroundColor Red
     exit 2
 }
 $forbidden = $files | Where-Object { $_ -match '(^|/)(bin|obj|\.vs|artifacts)/|\.(dll|pdb|snk|png)$' }
