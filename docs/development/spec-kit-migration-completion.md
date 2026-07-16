@@ -3,10 +3,10 @@
 ## Completion status
 
 ```text
-MIGRATION PARTIALLY COMPLETE - BLOCKED
+SPEC KIT WORKFLOW MIGRATION COMPLETE
 ```
 
-The repository migration work is complete through canonical routing, taxonomy, pilot traceability, issue projection policy, and legacy retirement. The Definition of Done is not marked 100% complete because GitHub CLI installation/authentication could not be completed in this environment.
+The repository migration work is complete through canonical routing, taxonomy, pilot traceability, issue projection policy, GitHub CLI authentication, and legacy retirement. GitHub Issues projection is available for future reviewed open Spec Kit tasks; the completed pilot has no eligible open task, so no issue was created.
 
 ## Completed areas
 
@@ -56,12 +56,15 @@ The former `docs/ai/`, `docs/plans/`, `docs/superpowers/`, `.superpowers/`, and 
 - Branch: `chore/spec-kit-workflow-migration`.
 - Spec Kit: `0.12.16`.
 - Integration: OpenCode `v1.0.0`, installed/default.
+- GitHub CLI: `2.96.0`, portable at `%USERPROFILE%\Tools\GitHubCLI\bin\gh.exe`.
+- GitHub authentication: verified with `gh auth status` as `devphuclam`.
+- GitHub repository: verified with `gh repo view` as `devphuclam/ArasPlugin`.
 - Pilot: `specs/001-pdm-cad-launch-action/`.
 - Build: `dotnet build IdeaCadConnector.sln` — 0 warnings, 0 errors.
 - Tests: `dotnet test IdeaCadConnector.sln` — 645 passed, 0 failed, 0 skipped.
 - Git status: clean after the completion-report commit.
 - No product source/test behavior changes were made by migration.
 
-## Blocker
+## Projection status
 
-GitHub CLI/auth readiness remains blocked. Command `winget install --id GitHub.cli --exact --accept-source-agreements --accept-package-agreements` found GitHub CLI `2.96.0` and verified the MSI hash, but the installer returned exit code `1602` after cancellation. Subsequent `gh --version` returned `GH_MISSING_AFTER_INSTALL_ATTEMPT`. Install `gh` and complete interactive `gh auth login` before projecting future open Spec Kit tasks. No issue was created for the completed pilot.
+GitHub CLI authentication and repository verification are complete. Future GitHub Issues projection remains limited to reviewed open Spec Kit tasks; completed historical tasks are not projected. No issue was created for the completed pilot because it has no eligible open task.
