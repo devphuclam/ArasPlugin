@@ -1,11 +1,12 @@
 ---
-description: Verify a ticket with build, tests, and scope checks
+description: Compatibility adapter to verify approved work
 agent: idea-verifier
 ---
-Verify ticket ID `$1` using @.ai-work/current-prompt.md and the repository's verification scripts.
+Verify approved feature task or issue `$1` from the repository root. Read canonical instructions first. Run the relevant tests and:
 
-Run:
-- .\scripts\ai\Check-AiScope.ps1
-- .\scripts\ai\Verify-AiTicket.ps1 -TicketId $1
+```powershell
+dotnet build IdeaCadConnector.sln
+dotnet test IdeaCadConnector.sln
+```
 
-Inspect the generated evidence and return the Verifier report. Do not modify files.
+Record exact commands, exit codes, results, scope, and environment blockers. Do not modify files or create evidence by guessing.

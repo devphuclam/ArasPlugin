@@ -1,14 +1,12 @@
 ---
-description: Implement the current ticket using the approved plan
+description: Compatibility adapter for implementing approved Spec Kit tasks or issues
 agent: idea-implementer
 ---
-Read @.ai-work/current-prompt.md.
+Read `AGENTS.md`, the constitution, `CONTEXT.md`, and the approved source for this change.
 
-Implement only the plan explicitly approved earlier in this same session. Additional user notes: $ARGUMENTS
+Implement only:
 
-Before editing:
-1. Restate the approved scope.
-2. List the exact files you expect to modify.
-3. Confirm no Aras schema fact is being guessed.
+- approved `specs/<feature>/tasks.md` scope for feature behavior; or
+- an approved GitHub Issue for a bug, hotfix, or chore.
 
-Then implement, add meaningful tests, run the required verification, and return the Implementer final report. Stop immediately if there is no approved plan or if the required scope expands.
+Do not create requirements, plans, tasks, or new feature workflow in `tasks/ai/`. State the exact scope before editing, run required verification, and report exact outcomes. Additional approved notes: $ARGUMENTS

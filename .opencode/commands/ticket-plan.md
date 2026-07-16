@@ -1,15 +1,7 @@
 ---
-description: Plan the current AI ticket without modifying files
+description: Compatibility adapter from legacy ticket planning to Spec Kit
 agent: idea-planner
 ---
-Read the complete current ticket context from @.ai-work/current-prompt.md.
+Read `AGENTS.md`, `.specify/memory/constitution.md`, `CONTEXT.md`, and the current approved issue or feature context.
 
-Also obey the project governance documents already loaded by OpenCode configuration.
-
-Current repository state:
-- Branch: !`git branch --show-current`
-- HEAD: !`git rev-parse --short HEAD`
-- Status: !`git status --short`
-- Diff summary: !`git diff --stat`
-
-Plan this ticket only. Do not edit files. Do not run build or tests. Return the required Planner format and stop for user approval.
+For feature behavior, route the user to `/speckit.specify`, `/speckit.clarify`, `/speckit.plan`, and `/speckit.tasks`. Do not create a second plan or write feature artifacts outside `specs/<feature>/`. For bug, hotfix, or chore work, inspect the approved GitHub Issue. Do not edit files, create `tasks/ai/` tickets, or run build/test. Return readiness, contradictions, and one status: READY_FOR_APPROVAL, NEEDS_SPLIT, or BLOCKED.

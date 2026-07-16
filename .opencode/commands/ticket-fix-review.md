@@ -1,10 +1,8 @@
 ---
-description: Fix only approved review findings for the current ticket
+description: Compatibility adapter for fixing explicitly approved review findings
 agent: idea-implementer
 ---
-Read @.ai-work/current-prompt.md.
-
-Fix only these explicitly approved review findings:
+Read the approved change context and fix only the explicitly approved review findings:
 $ARGUMENTS
 
-Do not implement unapproved suggestions or refactor unrelated code. Add/update tests for each corrected finding, rerun verification, and map every finding to its correction and test evidence.
+Do not implement unapproved suggestions, create feature artifacts, or create `tasks/ai/` tickets. Add/update relevant tests, run verification, and map each finding to its correction and evidence.

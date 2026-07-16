@@ -3,14 +3,14 @@
   "shell": "pwsh",
   "snapshot": true,
   "instructions": [
-    "AI_START_HERE.md",
-    "docs/ai/01_AI_RUNBOOK.md",
-    "docs/ai/02_PROJECT_STATE.md",
-    "docs/ai/03_ARCHITECTURE_RULES.md",
-    "docs/ai/04_ARAS_SCHEMA_MAP.md",
-    "docs/ai/08_DEFINITION_OF_DONE.md",
-    "docs/ai/09_SECURITY_AND_DATA_SAFETY.md",
-    "docs/ai/11_CONTEXT_PACK_RULES.md"
+    "AGENTS.md",
+    ".specify/memory/constitution.md",
+    "CONTEXT.md",
+    "docs/domain/**",
+    "docs/architecture/**",
+    "docs/development/**",
+    "docs/security/**",
+    "docs/adr/**"
   ],
   "permission": {
     "read": "allow",

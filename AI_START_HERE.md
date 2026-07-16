@@ -1,80 +1,32 @@
-# IDEA CAD Connector — AI Work Kit
+# IdeaCadConnector AI Entry Point
 
-Bộ này tổ chức công việc để AI coding agent làm dự án theo từng ticket nhỏ, có review và kiểm chứng độc lập.
+This file is a compatibility entry point. The canonical workflow for new feature behavior is GitHub Spec Kit.
 
-## Vị trí đúng sau khi cài
+## Start here
 
-File này phải nằm tại:
+From the `ArasPlugin/` repository root, read:
+
+1. `AGENTS.md`
+2. `.specify/memory/constitution.md`
+3. `CONTEXT.md`
+
+For a feature, use the canonical sequence:
 
 ```text
-ARAS-Plugin/
-└── IdeaCadConnector/
-    ├── AI_START_HERE.md
-    ├── DEEPSEEK.md
-    ├── IdeaCadConnector.sln
-    ├── docs/ai/
-    ├── tasks/ai/
-    └── scripts/ai/
+/speckit.specify
+→ /speckit.clarify
+→ /speckit.plan
+→ /speckit.tasks
+→ /speckit.analyze
+→ /speckit.implement
+→ review
+→ verify
 ```
 
-Nếu bạn thấy đường dẫn `IdeaCadConnector/IdeaCadConnector/AI_START_HERE.md`, bạn đã giải nén sai một cấp.
+Feature artifacts belong under `specs/<feature>/`. Bugs, hotfixes, and chores use the approved issue tracker.
 
-## Cài lần đầu
+## Legacy references
 
-Mở PowerShell tại thư mục `ARAS-Plugin\IdeaCadConnector`, sau đó chạy:
+`docs/ai/`, `docs/plans/`, `docs/superpowers/`, `tasks/ai/`, and `.superpowers/` are transitional or historical paths. Read them only for traceability or knowledge not yet migrated. Do not create new feature workflow or tickets there.
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\ai\Initialize-AiWorkKit.ps1
-```
-
-Script chỉ:
-
-- kiểm tra đang đứng đúng repo;
-- thêm khối unignore cần thiết vào `.gitignore`;
-- tạo `.ai-work` để lưu context tạm;
-- không sửa source code;
-- không tự commit.
-
-Sau đó review và commit riêng bộ AI Work Kit:
-
-```powershell
-git status --short
-git add AI_START_HERE.md DEEPSEEK.md .gitignore.ai-workkit-snippet docs/ai tasks/ai scripts/ai .github .gitignore
-git commit -m "chore: add AI development work kit"
-```
-
-Nếu repo đang có thay đổi code chưa commit, **không chạy AI sửa tiếp**. Đọc ticket `BASE-00` trước.
-
-## Thứ tự bắt đầu
-
-1. `tasks/ai/tickets/BASE-00-clean-baseline.md`
-2. `tasks/ai/tickets/BASE-01-build-baseline.md`
-3. `tasks/ai/tickets/BASE-02-test-baseline.md`
-4. `tasks/ai/tickets/BASE-04-aras-schema-map.md`
-5. Chỉ sau đó mới bắt đầu `DOC-01`.
-
-## Bắt đầu một ticket
-
-```powershell
-.\scripts\ai\Start-AiTicket.ps1 -TicketId BASE-00
-```
-
-Script sẽ:
-
-- từ chối chạy nếu working tree không sạch;
-- tìm đúng ticket;
-- tạo branch `ai/<ticket-id>-...`;
-- tạo prompt tại `.ai-work/current-prompt.md`;
-- in hướng dẫn tiếp theo.
-
-## Quy tắc quan trọng nhất
-
-- Một ticket = một branch = một PR.
-- Không giao cả Epic cho một agent.
-- AI viết code không được tự review và tự xác nhận hoàn thành.
-- Không cho AI đoán schema Aras.
-- Không merge nếu không có build/test output.
-- Không sửa Pull, Branch và Document Vault trong cùng PR.
-
-Đọc tiếp: `DEEPSEEK.md` và `docs/ai/00_START_HERE.md`.
+DeepSeek and OpenCode compatibility details remain in `DEEPSEEK.md` and `OPENCODE_START_HERE.md`; neither replaces the canonical instructions above.

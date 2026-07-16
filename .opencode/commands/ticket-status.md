@@ -1,12 +1,5 @@
 ---
-description: Show safe status for the current AI ticket
+description: Compatibility adapter for showing approved issue or Spec Kit status
 agent: idea-planner
 ---
-Without modifying files, summarize:
-- Branch: !`git branch --show-current`
-- HEAD: !`git rev-parse --short HEAD`
-- Status: !`git status --short`
-- Diff summary: !`git diff --stat`
-- Current prompt: @.ai-work/current-prompt.md
-
-Report whether the ticket is in planning, implementation, review, verification, or blocked state, and identify the next safe action.
+Without modifying files, read the current branch, Git status, approved GitHub Issue when available, or the relevant `specs/<feature>/` artifacts. For feature work, report Spec Kit artifact status. For bug, hotfix, or chore work, report GitHub Issue status. If GitHub tooling or authentication is unavailable, report that exact blocker. Do not create tickets in `tasks/ai/`.
