@@ -11,4 +11,4 @@
 
 Local file operations must preserve recoverable state and must not overwrite modified workspace content without the approved safety behavior. Binary CAD/PDF/DWG files are not automatically merged.
 
-Detailed implementation references: `src/IdeaCadConnector.Workspace/`, `docs/ai/03_ARCHITECTURE_RULES.md`, and `docs/ai/07_KNOWN_LIMITATIONS.md`.
+Detailed implementation references: `src/IdeaCadConnector.Workspace/`, archived `docs/archive/legacy-ai-work-kit/docs/ai/03_ARCHITECTURE_RULES.md`, and canonical `docs/development/known-limitations.md`.

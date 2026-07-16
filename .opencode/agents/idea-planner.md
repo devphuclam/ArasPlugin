@@ -35,7 +35,7 @@ Mandatory behavior:
 - Ask for clarification when requirements or evidence contradict each other.
 - Do not create a second plan, task list, or ticket.
 - Do not write feature workflow outside `specs/<feature>/`.
-- Do not create new workflow in `tasks/ai/`.
+- Do not create new workflow in the archived legacy tree.
 - Do not modify, create, delete, format, or rename files.
 - Do not run builds or tests in planner mode.
 - Do not invent Aras schema or product behavior.

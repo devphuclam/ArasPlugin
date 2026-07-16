@@ -27,4 +27,4 @@ Feature artifacts belong under `specs/<feature>/`. Bugs, hotfixes, and chores us
 
 ## Legacy references
 
-`docs/ai/`, `docs/plans/`, `docs/superpowers/`, `tasks/ai/`, and `.superpowers/` are transitional or historical paths. Do not create new feature workflow there.
+`docs/archive/legacy-ai-work-kit/` is the historical archive. Do not create new feature workflow there.

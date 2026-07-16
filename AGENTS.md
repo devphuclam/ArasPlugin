@@ -22,7 +22,7 @@
 - Bug, hotfix, or chore: use the approved issue tracker.
 - Architecture decision: record an ADR under `docs/adr/`.
 - Feature research: use the feature's `research.md`.
-- Do not create new feature tickets in `tasks/ai/`.
+- Do not create new feature tickets in `docs/archive/legacy-ai-work-kit/tasks/ai/`.
 
 ## Safety constraints
 
@@ -54,15 +54,15 @@ Report the exact command and result. `Build not available` is not `Build passed`
 
 ## Legacy transition
 
-The following paths are transitional: `tasks/ai/`, `docs/ai/`, `docs/plans/`, `docs/superpowers/`, and `.superpowers/`. Read them for traceability or unmigrated knowledge, but do not create new feature workflow there. Do not archive, delete, or migrate legacy documents without a separate approved scope.
+The following archived paths are historical: `docs/archive/legacy-ai-work-kit/tasks/ai/`, `docs/archive/legacy-ai-work-kit/docs/ai/`, `docs/archive/legacy-ai-work-kit/docs/plans/`, `docs/archive/legacy-ai-work-kit/docs/superpowers/`, and `docs/archive/legacy-ai-work-kit/.superpowers/`. Read them only for traceability or unmigrated knowledge; do not create new feature workflow there.
 
 ## Detailed references
 
 - `.specify/memory/constitution.md`
 - `CONTEXT.md`
-- `docs/ai/03_ARCHITECTURE_RULES.md`
-- `docs/ai/04_ARAS_SCHEMA_MAP.md`
-- `docs/ai/05_TESTING_GUIDE.md`
-- `docs/ai/09_SECURITY_AND_DATA_SAFETY.md`
+- `docs/architecture/solution-architecture.md`
+- `docs/domain/aras-and-cad-domain.md`
+- `docs/development/build-and-test.md`
+- `docs/security/data-safety.md`
 
 Keep this file operational and short; do not turn it into a long onboarding document.

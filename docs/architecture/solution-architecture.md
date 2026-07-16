@@ -33,4 +33,4 @@ The desktop application composes Core contracts with Workspace, Aras, Ui, and Ir
 
 Changes to manifest, schema, or public contracts require a version field, compatibility handling, tests for old and new shapes, and rollback notes.
 
-Source references: `IdeaCadConnector.sln`, `Directory.Build.props`, `docs/ai/03_ARCHITECTURE_RULES.md`.
+Source references: `IdeaCadConnector.sln`, `Directory.Build.props`, and archived source `docs/archive/legacy-ai-work-kit/docs/ai/03_ARCHITECTURE_RULES.md`.

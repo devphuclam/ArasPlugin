@@ -16,4 +16,4 @@ Redact authorization headers, token payloads, passwords, API keys, and sensitive
 
 Before sending repository content to a hosted AI service, confirm company policy permits it. Prefer approved agents and provide only the precise context needed.
 
-Source reference: `docs/ai/09_SECURITY_AND_DATA_SAFETY.md`.
+Source reference: archived `docs/archive/legacy-ai-work-kit/docs/ai/09_SECURITY_AND_DATA_SAFETY.md`.

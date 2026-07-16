@@ -13,4 +13,4 @@ Pull compares Base, Local, and Remote states.
 Conflict classification requires a retained base and explicit handling of local and remote divergence.
 
 ## Evidence
-`docs/ai/06_DECISIONS.md`; Workspace diff and conflict tests.
+Archived source: `docs/archive/legacy-ai-work-kit/docs/ai/06_DECISIONS.md`; Workspace diff and conflict tests.

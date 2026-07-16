@@ -57,6 +57,6 @@ New Aras schema, new remote checkout protocol, new command, CAD file format chan
 
 ## Legacy traceability
 
-- Design: `docs/superpowers/specs/2026-07-15-pdm-cad-launch-action-design.md`.
-- Technical plan: `docs/superpowers/plans/2026-07-15-pdm-cad-launch-action.md`.
+- Design: `docs/archive/legacy-ai-work-kit/docs/superpowers/specs/2026-07-15-pdm-cad-launch-action-design.md`.
+- Technical plan: `docs/archive/legacy-ai-work-kit/docs/superpowers/plans/2026-07-15-pdm-cad-launch-action.md`.
 - Historical implementation commits: `18de2f5` and `07cf495`.

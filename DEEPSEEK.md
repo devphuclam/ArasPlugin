@@ -10,7 +10,7 @@ From the `ArasPlugin/` repository root, read:
 - `.specify/memory/constitution.md`
 - `CONTEXT.md`
 
-For new feature behavior, use Spec Kit artifacts under `specs/<feature>/` and the Spec Kit command sequence. Do not create feature plans or tickets in `tasks/ai/`.
+For new feature behavior, use Spec Kit artifacts under `specs/<feature>/` and the Spec Kit command sequence. Do not create feature plans or tickets in the archived legacy tree.
 
 For bugs, hotfixes, and chores, use the approved issue tracker. Never guess Aras schema, permissions, lifecycle behavior, credentials, or product behavior.
 
@@ -23,4 +23,4 @@ For bugs, hotfixes, and chores, use the approved issue tracker. Never guess Aras
 
 ## Legacy references
 
-`docs/ai/`, `docs/plans/`, `docs/superpowers/`, `tasks/ai/`, and `.superpowers/` are transitional or historical. They may be read for traceability but are not canonical workflow locations.
+`docs/archive/legacy-ai-work-kit/` is transitional or historical. It may be read for traceability but is not a canonical workflow location.

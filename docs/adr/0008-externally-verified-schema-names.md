@@ -13,4 +13,4 @@ Do not invent Aras logical names. Use current schema evidence as the gate for sc
 Unknown schema facts block dependent work until verified, but reduce unsafe remote changes.
 
 ## Evidence
-`docs/ai/06_DECISIONS.md`; `docs/ai/04_ARAS_SCHEMA_MAP.md`.
+Archived sources: `docs/archive/legacy-ai-work-kit/docs/ai/06_DECISIONS.md`; `docs/archive/legacy-ai-work-kit/docs/ai/04_ARAS_SCHEMA_MAP.md`.

@@ -13,4 +13,4 @@ Download to a temporary location, validate, back up local files, then apply the 
 Failures preserve recoverable state and make rollback possible, at the cost of temporary storage and additional validation.
 
 ## Evidence
-`docs/ai/06_DECISIONS.md`; Workspace package and output-safety source/tests.
+Archived source: `docs/archive/legacy-ai-work-kit/docs/ai/06_DECISIONS.md`; Workspace package and output-safety source/tests.

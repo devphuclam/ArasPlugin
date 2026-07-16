@@ -66,4 +66,6 @@ IdeaCadConnector.environment.json
 !docs/development/**
 !docs/security/
 !docs/security/**
+!docs/archive/
+!docs/archive/**
 # END SPEC KIT CANONICAL ARTIFACTS

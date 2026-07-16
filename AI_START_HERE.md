@@ -27,6 +27,6 @@ Feature artifacts belong under `specs/<feature>/`. Bugs, hotfixes, and chores us
 
 ## Legacy references
 
-`docs/ai/`, `docs/plans/`, `docs/superpowers/`, `tasks/ai/`, and `.superpowers/` are transitional or historical paths. Read them only for traceability or knowledge not yet migrated. Do not create new feature workflow or tickets there.
+`docs/archive/legacy-ai-work-kit/` contains transitional or historical paths. Read it only for traceability or knowledge not yet migrated. Do not create new feature workflow or tickets there.
 
 DeepSeek and OpenCode compatibility details remain in `DEEPSEEK.md` and `OPENCODE_START_HERE.md`; neither replaces the canonical instructions above.

@@ -22,4 +22,4 @@
 
 Schema-dependent work requires current verified schema evidence. Document file-link behavior, remote pull, branch-head semantics, and promotion/conflict behavior require their corresponding contracts and evidence before implementation.
 
-Source references: `docs/ai/roadmap/DEPENDENCY_MAP.md`, `docs/ai/03_ARCHITECTURE_RULES.md`, project files under `src/`.
+Source references: archived `docs/archive/legacy-ai-work-kit/docs/ai/roadmap/DEPENDENCY_MAP.md`, archived `docs/archive/legacy-ai-work-kit/docs/ai/03_ARCHITECTURE_RULES.md`, and project files under `src/`.

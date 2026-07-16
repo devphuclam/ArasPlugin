@@ -23,4 +23,4 @@
 - Are integration/manual gaps explicitly recorded?
 - Are reviewer BLOCKER/HIGH findings resolved?
 
-Source reference: `docs/ai/12_REVIEW_CHECKLIST.md`.
+Source reference: archived `docs/archive/legacy-ai-work-kit/docs/ai/12_REVIEW_CHECKLIST.md`.

@@ -13,4 +13,4 @@ Keep one ticket per pull request and do not implement an entire epic in one chan
 Changes remain reviewable and rollback boundaries stay small.
 
 ## Evidence
-`docs/ai/06_DECISIONS.md`; legacy AI workflow guidance.
+Archived source: `docs/archive/legacy-ai-work-kit/docs/ai/06_DECISIONS.md`; legacy AI workflow guidance.

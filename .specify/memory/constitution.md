@@ -33,7 +33,7 @@ The expected baseline result must be taken from the latest approved baseline evi
 
 ### VI. Spec-Driven Development
 
-Behavior-changing features use canonical Spec Kit artifacts. Do not create feature plans or tasks in `tasks/ai/`, `docs/plans/`, `docs/superpowers/`, or `.scratch/`. Small bugs, hotfixes, and chores may use the approved issue tracker.
+Behavior-changing features use canonical Spec Kit artifacts. Do not create feature plans or tasks in `docs/archive/legacy-ai-work-kit/` or `.scratch/`. Small bugs, hotfixes, and chores may use the approved issue tracker.
 
 ### VII. Review and Documentation
 

@@ -9,4 +9,4 @@ The following are current documented limitations, not domain invariants:
 - Some UI surfaces are placeholders or partially wired.
 - OCR and CAD integration can depend on machine-specific Windows SDK, COM, and external application availability.
 
-Consult the legacy source `docs/ai/07_KNOWN_LIMITATIONS.md` for historical detail during the archive phase.
+Consult archived source `docs/archive/legacy-ai-work-kit/docs/ai/07_KNOWN_LIMITATIONS.md` for historical detail.

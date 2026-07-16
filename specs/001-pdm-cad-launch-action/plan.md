@@ -39,4 +39,4 @@ Preserve .NET Framework `net48`, WPF/MVVM bindings, existing Aras lock/download/
 
 ## Legacy traceability
 
-Source design and plan are retained under `docs/superpowers/` until legacy retirement. The implementation evidence is the two historical commits and the current source/test files listed above.
+Source design and plan are retained under `docs/archive/legacy-ai-work-kit/docs/superpowers/`. The implementation evidence is the two historical commits and the current source/test files listed above.

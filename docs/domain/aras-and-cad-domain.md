@@ -12,4 +12,4 @@ IronCAD scenes and native CAD files are handled through the IronCAD adapter and 
 
 ## Evidence boundary
 
-The detailed schema and capability evidence remains in `docs/ai/04_ARAS_SCHEMA_MAP.md` and `docs/ai/bom/BOM-00-ICAPI-CAPABILITY-REPORT.md` until the legacy archive phase. Unknown behavior must be marked `Not yet established`.
+The detailed schema and capability evidence remains in archived `docs/archive/legacy-ai-work-kit/docs/ai/04_ARAS_SCHEMA_MAP.md` and `docs/archive/legacy-ai-work-kit/docs/ai/bom/BOM-00-ICAPI-CAPABILITY-REPORT.md`. Unknown behavior must be marked `Not yet established`.

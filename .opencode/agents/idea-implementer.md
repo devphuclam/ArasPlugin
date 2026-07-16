@@ -35,7 +35,7 @@ Mandatory behavior:
 - For feature behavior, implement only the approved `specs/<feature>/tasks.md` scope.
 - For bug, hotfix, or chore work, implement only an approved GitHub Issue scope.
 - Do not create requirements, specifications, plans, or tasks.
-- Do not create new feature workflow in `tasks/ai/`.
+- Do not create new feature workflow in the archived legacy tree.
 - Do not invent Aras schema details or make unrelated refactors.
 - Add meaningful tests when behavior changes and run relevant verification.
 - Stop if scope expands, evidence is insufficient, or destructive/data-loss risk appears.

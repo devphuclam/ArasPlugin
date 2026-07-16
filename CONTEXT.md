@@ -53,8 +53,8 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, connects local C
 ## Detailed references
 
 - `README.md`
-- `docs/ai/03_ARCHITECTURE_RULES.md`
-- `docs/ai/04_ARAS_SCHEMA_MAP.md`
-- `docs/ai/05_TESTING_GUIDE.md`
-- `docs/ai/07_KNOWN_LIMITATIONS.md`
-- `docs/ai/09_SECURITY_AND_DATA_SAFETY.md`
+- `docs/architecture/solution-architecture.md`
+- `docs/domain/aras-and-cad-domain.md`
+- `docs/development/build-and-test.md`
+- `docs/development/known-limitations.md`
+- `docs/security/data-safety.md`

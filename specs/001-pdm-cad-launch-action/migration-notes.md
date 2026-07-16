@@ -2,8 +2,8 @@
 
 ## Legacy source documents
 
-- `docs/superpowers/specs/2026-07-15-pdm-cad-launch-action-design.md`
-- `docs/superpowers/plans/2026-07-15-pdm-cad-launch-action.md`
+- `docs/archive/legacy-ai-work-kit/docs/superpowers/specs/2026-07-15-pdm-cad-launch-action-design.md`
+- `docs/archive/legacy-ai-work-kit/docs/superpowers/plans/2026-07-15-pdm-cad-launch-action.md`
 
 ## Relevant commits
 

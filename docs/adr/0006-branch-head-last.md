@@ -13,4 +13,4 @@ Update the branch head only after commit creation and required file operations s
 The branch points only to recoverable completed state; failure leaves the previous head intact.
 
 ## Evidence
-`docs/ai/06_DECISIONS.md`; Workspace commit/branch source and tests.
+Archived source: `docs/archive/legacy-ai-work-kit/docs/ai/06_DECISIONS.md`; Workspace commit/branch source and tests.

@@ -19,4 +19,4 @@ The expected result must be taken from the latest approved baseline evidence. Do
 
 Assert observable state, results, and error codes. Include negative paths for cancellation, network errors, permission denial, and partial failure. Do not run live integration tests against production by default.
 
-Source reference: `docs/ai/05_TESTING_GUIDE.md`.
+Source reference: archived `docs/archive/legacy-ai-work-kit/docs/ai/05_TESTING_GUIDE.md`.

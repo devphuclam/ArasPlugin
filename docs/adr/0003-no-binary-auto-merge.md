@@ -13,4 +13,4 @@ Binary conflicts use explicit choices such as Keep Local, Use Server, Save Both,
 Conflict handling is explicit and avoids silent data loss.
 
 ## Evidence
-`docs/ai/06_DECISIONS.md`; Workspace conflict behavior and tests.
+Archived source: `docs/archive/legacy-ai-work-kit/docs/ai/06_DECISIONS.md`; Workspace conflict behavior and tests.
