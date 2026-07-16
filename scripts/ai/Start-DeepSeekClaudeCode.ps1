@@ -44,7 +44,9 @@ if ($Profile -eq 'pro') {
 
 Set-Location $repoRoot
 Write-Host 'Starting DeepSeek-backed coding agent. API key exists only in this process environment.' -ForegroundColor Cyan
-Write-Host 'First message: Read .ai-work/current-prompt.md and start in PLANNER mode.' -ForegroundColor Yellow
+Write-Host 'Read AGENTS.md, .specify/memory/constitution.md, and CONTEXT.md first.' -ForegroundColor Yellow
+Write-Host 'For feature work, use the approved Spec Kit artifacts under specs/<feature>/.' -ForegroundColor Yellow
+Write-Host 'For bugs, hotfixes, or chores, use an approved GitHub Issue.' -ForegroundColor Yellow
 & $claude.Source
 
 # Best-effort cleanup after the child process exits.

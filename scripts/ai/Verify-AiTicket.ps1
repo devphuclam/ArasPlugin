@@ -1,8 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)]
-    [ValidatePattern('^[A-Z]+-\d{2}(-[A-Z0-9]+)*$')]
+    [ValidatePattern('^[A-Za-z0-9._/-]+$')]
     [string]$TicketId,
+    [string]$ApprovedSource,
     [ValidateSet('Debug','Release')]
     [string]$Configuration = 'Debug'
 )
@@ -13,6 +14,7 @@ Set-Location $repoRoot
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $outDir = Join-Path $repoRoot ".ai-work\verification\$TicketId-$stamp"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+$source = if ([string]::IsNullOrWhiteSpace($ApprovedSource)) { 'Approved source not provided' } else { $ApprovedSource }
 
 function Run-Step([string]$Name, [scriptblock]$Command) {
     $log = Join-Path $outDir "$Name.log"
@@ -56,6 +58,7 @@ if ($dotnet) {
 
 $summary = @"
 Ticket: $TicketId
+Approved source: $source
 HEAD: $(Get-Content (Join-Path $outDir 'head.txt') -Raw)
 Branch: $(Get-Content (Join-Path $outDir 'branch.txt') -Raw)
 Build exit: $buildCode

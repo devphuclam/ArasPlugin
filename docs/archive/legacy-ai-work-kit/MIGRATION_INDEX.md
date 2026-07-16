@@ -128,5 +128,6 @@ Open/blocked legacy tickets remain archived because their status is explicit in 
 
 ## Active compatibility
 
-Root compatibility entry points and .opencode/commands/ticket-* adapters may mention legacy paths for traceability, but they do not create new feature workflow there. Canonical sources are listed in AGENTS.md, CONTEXT.md, the constitution, and specs/<feature>/.
+The legacy installer artifact `.gitignore.ai-workkit-snippet` is archived at `docs/archive/legacy-ai-work-kit/.gitignore.ai-workkit-snippet`; it is historical only and is not an active ignore source.
 
+Root compatibility entry points and .opencode/commands/ticket-* adapters may mention legacy paths for traceability, but they do not create new feature workflow there. Canonical sources are listed in AGENTS.md, CONTEXT.md, the constitution, and specs/<feature>/.

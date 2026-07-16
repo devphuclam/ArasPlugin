@@ -1,4 +1,7 @@
-## Ticket
+## Approved source
+
+- Spec Kit feature/task:
+- GitHub Issue:
 
 <!-- e.g. DOC-03 -->
 
@@ -50,4 +53,7 @@
 - [ ] Cancellation/error paths handled
 - [ ] No secret in code/log
 - [ ] Schema assumptions verified
-- [ ] Project State updated
+- [ ] Canonical documentation synchronized when required
+- [ ] Feature work traces to reviewed spec.md, plan.md, and tasks.md
+- [ ] Bug/hotfix/chore traces to an approved GitHub Issue
+- [ ] No workflow artifact was created under archived legacy paths

@@ -15,11 +15,6 @@ artifacts/
 !AI_START_HERE.md
 !DEEPSEEK.md
 !docs/
-!docs/ai/
-!docs/ai/**
-!tasks/
-!tasks/ai/
-!tasks/ai/**
 !scripts/
 !scripts/ai/
 !scripts/ai/**
