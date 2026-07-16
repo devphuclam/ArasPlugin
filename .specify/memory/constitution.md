@@ -20,7 +20,16 @@ Preserve .NET Framework `net48`, Windows, WPF/WinForms, COM, strong-name, Aras I
 
 ### V. Testing and Verification
 
-Every code change requires relevant tests or verification evidence. The repository baseline is `dotnet build IdeaCadConnector.sln` and `dotnet test IdeaCadConnector.sln`, currently expected to produce 0 warnings/0 errors and 645 passed, 0 failed, 0 skipped. Do not claim a command passed unless it was run.
+Every code change requires relevant tests or verification evidence.
+
+The repository baseline commands are:
+
+```powershell
+dotnet build IdeaCadConnector.sln
+dotnet test IdeaCadConnector.sln
+```
+
+The expected baseline result must be taken from the latest approved baseline evidence. Do not claim a command passed unless it was actually run. Environment or dependency failures must be distinguished from regressions.
 
 ### VI. Spec-Driven Development
 

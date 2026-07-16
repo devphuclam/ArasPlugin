@@ -14,11 +14,11 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, connects local C
 
 ## External systems
 
-- **Aras Innovator**: the remote PDM system accessed through Aras IOM and HTTP/REST/OData clients. Authentication, AML operations, Part search, Vault file transfer, and library/PDM operations are separated behind contracts and adapters.
+- **Aras Innovator**: accessed through verified repository clients and adapters, including Aras IOM where used by the current implementation. Authentication, remote item operations, Part search, file transfer, and library/PDM operations are separated behind contracts and adapters.
 - **IronCAD**: the CAD application integrated through the IronCAD adapter and desktop services. The repository resolves and launches an `IRONCAD.exe` executable when the current workflow requires it; exact installation behavior is defined by code and tests.
 - **Windows/.NET Framework**: the supported execution environment; the solution targets `.NET Framework net48` and includes WPF/WinForms, COM, and strong-name constraints.
 
-## Stable relationships
+## Project dependency responsibilities
 
 - Core defines contracts, DTOs, validation, lifecycle policies, and other shared domain abstractions.
 - Workspace owns local workspace state, naming, package import/export, normalization, clone preparation, and push-preview models.
@@ -33,7 +33,7 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, connects local C
 - **Checkout/check-in**: the current CAD workflow for obtaining an editable file and returning it with a remote update.
 - **Clone**: a Workspace operation that builds or consumes a local package from remote PDM data; exact end-to-end sync semantics are not yet established.
 - **Normalize/export**: Workspace operations that validate references and publish a package representation with a manifest.
-- **Part library**: Aras records and client workflows for reusable parts, entries, revision details, and usage; live permission and lifecycle behavior remains partially unverified.
+- **Part library**: Aras records and client workflows for reusable parts, entries, revision details, and usage.
 - **Vault**: Aras-managed physical file storage accessed through the current file client abstractions.
 
 ## Domain invariants
@@ -41,14 +41,13 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, connects local C
 - A local package publication must pass the current output-safety, manifest, and reference validation rules.
 - Native CAD file handling must respect the current CAD adapter and file validation contracts.
 - Aras schema names and remote lifecycle/permission behavior are facts only when supported by verified evidence.
-- PDM Commit, PDM Commit File, and PDM Branch are not deployed in the currently recorded live schema; dependent write behavior is therefore not established.
 - Credential values, tokens, passwords, and environment-specific secrets are never domain data for documentation.
 
 ## Known boundaries
 
-- Live Aras method parity is not universal: the schema evidence records differences for three methods and requires verification before editing or redeploying them.
-- Document File write/version/permission behavior and role-specific permission matrices remain `Not yet established` for dependent work.
-- Full Pull synchronization, some UI behavior, and machine-specific CAD/OCR behavior have known limitations documented in `docs/ai/07_KNOWN_LIMITATIONS.md`.
+- Live Aras schema, permissions, lifecycles, and server-method behavior must be verified against current environment evidence before dependent work.
+- Machine-specific IronCAD, COM, Vault, and OCR behavior is not assumed to be portable between environments.
+- Remote synchronization semantics are governed by the approved feature specification and verified integration contracts.
 - Product behavior not evidenced by source, tests, or verified documentation is `Not yet established`.
 
 ## Detailed references
