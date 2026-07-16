@@ -58,4 +58,12 @@ IdeaCadConnector.environment.json
 !CONTEXT.md
 !docs/adr/
 !docs/adr/**
+!docs/architecture/
+!docs/architecture/**
+!docs/domain/
+!docs/domain/**
+!docs/development/
+!docs/development/**
+!docs/security/
+!docs/security/**
 # END SPEC KIT CANONICAL ARTIFACTS
