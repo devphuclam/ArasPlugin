@@ -2,54 +2,65 @@
 
 ## Repository scope
 
-- Run every command from the `ArasPlugin/` repository root.
-- Do not use `.specify/` or `.agents/` from the parent workspace as canonical project instructions.
-- Keep each change within the approved feature, issue, or chore scope.
+- Run commands from the `ArasPlugin/` repository root.
+- Do not use parent-workspace instructions as a substitute for this file.
+- Repository-local `.agents/skills/` is the project's canonical skill set.
+- Keep changes within the approved feature, issue, or chore scope.
 
-## Canonical source order
+## Canonical sources
+
+Use this order when sources disagree:
 
 1. Source and tests for current behavior.
-2. `.specify/memory/constitution.md` for governing principles.
+2. `.specify/memory/constitution.md`.
 3. `specs/<feature>/spec.md`.
 4. `specs/<feature>/plan.md`.
 5. `specs/<feature>/tasks.md`.
 6. `CONTEXT.md` and `docs/domain/`.
-7. ADRs and detailed reference documentation.
+7. ADRs and detailed references.
+
+## AI collaboration model
+
+ChatGPT/Codex handles requirement clarification, research, architecture analysis,
+independent artifact review, and independent code review. OpenCode hosts Spec
+Kit commands and is the default implementation runtime for focused fixes,
+builds, and tests. Either tool may implement when explicitly assigned, but only
+one writer may edit source on a branch at a time.
 
 ## Work routing
 
-- Feature behavior: use Spec Kit artifacts under `specs/<feature>/`.
-- Bug, hotfix, or chore: use the approved issue tracker.
-- Architecture decision: record an ADR under `docs/adr/`.
-- Feature research: use the feature's `research.md`.
-- Do not create new feature tickets in `docs/archive/legacy-ai-work-kit/tasks/ai/`.
+- Feature: use Spec Kit artifacts under `specs/<feature>/`.
+- Bug, hotfix, or chore: use an approved work item or GitHub Issue.
+- Requirement clarification: `grill-with-docs`.
+- Domain terminology: `domain-modeling`.
+- Technical design review: `codebase-design`.
+- Implementation: `tdd`.
+- Bug investigation: `diagnosing-bugs`.
+- Independent review: `code-review`.
 
 ## Supporting skills
 
-Spec Kit owns feature requirements, plans, and tasks. Matt Pocock Skills are
-supporting tools loaded on demand from `.agents/skills/`.
+- `grill-with-docs`: clarify requirements, terminology, and acceptance criteria.
+- `domain-modeling`: maintain domain vocabulary, context, and ADRs.
+- `codebase-design`: review technical plans and architecture boundaries.
+- `tdd`: use red-green-refactor for approved tasks.
+- `diagnosing-bugs`: reproduce and isolate bugs before fixing them.
+- `code-review`: review implementation against specifications and standards.
 
-- `grill-with-docs`: clarify requirements and terminology before or during specification.
-- `domain-modeling`: maintain `CONTEXT.md` and ADRs.
-- `codebase-design`: support technical design without replacing `plan.md`.
-- `research`: produce evidence for feature `research.md`.
-- `tdd`: implement an approved task through red-green-refactor.
-- `diagnosing-bugs`: investigate approved bugs and regressions.
-- `code-review`: review implementation against standards and the approved spec.
-- `handoff`: create session handoff information outside canonical feature artifacts.
+No skill may create a competing `spec.md`, `plan.md`, or `tasks.md`.
 
-No skill may create a competing feature spec, plan, or task source.
+## Writer and reviewer rule
 
-Feature workflow: Spec Kit.
-Bug/hotfix/chore: approved GitHub Issue, with `diagnosing-bugs` or `tdd` when appropriate.
-Domain: `domain-modeling`.
-Design support: `grill-with-docs`, `codebase-design`, or `research`.
-Review: `code-review`.
+- Never let ChatGPT/Codex and OpenCode edit source simultaneously.
+- The writer completes its diff before the reviewer starts.
+- Reviewers do not modify source during review passes.
+- Findings use severity `BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`.
+- The writer fixes only findings that have been confirmed and approved.
 
 ## Safety constraints
 
 - Never guess Aras schema or live product behavior.
-- Do not modify source outside an approved task or issue.
+- Do not modify source outside the approved task or issue.
 - Do not use destructive Git commands.
 - Do not edit the registry or run `.reg` files without explicit request.
 - Do not install dependencies or tools outside approved scope.
@@ -57,23 +68,21 @@ Review: `code-review`.
 
 ## Build and test
 
-Run the repository baseline from the root:
+Run from the repository root and report exact results:
 
 ```powershell
 dotnet build IdeaCadConnector.sln
 dotnet test IdeaCadConnector.sln
 ```
 
-Report the exact command and result. `Build not available` is not `Build passed`.
+`Build not available` is not `Build passed`.
 
-## Review and verification
+## Handoff requirements
 
-- Use `code-review` after each group of changes.
-- Resolve BLOCKER/HIGH findings before completion; distinguish environment failures from regressions.
-
-## Legacy transition
-
-The following archived paths are historical: `docs/archive/legacy-ai-work-kit/tasks/ai/`, `docs/archive/legacy-ai-work-kit/docs/ai/`, `docs/archive/legacy-ai-work-kit/docs/plans/`, `docs/archive/legacy-ai-work-kit/docs/superpowers/`, and `docs/archive/legacy-ai-work-kit/.superpowers/`. Read them only for traceability or unmigrated knowledge; do not create new feature workflow there.
+Record the repository root, branch, HEAD, working-tree status, active work item,
+canonical artifact paths, completed and next tasks, changed files, commands and
+results, open findings, blockers, approved decisions, unsafe assumptions, and
+prohibited next actions.
 
 ## Detailed references
 
@@ -82,6 +91,9 @@ The following archived paths are historical: `docs/archive/legacy-ai-work-kit/ta
 - `docs/architecture/solution-architecture.md`
 - `docs/domain/aras-and-cad-domain.md`
 - `docs/development/build-and-test.md`
+- `docs/development/chatgpt-opencode-workflow.md`
+- `docs/development/ai-prompt-library.md`
 - `docs/security/data-safety.md`
+- `docs/adr/`
 
-Keep this file operational and short; do not turn it into a long onboarding document.
+Keep this file operational and short.
