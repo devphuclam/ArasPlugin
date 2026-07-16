@@ -6,7 +6,10 @@
 SPEC KIT WORKFLOW MIGRATION COMPLETE
 ```
 
-The repository uses Spec Kit as the canonical feature workflow, Matt Pocock Skills as on-demand supporting engineering skills, OpenCode as the runtime and command/skill host, and `AGENTS.md` as repository operating instructions. GitHub Issues projection is available for future reviewed open Spec Kit tasks; the completed pilot has no eligible open task, so no issue was created.
+Spec Kit = canonical feature workflow.
+Matt Pocock Skills = supporting engineering procedures.
+ChatGPT/Codex = analysis and independent review.
+OpenCode = Spec Kit host and default implementation runtime.
 
 ## Completed areas
 
@@ -19,7 +22,7 @@ The repository uses Spec Kit as the canonical feature workflow, Matt Pocock Skil
 - GitHub Issues projection policy documented; no issue created because the pilot has no eligible open task.
 - Legacy AI workflow artifacts archived under `docs/archive/legacy-ai-work-kit/` with `MIGRATION_INDEX.md`.
 - Legacy workflow commands, provider-specific workflow files, repository-specific agents, and root compatibility entry points have been removed.
-- Eight curated Matt Pocock supporting skills are installed under `.agents/skills/`; source and commit are recorded in `MATT_POCOCK_SKILLS_SOURCE.md`.
+- Six curated Matt Pocock supporting skills are installed under `.agents/skills/`; source and commit are recorded in `MATT_POCOCK_SKILLS_SOURCE.md`.
 
 ## Canonical workflow
 
