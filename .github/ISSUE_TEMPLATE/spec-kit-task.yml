@@ -1,0 +1,68 @@
+name: Spec Kit task projection
+description: Execution issue projected from a reviewed open Spec Kit task
+title: "[SPEC-KIT] "
+labels: ["ai-ready"]
+body:
+  - type: input
+    id: feature_directory
+    attributes:
+      label: Feature directory
+      description: Canonical Spec Kit feature directory.
+      placeholder: specs/001-example-feature
+    validations:
+      required: true
+  - type: input
+    id: task_id
+    attributes:
+      label: Task ID
+      placeholder: T001
+    validations:
+      required: true
+  - type: textarea
+    id: marker
+    attributes:
+      label: Spec-Kit task marker
+      description: Use exactly Spec-Kit-Task: <feature-slug>#<task-id>.
+      placeholder: "Spec-Kit-Task: example-feature#T001"
+    validations:
+      required: true
+  - type: input
+    id: spec_link
+    attributes:
+      label: spec.md link
+      placeholder: specs/001-example-feature/spec.md
+    validations:
+      required: true
+  - type: input
+    id: plan_link
+    attributes:
+      label: plan.md link
+      placeholder: specs/001-example-feature/plan.md
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Task acceptance criteria
+    validations:
+      required: true
+  - type: textarea
+    id: allowed_scope
+    attributes:
+      label: Allowed scope
+      description: List the exact files, contracts, and boundaries approved by tasks.md.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification commands
+      description: Include the exact build/test commands required by the feature.
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        This issue is an execution projection only. Do not use it to write new requirements or replace spec.md, plan.md, or tasks.md.
+
+        Create issues only for reviewed open (`[ ]`) Spec Kit tasks. Do not use this template for completed historical tasks.
