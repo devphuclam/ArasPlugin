@@ -48,3 +48,14 @@ IdeaCadConnector.environment.json
 # Template sources are not needed after installation.
 .ai-workkit-opencode-template/
 # END OPENCODE AI WORK KIT
+
+# BEGIN SPEC KIT CANONICAL ARTIFACTS
+!.specify/
+!.specify/**
+!specs/
+!specs/**
+!AGENTS.md
+!CONTEXT.md
+!docs/adr/
+!docs/adr/**
+# END SPEC KIT CANONICAL ARTIFACTS
