@@ -11,6 +11,8 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
         public PdmSourceNode Root { get; set; }
         public IDictionary<PdmSourceNode, IZElement> Elements { get; } =
             new Dictionary<PdmSourceNode, IZElement>();
+        public IDictionary<PdmSourceNode, ElementId> ElementIds { get; } =
+            new Dictionary<PdmSourceNode, ElementId>();
     }
 
     public sealed class IronCadSceneNormalizationReader
@@ -30,14 +32,16 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             if (top == null) throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
             var snapshot = new IronCadSceneSnapshot();
             var active = new HashSet<IZElement>(ReferenceComparer<IZElement>.Instance);
+            var elementToId = new Dictionary<IZElement, int>(ReferenceComparer<IZElement>.Instance);
+            var nextId = 0;
             var nodeCount = 0;
-            snapshot.Root = ReadElement(top, snapshot, limits, active, ref nodeCount, true, 0);
+            snapshot.Root = ReadElement(top, snapshot, limits, active, ref nodeCount, true, 0, elementToId, ref nextId);
             return snapshot;
         }
 
         private static PdmSourceNode ReadElement(IZElement element, IronCadSceneSnapshot snapshot,
             PdmNormalizationLimits limits, ISet<IZElement> active, ref int nodeCount,
-            bool isRoot, int depth)
+            bool isRoot, int depth, IDictionary<IZElement, int> elementToId, ref int nextId)
         {
             if (element == null) throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
             if (depth > limits.MaxDepth || nodeCount >= limits.MaxNodeCount)
@@ -54,6 +58,12 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             catch (Exception ex) { throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED", ex); }
             var node = new PdmSourceNode { Kind = kind, Name = name, Properties = ReadProperties(element), Children = new List<PdmSourceNode>() };
             snapshot.Elements[node] = element;
+            if (!elementToId.TryGetValue(element, out var id))
+            {
+                id = nextId++;
+                elementToId[element] = id;
+            }
+            snapshot.ElementIds[node] = new ElementId(id);
             var children = (List<PdmSourceNode>)node.Children;
             IZArray array;
             try { array = element.GetChildrenZArray(); }
@@ -79,7 +89,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 }
                 var child = value as IZElement;
                 if (child == null) throw new InvalidOperationException("SCENE_TRAVERSAL_FAILED");
-                children.Add(ReadElement(child, snapshot, limits, active, ref nodeCount, false, depth + 1));
+                children.Add(ReadElement(child, snapshot, limits, active, ref nodeCount, false, depth + 1, elementToId, ref nextId));
             }
             active.Remove(element);
             return node;

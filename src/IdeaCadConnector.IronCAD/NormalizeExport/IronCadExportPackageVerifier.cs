@@ -13,17 +13,6 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
         public IList<IronCadExternalReferenceRecord> ExternalReferences { get; } = new List<IronCadExternalReferenceRecord>();
     }
 
-    public sealed class IronCadExternalReferenceRecord
-    {
-        public string OccurrencePath { get; set; }
-        public string ReportedLinkPath { get; set; }
-        public string ResolvedTargetPath { get; set; }
-        public bool Exists { get; set; }
-        public bool InsidePackage { get; set; }
-        public bool PointsToSource { get; set; }
-        public bool CanonicalFileNameMatch { get; set; }
-    }
-
     public sealed class IronCadExportPackageVerifier
     {
         private readonly IronCadSceneNormalizationReader _reader;
@@ -57,6 +46,15 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             result.IsValid = result.Issues.Count == 0;
             if (!result.IsValid) throw new PdmNormalizeExportException("ROUND_TRIP_VALIDATION_FAILED", "Package mở lại không khớp kế hoạch đã phê duyệt.", string.Join(",", result.Issues));
             return result;
+        }
+
+        public IronCadExternalReferenceValidationResult VerifyExternalLinks(IZSceneDoc openedRoot,
+            PdmNormalizationPlan plan, IronCadExternalReferenceValidationContext context)
+        {
+            var reader = new IronCadExternalReferenceReader();
+            var rawRecords = reader.Read(openedRoot);
+            var validator = new IronCadExternalReferenceValidator();
+            return validator.ValidateExportedLinks(rawRecords, plan, context);
         }
 
         private static void ApplyObservedProperties(PdmPlanItem item, PdmSourceNode source)

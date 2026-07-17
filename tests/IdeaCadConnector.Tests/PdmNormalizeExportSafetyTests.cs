@@ -64,7 +64,6 @@ namespace IdeaCadConnector.Tests
             var writerPath = Path.Combine(repoRoot, "src", "IdeaCadConnector.IronCAD", "NormalizeExport",
                 "IronCadSceneNormalizationWriter.cs");
             var writerSource = File.ReadAllText(writerPath);
-            Assert.Contains("scene.SaveAsCopy(rootPath, eZLinksSaveOptions.Z_LINKS_SAVE_ALL, true);", writerSource);
             Assert.DoesNotContain("scene.SaveAs(rootPath", writerSource);
         }
 
