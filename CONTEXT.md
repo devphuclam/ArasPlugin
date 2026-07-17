@@ -33,6 +33,7 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, connects local C
 - **Checkout/check-in**: the current CAD workflow for obtaining an editable file and returning it with a remote update.
 - **Clone**: a Workspace operation that builds or consumes a local package from remote PDM data; exact end-to-end sync semantics are not yet established.
 - **Normalize/export**: Workspace operations that validate references and publish a package representation with a manifest.
+- **Linked normalized export**: A normalized package whose root IronCAD scene keeps each child occurrence linked to its corresponding child CAD file; saving changes made to a child through the root scene must persist those changes to the child file, including when the same child definition is used by multiple occurrences.
 - **Part library**: Aras records and client workflows for reusable parts, entries, revision details, and usage.
 - **Vault**: Aras-managed physical file storage accessed through the current file client abstractions.
 

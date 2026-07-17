@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using interop.ICApiIronCAD;
 using IdeaCadConnector.Ui.Views;
@@ -12,23 +13,24 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
 {
     public sealed class IronCadNormalizeExportCommand
     {
-        private readonly IronCadAddin _addin;
+        private readonly IZBaseApp _app;
+        private readonly IIronCadSceneDocumentService _documentService;
         private readonly IronCadSceneNormalizationReader _reader = new IronCadSceneNormalizationReader();
         private readonly IronCadSceneNormalizationWriter _writer = new IronCadSceneNormalizationWriter();
         private readonly IronCadDependencyDiscovery _dependencyDiscovery = new IronCadDependencyDiscovery();
-        private readonly IronCadDocumentActivationVerifier _activationVerifier = new IronCadDocumentActivationVerifier();
         public bool IsRunning { get; private set; }
 
-        public IronCadNormalizeExportCommand(IronCadAddin addin) { _addin = addin ?? throw new ArgumentNullException(nameof(addin)); }
+        public IronCadNormalizeExportCommand(IZBaseApp app, IIronCadSceneDocumentService documentService)
+        {
+            _app = app ?? throw new ArgumentNullException(nameof(app));
+            _documentService = documentService ?? throw new ArgumentNullException(nameof(documentService));
+        }
 
         public void Execute()
         {
             if (IsRunning) return;
             IsRunning = true;
-            IZBaseApp app = null;
             IZDoc stagedSourceDoc = null;
-            IZDoc exportedStagingDoc = null;
-            IZDoc finalPackageDoc = null;
             string stagingDirectory = null;
             string sourceStagingDirectory = null;
             string finalDirectory = null;
@@ -36,20 +38,19 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             Exception failure = null;
             bool finalPackageStarted = false;
             bool finalPackagePublished = false;
+            bool temporaryDocumentOpened = false;
             var cleanupFailures = new List<Exception>();
             try
             {
-                app = _addin.IronCADApp;
-                if (app == null) throw Fail("ACTIVE_DOCUMENT_UNAVAILABLE", "Không tìm thấy phiên IronCAD đang hoạt động.");
-                var originalSourceDocument = app.ActiveDoc;
+                if (_app == null) throw Fail("ACTIVE_DOCUMENT_UNAVAILABLE", "Không tìm thấy phiên IronCAD đang hoạt động.");
+                var originalSourceDocument = GetActiveOrSingleOpenDocument(_app);
                 var originalSourceDoc = originalSourceDocument as IZDoc;
                 var sourceScene = originalSourceDocument as IZSceneDoc;
                 if (originalSourceDocument == null) throw Fail("ACTIVE_DOCUMENT_UNAVAILABLE", "Không có tài liệu IronCAD đang hoạt động.");
-                if (originalSourceDoc == null) throw Fail("ACTIVE_DOCUMENT_UNAVAILABLE", "Không thể nhận diện source document an toàn.");
                 if (sourceScene == null) throw Fail("ACTIVE_DOCUMENT_NOT_SCENE", "Tài liệu đang mở không phải IronCAD Scene.");
-                var activePath = originalSourceDocument.Name;
+                var activePath = originalSourceDoc != null ? originalSourceDoc.Name : GetSceneDocumentName(sourceScene);
                 if (string.IsNullOrWhiteSpace(activePath) || !Path.IsPathRooted(activePath) ||
-                    !string.Equals(Path.GetExtension(activePath), ".ics", StringComparison.OrdinalIgnoreCase) || originalSourceDocument.Modified)
+                    !string.Equals(Path.GetExtension(activePath), ".ics", StringComparison.OrdinalIgnoreCase) || IsSceneDocumentModified(originalSourceDoc, sourceScene))
                     throw Fail("ACTIVE_DOCUMENT_NOT_SAVED", "Hãy lưu Scene .ics và bảo đảm tài liệu không có thay đổi chưa lưu.");
 
                 var dependencies = _dependencyDiscovery.Discover(sourceScene, Path.GetDirectoryName(activePath));
@@ -84,9 +85,8 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 Directory.CreateDirectory(sourceStagingDirectory);
                 var stagedSourcePath = Path.Combine(sourceStagingDirectory, Path.GetFileName(activePath));
                 File.Copy(activePath, stagedSourcePath, false);
-                stagedSourceDoc = app.OpenFile(stagedSourcePath, false);
-                EnsureTemporaryDocument(stagedSourceDoc, originalSourceDoc, "STAGING_DOCUMENT_OPEN_FAILED");
-                var stagedScene = _activationVerifier.VerifyScene(app, stagedSourcePath, "STAGING_DOCUMENT");
+                var stagedScene = _documentService.OpenDocument(stagedSourcePath);
+                temporaryDocumentOpened = true;
 
                 var stagedSnapshot = _reader.Read(stagedScene);
                 if (stagedSnapshot.Root.Properties == null) stagedSnapshot.Root.Properties = new PdmSourceProperties();
@@ -100,37 +100,68 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 stagedScene.DisableDirtyCounter();
                 _writer.Apply(stagedSnapshot, stagedPlan);
                 finalPackageStarted = true;
-                var stagedRootFile = _writer.Export(stagedScene, stagedSnapshot, stagedPlan, packageStaging);
-                var manifest = PdmManifestV2Factory.Create(stagedPlan);
+                var exportResult = _writer.Export(_app, stagedScene, stagedSnapshot, stagedPlan, packageStaging);
+                var manifest = PdmManifestV2Factory.Create(stagedPlan, exportResult.SourceNodeToDefFileMap);
                 File.WriteAllText(Path.Combine(packageStaging, "pdm-bom-manifest.json"), new PdmPackageManifestWriter().Serialize(manifest));
                 EnsurePackageValid(packageStaging, manifest, "PACKAGE_VALIDATION_FAILED");
                 finalPackagePublished = true;
 
-                CloseDocumentOrThrow(app, ref stagedSourceDoc);
+                _documentService.CloseDocument();
+                temporaryDocumentOpened = false;
                 if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
                     throw Fail("SOURCE_FILE_CHANGED", "File nguồn đã thay đổi trong quá trình xuất.");
 
-                var finalRootPath = Path.Combine(finalDirectory, "cad", Path.GetFileName(stagedRootFile));
-                finalPackageDoc = app.OpenFile(finalRootPath, false);
-                EnsureTemporaryDocument(finalPackageDoc, originalSourceDoc, "FINAL_ROOT_OPEN_FAILED");
-                var finalScene = _activationVerifier.VerifyScene(app, finalRootPath, "FINAL_ROOT");
+                var finalRootPath = Path.Combine(finalDirectory, "cad", Path.GetFileName(exportResult.RootFilePath));
+                var finalScene = _documentService.OpenDocument(finalRootPath);
+                temporaryDocumentOpened = true;
                 EnsurePackageValid(finalDirectory, manifest, "FINAL_PACKAGE_VALIDATION_FAILED");
-                new IronCadExportPackageVerifier(_reader).Verify(finalScene, stagedPlan, finalDirectory,
-                    Path.GetDirectoryName(activePath), sourceStagingDirectory);
+                var validationContext = new IronCadExternalReferenceValidationContext
+                {
+                    DocumentDirectory = Path.GetDirectoryName(finalRootPath),
+                    CadRoot = Path.Combine(finalDirectory, "cad"),
+                    SourceRoot = sourceStagingDirectory,
+                    StagingRoot = stagingDirectory
+                };
+                var verifier = new IronCadExportPackageVerifier(_reader);
+                var validationResult = verifier.VerifyExternalLinks(finalScene, stagedPlan, validationContext);
+                if (!validationResult.IsValid)
+                {
+                    var diagnostics = FormatValidationDiagnostics(validationResult, validationContext);
+                    WriteValidationDiagnosticLog(diagnostics);
+                    throw Fail("PACKAGE_VALIDATION_FAILED", "Package không đạt kiểm tra liên kết ngoài.",
+                        string.Join(",", validationResult.Issues) + Environment.NewLine + diagnostics);
+                }
                 if (sourceFingerprints.Any(f => !PdmSourceIntegrity.Matches(f)))
                     throw Fail("SOURCE_FILE_CHANGED", "The source file changed during final package validation.");
                 successMessage = "Chuẩn hóa và xuất PDM thành công.\n\nPackage: " + finalDirectory + "\nSource files verified unchanged.";
             }
+            catch (InvalidOperationException ex) when (IsDependencyFailure(ex.Message))
+            {
+                failure = Fail(
+                    ex.Message,
+                    ex.Message == "BLOCKED_SOURCE_DEPENDENCY_ISOLATION"
+                        ? "Package có external dependency chưa được hỗ trợ an toàn."
+                        : "Không thể phân tích dependency của Scene.",
+                    ex.ToString(),
+                    ex);
+                Trace.WriteLine(failure);
+                WriteRuntimeFailureLog(failure);
+            }
             catch (Exception ex) { failure = ex; Trace.WriteLine(ex); WriteRuntimeFailureLog(ex); }
             finally
             {
-                if (failure != null) CloseDocumentBestEffort(app, ref finalPackageDoc, cleanupFailures);
-                CloseDocumentBestEffort(app, ref exportedStagingDoc, cleanupFailures);
-                CloseDocumentBestEffort(app, ref stagedSourceDoc, cleanupFailures);
-
-                if (failure != null && finalPackageStarted && finalPackageDoc == null)
+                if (failure != null && finalPackageStarted && !temporaryDocumentOpened)
                     TryCleanupDirectory(finalDirectory, "FINAL_PACKAGE_ROLLBACK_FAILED", cleanupFailures);
-                if (stagedSourceDoc == null && exportedStagingDoc == null)
+
+                if (temporaryDocumentOpened)
+                {
+                    try { _documentService.CloseDocument(); }
+                    catch (Exception ex) { cleanupFailures.Add(Fail("DOCUMENT_CLOSE_FAILED", "Không thể đóng temporary document.", ex.ToString(), ex)); }
+                }
+
+
+
+                if (stagedSourceDoc == null)
                 {
                     TryCleanupDirectory(stagingDirectory, "STAGING_CLEANUP_FAILED", cleanupFailures);
                     TryCleanupDirectory(sourceStagingDirectory, "SOURCE_STAGING_CLEANUP_FAILED", cleanupFailures);
@@ -147,7 +178,7 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                     var cleanupFailure = Fail("STAGING_CLEANUP_FAILED", "Không thể hoàn tất cleanup transaction.",
                         string.Join(Environment.NewLine, failureDetails));
                     WriteRuntimeFailureLog(cleanupFailure);
-                    if (failure != null || !finalPackagePublished)
+                    if (failure == null && !finalPackagePublished)
                     {
                         failure = cleanupFailure;
                         successMessage = null;
@@ -155,6 +186,8 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
                 }
                 if (failure != null) MessageBox.Show(PdmNormalizeExportErrorFormatter.Format(failure), "Chuẩn hóa & Xuất PDM", MessageBoxButton.OK, MessageBoxImage.Error);
                 else if (!string.IsNullOrWhiteSpace(successMessage)) MessageBox.Show(successMessage, "IDEA PDM", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                _documentService.Dispose();
             }
         }
 
@@ -185,6 +218,56 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             catch (Exception ex) { cleanupFailures.Add(Fail(errorCode, "Không thể xóa thư mục transaction.", ex.ToString(), ex)); }
         }
 
+        private static object GetActiveOrSingleOpenDocument(IZBaseApp app)
+        {
+            var active = app.ActiveDoc;
+            if (active is IZSceneDoc) return active;
+
+            int openCount;
+            try { openCount = app.GetOpenDocsCount(); }
+            catch { return null; }
+            if (openCount < 1) return active;
+
+            object openDocs;
+            try { openDocs = app.GetOpenDocs(); }
+            catch { return null; }
+
+            var array = openDocs as IZArray;
+            if (array != null)
+            {
+                int count;
+                array.Count(out count);
+                for (var i = 0; i < count; i++)
+                {
+                    object value;
+                    array.Get(i, out value);
+                    if (value is IZSceneDoc) return value;
+                }
+                return active;
+            }
+
+            var documents = openDocs as object[];
+            if (documents != null)
+            {
+                var scene = documents.FirstOrDefault(document => document is IZSceneDoc);
+                if (scene != null) return scene;
+            }
+            return active;
+        }
+
+        private static string GetSceneDocumentName(IZSceneDoc scene)
+        {
+            try { return Convert.ToString(((dynamic)scene).Name); }
+            catch { return null; }
+        }
+
+        private static bool IsSceneDocumentModified(IZDoc document, IZSceneDoc scene)
+        {
+            if (document != null) return document.Modified;
+            try { return Convert.ToBoolean(((dynamic)scene).Modified); }
+            catch { return false; }
+        }
+
         private static void EnsurePackageValid(string directory, PdmPackageManifest manifest, string code)
         {
             var validation = new PdmPackageValidator().Validate(directory, manifest);
@@ -194,6 +277,14 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
         private static PdmNormalizeExportException Fail(string code, string userMessage, string details = null, Exception inner = null)
         {
             return new PdmNormalizeExportException(code, userMessage, details, inner);
+        }
+
+        private static bool IsDependencyFailure(string code)
+        {
+            return string.Equals(code, "BLOCKED_SOURCE_DEPENDENCY_ISOLATION", StringComparison.Ordinal)
+                || string.Equals(code, "DEPENDENCY_DISCOVERY_FAILED", StringComparison.Ordinal)
+                || string.Equals(code, "DEPENDENCY_TRAVERSAL_LIMIT_EXCEEDED", StringComparison.Ordinal)
+                || string.Equals(code, "DEPENDENCY_TRAVERSAL_CYCLE", StringComparison.Ordinal);
         }
 
         private static void WriteRuntimeFailureLog(Exception exception)
@@ -207,7 +298,50 @@ namespace IdeaCadConnector.IronCAD.NormalizeExport
             }
             catch
             {
-                // Diagnostics must never replace the user-facing failure.
+            }
+        }
+
+        private static string FormatValidationDiagnostics(
+            IronCadExternalReferenceValidationResult validation,
+            IronCadExternalReferenceValidationContext context)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("[PDM-VALIDATION-DIAGNOSTIC]");
+            builder.AppendLine("DocumentDirectory=" + context.DocumentDirectory);
+            builder.AppendLine("PackageRoot=" + context.PackageRoot);
+            builder.AppendLine("CadRoot=" + context.CadRoot);
+            builder.AppendLine("SourceRoot=" + context.SourceRoot);
+            builder.AppendLine("StagingRoot=" + context.StagingRoot);
+            builder.AppendLine("Issues:");
+            foreach (var issue in validation.Issues) builder.AppendLine("  " + issue);
+            builder.AppendLine("Records:");
+            foreach (var record in validation.Records)
+            {
+                builder.AppendLine(string.Join(" | ", new[]
+                {
+                    "Occurrence=" + record.OccurrencePath,
+                    "Reported=" + record.ReportedLinkPath,
+                    "Resolved=" + record.ResolvedTargetPath,
+                    "Exists=" + record.Exists,
+                    "InsidePackage=" + record.InsidePackage,
+                    "PointsToSource=" + record.PointsToSource,
+                    "CanonicalMatch=" + record.CanonicalFileNameMatch
+                }));
+            }
+            return builder.ToString();
+        }
+
+        private static void WriteValidationDiagnosticLog(string diagnostics)
+        {
+            try
+            {
+                var directory = Path.Combine(Path.GetTempPath(), "IdeaCadConnector");
+                Directory.CreateDirectory(directory);
+                File.WriteAllText(Path.Combine(directory, "pdm-last-validation.txt"),
+                    DateTime.UtcNow.ToString("O") + Environment.NewLine + diagnostics);
+            }
+            catch
+            {
             }
         }
 

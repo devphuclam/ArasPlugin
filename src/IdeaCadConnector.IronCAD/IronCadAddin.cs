@@ -145,7 +145,8 @@ namespace IdeaCadConnector.IronCAD
                 var cControlBar = cEnv.AddControlBar(piAddinSite, "IDEA PDM");
                 var cControls = cControlBar.Controls;
 
-                _normalizeExportCommand = new IronCadNormalizeExportCommand(this);
+                var docService = new IronCadSceneDocumentService(IronCADApp);
+                _normalizeExportCommand = new IronCadNormalizeExportCommand(IronCADApp, docService);
                 _normalizeExportButton = piAddinSite.CreateCommandHandler(
                     "IdeaPdm_NormalizeAndExport",
                     "Chuẩn hóa & Xuất PDM",

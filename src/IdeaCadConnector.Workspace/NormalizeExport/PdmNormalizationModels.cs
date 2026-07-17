@@ -238,6 +238,7 @@ namespace IdeaCadConnector.Workspace.NormalizeExport
         public string ParentOccurrenceId { get; set; }
         public string DefinitionId { get; set; }
         public int FindNumber { get; set; }
+        public string DefinitionFile { get; set; }
     }
 
     public sealed class PdmNormalizationPreflightValidator
