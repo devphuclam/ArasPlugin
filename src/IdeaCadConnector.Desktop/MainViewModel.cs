@@ -14,10 +14,13 @@ using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
+using IdeaCadConnector.Core.Library;
+using IdeaCadConnector.Core.Policies;
 using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Desktop.Services;
 using IdeaCadConnector.Ui.ViewModels;
 using IdeaCadConnector.Workspace;
+using IdeaCadConnector.Workspace.Recovery;
 using Microsoft.Extensions.Logging;
 
 namespace IdeaCadConnector.Desktop
@@ -28,8 +31,11 @@ namespace IdeaCadConnector.Desktop
         private readonly WorkspaceService _workspaceService;
         private readonly ICadApplicationAdapter _cadAdapter;
         private readonly ArasClientOptions _options;
-        private CheckoutService _checkoutService;
+        internal CheckoutService _checkoutService;
         private readonly IRevisionService _revisionService;
+        internal CadWorkflowGate _workflowGate = new CadWorkflowGate();
+        internal ICadReleaseEligibility _releaseEligibility;
+        internal string _currentPartState;
         private IArasCadClient _arasClient;
         private ArasLoginResult _loginResult;
         internal static IPdmRepositoryClient SharedPdmClient
@@ -61,8 +67,9 @@ namespace IdeaCadConnector.Desktop
         private CadSummary _currentCad;
         private string _selectedPartId;
         private string _selectedCadId;
-        private string _lockToken;
-        private string _lastDownloadedFilePath;
+        internal string _lockToken;
+        internal string _lastDownloadedFilePath;
+        internal string _checkoutBaselineHash;
         private bool _isBusy;
         private bool _isLoginPanelVisible = true;
         private CadOperationContext _cadOperationContext;
@@ -86,6 +93,8 @@ namespace IdeaCadConnector.Desktop
             _cadAdapter = cadAdapter ?? new IronCadExternalAdapter(options?.IronCadExecutablePath);
             _workspaceService = workspaceService ?? throw new ArgumentNullException(nameof(workspaceService));
             _revisionService = new GuidanceRevisionService();
+            _releaseEligibility = new MvpReleaseEligibility(
+                new CadLifecyclePolicy(), new DefaultPartLifecyclePolicy(), _workflowGate);
             AppSessionContext.Current.IronCadExecutablePath = _options.IronCadExecutablePath;
 
             _selectedLanguage = SettingsService.LoadLanguage() ?? "en-US";
@@ -113,6 +122,9 @@ namespace IdeaCadConnector.Desktop
             RequestReworkCommand = new RelayCommand(
                 _ => ExecuteWorkflowActionAsync(CadBusinessActionKind.RequestRework),
                 _ => !IsBusy && CanExecuteAction(CadBusinessActionKind.RequestRework));
+            WithdrawCommand = new RelayCommand(
+                _ => ExecuteWorkflowActionAsync(CadBusinessActionKind.Withdraw),
+                _ => !IsBusy && CanExecuteAction(CadBusinessActionKind.Withdraw));
 
             RefreshWorkflowCommand = new RelayCommand(
                 _ => ExecuteRefreshWorkflowAsync(),
@@ -153,6 +165,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand SubmitForReviewCommand { get; }
         public ICommand ApproveCommand { get; }
         public ICommand RequestReworkCommand { get; }
+        public ICommand WithdrawCommand { get; }
         public ICommand RefreshWorkflowCommand { get; }
 
         public ICommand ViewPartDetailsCommand { get; }
@@ -632,6 +645,7 @@ namespace IdeaCadConnector.Desktop
                 _selectedCadId = null;
                 _lockToken = null;
                 _lastDownloadedFilePath = null;
+                _checkoutBaselineHash = null;
                 _cadOperationContext = null;
                 CurrentOperationContext = null;
                 _loginViewModel.SearchKeyword = null;
@@ -787,6 +801,7 @@ namespace IdeaCadConnector.Desktop
 
                 _lockToken = result.LockToken;
                 _lastDownloadedFilePath = result.LocalFilePath;
+                _checkoutBaselineHash = result.CheckoutBaselineHash;
                 ApplyCadSelection(result.Cad, clearSessionLock: false);
                 await _cadAdapter.OpenDocumentAsync(_lastDownloadedFilePath, CadOpenMode.Edit, CancellationToken.None);
                 StatusMessage = string.Format(Loc(TranslationKeys.StatusCheckedOut), Path.GetFileName(_lastDownloadedFilePath));
@@ -856,6 +871,10 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            var reasonDialog = new CheckinReasonDialog();
+            if (reasonDialog.ShowDialog() != true)
+                return;
+
             try
             {
                 IsBusy = true;
@@ -873,6 +892,7 @@ namespace IdeaCadConnector.Desktop
                     _lockToken,
                     filePath,
                     _cadAdapter.ReadMetadata(),
+                    reasonDialog.Reason,
                     CancellationToken.None);
 
                 if (!result.Success)
@@ -904,15 +924,57 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            await CancelCheckoutCoreAsync();
+        }
+
+        /// <summary>
+        /// Core cancel-checkout orchestration, exposed for testing. Performs recovery
+        /// detection and only releases the authority lock after a successful unlock.
+        /// </summary>
+        internal async Task CancelCheckoutCoreAsync()
+        {
             try
             {
                 IsBusy = true;
                 StatusMessage = Loc(TranslationKeys.StatusCancellingCheckout);
 
+                var localFilePath = ResolveCheckInFilePath();
+                var recoveryInfo = await GetCheckoutService().PrepareCancelCheckoutAsync(
+                    SelectedCadId, localFilePath, _checkoutBaselineHash, CancellationToken.None);
+
+                if (!string.IsNullOrWhiteSpace(recoveryInfo.ErrorMessage))
+                {
+                    var recoverMsg = string.Format(
+                        Loc(TranslationKeys.CancelCheckoutRecoveryFailed),
+                        recoveryInfo.ErrorMessage);
+                    MessageBox.Show(
+                        recoverMsg,
+                        Ttl,
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
+                if (recoveryInfo.FileWasModified)
+                {
+                    var recoverMsg = string.Format(
+                        Loc(TranslationKeys.CancelCheckoutModifiedConfirm),
+                        recoveryInfo.RecoveryPath);
+                    var proceed = MessageBox.Show(
+                        recoverMsg,
+                        Ttl,
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    if (proceed != MessageBoxResult.Yes)
+                        return;
+                }
+
                 var success = await GetCheckoutService().CancelCheckoutAsync(SelectedCadId, CancellationToken.None);
                 if (!success)
                     throw new InvalidOperationException("Cancel checkout failed.");
                 _lockToken = null;
+                _lastDownloadedFilePath = null;
+                _checkoutBaselineHash = null;
 
                 if (_currentCad != null)
                 {
@@ -948,7 +1010,11 @@ namespace IdeaCadConnector.Desktop
         {
             if (_checkoutService == null)
             {
-                _checkoutService = new CheckoutService(_arasClient, _workspaceService);
+                var recoveryRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Idea", "ArasCadWorkspace");
+                var recoveryService = new FileSystemRecoveryService(recoveryRoot);
+                _checkoutService = new CheckoutService(_arasClient, _workspaceService, recoveryService);
             }
 
             return _checkoutService;
@@ -956,14 +1022,37 @@ namespace IdeaCadConnector.Desktop
 
         private bool CanExecuteAction(CadBusinessActionKind kind)
         {
+            if (!_workflowGate.IsAvailable(kind))
+                return false;
+
             return _currentCad != null
                 && CadLifecyclePolicy.CanExecuteBusinessAction(kind, _currentCad.State);
         }
 
         private bool HasWorkflowAction(CadBusinessActionKind kind)
         {
+            if (!_workflowGate.IsAvailable(kind))
+                return false;
+
             return _currentCad != null
                 && CadLifecyclePolicy.ShouldShowBusinessAction(kind, _currentCad.State);
+        }
+
+        /// <summary>
+        /// Evaluates release eligibility for the current CAD/Part selection. Used by the
+        /// Approve workflow action before any authority transition is attempted.
+        /// </summary>
+        internal async Task<CadReleaseEligibilityResult> EvaluateApproveEligibilityAsync()
+        {
+            return await _releaseEligibility.CheckAsync(
+                new CadReleaseEligibilitySnapshot
+                {
+                    CadId = SelectedCadId,
+                    PartId = SelectedPartId,
+                    CadState = _currentCad?.State,
+                    PartState = _currentPartState
+                },
+                CancellationToken.None);
         }
 
         private async void ExecuteWorkflowActionAsync(CadBusinessActionKind kind)
@@ -1013,6 +1102,24 @@ namespace IdeaCadConnector.Desktop
                 selectedCadId = SelectedCadId;
                 if (string.IsNullOrWhiteSpace(selectedCadId))
                     throw new InvalidOperationException("No CAD is selected for this workflow action.");
+
+                if (kind == CadBusinessActionKind.Approve)
+                {
+                    var eligibility = await EvaluateApproveEligibilityAsync();
+                    if (!eligibility.IsEligible)
+                    {
+                        var reasons = eligibility.BlockingReasons != null
+                            ? string.Join("; ", eligibility.BlockingReasons)
+                            : Loc(TranslationKeys.ReleaseIneligible);
+                        StatusMessage = string.Format(Loc(TranslationKeys.ReleaseIneligible), reasons);
+                        MessageBox.Show(
+                            string.Format(Loc(TranslationKeys.ReleaseIneligible), reasons),
+                            Loc(TranslationKeys.ReleaseEligibilityTitle),
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Warning);
+                        return;
+                    }
+                }
 
                 var action = _cadOperationContext?.AvailableActions?.FirstOrDefault(a => a.Kind == kind);
                 action ??= new CadBusinessAction(kind, kind.ToString(), true, null, false, null, null);
@@ -1270,6 +1377,7 @@ namespace IdeaCadConnector.Desktop
             SelectedCadId = null;
             _lockToken = null;
             _lastDownloadedFilePath = null;
+            _checkoutBaselineHash = null;
             _revisionPreconditions = null;
             OnPropertyChanged(nameof(SelectedSearchResult));
             OnPropertyChanged(nameof(SelectedPartSummary));

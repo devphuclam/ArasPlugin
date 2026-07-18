@@ -8,7 +8,7 @@ namespace IdeaCadConnector.Core.Cad
     /// Client-side guardrails that mirror the live Custom CAD Document lifecycle.
     /// Aras workflow remains the authority for state transitions.
     /// </summary>
-    public static class CadLifecyclePolicy
+    public class CadLifecyclePolicy : ICadLifecyclePolicy
     {
         public const string Initial = "Khoi tao";
         public const string DetailedDesign = "Thiet ke chi tiet";
@@ -45,7 +45,7 @@ namespace IdeaCadConnector.Core.Cad
                 return "CAD state is missing. Refresh from Aras before checkout.";
 
             if (IsState(state, InReview))
-                return "CAD is in review. Complete the ExampleContributor/ExampleReviewer workflow in Aras before editing again.";
+                return "CAD is in review. Complete the configured review workflow in Aras before editing again.";
 
             if (IsState(state, Released))
                 return "CAD is released. Start the approved Aras change process before editing.";
@@ -100,6 +100,8 @@ namespace IdeaCadConnector.Core.Cad
                     return CanApproveReview(state);
                 case CadBusinessActionKind.RequestRework:
                     return CanRequestRework(state);
+                case CadBusinessActionKind.Withdraw:
+                    return CanWithdraw(state);
                 default:
                     return false;
             }
@@ -126,6 +128,12 @@ namespace IdeaCadConnector.Core.Cad
                 return "CAD is no longer active and cannot be submitted for review.";
 
             return $"CAD state '{state}' does not allow submitting for review.";
+        }
+
+        public static bool CanWithdraw(string state)
+        {
+            return !string.IsNullOrWhiteSpace(state)
+                && IsState(state, InReview);
         }
 
         // TODO(PERF-REVISION-SEAM): Move into IRevisionService when
@@ -377,5 +385,13 @@ namespace IdeaCadConnector.Core.Cad
 
             return "No active workflow task.";
         }
+
+        bool ICadLifecyclePolicy.CanCheckout(string state) => CanCheckout(state);
+        bool ICadLifecyclePolicy.CanSubmitForReview(string state) => CanSubmitForReview(state);
+        bool ICadLifecyclePolicy.CanApprove(string state) => CanApproveReview(state);
+        bool ICadLifecyclePolicy.CanRequestRework(string state) => CanRequestRework(state);
+        bool ICadLifecyclePolicy.CanWithdraw(string state) => CanWithdraw(state);
+        bool ICadLifecyclePolicy.IsReleased(string state) => IsState(state, Released);
+        bool ICadLifecyclePolicy.CanExecuteBusinessAction(CadBusinessActionKind kind, string state) => CanExecuteBusinessAction(kind, state);
     }
 }

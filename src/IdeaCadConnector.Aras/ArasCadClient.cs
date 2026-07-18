@@ -474,6 +474,11 @@ namespace IdeaCadConnector.Aras
                     await ExecuteRequestCadReworkAsync(request, freshContext, ct);
                     break;
 
+                case CadBusinessActionKind.Withdraw:
+                    throw new ArasOperationException(
+                        ArasErrorCode.WorkflowActionNotAvailable,
+                        "Withdraw is not available: GATE-W evidence is pending. No server method has been verified for this action.");
+
                 default:
                     throw new ArasOperationException(
                         ArasErrorCode.WorkflowActionNotAvailable,

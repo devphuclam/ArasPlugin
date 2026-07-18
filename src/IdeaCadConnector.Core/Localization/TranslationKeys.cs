@@ -453,6 +453,8 @@ namespace IdeaCadConnector.Core.Localization
         // Task 21 final polish - Confirm dialog strings
         public const string ConfirmStartDetailedDesign = "ConfirmStartDetailedDesign";
         public const string ConfirmSubmitForReview = "ConfirmSubmitForReview";
+        public const string ReviewerUnavailable = "ReviewerUnavailable";
+        public const string ReviewerAssignmentRequired = "ReviewerAssignmentRequired";
         public const string ConfirmApprove = "ConfirmApprove";
         public const string ConfirmRequestRework = "ConfirmRequestRework";
         public const string ConfirmExecuteAction = "ConfirmExecuteAction";
@@ -969,5 +971,25 @@ namespace IdeaCadConnector.Core.Localization
 
         // MainViewModel status messages
         public const string StatusSignInToStart = "StatusSignInToStart";
+
+        // Cancel checkout recovery
+        public const string CancelCheckoutRecoveryFailed = "CancelCheckoutRecoveryFailed";
+        public const string CancelCheckoutModifiedConfirm = "CancelCheckoutModifiedConfirm";
+        public const string CancelCheckoutRecoveryCreated = "CancelCheckoutRecoveryCreated";
+        public const string CancelCheckoutNoRecovery = "CancelCheckoutNoRecovery";
+
+        // Workflow action confirmations
+        public const string ConfirmWithdraw = "ConfirmWithdraw";
+        public const string WorkflowActionWithdraw = "WorkflowActionWithdraw";
+        public const string WorkflowActionHold = "WorkflowActionHold";
+        public const string WorkflowActionResume = "WorkflowActionResume";
+        public const string GatePendingTitle = "GatePendingTitle";
+        public const string GatePendingApproval = "GatePendingApproval";
+        public const string GatePendingWithdraw = "GatePendingWithdraw";
+        public const string GatePendingRework = "GatePendingRework";
+        public const string GatePendingSubmit = "GatePendingSubmit";
+        public const string ReleaseEligibilityTitle = "ReleaseEligibilityTitle";
+        public const string ReleaseEligible = "ReleaseEligible";
+        public const string ReleaseIneligible = "ReleaseIneligible";
     }
 }

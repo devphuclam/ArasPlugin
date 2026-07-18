@@ -51,10 +51,8 @@ namespace IdeaCadConnector.Core.Cad
         public static WorkflowActionMapper CreateDefault()
         {
             var mapper = new WorkflowActionMapper();
-            mapper.AddRule("ExampleContributor_Submit", "", CadBusinessActionKind.SubmitForReview);
             mapper.AddRule("Auto To In Review", "", CadBusinessActionKind.SubmitForReview);
-            mapper.AddRule("ExampleReviewer_Review", "Approve", CadBusinessActionKind.Approve);
-            mapper.AddRule("ExampleReviewer_Review", "Reject", CadBusinessActionKind.RequestRework);
+            mapper.AddRule("Withdraw", "", CadBusinessActionKind.Withdraw);
             return mapper;
         }
 

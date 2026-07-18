@@ -6,9 +6,14 @@
 - A local package may contain CAD files, metadata, manifests, and external references.
 - Workspace services validate package publication, import, normalization, and output safety before applying local changes.
 - Clone, import/export, normalization, and push-preview are distinct operations; their exact remote synchronization semantics belong to the approved feature specification and verified integration contracts.
+- A Workspace Baseline identifies the authoritative remote configuration used for local change comparison.
+- A local file save, a ChangeSet/check-in, and a released revision are separate history events.
+- A Recovery Copy preserves modified local content before a destructive cancel-checkout cleanup; it does not release the authority lock or count as a check-in.
 
 ## Domain boundaries
 
 Local file operations must preserve recoverable state and must not overwrite modified workspace content without the approved safety behavior. Binary CAD/PDF/DWG files are not automatically merged.
+
+Workspace owns recovery persistence, source/backup hash verification, retention metadata, and local cleanup. The PDM authority adapter owns the remote unlock. Desktop orchestration may sequence these operations, but recovery paths and verification results do not belong in the remote cancel-checkout transport contract.
 
 Detailed implementation references: `src/IdeaCadConnector.Workspace/`, archived `docs/archive/legacy-ai-work-kit/docs/ai/03_ARCHITECTURE_RULES.md`, and canonical `docs/development/known-limitations.md`.

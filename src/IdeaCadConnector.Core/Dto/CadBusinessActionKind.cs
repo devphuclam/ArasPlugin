@@ -9,6 +9,7 @@ namespace IdeaCadConnector.Core.Dto
         StartDetailedDesign,
         SubmitForReview,
         Approve,
-        RequestRework
+        RequestRework,
+        Withdraw
     }
 }

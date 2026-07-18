@@ -36,6 +36,8 @@ artifacts/
 !docs/architecture/**
 !docs/domain/
 !docs/domain/**
+!docs/product/
+!docs/product/**
 !docs/development/
 !docs/development/**
 !docs/security/

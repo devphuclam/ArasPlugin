@@ -18,5 +18,10 @@ namespace IdeaCadConnector.Workspace
         public string Branch { get; set; }
         public string LastKnownRevision { get; set; }
         public int LastKnownGeneration { get; set; }
+        /// <summary>
+        /// SHA256 of the native file content as captured immediately after checkout/download.
+        /// Used by cancel-checkout to detect local modifications without silent deletion.
+        /// </summary>
+        public string CheckoutBaselineHash { get; set; }
     }
 }

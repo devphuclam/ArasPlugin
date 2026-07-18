@@ -494,6 +494,8 @@ namespace IdeaCadConnector.Core.Localization
             // Task 21 final polish - confirm dialog texts
             [TranslationKeys.ConfirmStartDetailedDesign] = "Move this CAD from 'Khoi tao' to 'Thiet ke chi tiet'?",
             [TranslationKeys.ConfirmSubmitForReview] = "Submit this CAD for review?",
+            [TranslationKeys.ReviewerUnavailable] = "No reviewer is available. Configure an authoritative reviewer source before submitting for review.",
+            [TranslationKeys.ReviewerAssignmentRequired] = "You are not the assigned reviewer for this CAD. Only the assigned reviewer can approve or request rework.",
             [TranslationKeys.ConfirmApprove] = "Approve this CAD?",
             [TranslationKeys.ConfirmRequestRework] = "Request rework on this CAD?",
             [TranslationKeys.ConfirmExecuteAction] = "Execute {0}?",
@@ -1452,6 +1454,8 @@ namespace IdeaCadConnector.Core.Localization
             // Task 21 final polish - confirm dialog texts
             [TranslationKeys.ConfirmStartDetailedDesign] = "Chuyển CAD này từ 'Khoi tao' sang 'Thiet ke chi tiet'?",
             [TranslationKeys.ConfirmSubmitForReview] = "Gửi CAD này cho review?",
+            [TranslationKeys.ReviewerUnavailable] = "Không có người đánh giá khả dụng. Cấu hình nguồn người đánh giá hợp lệ trước khi gửi để đánh giá.",
+            [TranslationKeys.ReviewerAssignmentRequired] = "Bạn không phải là người đánh giá được chỉ định cho CAD này. Chỉ người đánh giá được chỉ định mới có thể phê duyệt hoặc yêu cầu làm lại.",
             [TranslationKeys.ConfirmApprove] = "Phê duyệt CAD này?",
             [TranslationKeys.ConfirmRequestRework] = "Yêu cầu làm lại CAD này?",
             [TranslationKeys.ConfirmExecuteAction] = "Thực hiện {0}?",
@@ -2234,6 +2238,8 @@ namespace IdeaCadConnector.Core.Localization
             // Task 21 final polish - confirm dialog texts
             [TranslationKeys.ConfirmStartDetailedDesign] = "このCADを 'Khoi tao' から 'Thiet ke chi tiet' に移動しますか？",
             [TranslationKeys.ConfirmSubmitForReview] = "このCADをレビューに提出しますか？",
+            [TranslationKeys.ReviewerUnavailable] = "レビュー担当者が利用できません。レビュー提出前に正規のレビュー担当者ソースを設定してください。",
+            [TranslationKeys.ReviewerAssignmentRequired] = "このCADの割り当てレビュー担当者ではありません。レビュー担当者のみが承認または差し戻しできます。",
             [TranslationKeys.ConfirmApprove] = "このCADを承認しますか？",
             [TranslationKeys.ConfirmRequestRework] = "このCADの手直しを要求しますか？",
             [TranslationKeys.ConfirmExecuteAction] = "{0} を実行しますか？",
@@ -2528,6 +2534,26 @@ namespace IdeaCadConnector.Core.Localization
 
             // MainViewModel status
             [TranslationKeys.StatusSignInToStart] = "Arasにサインインして開始してください。",
+
+            // Cancel checkout recovery
+            [TranslationKeys.CancelCheckoutRecoveryFailed] = "A recovery copy of the modified file could not be created ({0}). Release the Aras lock anyway? Modified content may be unrecoverable.",
+            [TranslationKeys.CancelCheckoutModifiedConfirm] = "The checked out file was modified. A recovery copy was saved to:\n{0}\n\nRelease the Aras lock and discard the local checkout?",
+            [TranslationKeys.CancelCheckoutRecoveryCreated] = "Recovery copy saved to {0}.",
+            [TranslationKeys.CancelCheckoutNoRecovery] = "The checked out file was not modified. Release the Aras lock?",
+
+            // Workflow action confirmations
+            [TranslationKeys.ConfirmWithdraw] = "Withdraw this CAD from review?",
+            [TranslationKeys.WorkflowActionWithdraw] = "Withdraw",
+            [TranslationKeys.WorkflowActionHold] = "Hold",
+            [TranslationKeys.WorkflowActionResume] = "Resume",
+            [TranslationKeys.GatePendingTitle] = "Action Not Available",
+            [TranslationKeys.GatePendingApproval] = "Approve is disabled until the Aras evidence gate for CAD approval is recorded.",
+            [TranslationKeys.GatePendingWithdraw] = "Withdraw is disabled until the Aras evidence gate for CAD withdraw is recorded.",
+            [TranslationKeys.GatePendingRework] = "Request Rework is disabled until the Aras evidence gate for CAD rework is recorded.",
+            [TranslationKeys.GatePendingSubmit] = "Submit for Review is available when the live CAD lifecycle allows it; no separate Aras evidence gate is required.",
+            [TranslationKeys.ReleaseEligibilityTitle] = "Release Eligibility",
+            [TranslationKeys.ReleaseEligible] = "The Part-CAD pair is eligible for release.",
+            [TranslationKeys.ReleaseIneligible] = "The Part-CAD pair is not eligible for release: {0}",
         };
 
         private static readonly Dictionary<string, Dictionary<string, string>> _locales =
