@@ -3,11 +3,16 @@ using IdeaCadConnector.Core.Dto;
 
 namespace IdeaCadConnector.Desktop.Workflow
 {
+    public sealed class CheckinReasonDialogResult
+    {
+        public bool Confirmed { get; set; }
+        public string Reason { get; set; }
+    }
+
     public sealed class SubmitForReviewDialogResult
     {
         public bool Confirmed { get; set; }
         public string ChangeDescription { get; set; }
-        public string SelectedReviewer { get; set; }
     }
 
     public sealed class ReviewDecisionDialogResult
@@ -19,8 +24,10 @@ namespace IdeaCadConnector.Desktop.Workflow
 
     public interface IWorkflowActionDialogService
     {
+        CheckinReasonDialogResult ShowCheckinReason();
+
         SubmitForReviewDialogResult ShowSubmitForReview(
-            string cadInfo, string partInfo, IEnumerable<string> reviewers);
+            string cadInfo, string partInfo);
 
         ReviewDecisionDialogResult ShowReviewDecision(
             string submissionInfo, string gateNote);

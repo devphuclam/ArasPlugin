@@ -8,20 +8,29 @@ namespace IdeaCadConnector.Desktop.Workflow
 {
     public sealed class WpfWorkflowActionDialogService : IWorkflowActionDialogService
     {
+        public CheckinReasonDialogResult ShowCheckinReason()
+        {
+            var dialog = new CheckinReasonDialog();
+            var result = dialog.ShowDialog() == true;
+            return new CheckinReasonDialogResult
+            {
+                Confirmed = result,
+                Reason = dialog.Reason
+            };
+        }
+
         public SubmitForReviewDialogResult ShowSubmitForReview(
-            string cadInfo, string partInfo, IEnumerable<string> reviewers)
+            string cadInfo, string partInfo)
         {
             var dialog = new SubmitForReviewDialog();
             if (!string.IsNullOrWhiteSpace(cadInfo)) dialog.SetCadInfo(cadInfo);
             if (!string.IsNullOrWhiteSpace(partInfo)) dialog.SetPartInfo(partInfo);
-            if (reviewers != null) dialog.SetReviewers(reviewers);
 
             var result = dialog.ShowDialog() == true;
             return new SubmitForReviewDialogResult
             {
                 Confirmed = result,
-                ChangeDescription = dialog.ChangeDescription,
-                SelectedReviewer = dialog.SelectedReviewer
+                ChangeDescription = dialog.ChangeDescription
             };
         }
 

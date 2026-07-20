@@ -8,6 +8,8 @@ This feature introduces or extends interface contracts across three project boun
 
 The existing `IArasCadClient.ExecuteCadBusinessActionAsync` is the canonical path for submit, approve, request-rework, and withdraw. Both `HttpArasCadClient` and `ArasCadClient` already implement the seam for the existing submit/approve/request-rework actions; Withdraw is an extension that remains gated by GATE-W and must map to a verified Aras lifecycle transition or server method. `CadBusinessActionKind.Withdraw` is added to the enum and both clients gain a Withdraw case. No new transport interface method is added — no `ReleaseCadPartPairAsync`, `SubmitForReviewAsync`, or `DecideReviewAsync`. This feature adds an advisory eligibility check that runs *before* `ExecuteCadBusinessActionAsync(Approve)`.
 
+Reviewer assignment and submission ownership are intentionally absent from the current authority-neutral request/context contracts. The client must not invent fields for them or use checkout lock ownership as review ownership. GATE-RS and GATE-W-owner block the corresponding UI until authority evidence is recorded.
+
 Check-in uses the existing `IArasCadClient.CheckinAsync(CadCheckinRequest)` contract. The required written reason is carried by the existing `CadCheckinRequest.Comment` property. Reason validation (reject null/empty/whitespace) and file integrity validation are the caller's responsibility — they happen in the Desktop orchestration layer before any authority call. The transport contract (`CadCheckinRequest`) already supports the comment; no DTO or interface change is needed.
 
 ```

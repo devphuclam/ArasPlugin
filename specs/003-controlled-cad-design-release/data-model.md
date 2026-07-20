@@ -136,6 +136,8 @@
 | DecidedAt | DateTime? | When a decision was made. |
 | DecisionReason | string | Reviewer's reason for approval or rework request. |
 
+**Authority boundary**: `SubmittedBy` and `AssignedReviewer` are domain fields, but the current authority-neutral operation context does not populate them. Their verified transport/source mapping is required by GATE-RS and GATE-W-owner; checkout lock ownership must not be substituted for `SubmittedBy`.
+
 ## State Transition Rules
 
 ### CAD Lifecycle (known states from existing source; verified per environment)

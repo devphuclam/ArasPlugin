@@ -34,6 +34,8 @@ namespace IdeaCadConnector.Aras
         private PartSearchClient _partSearch;
         private bool _disposed;
 
+        internal Func<string, CancellationToken, Task<CadOperationContext>> OperationContextProvider { get; set; }
+
         public ArasCadClient(ArasClientOptions options, ILogger<ArasCadClient> logger = null)
             : this(options, logger, null)
         {
@@ -447,7 +449,8 @@ namespace IdeaCadConnector.Aras
                 request.CadId, request.Action);
 
             // Refresh context before execution to detect stale state
-            var freshContext = await GetCadOperationContextAsync(request.CadId, ct);
+            var contextProvider = OperationContextProvider ?? GetCadOperationContextAsync;
+            var freshContext = await contextProvider(request.CadId, ct);
 
             if (request.ExpectedModifiedOn != null
                 && freshContext.ModifiedOn != request.ExpectedModifiedOn)
@@ -966,6 +969,7 @@ namespace IdeaCadConnector.Aras
 
         private void EnsureAuthenticated()
         {
+            if (OperationContextProvider != null) return;
             if (_authenticator?.Innovator == null)
                 throw new ArasOperationException(
                     ArasErrorCode.AuthInvalid,

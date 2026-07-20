@@ -40,6 +40,10 @@ artifacts/
 !docs/product/**
 !docs/development/
 !docs/development/**
+!docs/evidence/
+!docs/evidence/**
+!docs/configuration/
+!docs/configuration/**
 !docs/security/
 !docs/security/**
 !docs/archive/

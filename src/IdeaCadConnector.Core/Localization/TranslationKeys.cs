@@ -454,6 +454,7 @@ namespace IdeaCadConnector.Core.Localization
         public const string ConfirmStartDetailedDesign = "ConfirmStartDetailedDesign";
         public const string ConfirmSubmitForReview = "ConfirmSubmitForReview";
         public const string ReviewerUnavailable = "ReviewerUnavailable";
+        public const string PartStateLoadFailed = "PartStateLoadFailed";
         public const string ReviewerAssignmentRequired = "ReviewerAssignmentRequired";
         public const string ConfirmApprove = "ConfirmApprove";
         public const string ConfirmRequestRework = "ConfirmRequestRework";
@@ -776,6 +777,7 @@ namespace IdeaCadConnector.Core.Localization
         public const string MainSubmitForReview = "MainSubmitForReview";
         public const string MainApprove = "MainApprove";
         public const string MainRequestRework = "MainRequestRework";
+        public const string MainWithdraw = "MainWithdraw";
         public const string MainVersion = "MainVersion";
 
         // MainWindow meta labels

@@ -22,6 +22,8 @@ namespace IdeaCadConnector.Core.Cad
 
         private readonly HashSet<CadBusinessActionKind> _openGates;
         private bool _partReleaseGateOpen;
+        private bool _reviewerAssignmentGateOpen;
+        private bool _startNewRevisionGateOpen;
 
         public CadWorkflowGate()
         {
@@ -65,6 +67,67 @@ namespace IdeaCadConnector.Core.Cad
             lock (_openGates)
             {
                 return _partReleaseGateOpen;
+            }
+        }
+
+        /// <summary>
+        /// Opens GATE-B-revise after the authority has verified atomic Part+CAD
+        /// revision creation and conflict behavior.
+        /// </summary>
+        public void OpenStartNewRevisionGate()
+        {
+            lock (_openGates)
+            {
+                _startNewRevisionGateOpen = true;
+            }
+        }
+
+        public void CloseStartNewRevisionGate()
+        {
+            lock (_openGates)
+            {
+                _startNewRevisionGateOpen = false;
+            }
+        }
+
+        public bool IsStartNewRevisionAvailable()
+        {
+            lock (_openGates)
+            {
+                return _startNewRevisionGateOpen;
+            }
+        }
+
+        /// <summary>
+        /// Opens the reviewer-assignment gate after the authority contract for
+        /// selecting or assigning an eligible reviewer has been verified.
+        /// </summary>
+        public void OpenReviewerAssignmentGate()
+        {
+            lock (_openGates)
+            {
+                _reviewerAssignmentGateOpen = true;
+            }
+        }
+
+        /// <summary>Closes the reviewer-assignment gate.</summary>
+        public void CloseReviewerAssignmentGate()
+        {
+            lock (_openGates)
+            {
+                _reviewerAssignmentGateOpen = false;
+            }
+        }
+
+        /// <summary>
+        /// False until the authority exposes verified reviewer assignment
+        /// behavior. The client must not submit a review without it.
+        /// </summary>
+        public bool IsReviewerAssignmentAvailable()
+        {
+            lock (_openGates)
+            {
+                return _reviewerAssignmentGateOpen;
             }
         }
 

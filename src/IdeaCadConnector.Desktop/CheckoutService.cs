@@ -196,6 +196,16 @@ namespace IdeaCadConnector.Desktop
 
                 var checkinResult = await _arasClient.CheckinAsync(request, ct);
 
+                if (checkinResult == null || !checkinResult.Success)
+                {
+                    return new CheckinResultInfo
+                    {
+                        Success = false,
+                        ErrorMessage = checkinResult?.Message
+                            ?? "The authority did not confirm the CAD check-in."
+                    };
+                }
+
                 return new CheckinResultInfo
                 {
                     Success = true,

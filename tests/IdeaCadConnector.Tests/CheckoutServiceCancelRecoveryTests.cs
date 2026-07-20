@@ -16,6 +16,11 @@ namespace IdeaCadConnector.Tests
         private sealed class StubArasCadClient : IArasCadClient
         {
             public bool CancelCalled { get; private set; }
+            public bool UploadCalled { get; private set; }
+            public bool CheckinCalled { get; private set; }
+            public CadCheckinRequest LastCheckinRequest { get; private set; }
+            public FileUploadResult UploadResult { get; set; } = new FileUploadResult { UploadedFileId = "FILE1" };
+            public CadCheckinResult CheckinResult { get; set; } = new CadCheckinResult { Success = true };
 
             public Task<CancelCheckoutResult> CancelCheckoutAsync(CancelCheckoutRequest request, CancellationToken ct)
             {
@@ -30,8 +35,18 @@ namespace IdeaCadConnector.Tests
             public Task<CreateCadResult> CreateCadAsync(CreateCadRequest request, CancellationToken ct) => Task.FromResult<CreateCadResult>(null);
             public Task<CadCheckoutResult> CheckoutAsync(CadCheckoutRequest request, CancellationToken ct) => Task.FromResult<CadCheckoutResult>(null);
             public Task<CadCheckoutResult> OpenReadOnlyAsync(CadOpenReadOnlyRequest request, CancellationToken ct) => Task.FromResult<CadCheckoutResult>(null);
-            public Task<FileUploadResult> UploadFileAsync(FileUploadRequest request, CancellationToken ct) => Task.FromResult<FileUploadResult>(null);
-            public Task<CadCheckinResult> CheckinAsync(CadCheckinRequest request, CancellationToken ct) => Task.FromResult<CadCheckinResult>(null);
+            public Task<FileUploadResult> UploadFileAsync(FileUploadRequest request, CancellationToken ct)
+            {
+                UploadCalled = true;
+                return Task.FromResult(UploadResult);
+            }
+
+            public Task<CadCheckinResult> CheckinAsync(CadCheckinRequest request, CancellationToken ct)
+            {
+                CheckinCalled = true;
+                LastCheckinRequest = request;
+                return Task.FromResult(CheckinResult);
+            }
             public Task<string> DownloadNativeFileAsync(string fileId, string targetDirectory, CancellationToken ct) => Task.FromResult<string>(null);
             public Task<CadOperationContext> GetCadOperationContextAsync(string cadId, CancellationToken ct = default) => Task.FromResult<CadOperationContext>(null);
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct = default) => Task.FromResult<CadOperationContext>(null);
@@ -176,6 +191,107 @@ namespace IdeaCadConnector.Tests
 
             Assert.True(success);
             Assert.True(cadClient.CancelCalled);
+        }
+
+        [Fact]
+        public async Task Checkin_PropagatesReasonToAuthorityComment()
+        {
+            var cadClient = new StubArasCadClient();
+            var service = BuildService(cadClient, new StubRecoveryService());
+            var path = Path.GetTempFileName();
+
+            try
+            {
+                var result = await service.UploadAndCheckinAsync(
+                    "CAD1", "LOCK1", path, new CadMetadata(), "Update mounting hole", CancellationToken.None);
+
+                Assert.True(result.Success);
+                Assert.True(cadClient.UploadCalled);
+                Assert.True(cadClient.CheckinCalled);
+                Assert.Equal("Update mounting hole", cadClient.LastCheckinRequest.Comment);
+                Assert.Equal("CAD1", cadClient.LastCheckinRequest.CadId);
+                Assert.Equal("LOCK1", cadClient.LastCheckinRequest.LockToken);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData(" ")]
+        [InlineData("\t\r\n")]
+        public async Task Checkin_RejectsMissingReasonBeforeUpload(string reason)
+        {
+            var cadClient = new StubArasCadClient();
+            var service = BuildService(cadClient, new StubRecoveryService());
+            var path = Path.GetTempFileName();
+
+            try
+            {
+                var result = await service.UploadAndCheckinAsync(
+                    "CAD1", "LOCK1", path, null, reason, CancellationToken.None);
+
+                Assert.False(result.Success);
+                Assert.False(cadClient.UploadCalled);
+                Assert.False(cadClient.CheckinCalled);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [Fact]
+        public async Task Checkin_AuthorityFailureIsNotReportedAsSuccess()
+        {
+            var cadClient = new StubArasCadClient
+            {
+                CheckinResult = new CadCheckinResult
+                {
+                    Success = false,
+                    Message = "Server rejected the check-in."
+                }
+            };
+            var service = BuildService(cadClient, new StubRecoveryService());
+            var path = Path.GetTempFileName();
+
+            try
+            {
+                var result = await service.UploadAndCheckinAsync(
+                    "CAD1", "LOCK1", path, null, "Fix dimensions", CancellationToken.None);
+
+                Assert.False(result.Success);
+                Assert.Equal("Server rejected the check-in.", result.ErrorMessage);
+                Assert.True(cadClient.CheckinCalled);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        }
+
+        [Fact]
+        public async Task Checkin_NullAuthorityResponseIsNotReportedAsSuccess()
+        {
+            var cadClient = new StubArasCadClient { CheckinResult = null };
+            var service = BuildService(cadClient, new StubRecoveryService());
+            var path = Path.GetTempFileName();
+
+            try
+            {
+                var result = await service.UploadAndCheckinAsync(
+                    "CAD1", "LOCK1", path, null, "Fix dimensions", CancellationToken.None);
+
+                Assert.False(result.Success);
+                Assert.Contains("did not confirm", result.ErrorMessage);
+            }
+            finally
+            {
+                File.Delete(path);
+            }
         }
     }
 }

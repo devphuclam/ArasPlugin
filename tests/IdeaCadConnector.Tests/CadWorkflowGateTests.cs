@@ -11,9 +11,10 @@ namespace IdeaCadConnector.Tests
         {
             var gate = new CadWorkflowGate();
 
-            // SubmitForReview and StartDetailedDesign are available as soon as the
-            // live CAD lifecycle allows them; they are not held by an evidence gate.
-            Assert.True(gate.IsAvailable(CadBusinessActionKind.SubmitForReview));
+            // StartDetailedDesign is available as soon as the live CAD lifecycle
+            // allows it. SubmitForReview still requires verified reviewer
+            // assignment behavior.
+            Assert.False(gate.IsReviewerAssignmentAvailable());
             Assert.True(gate.IsAvailable(CadBusinessActionKind.StartDetailedDesign));
         }
 
@@ -73,6 +74,36 @@ namespace IdeaCadConnector.Tests
             gate.ClosePartReleaseGate();
 
             Assert.False(gate.IsPartReleaseAvailable());
+        }
+
+        [Fact]
+        public void StartNewRevisionGate_ClosedByDefault()
+        {
+            var gate = new CadWorkflowGate();
+
+            Assert.False(gate.IsStartNewRevisionAvailable());
+
+            gate.OpenStartNewRevisionGate();
+
+            Assert.True(gate.IsStartNewRevisionAvailable());
+
+            gate.CloseStartNewRevisionGate();
+
+            Assert.False(gate.IsStartNewRevisionAvailable());
+        }
+
+        [Fact]
+        public void ReviewerAssignmentGate_ClosedByDefault()
+        {
+            var gate = new CadWorkflowGate();
+
+            Assert.False(gate.IsReviewerAssignmentAvailable());
+
+            gate.OpenReviewerAssignmentGate();
+            Assert.True(gate.IsReviewerAssignmentAvailable());
+
+            gate.CloseReviewerAssignmentGate();
+            Assert.False(gate.IsReviewerAssignmentAvailable());
         }
     }
 }

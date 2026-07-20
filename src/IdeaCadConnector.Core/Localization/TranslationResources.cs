@@ -495,6 +495,7 @@ namespace IdeaCadConnector.Core.Localization
             [TranslationKeys.ConfirmStartDetailedDesign] = "Move this CAD from 'Khoi tao' to 'Thiet ke chi tiet'?",
             [TranslationKeys.ConfirmSubmitForReview] = "Submit this CAD for review?",
             [TranslationKeys.ReviewerUnavailable] = "No reviewer is available. Configure an authoritative reviewer source before submitting for review.",
+            [TranslationKeys.PartStateLoadFailed] = "Part lifecycle state could not be loaded: {0}",
             [TranslationKeys.ReviewerAssignmentRequired] = "You are not the assigned reviewer for this CAD. Only the assigned reviewer can approve or request rework.",
             [TranslationKeys.ConfirmApprove] = "Approve this CAD?",
             [TranslationKeys.ConfirmRequestRework] = "Request rework on this CAD?",
@@ -771,6 +772,7 @@ namespace IdeaCadConnector.Core.Localization
             [TranslationKeys.MainSubmitForReview] = "Submit for Review",
             [TranslationKeys.MainApprove] = "Approve",
             [TranslationKeys.MainRequestRework] = "Request Rework",
+            [TranslationKeys.MainWithdraw] = "Withdraw",
             [TranslationKeys.MainVersion] = "v1.0.0",
 
             // MainWindow meta labels
@@ -1455,6 +1457,7 @@ namespace IdeaCadConnector.Core.Localization
             [TranslationKeys.ConfirmStartDetailedDesign] = "Chuyển CAD này từ 'Khoi tao' sang 'Thiet ke chi tiet'?",
             [TranslationKeys.ConfirmSubmitForReview] = "Gửi CAD này cho review?",
             [TranslationKeys.ReviewerUnavailable] = "Không có người đánh giá khả dụng. Cấu hình nguồn người đánh giá hợp lệ trước khi gửi để đánh giá.",
+            [TranslationKeys.PartStateLoadFailed] = "Không thể tải trạng thái vòng đời Part: {0}",
             [TranslationKeys.ReviewerAssignmentRequired] = "Bạn không phải là người đánh giá được chỉ định cho CAD này. Chỉ người đánh giá được chỉ định mới có thể phê duyệt hoặc yêu cầu làm lại.",
             [TranslationKeys.ConfirmApprove] = "Phê duyệt CAD này?",
             [TranslationKeys.ConfirmRequestRework] = "Yêu cầu làm lại CAD này?",
@@ -1555,6 +1558,7 @@ namespace IdeaCadConnector.Core.Localization
             [TranslationKeys.MainSubmitForReview] = "Gửi để Đánh giá",
             [TranslationKeys.MainApprove] = "Phê duyệt",
             [TranslationKeys.MainRequestRework] = "Yêu cầu Làm lại",
+            [TranslationKeys.MainWithdraw] = "Rút lại",
             [TranslationKeys.MainVersion] = "v1.0.0",
 
             // MainWindow meta labels
@@ -2239,6 +2243,7 @@ namespace IdeaCadConnector.Core.Localization
             [TranslationKeys.ConfirmStartDetailedDesign] = "このCADを 'Khoi tao' から 'Thiet ke chi tiet' に移動しますか？",
             [TranslationKeys.ConfirmSubmitForReview] = "このCADをレビューに提出しますか？",
             [TranslationKeys.ReviewerUnavailable] = "レビュー担当者が利用できません。レビュー提出前に正規のレビュー担当者ソースを設定してください。",
+            [TranslationKeys.PartStateLoadFailed] = "Partのライフサイクル状態を読み込めませんでした: {0}",
             [TranslationKeys.ReviewerAssignmentRequired] = "このCADの割り当てレビュー担当者ではありません。レビュー担当者のみが承認または差し戻しできます。",
             [TranslationKeys.ConfirmApprove] = "このCADを承認しますか？",
             [TranslationKeys.ConfirmRequestRework] = "このCADの手直しを要求しますか？",
@@ -2339,6 +2344,7 @@ namespace IdeaCadConnector.Core.Localization
             [TranslationKeys.MainSubmitForReview] = "レビューに提出",
             [TranslationKeys.MainApprove] = "承認",
             [TranslationKeys.MainRequestRework] = "再作業を要求",
+            [TranslationKeys.MainWithdraw] = "撤回",
             [TranslationKeys.MainVersion] = "v1.0.0",
 
             // MainWindow meta labels

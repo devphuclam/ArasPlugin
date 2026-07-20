@@ -1,5 +1,3 @@
-using System;
-
 namespace IdeaCadConnector.Core.Library
 {
     /// <summary>
@@ -9,22 +7,16 @@ namespace IdeaCadConnector.Core.Library
     /// </summary>
     public sealed class DefaultPartLifecyclePolicy : IPartLifecyclePolicy
     {
-        public const string KhởiTạo = "Khoi tao";
-        public const string ThiếtKếChiTiết = "Thiet ke chi tiet";
-        public const string InReview = "In Review";
-        public const string Released = "Released";
+        private readonly PartLifecyclePolicy _policy = new PartLifecyclePolicy();
 
         public bool CanRelease(string state)
         {
-            return !string.IsNullOrWhiteSpace(state)
-                && (string.Equals(state.Trim(), InReview, StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(state.Trim(), ThiếtKếChiTiết, StringComparison.OrdinalIgnoreCase));
+            return _policy.CanRelease(state);
         }
 
         public bool IsReleased(string state)
         {
-            return !string.IsNullOrWhiteSpace(state)
-                && string.Equals(state.Trim(), Released, StringComparison.OrdinalIgnoreCase);
+            return _policy.IsReleased(state);
         }
     }
 }

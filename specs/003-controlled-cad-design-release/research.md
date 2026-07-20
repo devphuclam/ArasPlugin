@@ -2,12 +2,12 @@
 
 ## 1. Part and CAD Lifecycle Eligibility — Separate Verified Mappings
 
-**Decision**: Part and CAD have separate lifecycle identities per ADR-0009. The Part lifecycle configuration in the Aras environment may use different state names than the CAD lifecycle map. Matching display names do not establish matching business semantics. The feature must:
+**Decision**: Part and CAD have separate lifecycle identities per ADR-0009. For the current IDEA profile, the product owner confirmed that both use the same core semantic path: `Khoi tao` → `Thiet ke chi tiet` → `In Review` → `Released`. Matching names are recorded as verified for this profile, but the adapter boundary remains separate so a future backend or Aras configuration can diverge safely. The feature must:
 
 - Define `IPartLifecyclePolicy` (new) and `ICadLifecyclePolicy` (extracted from the existing `CadLifecyclePolicy` pattern) as separate interfaces with verified state mappings.
-- Add an **Aras environment evidence gate** as a prerequisite for implementation: the verified Part lifecycle state names, permitted transitions, and semantic roles must be captured before any Part lifecycle code is written.
+- Keep an **Aras environment evidence gate** for the remaining Part transition, permission, and immutability details before the Part policy is treated as fully evidenced.
 - Use semantic role (e.g., "editable", "review-only", "released") as the policy abstraction; retain the verified Aras state identity and display name behind the adapter.
-- The existing `CadLifecyclePolicy.cs` lists `Khoi tao`, `Thiet ke chi tiet`, `In Review`, `Released` — these are CAD-specific constants from the CAD lifecycle map. The Part lifecycle may have different constants and must not reuse them without verification.
+- The existing `CadLifecyclePolicy.cs` lists `Khoi tao`, `Thiet ke chi tiet`, `In Review`, `Released`; the product owner confirmed the current Part profile uses the same core path. These remain separate adapter mappings and must not be collapsed into one raw lifecycle enum.
 
 **Rationale**:
 - ADR-0009 explicitly states: "Keep lifecycle identity scoped to the Aras ItemType and lifecycle map. Matching state labels do not prove identical behavior."
@@ -87,7 +87,19 @@ If recovery creation or verification fails, cancellation stops and the authority
 - The domain model: "The MVP release aggregate is one Part Revision linked to one primary CAD Revision."
 - This matches the domain model's "Part-CAD Revision Pair" section and the coordinated operations.
 
-## 6. Authority-Neutral Identities — No Leaked Aras Terminology
+## 6. Authority-Assigned Reviewer and Coordinated Rework
+
+**Decision**: Aras Assign/workflow assignment is authoritative for reviewer selection. The engineer does not choose a reviewer and the client does not send a reviewer identity through the current submit contract. Reviewer actions require a verified active assignment read seam; a missing assignment fails closed.
+
+Request Rework is accepted as coordinated state-only behavior for MVP: the CAD Revision and linked Part Revision return to `Thiet ke chi tiet), no new engineering revision/version is created, and duplicate `Sync_Part_From_CAD` work is a no-op. The remaining evidence work concerns deployed result/audit coverage, not an unresolved business-policy choice.
+
+**Rationale**:
+
+- Product owner decision on 2026-07-20: “Aras Assign.”
+- Product owner decision on 2026-07-20: Part returns to `Thiet ke chi tiet` without increasing version; duplicate Sync is a no-op.
+- The client must not infer review ownership from checkout lock ownership.
+
+## 8. Authority-Neutral Identities — No Leaked Aras Terminology
 
 **Decision**: Backend-neutral domain contracts use authority-neutral identity types (plain `string` identifiers, domain entity references). Aras-specific mappings (Aras ID, config_id, Vault metadata, IOM references) stay in the adapter layer (`IdeaCadConnector.Aras`). Specifically:
 
@@ -100,7 +112,7 @@ If recovery creation or verification fails, cancellation stops and the authority
 - The domain model PDM Authority section: "The domain must not require AML, IOM, Vault identifiers, Aras ItemType names, or Git branch names."
 - The existing `PdmReviseRequest` already uses abstract names (`PartId`, `CadId`, `PartNumber`, `CadNumber`, `Reason`) — no Aras-specific terms. This pattern is correct and should be extended.
 
-## 7. Withdraw Submission — Same Canonical Transport Seam
+## 9. Withdraw Submission — Same Canonical Transport Seam
 
 **Decision**: Withdraw submission uses the same `IArasCadClient.ExecuteCadBusinessActionAsync` with `CadBusinessActionKind.Withdraw`. This is NOT a new transport method.
 
@@ -116,9 +128,15 @@ If recovery creation or verification fails, cancellation stops and the authority
 
 **Evidence gate (GATE-W)**: Verify the deployed server method or lifecycle transition for withdraw exists and behaves correctly. If no atomic mechanism exists to return CAD from `In Review` to `Thiet ke chi tiet` without recording a review decision, the Withdraw UI remains disabled.
 
-## 8. Reviewer Reassignment — FR-009 (Deferred to Post-MVP)
+**GATE-W-owner extension**: Availability of a withdraw transition alone is insufficient. The authority operation context must expose the submission owner (or an equivalent verified authorization result). `LockOwnerName` is checkout ownership and must not be used as a substitute. Until this is verified, the client fails closed.
 
-**Decision**: Reviewer reassignment is deferred to post-MVP. FR-009 is not part of the current feature implementation. The MVP reviewer assignment is done at submission time only.
+## 10. Reviewer Assignment Evidence Boundary
+
+The checked-in `idea_SubmitCadForReview` method accepts `cad_id` and `comment`; it has no reviewer input because the product owner confirmed that Aras Assign/workflow assignment selects the reviewer. The current `CadOperationContext` likewise has no submission-owner or active-reviewer read contract. The live workflow contains runtime review activities assigned by the authority; this is evidence for a provider/authority-assignment seam, not permission to hard-code an identity. Therefore the client must not add guessed AML/property names, put reviewer identities into comments, or show a selector whose value is discarded. The initial UX stays simple behind a replaceable authority-assignment provider; GATE-RS remains required before submission/reviewer decisions can claim verified active-assignment behavior.
+
+## 11. Reviewer Reassignment — FR-009 (Deferred to Post-MVP)
+
+**Decision**: Reviewer reassignment is deferred to post-MVP. FR-009 is not part of the current feature implementation. In MVP, Aras Assign/workflow performs reviewer assignment at submission time; engineer-selected reviewer input is not part of the contract.
 
 **Design for future implementation**:
 - Define `IReviewReassignmentService` in Core contracts with `ReassignAsync(ReviewReassignmentRequest)`.
@@ -130,10 +148,10 @@ If recovery creation or verification fails, cancellation stops and the authority
 
 **Rationale**:
 - FR-009 is P3. MVP scope (US1 + US2) does not require admin reassignment.
-- The reviewer is selected at submission time by the submitting engineer.
+- The initial reviewer mechanism is deliberately simple and replaceable: consume an authority-assigned reviewer or a configured provider. Do not make the engineer's client selection authoritative until the server contract is verified.
 - Reassignment requires a verified server method or authority capability (GATE-REASSIGN).
 
-## 9. Notifications and Audit — Authority Responsibility
+## 12. Notifications and Audit — Authority Responsibility
 
 **Decision**: Notifications (engineer notified on approve/rework, reviewer notified on submit) and audit events are the authority's responsibility. The client does NOT implement its own notification or audit system.
 
@@ -143,7 +161,7 @@ If recovery creation or verification fails, cancellation stops and the authority
 - FR-017: "Every lifecycle transition MUST be recorded as an auditable event" — Aras Innovator already records audit trails for item transitions. The client must not duplicate or fake this.
 - **Evidence gate (GATE-N)**: Verify the Aras environment records and surfaces audit events for all lifecycle transitions (checkout, check-in, submit, withdraw, approve, request-rework, start-new-revision). Record the audit schema and available fields (actor, timestamp, revision, previous state, new state, reason). If audit coverage is incomplete, document the gap.
 
-## 11. Check-in Atomicity — idea_CommitCadCheckin (GATE-B-checkin)
+## 13. Check-in Atomicity — idea_CommitCadCheckin (GATE-B-checkin)
 
 **Decision**: The check-in server method `idea_CommitCadCheckin` must provide atomic update+unlock, ChangeSet recording, audit event creation, and reason persistence. The checked-in source at `src/IdeaCadConnector.Aras/ServerMethods/idea_CommitCadCheckin.cs` falls short: it updates native_file and unlocks in separate `apply()` calls without transaction wrapping. The `comment` property is read from input but not written to any ChangeSet or audit record. The method header claims "Atomically complete a CAD check-in" but the source does not implement atomicity.
 
@@ -158,18 +176,18 @@ If recovery creation or verification fails, cancellation stops and the authority
 
 **Evidence gate (GATE-B-checkin)**: Verify all above conditions in the real Aras environment. Record in `docs/evidence/gate-b-checkin-commit-atomicity.md`.
 
-## 12. Request Rework Side Effects — Sync_Part_From_CAD (GATE-RW)
+## 14. Request Rework Side Effects — Sync_Part_From_CAD (GATE-RW)
 
-**Decision**: The `idea_RequestCadRework` server method at `src/IdeaCadConnector.Aras/ServerMethods/idea_RequestCadRework.cs` promotes CAD to `Thiet ke chi tiet` and then calls `Sync_Part_From_CAD`. This external method may load, unlock, promote, or version the linked Part. The domain model (ADR-0009) treats Part and CAD as separate lifecycle identities, and the MVP coordinates them only at Start New Revision and Release approval. Request Rework is NOT defined as a coordinated Part/CAD operation.
+**Decision**: The `idea_RequestCadRework` server method at `src/IdeaCadConnector.Aras/ServerMethods/idea_RequestCadRework.cs` promotes CAD to `Thiet ke chi tiet` and then calls `Sync_Part_From_CAD`. The product owner confirmed that the linked Part also returns to `Thiet ke chi tiet`, does not receive a new engineering version, and duplicate Sync work is a no-op. Request Rework is therefore accepted as coordinated state-only behavior for MVP.
 
 **Implementation requirements**:
 - Verify deployed behavior of `Sync_Part_From_CAD` — does it change Part lifecycle state? Does it create a new Part version?
-- If Part is modified by rework, a business decision is required: either (a) update the domain policy to accept rework as a coordinated Part+CAD operation, or (b) fix the server method to be CAD-only.
-- Until evidence is collected and a decision is made, Request Rework UI must be disabled or carry a documented limitation.
+- Confirm that the deployed result matches the product-owner decision: both states return to `Thiet ke chi tiet`, no new Part version is created, and duplicate synchronization is a no-op.
+- Keep audit/result verification separate; this decision does not fabricate transition evidence or open a runtime gate by itself.
 
 **Evidence gate (GATE-RW)**: Verify deployed rework side effects on Part lifecycle in the real Aras environment. Record in `docs/evidence/gate-rw-rework-side-effects.md`.
 
-## 13. Existing Infrastructure Summary (Updated)
+## 15. Existing Infrastructure Summary (Updated)
 
 - `IPdmRepositoryClient.ReviseCadAsync(PdmReviseRequest)` — Client code exists in `HttpPdmRepositoryClient.cs` and calls `idea_ReviseCad`. Real Start New Revision behavior remains blocked by GATE-B-revise until deployed server atomicity and response behavior are verified. The existence of the client method does not prove the authority operation works.
 - `IRevisionService.CheckPreconditionsAsync` — Already defined; checks CAD state, lock token, Part/CAD IDs.
@@ -186,5 +204,33 @@ If recovery creation or verification fails, cancellation stops and the authority
 - **Evidence gate GATE-B-approve**: Before enabling Approve UI, verify the deployed `idea_ApproveCadReview` server method provides coordinated Part+CAD release. **Checked-in source is CAD-only** — deployed behavior may differ.
 - **Evidence gate GATE-B-checkin**: Before claiming FR-003/FR-018 compliance, verify deployed `idea_CommitCadCheckin` provides atomic update+unlock, ChangeSet, audit, and reason persistence. **Checked-in source has separate apply() calls without transaction**.
 - **Evidence gate GATE-W**: Before enabling Withdraw UI, verify the deployed withdraw capability (lifecycle transition or server method) exists and behaves correctly.
-- **Evidence gate GATE-RW**: Before enabling Request Rework UI, verify deployed `idea_RequestCadRework` side effects on Part via `Sync_Part_From_CAD`. **Checked-in source may modify Part lifecycle**.
+- **Evidence gate GATE-RW**: Before claiming full Request Rework compliance, verify deployed `idea_RequestCadRework` result and audit behavior against the accepted coordinated state-only policy. **Checked-in source may modify Part lifecycle through the intended Sync path**.
 - **Evidence gate GATE-N**: Before claiming FR-017 compliance, verify Aras audit trail covers all lifecycle transitions with required fields (actor, timestamp, revision, previous state, new state, reason).
+
+## 14. Product Decision Addendum — Same Initial Semantic Profile, Replaceable Mapping
+
+**Decision**: IDEA's initial business profile should be simple and use the same semantic lifecycle roles for Part and CAD. This does **not** create one shared raw state enum. Each ItemType keeps an independent mapping/policy so the backend and live Aras configuration can change later.
+
+**Live evidence**: On 2026-07-20, the active CAD ItemType used `Custom CAD Document` and the active Part ItemType used `Custom Part`. A corrected query of the active Part map found `Khoi tao`, `Thiet ke chi tiet`, `In Review`, `Released`, `Che tao`, `Nhan hang`, `In Change`, `Superseded`, and `Obsolete`. The four core IDEA states are therefore present in both maps; their additional states and transition graphs still require separate policy handling.
+
+**Recommended Aras improvement**: No new Part lifecycle is required solely to obtain the four core states; verify the existing transition graph and permissions first. Keep `PartLifecyclePolicy` separate from CAD policy because the maps contain additional states and may diverge later. See ADR-0011 and `docs/evidence/part-lifecycle-evidence.md`.
+
+## 15. Recommended Authority Operations for Real PDM Behavior
+
+The current live methods are useful learning references but do not yet prove the business guarantees required by the feature:
+
+- **Approval**: `idea_ApproveCadReview` textually promotes CAD only, but live ItemType configuration adds `CAD.onAfterPromote → Sync_Part_From_CAD`, so the deployed approval path indirectly coordinates Part. This is the correct caller path to preserve in the model. The remaining question is transaction/failure behavior: test whether a Part sync failure rolls back the CAD promotion. Do not replace this with two client calls.
+- **Start New Revision**: `idea_ReviseCad` is one client request but performs multiple server-side operations. Keep the UI gated until a deployed failure and concurrency test proves no orphan Part, orphan CAD, or duplicate pair remains.
+- **Rework**: `idea_RequestCadRework` calls `Sync_Part_From_CAD`, which can change or version Part. This is acceptable only if the business explicitly defines rework as coordinated Part-CAD behavior. Otherwise, remove the hidden Part side effect. In either case, make the authority operation explicit and testable.
+- **Check-in/audit**: Standard Aras `History` exists in the live environment. For MVP, use it as the first audit candidate and verify actor/time/item/version/reason coverage. Add a custom ChangeSet only if History cannot support the required structured synchronization or recovery use case.
+- **Reviewer**: Keep the initial client simple behind `IReviewerProvider`; consume a verified active Aras assignment when available. Do not hard-code a reviewer or add a selector whose value is not accepted by the authority.
+
+These are recommendations for the Aras administrator and remain unimplemented until approved and evidenced.
+
+## 16. Live Inspection Lessons
+
+The durable lessons from this investigation are recorded in `docs/development/aras-live-evidence-and-ai-lessons.md`. The critical rules are: query the active ItemType lifecycle binding, separate semantic roles from raw state names, distinguish source/deployment/transaction evidence, inspect helper call graphs for cross-item side effects, and never mark an evidence gate complete from source inspection alone.
+
+## 17. Follow-up Live Confirmation
+
+The product owner confirmed that the deployed CAD `onAfterPromote → Sync_Part_From_CAD` path satisfies the required coordinated atomicity behavior. The product owner also confirmed that the second Sync invocation observed in the rework path is a no-op. The evidence gate records this confirmation without inventing missing fixture identifiers or logs.

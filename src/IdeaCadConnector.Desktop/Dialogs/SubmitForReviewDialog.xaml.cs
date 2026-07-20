@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
 
@@ -6,21 +7,24 @@ namespace IdeaCadConnector.Desktop
     public partial class SubmitForReviewDialog : Window
     {
         public string ChangeDescription { get; private set; }
-        public string SelectedReviewer { get; private set; }
 
         public SubmitForReviewDialog()
         {
             InitializeComponent();
+            ReviewerGateNote.Text = "Reviewer assignment is unavailable until authority evidence is completed.";
         }
 
         public void SetCadInfo(string text) => CadInfo.Text = text;
         public void SetPartInfo(string text) => PartInfo.Text = text;
-        public void SetReviewers(System.Collections.Generic.IEnumerable<string> reviewers)
+
+        public void SetAvailableReviewers(IReadOnlyList<string> reviewers)
         {
-            foreach (var r in reviewers)
-                ReviewerCombo.Items.Add(r);
-            if (ReviewerCombo.Items.Count > 0)
+            if (reviewers != null && reviewers.Count > 0)
+            {
+                ReviewerCombo.ItemsSource = reviewers;
                 ReviewerCombo.SelectedIndex = 0;
+            }
+            ReviewerCombo.IsEnabled = false;
         }
 
         private void SubmitButton_Click(object sender, RoutedEventArgs e)
@@ -30,13 +34,7 @@ namespace IdeaCadConnector.Desktop
                 MessageBox.Show("Change description is required.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (ReviewerCombo.SelectedItem == null)
-            {
-                MessageBox.Show("Please select a reviewer.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
             ChangeDescription = ChangeDescriptionBox.Text.Trim();
-            SelectedReviewer = ReviewerCombo.SelectedItem.ToString();
             DialogResult = true;
             Close();
         }

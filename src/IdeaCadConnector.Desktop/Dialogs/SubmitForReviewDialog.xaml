@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Submit for Review"
         Width="500"
-        Height="420"
+        Height="480"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         WindowStyle="None"
@@ -62,16 +62,19 @@
                     <TextBlock Text="Submit the checked-in CAD revision for review." Margin="0,4,0,0" Foreground="{StaticResource DialogMutedBrush}" FontSize="13"/>
                 </StackPanel>
             </Border>
-            <StackPanel Grid.Row="1" Margin="26,22">
-                <TextBlock Text="CAD Revision" Style="{StaticResource DialogLabelStyle}"/>
-                <TextBlock x:Name="CadInfo" Margin="0,4,0,12" Foreground="{StaticResource DialogTextBrush}" FontSize="13"/>
-                <TextBlock Text="Part Revision" Style="{StaticResource DialogLabelStyle}"/>
-                <TextBlock x:Name="PartInfo" Margin="0,4,0,12" Foreground="{StaticResource DialogTextBrush}" FontSize="13"/>
-                <TextBlock Text="Change Description *" Style="{StaticResource DialogLabelStyle}"/>
-                <TextBox x:Name="ChangeDescriptionBox" Margin="0,8,0,0" Height="80" Padding="12,8" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" Foreground="{StaticResource DialogTextBrush}" Background="White" BorderBrush="#C9D6EA" BorderThickness="1" FontSize="13"/>
-                <TextBlock Text="Reviewer *" Style="{StaticResource DialogLabelStyle}" Margin="0,12,0,0"/>
-                <ComboBox x:Name="ReviewerCombo" Margin="0,8,0,0" Height="42" Foreground="{StaticResource DialogTextBrush}"/>
-            </StackPanel>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="26,22">
+                    <TextBlock Text="CAD Revision" Style="{StaticResource DialogLabelStyle}"/>
+                    <TextBlock x:Name="CadInfo" Margin="0,4,0,12" Foreground="{StaticResource DialogTextBrush}" FontSize="13"/>
+                    <TextBlock Text="Part Revision" Style="{StaticResource DialogLabelStyle}"/>
+                    <TextBlock x:Name="PartInfo" Margin="0,4,0,12" Foreground="{StaticResource DialogTextBrush}" FontSize="13"/>
+                    <TextBlock Text="Reviewer" Style="{StaticResource DialogLabelStyle}"/>
+                    <ComboBox x:Name="ReviewerCombo" Margin="0,4,0,12" Height="36" IsEnabled="False" Foreground="{StaticResource DialogMutedBrush}" FontSize="13"/>
+                    <TextBlock x:Name="ReviewerGateNote" Margin="0,-8,0,12" Foreground="{StaticResource DialogErrorBrush}" FontSize="11"/>
+                    <TextBlock Text="Change Description *" Style="{StaticResource DialogLabelStyle}"/>
+                    <TextBox x:Name="ChangeDescriptionBox" Margin="0,8,0,0" Height="100" Padding="12,8" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" Foreground="{StaticResource DialogTextBrush}" Background="White" BorderBrush="#C9D6EA" BorderThickness="1" FontSize="13"/>
+                </StackPanel>
+            </ScrollViewer>
             <Border Grid.Row="2" Background="#FAFCFF" BorderBrush="{StaticResource DialogLineBrush}" BorderThickness="0,1,0,0" Padding="26,16">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Width="104" Content="Cancel" IsCancel="True" Style="{StaticResource DialogButtonStyle}"/>

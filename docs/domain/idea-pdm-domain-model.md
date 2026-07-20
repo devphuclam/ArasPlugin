@@ -75,7 +75,7 @@ Local Change Status describes content difference from the baseline: New, Modifie
 
 A ChangeSet is the immutable intent and outcome record for one synchronization or check-in operation. It records the baseline, selected changes, validation result, actor, reason, and outcome.
 
-A ChangeSet is not a Git commit exposed as the product model and is not automatically a new Part or CAD Revision.
+A ChangeSet is not a Git commit exposed as the product model and is not automatically a new Part or CAD Revision. For MVP, standard authority History may be the audit source if it can provide the required fields; a custom ChangeSet record is not assumed to exist in Aras.
 
 ### Checkout Session
 
@@ -101,13 +101,15 @@ If recovery creation or verification fails, cancellation stops and the authority
 
 Lifecycle Identity is scoped to the authority item type, lifecycle map, and state identity. A matching display name does not establish matching business semantics.
 
+The initial IDEA product profile may use the same semantic lifecycle roles for Part and CAD, but their authority mappings remain separate and replaceable. The profile is not a shared raw-state enum and is not defined by whichever Aras lifecycle map happens to be active in one environment.
+
 ### Lifecycle Semantic Role
 
 A Lifecycle Semantic Role expresses business meaning such as initial, detailed-design, review, released, superseded, or obsolete while retaining the authority's verified state identity.
 
 ### Review Submission
 
-A Review Submission is the auditable request to evaluate a working Part-CAD Revision Pair. It records the submitting engineer, assigned reviewer, change description, status, and decision history.
+A Review Submission is the auditable request to evaluate a working Part-CAD Revision Pair. It records the submitting engineer, the reviewer assigned by the PDM authority, change description, status, and decision history. The client does not choose or invent the reviewer identity.
 
 ### Release Policy
 
@@ -153,22 +155,25 @@ The domain speaks in business operations and semantic capabilities. An authority
 
 The domain must not require AML, IOM, Vault identifiers, Aras ItemType names, or Git branch names.
 
+Reviewer assignment is an authority concern. Aras Assign/workflow assignment is the current mechanism. The client consumes a verified active assignment through a replaceable provider or adapter seam; it never hard-codes a person or sends an arbitrary client-only reviewer value.
+
 ## Domain Invariants
 
 1. Released Part, CAD, Document, and BOM revisions are immutable within their approved policies.
 2. Further work on a Released Part-CAD pair creates a new working pair.
 3. Part and CAD retain separate lifecycle identities even when operations coordinate them.
 4. Cross-item release and revision creation succeed atomically or leave no partial result.
-5. Workspace changes are evaluated against an explicit baseline.
-6. Modified local content is never silently discarded.
-7. Recovery succeeds before remote unlock during destructive cancel-checkout.
-8. Local save, file version, ChangeSet, lifecycle event, and revision are distinct histories.
-9. Local change, checkout, lifecycle, validation, permission, and synchronization outcome are distinct dimensions.
-10. Binary engineering content is not automatically merged.
-11. BOM child revision selection is explicit and does not silently drift.
-12. Document lifecycle and revision propagation are not inferred from Part or CAD rules.
-13. Permission and lifecycle eligibility must both allow an action.
-14. Authority schema and transition behavior require verified evidence before implementation.
+5. Request Rework is state-only coordination: CAD and linked Part return to `Thiet ke chi tiet` without creating a new engineering revision/version.
+6. Workspace changes are evaluated against an explicit baseline.
+7. Modified local content is never silently discarded.
+8. Recovery succeeds before remote unlock during destructive cancel-checkout.
+9. Local save, file version, ChangeSet, lifecycle event, and revision are distinct histories.
+10. Local change, checkout, lifecycle, validation, permission, and synchronization outcome are distinct dimensions.
+11. Binary engineering content is not automatically merged.
+12. BOM child revision selection is explicit and does not silently drift.
+13. Document lifecycle and revision propagation are not inferred from Part or CAD rules.
+14. Permission and lifecycle eligibility must both allow an action.
+15. Authority schema and transition behavior require verified evidence before implementation.
 
 ## Domain Scenarios
 

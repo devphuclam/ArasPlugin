@@ -3,7 +3,6 @@ using System.Reflection;
 using IdeaCadConnector.Core.Cad;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
-using IdeaCadConnector.Core.Localization;
 using IdeaCadConnector.Desktop;
 using IdeaCadConnector.Desktop.Workflow;
 using Xunit;
@@ -12,60 +11,52 @@ namespace IdeaCadConnector.Tests
 {
     public sealed class ReviewerEnforcementTests
     {
-        private sealed class FakeReviewerProvider : IReviewerProvider
-        {
-            public IReadOnlyList<string> Reviewers { get; set; } = System.Array.Empty<string>();
-            public IReadOnlyList<string> GetReviewers() => Reviewers;
-        }
-
         private sealed class RecordingDialogService : IWorkflowActionDialogService
         {
-            public bool ReviewerUnavailableShown { get; private set; }
             public bool GatePendingShown { get; private set; }
+            public bool WithdrawConfirmed { get; set; } = true;
 
-            public SubmitForReviewDialogResult ShowSubmitForReview(string cadInfo, string partInfo, IEnumerable<string> reviewers)
+            public CheckinReasonDialogResult ShowCheckinReason()
+                => new CheckinReasonDialogResult();
+            public SubmitForReviewDialogResult ShowSubmitForReview(string cadInfo, string partInfo)
                 => new SubmitForReviewDialogResult { Confirmed = false };
-
             public ReviewDecisionDialogResult ShowReviewDecision(string submissionInfo, string gateNote)
                 => new ReviewDecisionDialogResult { Confirmed = false };
-
-            public bool ShowWithdrawConfirm(string submissionInfo) => false;
-
+            public bool ShowWithdrawConfirm(string submissionInfo) => WithdrawConfirmed;
             public bool ShowGatePending(string title, string message)
             {
                 GatePendingShown = true;
                 return false;
             }
-
-            public bool ShowReviewerUnavailable(string title, string message)
-            {
-                ReviewerUnavailableShown = true;
-                return false;
-            }
-
+            public bool ShowReviewerUnavailable(string title, string message) => false;
             public bool ConfirmSimple(string title, string message) => false;
         }
 
-        private static PdmProjectsViewModel BuildViewModel(
-            CadWorkflowGate gate, IReviewerProvider reviewerProvider, RecordingDialogService dialog)
+        private static PdmProjectsViewModel BuildViewModelWithGate(
+            CadWorkflowGate gate, RecordingDialogService dialog)
         {
             return new PdmProjectsViewModel(
                 new GuidanceRevisionService(),
                 new CadLifecyclePolicy(),
                 gate,
                 dialog,
-                PdmProjectsViewModel.CreateDefaultReleaseEligibility(new CadLifecyclePolicy(), gate),
-                reviewerProvider);
+                PdmProjectsViewModel.CreateDefaultReleaseEligibility(new CadLifecyclePolicy(), gate));
         }
 
         private static void SetLiveContext(
-            PdmProjectsViewModel vm, string cadId, string cadState, IReadOnlyList<CadBusinessAction> actions, string assigneeName = null)
+            PdmProjectsViewModel vm,
+            string cadId,
+            string cadState,
+            IReadOnlyList<CadBusinessAction> actions,
+            string assigneeName = null,
+            string lockOwnerName = null,
+            string partState = null)
         {
             var task = assigneeName == null
                 ? null
                 : new CadWorkflowTask("assignment1", "activity1", "Activity", "wp1", "Active", assigneeName, null);
             var context = new CadOperationContext(
-                cadId, "CAD-001", "A", 1, cadState, "2026-01-01", true, false, null, null,
+                cadId, "CAD-001", "A", 1, cadState, "2026-01-01", true, false, null, lockOwnerName,
                 task, actions);
             typeof(PdmProjectsViewModel)
                 .GetField("_cadOperationContext", BindingFlags.NonPublic | BindingFlags.Instance)
@@ -76,52 +67,13 @@ namespace IdeaCadConnector.Tests
             typeof(PdmProjectsViewModel)
                 .GetField("_liveCadState", BindingFlags.NonPublic | BindingFlags.Instance)
                 .SetValue(vm, cadState);
+            typeof(PdmProjectsViewModel)
+                .GetField("_livePartState", BindingFlags.NonPublic | BindingFlags.Instance)
+                .SetValue(vm, partState);
         }
 
         private static CadBusinessAction Action(CadBusinessActionKind kind) =>
             new CadBusinessAction(kind, kind.ToString(), true, null, false, "task1", "path1");
-
-        // T023: backend-neutral provider returns no placeholder identities.
-        [Fact]
-        public void EmptyReviewerProvider_ReturnsNoReviewers()
-        {
-            var provider = new EmptyReviewerProvider();
-
-            var reviewers = provider.GetReviewers();
-
-            Assert.NotNull(reviewers);
-            Assert.Empty(reviewers);
-        }
-
-        // T023: when no authoritative reviewer exists, submit-for-review is blocked
-        // with a clear message and no placeholder reviewer is used.
-        [Fact]
-        public void SubmitForReview_NoReviewer_BlockedWithMessage()
-        {
-            var dialog = new RecordingDialogService();
-            var reviewerProvider = new FakeReviewerProvider { Reviewers = System.Array.Empty<string>() };
-            var gate = new CadWorkflowGate();
-            var vm = BuildViewModel(gate, reviewerProvider, dialog);
-            SetLiveContext(vm, "CAD1", CadLifecyclePolicy.DetailedDesign, new List<CadBusinessAction> { Action(CadBusinessActionKind.SubmitForReview) });
-
-            MainViewModel.SharedUserName = "engineer1";
-            MainViewModel.SharedArasCadClient = new FakeCadClientForReview();
-
-            try
-            {
-                vm.ExecuteSubmitForReviewAsync();
-
-                Assert.True(dialog.ReviewerUnavailableShown);
-                Assert.Equal(
-                    PdmProjectsViewModel.Localize(TranslationKeys.ReviewerUnavailable),
-                    vm.StatusMessage);
-            }
-            finally
-            {
-                MainViewModel.SharedArasCadClient = null;
-                MainViewModel.SharedUserName = null;
-            }
-        }
 
         // T032: Approve/RequestRework are blocked unless the current user is the
         // authoritative assigned reviewer (ActiveTask.AssigneeName).
@@ -134,7 +86,7 @@ namespace IdeaCadConnector.Tests
             string currentUser, string assignee, bool expected)
         {
             MainViewModel.SharedUserName = currentUser;
-            var vm = BuildViewModel(new CadWorkflowGate(), new EmptyReviewerProvider(), new RecordingDialogService());
+            var vm = BuildViewModelWithGate(new CadWorkflowGate(), new RecordingDialogService());
             var task = assignee == null
                 ? null
                 : new CadWorkflowTask("a", "act", "Activity", "wp", "Active", assignee, null);
@@ -153,23 +105,365 @@ namespace IdeaCadConnector.Tests
             }
         }
 
-        // T033: Withdraw remains disabled while GATE-W is closed and no
-        // authoritative owner/submitter field exists.
+        // T033: Withdraw is disabled while GATE-W is closed.
         [Fact]
         public void Withdraw_IsDisabledWhileGateClosed()
         {
             var gate = new CadWorkflowGate();
             var dialog = new RecordingDialogService();
-            var vm = BuildViewModel(gate, new EmptyReviewerProvider(), dialog);
-            SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview, new List<CadBusinessAction> { Action(CadBusinessActionKind.Withdraw) });
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Withdraw) },
+                    lockOwnerName: "engineer1");
 
-            Assert.True(CadWorkflowGate.IsGated(CadBusinessActionKind.Withdraw));
-            Assert.True(vm.IsWorkflowGatePending(CadBusinessActionKind.Withdraw));
-            Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+                Assert.True(CadWorkflowGate.IsGated(CadBusinessActionKind.Withdraw));
+                Assert.True(vm.IsWorkflowGatePending(CadBusinessActionKind.Withdraw));
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
 
-            gate.OpenGate(CadBusinessActionKind.Withdraw);
-            Assert.False(vm.IsWorkflowGatePending(CadBusinessActionKind.Withdraw));
-            Assert.True(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+                gate.OpenGate(CadBusinessActionKind.Withdraw);
+                Assert.False(vm.IsWorkflowGatePending(CadBusinessActionKind.Withdraw));
+                // LockOwnerName is not an authoritative submission owner. The
+                // current contract has no submitter field, so Withdraw remains
+                // fail-closed even after GATE-W is opened.
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        // F3: Withdraw is disabled when owner is missing (LockOwnerName is null),
+        // even after the gate is opened.
+        [Fact]
+        public void Withdraw_DisabledWhenOwnerMissing()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Withdraw) },
+                    lockOwnerName: null);
+
+                gate.OpenGate(CadBusinessActionKind.Withdraw);
+
+                Assert.False(vm.IsWorkflowGatePending(CadBusinessActionKind.Withdraw));
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        // F3: Withdraw is disabled when the current user does not match the LockOwnerName.
+        [Fact]
+        public void Withdraw_DisabledWhenOwnerMismatch()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer2";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Withdraw) },
+                    lockOwnerName: "engineer1");
+
+                gate.OpenGate(CadBusinessActionKind.Withdraw);
+
+                Assert.False(vm.IsWorkflowGatePending(CadBusinessActionKind.Withdraw));
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        // F3: Withdraw is disabled when the gate is closed, even with correct owner.
+        [Fact]
+        public void Withdraw_DisabledWhenGateClosed_CorrectOwner()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Withdraw) },
+                    lockOwnerName: "engineer1");
+
+                Assert.True(vm.IsWorkflowGatePending(CadBusinessActionKind.Withdraw));
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        // F5: Approve is blocked when the current user is not the assigned reviewer.
+        [Fact]
+        public void Approve_DisabledWhenNotAssignedReviewer()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Approve) },
+                    assigneeName: "engineer2");
+
+                gate.OpenGate(CadBusinessActionKind.Approve);
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        // F5: Approve is enabled when the current user is the assigned reviewer
+        // and the gate is open.
+        [Fact]
+        public void Approve_EnabledWhenAssignedReviewer()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Approve) },
+                    assigneeName: "engineer1",
+                    partState: "In Review");
+
+                gate.OpenGate(CadBusinessActionKind.Approve);
+                gate.OpenPartReleaseGate();
+                gate.OpenReviewerAssignmentGate();
+                Assert.True(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        [Fact]
+        public void Approve_DisabledWhenReviewerGateClosed()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Approve) },
+                    assigneeName: "engineer1",
+                    partState: "In Review");
+
+                gate.OpenGate(CadBusinessActionKind.Approve);
+                gate.OpenPartReleaseGate();
+                Assert.False(gate.IsReviewerAssignmentAvailable());
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        [Fact]
+        public void RequestRework_DisabledWhenReviewerGateClosed()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.RequestRework) },
+                    assigneeName: "engineer1");
+
+                gate.OpenGate(CadBusinessActionKind.RequestRework);
+                Assert.False(gate.IsReviewerAssignmentAvailable());
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.RequestRework));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        [Fact]
+        public void RequestRework_EnabledWhenReviewerGateOpen()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.RequestRework) },
+                    assigneeName: "engineer1");
+
+                gate.OpenGate(CadBusinessActionKind.RequestRework);
+                gate.OpenReviewerAssignmentGate();
+                Assert.True(gate.IsReviewerAssignmentAvailable());
+                Assert.True(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.RequestRework));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        // Withdraw is always disabled because GATE-W and GATE-W-owner are both
+        // closed, and no authoritative submission-owner field exists in the
+        // current authority contract.
+        [Fact]
+        public void Withdraw_AlwaysDisabled()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Withdraw) },
+                    lockOwnerName: "engineer1");
+
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+                gate.OpenGate(CadBusinessActionKind.Withdraw);
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+                gate.OpenReviewerAssignmentGate();
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        [Fact]
+        public void Approve_DisabledWhenPartStateIsUnavailable()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Approve) },
+                    assigneeName: "engineer1",
+                    partState: null);
+
+                gate.OpenGate(CadBusinessActionKind.Approve);
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        [Fact]
+        public void Approve_DisabledWhenPartReleaseEvidenceGateIsClosed()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Approve) },
+                    assigneeName: "engineer1",
+                    partState: "In Review");
+
+                gate.OpenGate(CadBusinessActionKind.Approve);
+
+                Assert.False(gate.IsPartReleaseAvailable());
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        [Fact]
+        public void Approve_DisabledWhenAuthorityDoesNotExposeAction()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    System.Array.Empty<CadBusinessAction>(),
+                    assigneeName: "engineer1",
+                    partState: "In Review");
+
+                gate.OpenGate(CadBusinessActionKind.Approve);
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
+        }
+
+        [Fact]
+        public void SubmitForReview_DisabledWhenAuthorityDoesNotExposeAction()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            SetLiveContext(vm, "CAD1", CadLifecyclePolicy.DetailedDesign,
+                System.Array.Empty<CadBusinessAction>());
+
+            Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview));
+        }
+
+        // F5: RequestRework is blocked when no ActiveTask exists (AssigneeName null).
+        [Fact]
+        public void RequestRework_DisabledWhenNoAssignee()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModelWithGate(gate, dialog);
+            MainViewModel.SharedUserName = "engineer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.RequestRework) },
+                    assigneeName: null);
+
+                gate.OpenGate(CadBusinessActionKind.RequestRework);
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.RequestRework));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
         }
 
         // T037: SubmitForReview stays available while Approve/RequestRework/Withdraw
@@ -179,8 +473,8 @@ namespace IdeaCadConnector.Tests
         {
             var gate = new CadWorkflowGate();
             var dialog = new RecordingDialogService();
-            var vm = BuildViewModel(gate, new EmptyReviewerProvider(), dialog);
-            SetLiveContext(vm, "CAD1", CadLifecyclePolicy.DetailedDesign, new List<CadBusinessAction>
+            var vm = BuildViewModelWithGate(gate, dialog);
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.DetailedDesign, new List<CadBusinessAction>
             {
                 Action(CadBusinessActionKind.SubmitForReview),
                 Action(CadBusinessActionKind.Approve),
@@ -188,6 +482,8 @@ namespace IdeaCadConnector.Tests
             });
 
             Assert.False(CadWorkflowGate.IsGated(CadBusinessActionKind.SubmitForReview));
+            Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview));
+            gate.OpenReviewerAssignmentGate();
             Assert.True(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview));
             Assert.True(vm.IsWorkflowGatePending(CadBusinessActionKind.Approve));
             Assert.True(vm.IsWorkflowGatePending(CadBusinessActionKind.RequestRework));

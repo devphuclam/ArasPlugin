@@ -1362,6 +1362,12 @@
                                   Visibility="{Binding HasRequestReworkAction, Converter={StaticResource BoolToVisibilityConverter}}">
                             <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainRequestRework]}" />
                           </Button>
+                          <Button Margin="0,8,0,0"
+                                  Style="{StaticResource PrimaryButtonStyle}"
+                                  Command="{Binding WithdrawCommand}"
+                                  Visibility="{Binding HasWithdrawAction, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <TextBlock Text="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainWithdraw]}" />
+                          </Button>
                         </UniformGrid>
                       </StackPanel>
                     </Border>

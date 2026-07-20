@@ -44,6 +44,8 @@ namespace IdeaCadConnector.Aras
         private HashSet<string> _assignmentIds;
         private bool _disposed;
 
+        internal Func<string, CancellationToken, Task<CadOperationContext>> OperationContextProvider { get; set; }
+
         public HttpArasCadClient(ArasClientOptions options, ILogger<HttpArasCadClient> logger = null)
             : this(options, logger, null)
         {
@@ -482,7 +484,8 @@ namespace IdeaCadConnector.Aras
             EnsureAuthenticated();
 
             // Refresh context for stale check
-            var freshContext = await GetCadOperationContextAsync(request.CadId, ct);
+            var contextProvider = OperationContextProvider ?? GetCadOperationContextAsync;
+            var freshContext = await contextProvider(request.CadId, ct);
 
             if (request.ExpectedModifiedOn != null
                 && freshContext.ModifiedOn != request.ExpectedModifiedOn)
@@ -1071,6 +1074,7 @@ namespace IdeaCadConnector.Aras
 
         private void EnsureAuthenticated()
         {
+            if (OperationContextProvider != null) return;
             if (_http == null || string.IsNullOrWhiteSpace(_accessToken))
                 throw new ArasOperationException(ArasErrorCode.AuthInvalid, "Not authenticated. Call LoginAsync first.");
         }

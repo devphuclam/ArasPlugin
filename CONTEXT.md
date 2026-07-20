@@ -46,10 +46,12 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - **Working revision**: the editable revision currently progressing through design and review before release.
 - **Released revision**: an immutable revision approved for controlled use. Further design changes require a new Working revision.
 - **Review submission**: the auditable request to evaluate a working Part-CAD revision pair for release, including the submitter, reviewer, change description, and decision history.
+- **Authority-assigned reviewer**: the reviewer selected and recorded by the PDM authority's workflow assignment. The engineer does not choose an arbitrary reviewer in the client.
+- **Coordinated rework**: a review decision that returns the CAD revision and linked Part revision to `Thiet ke chi tiet` without creating a new engineering revision/version.
 - **Release policy**: the explicit rule that determines which item revisions are eligible for release and which transitions must succeed together.
 - **Local change status**: the local file's difference from the workspace baseline: New, Modified, Deleted, or Unchanged. It is independent from Aras lifecycle state and checkout ownership.
 - **Lifecycle state**: the state of an Aras item within its own ItemType and lifecycle map. State names are not a shared enum across Part, CAD, Document, and Project.
-- **IDEA MVP Part lifecycle**: The initial design workflow is `Khởi tạo` → `Thiết kế chi tiết` → `In Review` → `Released`. A released revision is immutable; later design changes begin through `In Change`, create a new revision, and may mark the previous revision `Superseded`.
+- **IDEA MVP lifecycle profile (proposed)**: The initial product profile uses the same semantic roles for Part and CAD — `Khởi tạo` → `Thiết kế chi tiết` → `In Review` → `Released`, with `In Change`/`Superseded` for later revisions. This is a target business profile, not a claim about the current live Aras configuration. Each ItemType keeps its own mapping and can be reconfigured without changing the domain model.
 - **Lifecycle semantic role**: the business meaning used by the app to reason about a lifecycle state, such as design, review, released, obsolete, or superseded, while retaining the verified Aras state identity and display name.
 - **Normalize/export**: Workspace operations that validate references and publish a package representation with a manifest.
 - **Linked normalized export**: A normalized package whose root IronCAD scene keeps each child occurrence linked to its corresponding child CAD file; saving changes made to a child through the root scene must persist those changes to the child file, including when the same child definition is used by multiple occurrences.
@@ -63,8 +65,10 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - Aras schema names and remote lifecycle/permission behavior are facts only when supported by verified evidence.
 - Lifecycle state identity is scoped to the Aras ItemType and lifecycle map; a matching display name does not prove matching business semantics.
 - A `Released` Part/CAD revision must not be edited in place; a subsequent change requires a new revision.
+- The initial IDEA lifecycle profile may align Part and CAD semantic roles, but Core must not collapse their authority state identities into one raw enum or hard-code one Aras map.
 - Start New Revision creates a new Part revision and linked CAD revision as one atomic authority operation; the released pair remains unchanged.
 - MVP release approval transitions the eligible Part revision and linked CAD revision atomically while preserving their separate lifecycle identities.
+- Request Rework coordinates a state-only return of the CAD revision and linked Part revision to `Thiet ke chi tiet`; it does not create a new engineering revision/version.
 - A local file save, a ChangeSet/check-in, and a released revision are distinct history events and must not be treated as equivalents.
 - A BOM snapshot belongs to its parent Part revision; a released BOM snapshot is not edited or automatically merged.
 - Document revision and lifecycle propagation are not inferred from Part or CAD behavior.
@@ -81,6 +85,8 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - Aras is authoritative for remote PDM identity, lifecycle, permissions, and released versions; the local Workspace is the editable working copy plus its baseline and ChangeSet history.
 - Branches may be used as local or staging implementation details, but they are not the primary PDM user model for CAD engineers.
 - Product behavior not evidenced by source, tests, or verified documentation is `Not yet established`.
+- The live Aras snapshot recorded on 2026-07-20 is evidence of one environment, not the official IDEA lifecycle. It currently assigns `Custom CAD Document` to CAD and `Custom Part` to Part; both maps contain the core proposed states `Khởi tạo`, `Thiết kế chi tiết`, `In Review`, and `Released`, while each map also has additional states.
+- A checked-in Server Method source, a deployed Server Method, and a demonstrated transaction guarantee are three different evidence levels. Do not promote a source comment such as “atomic” into a domain invariant without a failure test or documented authority guarantee.
 
 ## Detailed references
 
@@ -91,3 +97,5 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - `docs/development/build-and-test.md`
 - `docs/development/known-limitations.md`
 - `docs/security/data-safety.md`
+- `docs/evidence/live-aras-readonly-observations-2026-07-20.md`
+- `docs/development/aras-live-evidence-and-ai-lessons.md`

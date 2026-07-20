@@ -12,8 +12,10 @@
    - **GATE-B-approve**: Deployed `idea_ApproveCadReview` server method verified for atomic Part+CAD release (blocks Approve). **Checked-in source is CAD-only** — see plan.md
    - **GATE-B-checkin**: Deployed `idea_CommitCadCheckin` server method verified for atomic update+unlock, ChangeSet, audit, and reason persistence (blocks FR-003/FR-018 full compliance). **Checked-in source has separate apply() calls without transaction** — see plan.md
    - **GATE-W**: Withdraw capability (lifecycle transition or server method) verified on Aras server (blocks Withdraw)
-   - **GATE-RW**: Deployed `idea_RequestCadRework` server method verified for side effects on Part lifecycle via `Sync_Part_From_CAD` (blocks Request Rework). **Checked-in source may modify Part** — see plan.md
+   - **GATE-RW**: Deployed `idea_RequestCadRework` result and audit behavior verified against the accepted coordinated state-only policy: CAD and Part return to `Thiet ke chi tiet` without a new engineering version (full evidence gate remains open) — see plan.md
    - **GATE-N**: Aras audit trail coverage verified for all lifecycle transitions (blocks FR-017 compliance claim)
+   - **GATE-RS**: Authority-managed Aras Assign/workflow assignment and the client's active-assignment read contract verified (blocks reviewer-dependent actions and full FR-005 compliance)
+   - **GATE-W-owner**: Authority submission-owner field/permission verified (blocks Withdraw and full FR-006 compliance)
    - See [plan.md §Technical Context](plan.md) for detailed evidence gate requirements
 
 ## Setup
@@ -39,6 +41,11 @@ dotnet test IdeaCadConnector.sln --filter "FullyQualifiedName~PartLifecyclePolic
 ```
 
 Expected: All Part lifecycle policy tests pass (requires Aras evidence fixture for verified Part state names). Covers: Part state eligibility for release coordination.
+
+Feature 003 MVP lifecycle boundary: the Part policy intentionally stops at
+`Khoi tao` -> `Thiet ke chi tiet` -> `In Review` -> `Released`. The accepted
+rework edge is `In Review` -> `Thiet ke chi tiet`. States after `Released` are
+outside this feature and are not used to enable actions.
 
 ```powershell
 dotnet test IdeaCadConnector.sln --filter "FullyQualifiedName~MvpReleasePolicyTests"
@@ -82,8 +89,8 @@ Expected: All existing tests pass (0 regressions) plus all new tests pass.
 | 4a | Choose Check-in | `CheckinReasonDialog` opens with reason TextBox |
 | 4b | Click Cancel on the dialog | Dialog closes; no upload, no authority call, no side effect; checkout still active |
 | 4c | Choose Check-in again, enter a valid written reason, click OK | Reason validated; `CheckoutService.UploadAndCheckinAsync` called with reason; `CadCheckinRequest.Comment` set to the entered text; file uploaded; ChangeSet recorded; checkout lock released; CAD revision updated at same lifecycle state |
-| 5 | Select the checked-in CAD, choose Submit for Review, assign a reviewer | Submission succeeds; CAD transitions to `In Review` |
-| 5b | As the engineer, withdraw the submission before reviewer acts | CAD returns to `Thiet ke chi tiet`; no review decision recorded |
+| 5 | Select the checked-in CAD, choose Submit for Review, assign a reviewer | Only after GATE-RS passes: submission succeeds; CAD transitions to `In Review`. Before that gate, the action remains disabled. |
+| 5b | As the engineer, withdraw the submission before reviewer acts | Only after GATE-W and GATE-W-owner pass: CAD returns to `Thiet ke chi tiet`; no review decision recorded. Before those gates, Withdraw remains disabled. |
 | 5c | Re-submit and assign a reviewer | Submission succeeds again; CAD transitions to `In Review` |
 | 6 | As the reviewer, open the submission and choose Approve | **Single authority operation**: both CAD and Part transition to `Released` atomically |
 | 7 | Attempt to check out the released CAD | Blocked — released revisions are read-only |

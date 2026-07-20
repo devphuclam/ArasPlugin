@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implement the controlled CAD design release workflow for the IDEA PDM desktop application. The workflow extends existing infrastructure: `IArasCadClient` (both `HttpArasCadClient` and `ArasCadClient`) already handles submit/approve/rework/withdraw via `ExecuteCadBusinessActionAsync`. The `HttpPdmRepositoryClient.ReviseCadAsync` transport method exists and calls the `idea_ReviseCad` server method, but actual Start New Revision behavior remains blocked by **GATE-B-revise** until deployed server atomicity, response shape, Part+CAD creation, linking, and conflict behavior are verified. Client method existence does not prove authority operation correctness. New additions: `ICadReleaseEligibility` (Part + CAD eligibility check via snapshot), `IRecoveryCopyService` in Workspace (safe cancel-checkout backup), Withdraw capability, Desktop orchestration connecting them, UI dialogs, and Part lifecycle verification. Seven evidence gates block UI enablement or compliance claims until Aras server-behavior is verified. US5 (admin configuration) and FR-009 (reviewer reassignment) deferred to post-MVP.
+Implement the controlled CAD design release workflow for the IDEA PDM desktop application. The workflow extends existing infrastructure: `IArasCadClient` (both `HttpArasCadClient` and `ArasCadClient`) already handles submit/approve/rework/withdraw via `ExecuteCadBusinessActionAsync`. The `HttpPdmRepositoryClient.ReviseCadAsync` transport method exists and calls the `idea_ReviseCad` server method, but actual Start New Revision behavior remains blocked by **GATE-B-revise** until deployed server atomicity, response shape, Part+CAD creation, linking, and conflict behavior are verified. Client method existence does not prove authority operation correctness. New additions: `ICadReleaseEligibility` (Part + CAD eligibility check via snapshot), `IRecoveryCopyService` in Workspace (safe cancel-checkout backup), Withdraw capability, Desktop orchestration connecting them, UI dialogs, and Part lifecycle verification. Nine evidence gates block UI enablement or compliance claims until Aras server-behavior is verified, including reviewer assignment and withdrawal ownership. US5 (admin configuration) and FR-009 (reviewer reassignment) deferred to post-MVP.
 
 ## Technical Context
 
@@ -33,17 +33,21 @@ Implement the controlled CAD design release workflow for the IDEA PDM desktop ap
 **Constraints**: Exclusive checkout; recovery copy before destructive cancel-checkout; Part and CAD lifecycle bindings require verified evidence
 
 **Evidence Gates** (block UI enablement or compliance claims until verified):
-1. **GATE-A (Part lifecycle)**: Capture verified Part ItemType lifecycle state names, transitions, and semantic roles from the Aras environment. `PartLifecyclePolicy` must use actual verified Part state names — not assumed from CAD.
+1. **GATE-A (Part lifecycle)**: The product owner confirmed the current Part profile follows the same core semantic path as CAD: `Khoi tao` → `Thiet ke chi tiet` → `In Review` → `Released`. Capture the remaining verified Part transition permissions, release immutability, and semantic roles before treating `PartLifecyclePolicy` as fully evidenced.
 2. **GATE-B-revise (Server atomicity — ReviseCad)**: Verify deployed `idea_ReviseCad` server method provides atomic transactional guarantees. Source exists in the repository but versions Part and CAD in separate IOM `apply()` calls. If NOT atomic, Start New Revision UI remains disabled.
 3. **GATE-B-approve (Server atomicity — ApproveCadReview)**: Verify deployed `idea_ApproveCadReview` server method provides atomic Part+CAD release. Checked-in source at `src/IdeaCadConnector.Aras/ServerMethods/idea_ApproveCadReview.cs` exists but is **CAD-only**: it promotes CAD to Released without loading, checking, or promoting the linked Part. This does NOT satisfy Q1/FR-007/FR-020. The deployed method must provide coordinated Part+CAD release with atomicity guarantees. If NOT atomic, Approve UI remains disabled.
 4. **GATE-B-checkin (Server atomicity — CommitCadCheckin)**: Verify deployed `idea_CommitCadCheckin` server method for atomic update+unlock, ChangeSet creation, audit event recording, and check-in reason persistence. Checked-in source performs native_file update and unlock as separate `apply()` calls without transaction wrapping. Comment is read but not persisted to a ChangeSet or audit event. If atomicity or ChangeSet/audit is missing, FR-003/FR-018 cannot claim full compliance.
 5. **GATE-W (Withdraw)**: Verify withdraw capability on the Aras server — a lifecycle transition or server method that returns CAD from `In Review` to `Thiet ke chi tiet` without recording a review decision. If NOT available, Withdraw UI remains disabled.
-6. **GATE-RW (Rework side effects)**: Verify deployed `idea_RequestCadRework` server method side effects on Part lifecycle. Checked-in source promotes CAD to `Thiet ke chi tiet` then calls `Sync_Part_From_CAD`, which may load, unlock, promote, or version the linked Part — inconsistent with the domain model (Part and CAD have separate lifecycles; MVP coordinates only at Start New Revision and release). Verify whether Part state/version is actually changed. If side effects contradict MVP policy, Request Rework UI must be disabled or a business decision must update the policy.
+6. **GATE-RW (Rework side effects)**: Verify the deployed result and audit behavior of `idea_RequestCadRework`. The accepted MVP policy is coordinated and state-only: CAD and linked Part return to `Thiet ke chi tiet`, no new engineering revision/version is created, and duplicate `Sync_Part_From_CAD` work is a no-op. This gate no longer waits for a business-policy decision, but evidence is still required before claiming full deployed compliance.
 7. **GATE-N (Audit trail)**: Verify Aras audit trail covers all lifecycle transitions per FR-017. If any transition lacks audit coverage, FR-017 compliance cannot be claimed — the gap is a documented limitation.
+
+**GATE-RW policy decision (2026-07-20)**: Product owner accepted coordinated state-only rework: CAD and linked Part return to `Thiet ke chi tiet`, no new engineering revision/version is created, and duplicate Sync is a no-op. GATE-RW remains for deployed result/audit evidence, not for a pending business-policy choice.
+8. **GATE-RS (Reviewer assignment)**: Verify the authority-managed Aras Assign/workflow assignment record and the client's replaceable active-assignment read seam. Engineer-selected reviewer input is not required and must not be invented. Submit/reviewer-decision actions remain fail-closed until the authoritative assignment can be consumed and verified.
+9. **GATE-W-owner (Withdrawal owner)**: Verify the authority operation context exposes the submission owner and that the owner is authorized to withdraw. `LockOwnerName` is checkout ownership only and must not be used as review ownership. Withdraw remains disabled until this evidence exists.
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.* ✓ Re-checked — the artifact/design checks pass. Runtime evidence gates remain **PENDING** until the seven evidence documents are captured from the real Aras environment; no gated UI action or compliance claim is enabled by this plan alone.
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.* ✓ Re-checked — the artifact/design checks pass. Runtime evidence gates remain **PENDING** until the current nine-gate evidence inventory is captured or explicitly closed as a limitation; no gated UI action or compliance claim is enabled by this plan alone.
 
 | Gate | Status | Evidence |
 |------|--------|----------|
@@ -56,6 +60,8 @@ Implement the controlled CAD design release workflow for the IDEA PDM desktop ap
 | Recovery in Workspace, not Aras | PASS | `CancelCheckoutRequest` has only `CadId` + `LockToken` (unchanged). |
 
 **No violations — Complexity Tracking section is empty.**
+
+**Gate inventory correction (2026-07-20)**: The runtime evidence inventory is nine gates. In addition to the seven original authority gates, GATE-RS covers reviewer assignment and GATE-W-owner covers submission-owner authorization for withdrawal.
 
 ## Project Structure
 
@@ -115,13 +121,13 @@ src/IdeaCadConnector.Desktop/
 ├── GuidanceRevisionService.cs                  # UNCHANGED: wraps ReviseCadAsync
 ├── Dialogs/
 │   ├── CheckinReasonDialog.xaml/.cs            # NEW: required reason TextBox, OK/Cancel. Cancel = no side effect. Null/empty/whitespace rejected pre-upload.
-│   ├── SubmitForReviewDialog.xaml/.cs          # NEW: submit UI
+│   ├── SubmitForReviewDialog.xaml/.cs          # EXISTS + GATED: dialog created and wired into WpfWorkflowActionDialogService; runtime submission GATE-RS-blocked.
 │   ├── ReviewDecisionDialog.xaml/.cs           # NEW: approve/request-rework UI
-│   └── WithdrawConfirmDialog.xaml/.cs          # NEW: withdraw confirmation (if GATE-W passes)
+│   └── WithdrawConfirmDialog.xaml/.cs          # EXISTS + GATED: dialog created and wired; Withdraw action GATE-W-blocked (no withdraw op in current Aras; implemented-but-disabled, not enabled).
 
 src/IdeaCadConnector.Ui/
 ├── Resources/
-│   └── Strings.resx                            # EXTEND: submit/review/withdraw/backup/evidence-gate messages
+│   └── Strings.resx                            # REFERENCE ONLY: the active localization system uses TranslationResources (in-memory dictionary) consumed via TranslationResources.GetString / LocalizationSource; Strings.resx is retained for reference and is not the runtime source.
 
 tests/IdeaCadConnector.Tests/
 ├── CadLifecyclePolicyTests.cs                  # EXTEND: add CanWithdraw tests
@@ -142,6 +148,25 @@ MVP configuration is handled through the Aras Innovator UI directly.
 **Key design rule**: Do NOT duplicate workflow logic. `IArasCadClient.ExecuteCadBusinessActionAsync` is the canonical path for submit/approve/rework/withdraw — no new transport methods. The new `ICadReleaseEligibility` is an *advisory* gate that runs *before* calling `ExecuteCadBusinessActionAsync(Approve)`. It evaluates a `CadReleaseEligibilitySnapshot` only and never fetches from Aras. `IRecoveryCopyService` belongs in Workspace; `CancelCheckoutRequest` stays `CadId`+`LockToken` only. Withdraw extends the existing enum, mapper, and both adapter implementations — no new transport interface.
 
 **Check-in orchestration**: Both `MainViewModel` and `PdmProjectsViewModel` share a single check-in orchestration path through `CheckoutService.UploadAndCheckinAsync`. The ViewModels open `CheckinReasonDialog`, pass the validated reason to `CheckoutService`, and `CheckoutService` alone sets `CadCheckinRequest.Comment = reason`. This prevents duplicate workflow logic across the two entry points. UI reason collection (dialog) is separated from orchestration (service) which is separated from transport (client).
+
+## Scope Boundaries
+
+The following dependencies are consumed by Feature 003 infrastructure but are **not 003-specific**. They are documented here so reviewers understand they belong to other features:
+
+### PartLibraryStateProvider (`src/IdeaCadConnector.Desktop/Services/PartLibraryStateProvider.cs`)
+
+`PartLibraryStateProvider` implements `IPartStateProvider` by obtaining the current Part lifecycle state from the Part library client. It was split from an earlier `PartLifecycleProvider` refactoring and is consumed by `PdmProjectsViewModel` for the release-eligibility snapshot. The provider itself belongs to **Future/PartLibrary** scope (US5 and Part Library work). It is retained in the 003 codebase because:
+- It compiles and passes all tests.
+- Part library client infrastructure (`IPartLibraryClient`, `HttpPartLibraryClient`, `SharedPartLibraryClient`) already exists in the solution.
+- Removing it would not change 003 behavior but would require a separate refactoring ticket.
+- `IPartLibraryClient` returns `null` when the client or authoritative state is unavailable, so callers remain fail-closed (no false positive release eligibility).
+
+### IWorkflowActionDialogService (`src/IdeaCadConnector.Desktop/Workflow/`)
+
+`IWorkflowActionDialogService` and its WPF implementation `WpfWorkflowActionDialogService` provide cross-cutting dialog infrastructure (`ShowGatePending`, `ShowReviewerUnavailable`, `ConfirmSimple`) in addition to the 003-specific review dialogs (`ShowSubmitForReview`, `ShowReviewDecision`, `ShowWithdrawConfirm`). The interface is a general infrastructure concern, not a 003-specific contract. It is retained because:
+- Both `MainViewModel` and `PdmProjectsViewModel` inject it as an optional dependency (defaults to `WpfWorkflowActionDialogService`).
+- The generic methods (`ShowGatePending`, `ConfirmSimple`) are used by non-003 code paths (e.g., validation-result display).
+- Removing it would require extracting the 003-specific dialog methods into a new interface, which is out of scope for this feature.
 
 ## Complexity Tracking
 

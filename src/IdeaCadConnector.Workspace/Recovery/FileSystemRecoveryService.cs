@@ -46,7 +46,12 @@ namespace IdeaCadConnector.Workspace.Recovery
 
                 var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fffffff");
                 var fileName = Path.GetFileName(workingFilePath);
-                backupPath = Path.Combine(backupDir, $"{timestamp}-{fileName}");
+                // DateTime precision on Windows/.NET Framework is not sufficient
+                // to guarantee uniqueness for repeated recovery requests. The
+                // GUID keeps overwrite:false safe without weakening recovery.
+                backupPath = Path.Combine(
+                    backupDir,
+                    $"{timestamp}-{Guid.NewGuid():N}-{fileName}");
 
                 await Task.Run(() => File.Copy(workingFilePath, backupPath, overwrite: false), ct);
 
