@@ -5,8 +5,9 @@
 - Run commands from the `ArasPlugin/` repository root.
 - Do not use parent-workspace instructions as a substitute for this file.
 - Repository-local `.agents/skills/` is the project's canonical skill set.
-- Spec Kit command bodies are canonical under `.opencode/commands/`; Codex uses
-  the thin `.agents/skills/speckit-*` adapters documented in
+- Spec Kit is installed at the project level. OpenCode commands live under
+  `.opencode/commands/`, and Codex skills live under `.agents/skills/speckit-*`.
+  Their setup and versioning are documented in
   `docs/development/codex-speckit-workflow.md`.
 - Keep changes within the approved feature, issue, or chore scope.
 

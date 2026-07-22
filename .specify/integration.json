@@ -1,15 +1,24 @@
 {
-  "version": "0.12.16",
+  "version": "0.13.2",
   "integration_state_schema": 1,
   "installed_integrations": [
+    "codex",
     "opencode"
   ],
   "integration_settings": {
+    "codex": {
+      "script": "ps",
+      "raw_options": "--skills",
+      "parsed_options": {
+        "skills": true
+      },
+      "invoke_separator": "-"
+    },
     "opencode": {
       "script": "ps",
       "invoke_separator": "."
     }
   },
-  "integration": "opencode",
-  "default_integration": "opencode"
+  "integration": "codex",
+  "default_integration": "codex"
 }
