@@ -37,6 +37,7 @@ namespace IdeaCadConnector.Core.Configuration
         public List<string> ReviewerUsers { get; set; } = new();
         public List<string> ContributorUsers { get; set; } = new();
         public List<string> ReadOnlyUsers { get; set; } = new();
+        public List<string> PdmAdministratorUsers { get; set; } = new();
     }
 
     public sealed class DiagnosticsConfiguration

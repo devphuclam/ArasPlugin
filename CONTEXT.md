@@ -47,6 +47,10 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - **Released revision**: an immutable revision approved for controlled use. Further design changes require a new Working revision.
 - **Review submission**: the auditable request to evaluate a working Part-CAD revision pair for release, including the submitter, reviewer, change description, and decision history.
 - **Authority-assigned reviewer**: the reviewer selected and recorded by the PDM authority's workflow assignment. The engineer does not choose an arbitrary reviewer in the client.
+- **Configured PDM role**: a Design Engineer, Reviewer, Project Manager, or PDM Administrator role resolved from an explicit configured authority/application source. Unknown or multiply-matched users are not assigned a role by inference.
+- **Automatic versioning discipline**: An authority versioning mode in which editing a versionable released item can automatically create the next revision. It is a server configuration behavior, not the definition of a valid Part-CAD revision operation.
+- **Manual versioning discipline**: An authority versioning mode in which revision creation is explicit rather than automatically triggered by save. Manual versioning does not by itself make a Released item immutable; lifecycle and permission rules must still prevent in-place edits.
+- **Paired revision creation**: The controlled operation that creates the next Part revision and its linked CAD revision together. Directly editing either released item is not paired revision creation.
 - **Coordinated rework**: a review decision that returns the CAD revision and linked Part revision to `Thiet ke chi tiet` without creating a new engineering revision/version.
 - **Release policy**: the explicit rule that determines which item revisions are eligible for release and which transitions must succeed together.
 - **Local change status**: the local file's difference from the workspace baseline: New, Modified, Deleted, or Unchanged. It is independent from Aras lifecycle state and checkout ownership.
@@ -65,6 +69,8 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - Aras schema names and remote lifecycle/permission behavior are facts only when supported by verified evidence.
 - Lifecycle state identity is scoped to the Aras ItemType and lifecycle map; a matching display name does not prove matching business semantics.
 - A `Released` Part/CAD revision must not be edited in place; a subsequent change requires a new revision.
+- The versioning discipline of Part and CAD must not be used as a substitute for the paired revision policy: Automatic on one ItemType and Manual on the other can create a Part-CAD pair with different revisions.
+- Manual versioning discipline is not an immutability guarantee; Released update/lock permissions must independently prevent direct edits.
 - The initial IDEA lifecycle profile may align Part and CAD semantic roles, but Core must not collapse their authority state identities into one raw enum or hard-code one Aras map.
 - Start New Revision creates a new Part revision and linked CAD revision as one atomic authority operation; the released pair remains unchanged.
 - MVP release approval transitions the eligible Part revision and linked CAD revision atomically while preserving their separate lifecycle identities.
@@ -76,6 +82,7 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - Local change status, checkout/collaboration status, lifecycle state, validation status, and synchronization outcome are separate dimensions and must not be collapsed into one enum.
 - CAD-to-Part and BOM parent promotion requires an explicit verified mapping and eligibility policy; state-name copying is not a valid general rule.
 - Credential values, tokens, passwords, and environment-specific secrets are never domain data for documentation.
+- Role-based engineering authorization is fail-closed for unknown or ambiguous users; client role configuration does not bypass Aras permissions.
 
 ## Known boundaries
 
@@ -98,4 +105,5 @@ ArasPlugin, whose current solution is named `IdeaCadConnector`, is the learning 
 - `docs/development/known-limitations.md`
 - `docs/security/data-safety.md`
 - `docs/evidence/live-aras-readonly-observations-2026-07-20.md`
+- `docs/evidence/controlled-release-fixture-2026-07-21.md`
 - `docs/development/aras-live-evidence-and-ai-lessons.md`

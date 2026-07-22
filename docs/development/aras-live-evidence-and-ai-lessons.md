@@ -15,6 +15,21 @@ This document is a durable handoff for Codex, OpenCode, and future Spec Kit sess
 9. **Do not mark a gate complete from source inspection alone.** Record source evidence, deployed behavior, test setup, observed result, and remaining uncertainty separately.
 10. **Validate OData filters and relationship paths before drawing lifecycle conclusions.** The first Part lifecycle query was read from the wrong result set; the corrected query followed `Part ItemType → ItemType Life Cycle → Custom Part → Life Cycle State` and showed that the core states are present. A single malformed or mis-scoped query must never become a domain decision.
 
+11. **Role configuration is not identity inference.** Resolve Design Engineer, Reviewer, Project Manager, and PDM Administrator only from an explicit configured role source. An unknown or multiply-matched user must fail closed; never promote a username to a role because it looks familiar or because an old test used it.
+12. **Aras Administrator is not automatically the business owner.** On the controlled
+    fixture, `Create New Revision` was rejected with `You must be a member of the Owner
+    identity to perform this action.` Preserve this authority rejection. The desktop may
+    expose the explicitly configured PDM Administrator's development review override when
+    no reviewer assignment exists, but that override must never simulate Aras ownership or
+    suppress an authority rejection.
+13. **Do not confuse ItemType versioning discipline with the PDM revision policy.** The
+    live `Part` ItemType is Automatic while `CAD` is Manual. Editing the Part produced
+    Part B while the linked CAD remained A. Automatic/Manual is an authority setting;
+    paired revision creation must remain an explicit operation that creates both sides.
+14. **Manual versioning is not the same as immutability.** A Manual ItemType may avoid
+    automatic revision advancement on save, but Released update/lock permissions still
+    need to block direct edits. The product must enforce Released immutability separately.
+
 ## Required Spec Kit handoff procedure
 
 Before `/speckit.plan` or `/speckit.implement`:
@@ -35,3 +50,14 @@ Before `/speckit.plan` or `/speckit.implement`:
 - Keep Start New Revision behind a deployed failure/concurrency test proving no partial Part-CAD pair is left behind.
 - Use standard Aras History as the initial audit source; add a structured ChangeSet only after identifying a concrete audit or synchronization requirement it must satisfy.
 - Keep the reviewer mechanism simple behind `IReviewerProvider`: use the active Aras assignment when available, without hard-coded identity or premature reassignment UI.
+- Refresh an inactive Aras item after a server-side side effect. During the
+  controlled release fixture test, the Part form initially still displayed
+  `Khoi tao` after CAD reached `Released`; an explicit Part Refresh then
+  showed `Released`. A stale item form is not evidence that a server event
+  failed.
+- Test the complete event path, not only the called method. The controlled
+  fixture confirmed `CAD In Review -> Released`, followed by CAD
+  `onAfterPromote`, `Sync_Part_From_CAD`, and refreshed Part `Released`.
+- Keep the bounded Feature 003 lifecycle at
+  `Khoi tao -> Thiet ke chi tiet -> In Review -> Released`; do not infer or
+  enable post-`Released` states from the broader Aras map.

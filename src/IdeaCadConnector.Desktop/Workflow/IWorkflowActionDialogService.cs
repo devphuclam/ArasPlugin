@@ -38,6 +38,8 @@ namespace IdeaCadConnector.Desktop.Workflow
 
         bool ShowReviewerUnavailable(string title, string message);
 
+        bool ShowWorkflowActionError(string title, string message);
+
         bool ConfirmSimple(string title, string message);
     }
 }

@@ -50,6 +50,7 @@ namespace IdeaCadConnector.Tests
             public Task<string> DownloadNativeFileAsync(string fileId, string targetDirectory, CancellationToken ct) => Task.FromResult<string>(null);
             public Task<CadOperationContext> GetCadOperationContextAsync(string cadId, CancellationToken ct = default) => Task.FromResult<CadOperationContext>(null);
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct = default) => Task.FromResult<CadOperationContext>(null);
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
         }
 
         private sealed class StubRecoveryService : IRecoveryCopyService

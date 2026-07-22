@@ -30,6 +30,7 @@ namespace IdeaCadConnector.Tests
             public bool ShowWithdrawConfirm(string submissionInfo) => false;
             public bool ShowGatePending(string title, string message) => false;
             public bool ShowReviewerUnavailable(string title, string message) => false;
+            public bool ShowWorkflowActionError(string title, string message) => false;
             public bool ConfirmSimple(string title, string message) => false;
         }
 
@@ -43,7 +44,9 @@ namespace IdeaCadConnector.Tests
                 new ArasClientOptions(),
                 null,
                 new WorkspaceService(new WorkspaceOptions { RootPath = root }),
-                new NoOpDialogService());
+                new NoOpDialogService(),
+                null,
+                new TestPdmRoleProvider());
 
             SetPrivateField(vm, "_selectedCadId", "CAD1");
             vm._currentPartState = "In Review";
@@ -86,15 +89,34 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
-        public void SubmitForReview_CommandIsBlockedUntilReviewerAssignmentEvidenceOpens()
+        public void SubmitForReview_CommandDoesNotRequireReviewerAssignmentGate()
         {
             var vm = BuildViewModel(CadBusinessActionKind.SubmitForReview, CadLifecyclePolicy.DetailedDesign);
 
-            Assert.False(vm.SubmitForReviewCommand.CanExecute(null));
-
-            vm._workflowGate.OpenReviewerAssignmentGate();
-
             Assert.True(vm.SubmitForReviewCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public void ProjectManager_CannotModifyThroughMainViewModel()
+        {
+            MainViewModel.SharedUserName = "pm-a";
+            try
+            {
+                var vm = BuildViewModel(CadBusinessActionKind.SubmitForReview, CadLifecyclePolicy.DetailedDesign);
+                vm._workflowGate.OpenReviewerAssignmentGate();
+                SetPrivateField(vm, "_selectedSearchResult", new PartSearchResult
+                {
+                    Part = new PartSummary { Id = "P1", PartNumber = "P1", State = "Thiet ke chi tiet" }
+                });
+
+                Assert.False(vm.SubmitForReviewCommand.CanExecute(null));
+                Assert.False(vm.HasCheckoutAction);
+                Assert.Contains("role", vm.ActionHint.ToLowerInvariant());
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
         }
 
         [Fact]
@@ -350,6 +372,7 @@ namespace IdeaCadConnector.Tests
                 => Task.FromResult<CadOperationContext>(null);
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct)
                 => Task.FromResult<CadOperationContext>(null);
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
         }
 
         [Fact]
@@ -371,7 +394,8 @@ namespace IdeaCadConnector.Tests
                     new CadLifecyclePolicy(),
                     gate,
                     dialog,
-                    new StubReleaseEligibilityForParity());
+                    new StubReleaseEligibilityForParity(),
+                    new TestPdmRoleProvider());
 
                 var folder = Path.Combine(Path.GetTempPath(), "idea-pdm-parity2-" + Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(folder);
@@ -435,6 +459,7 @@ namespace IdeaCadConnector.Tests
                 => Task.FromResult<CadOperationContext>(null);
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct)
                 => Task.FromResult<CadOperationContext>(null);
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
         }
 
         private sealed class StubReleaseEligibilityForParity : ICadReleaseEligibility

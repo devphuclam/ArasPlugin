@@ -456,6 +456,7 @@ namespace IdeaCadConnector.Core.Localization
         public const string ReviewerUnavailable = "ReviewerUnavailable";
         public const string PartStateLoadFailed = "PartStateLoadFailed";
         public const string ReviewerAssignmentRequired = "ReviewerAssignmentRequired";
+        public const string RoleModificationDenied = "RoleModificationDenied";
         public const string ConfirmApprove = "ConfirmApprove";
         public const string ConfirmRequestRework = "ConfirmRequestRework";
         public const string ConfirmExecuteAction = "ConfirmExecuteAction";

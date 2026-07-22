@@ -8,8 +8,7 @@
         ResizeMode="NoResize"
         WindowStyle="None"
         Background="#EEF3FA"
-        FontFamily="Segoe UI"
-        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+        FontFamily="Segoe UI">
     <Window.Resources>
         <SolidColorBrush x:Key="DialogTextBrush" Color="#172B55"/>
         <SolidColorBrush x:Key="DialogMutedBrush" Color="#61708E"/>

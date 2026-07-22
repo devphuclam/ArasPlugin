@@ -29,6 +29,7 @@ namespace IdeaCadConnector.Tests
                 return false;
             }
             public bool ShowReviewerUnavailable(string title, string message) => false;
+            public bool ShowWorkflowActionError(string title, string message) => false;
             public bool ConfirmSimple(string title, string message) => false;
         }
 
@@ -40,7 +41,8 @@ namespace IdeaCadConnector.Tests
                 new CadLifecyclePolicy(),
                 gate,
                 dialog,
-                PdmProjectsViewModel.CreateDefaultReleaseEligibility(new CadLifecyclePolicy(), gate));
+                PdmProjectsViewModel.CreateDefaultReleaseEligibility(new CadLifecyclePolicy(), gate),
+                new TestPdmRoleProvider());
         }
 
         private static void SetLiveContext(
@@ -482,11 +484,38 @@ namespace IdeaCadConnector.Tests
             });
 
             Assert.False(CadWorkflowGate.IsGated(CadBusinessActionKind.SubmitForReview));
-            Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview));
-            gate.OpenReviewerAssignmentGate();
             Assert.True(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview));
             Assert.True(vm.IsWorkflowGatePending(CadBusinessActionKind.Approve));
             Assert.True(vm.IsWorkflowGatePending(CadBusinessActionKind.RequestRework));
+        }
+
+        [Fact]
+        public void ProjectManager_SeesCadSummaryButCannotModify()
+        {
+            MainViewModel.SharedUserName = "pm-a";
+            try
+            {
+                var gate = new CadWorkflowGate();
+                var vm = BuildViewModelWithGate(gate, new RecordingDialogService());
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.DetailedDesign,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.StartDetailedDesign) },
+                    partState: "Thiet ke chi tiet");
+
+                vm.CadLifecycleText = "Thiet ke chi tiet";
+                vm.CadRevisionText = "A";
+                vm.LockedByText = "Available";
+
+                Assert.Equal("Thiet ke chi tiet", vm.CadLifecycleText);
+                Assert.Equal("A", vm.CadRevisionText);
+                Assert.Equal("Available", vm.LockedByText);
+                Assert.False(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.StartDetailedDesign));
+                Assert.False(vm.CanCheckIn);
+                Assert.False(vm.CanCancelCheckout);
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+            }
         }
 
         private sealed class FakeCadClientForReview : IArasCadClient
@@ -510,6 +539,7 @@ namespace IdeaCadConnector.Tests
                 return Task.FromResult(context);
             }
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct = default) => Task.FromResult<CadOperationContext>(null);
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
         }
     }
 }

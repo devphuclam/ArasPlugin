@@ -33,17 +33,20 @@ Implement the controlled CAD design release workflow for the IDEA PDM desktop ap
 **Constraints**: Exclusive checkout; recovery copy before destructive cancel-checkout; Part and CAD lifecycle bindings require verified evidence
 
 **Evidence Gates** (block UI enablement or compliance claims until verified):
-1. **GATE-A (Part lifecycle)**: The product owner confirmed the current Part profile follows the same core semantic path as CAD: `Khoi tao` → `Thiet ke chi tiet` → `In Review` → `Released`. Capture the remaining verified Part transition permissions, release immutability, and semantic roles before treating `PartLifecyclePolicy` as fully evidenced.
-2. **GATE-B-revise (Server atomicity — ReviseCad)**: Verify deployed `idea_ReviseCad` server method provides atomic transactional guarantees. Source exists in the repository but versions Part and CAD in separate IOM `apply()` calls. If NOT atomic, Start New Revision UI remains disabled.
-3. **GATE-B-approve (Server atomicity — ApproveCadReview)**: Verify deployed `idea_ApproveCadReview` server method provides atomic Part+CAD release. Checked-in source at `src/IdeaCadConnector.Aras/ServerMethods/idea_ApproveCadReview.cs` exists but is **CAD-only**: it promotes CAD to Released without loading, checking, or promoting the linked Part. This does NOT satisfy Q1/FR-007/FR-020. The deployed method must provide coordinated Part+CAD release with atomicity guarantees. If NOT atomic, Approve UI remains disabled.
-4. **GATE-B-checkin (Server atomicity — CommitCadCheckin)**: Verify deployed `idea_CommitCadCheckin` server method for atomic update+unlock, ChangeSet creation, audit event recording, and check-in reason persistence. Checked-in source performs native_file update and unlock as separate `apply()` calls without transaction wrapping. Comment is read but not persisted to a ChangeSet or audit event. If atomicity or ChangeSet/audit is missing, FR-003/FR-018 cannot claim full compliance.
-5. **GATE-W (Withdraw)**: Verify withdraw capability on the Aras server — a lifecycle transition or server method that returns CAD from `In Review` to `Thiet ke chi tiet` without recording a review decision. If NOT available, Withdraw UI remains disabled.
-6. **GATE-RW (Rework side effects)**: Verify the deployed result and audit behavior of `idea_RequestCadRework`. The accepted MVP policy is coordinated and state-only: CAD and linked Part return to `Thiet ke chi tiet`, no new engineering revision/version is created, and duplicate `Sync_Part_From_CAD` work is a no-op. This gate no longer waits for a business-policy decision, but evidence is still required before claiming full deployed compliance.
-7. **GATE-N (Audit trail)**: Verify Aras audit trail covers all lifecycle transitions per FR-017. If any transition lacks audit coverage, FR-017 compliance cannot be claimed — the gap is a documented limitation.
+
+| # | Gate | Description | Status |
+|---|------|-------------|--------|
+| 1 | **GATE-A** (Part lifecycle) | Product owner confirmed Part follows `Khoi tao` → `Thiet ke chi tiet` → `In Review` → `Released`. Capture remaining verified Part transition permissions, release immutability, and semantic roles before treating `PartLifecyclePolicy` as fully evidenced. | T001 ✅ |
+| 2 | **GATE-B-revise** (ReviseCad atomicity) | Verify deployed `idea_ReviseCad` provides atomic transactional guarantees. Source versions Part and CAD in separate IOM `apply()`. If NOT atomic, Start New Revision UI stays disabled. | T002 ✅ (evidence note: fixture export not retained) |
+| 3 | **GATE-B-approve** (ApproveCadReview atomicity) | Verify deployed `idea_ApproveCadReview` provides atomic Part+CAD release. Checked-in source is CAD-only. Deployed method found via CAD `onAfterPromote` → `Sync_Part_From_CAD`. | T003 ✅ |
+| 4 | **GATE-B-checkin** (CommitCadCheckin atomicity) | Verify atomic update+unlock, ChangeSet, audit, reason persistence. Source is non-atomic. | T005b ❌ |
+| 5 | **GATE-W** (Withdraw) | Verify withdraw method or lifecycle transition on Aras server. | T004 ✅ (no method found; Withdraw stays disabled) |
+| 6 | **GATE-RW** (Rework side effects) | Verify deployed `idea_RequestCadRework` result and audit behavior. MVP policy accepted: coordinated state-only, no new revision. | T005c ✅ (policy accepted; audit evidence open) |
+| 7 | **GATE-RS** (Reviewer assignment) | Verify Aras Assign/workflow assignment record and replaceable read seam. No client-selected reviewer. | T005d ✅ |
+| 8 | **GATE-W-owner** (Withdrawal owner) | Verify submission-owner field/permission. `LockOwnerName` is checkout ownership only. | T005e ✅ (no Withdraw exists; moot) |
+| 9 | **GATE-N** (Audit trail) | Verify audit coverage for all 7 transitions per FR-017. | T005 ❌ |
 
 **GATE-RW policy decision (2026-07-20)**: Product owner accepted coordinated state-only rework: CAD and linked Part return to `Thiet ke chi tiet`, no new engineering revision/version is created, and duplicate Sync is a no-op. GATE-RW remains for deployed result/audit evidence, not for a pending business-policy choice.
-8. **GATE-RS (Reviewer assignment)**: Verify the authority-managed Aras Assign/workflow assignment record and the client's replaceable active-assignment read seam. Engineer-selected reviewer input is not required and must not be invented. Submit/reviewer-decision actions remain fail-closed until the authoritative assignment can be consumed and verified.
-9. **GATE-W-owner (Withdrawal owner)**: Verify the authority operation context exposes the submission owner and that the owner is authorized to withdraw. `LockOwnerName` is checkout ownership only and must not be used as review ownership. Withdraw remains disabled until this evidence exists.
 
 ## Constitution Check
 

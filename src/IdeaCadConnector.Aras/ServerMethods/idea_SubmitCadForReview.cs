@@ -15,7 +15,8 @@
  *
  * Output: refreshed CAD item with the connector's standard property set.
  *
- * Errors: VALIDATION_FAILED, CAD_NOT_FOUND, INVALID_STATE, PROMOTE_FAILED.
+ * Errors: VALIDATION_FAILED, CAD_NOT_FOUND, INVALID_STATE, CAD_LOCKED,
+ *   PROMOTE_FAILED.
  */
 
 Innovator inn = this.getInnovator();
@@ -47,7 +48,31 @@ if (currentState != SourceState)
     return inn.newError("INVALID_STATE: CAD must be in '" + SourceState + "' but is '" + currentState + "'");
 }
 
-Item promoteResult = cad.promote(TargetState, comment);
+// Submit is only valid after check-in. Never unlock automatically here:
+// doing so could discard or bypass a local CAD edit owned by this checkout.
+string lockedById = cad.getProperty("locked_by_id", "");
+if (!string.IsNullOrEmpty(lockedById))
+{
+    return inn.newError("CAD_LOCKED: Check in or safely cancel the CAD checkout before submitting for review.");
+}
+
+Item promoteResult;
+try
+{
+    promoteResult = cad.promote(TargetState, comment);
+}
+catch (System.Exception ex)
+{
+    string exceptionText = ex.ToString();
+    if (exceptionText.IndexOf("ItemIsLockedException", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+        exceptionText.IndexOf("locked", System.StringComparison.OrdinalIgnoreCase) >= 0)
+    {
+        return inn.newError("CAD_LOCKED: Check in or safely cancel the CAD checkout before submitting for review.");
+    }
+
+    return inn.newError("PROMOTE_FAILED: " + ex.Message);
+}
+
 if (promoteResult.isError())
 {
     return inn.newError("PROMOTE_FAILED: " + promoteResult.getErrorString());

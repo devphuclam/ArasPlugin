@@ -12,6 +12,7 @@ using System.Windows;
 using System.Windows.Input;
 using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Cad;
+using IdeaCadConnector.Core.Configuration;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Library;
@@ -39,6 +40,7 @@ namespace IdeaCadConnector.Desktop
         internal ICadReleaseEligibility _releaseEligibility;
         internal IPartLifecyclePolicy _partLifecyclePolicy;
         internal IPartStateProvider _partStateProvider;
+        internal IPdmRoleProvider _pdmRoleProvider;
         internal string _currentPartState;
         private IArasCadClient _arasClient;
         private ArasLoginResult _loginResult;
@@ -90,7 +92,13 @@ namespace IdeaCadConnector.Desktop
         {
         }
 
-        public MainViewModel(ArasClientOptions options, ICadApplicationAdapter cadAdapter, WorkspaceService workspaceService, IWorkflowActionDialogService dialogService = null, IPartStateProvider partStateProvider = null)
+        public MainViewModel(
+            ArasClientOptions options,
+            ICadApplicationAdapter cadAdapter,
+            WorkspaceService workspaceService,
+            IWorkflowActionDialogService dialogService = null,
+            IPartStateProvider partStateProvider = null,
+            IPdmRoleProvider pdmRoleProvider = null)
         {
             _options = options ?? new ArasClientOptions();
             _loginViewModel = new LoginViewModel(_options);
@@ -99,6 +107,8 @@ namespace IdeaCadConnector.Desktop
             _dialogService = dialogService ?? new WpfWorkflowActionDialogService();
             _partStateProvider = partStateProvider
                 ?? new PartLibraryStateProvider(() => SharedPartLibraryClient);
+            _pdmRoleProvider = pdmRoleProvider
+                ?? new ConfiguredPdmRoleProvider(ArasClientOptionsFactory.CurrentConfig?.Configuration?.Roles);
             _partLifecyclePolicy = new ArasPartLifecycleAdapter(
                 PartLifecyclePolicy.InReview,
                 PartLifecyclePolicy.Released);
@@ -255,6 +265,7 @@ namespace IdeaCadConnector.Desktop
                 OnPropertyChanged(nameof(HasCheckoutAction));
                 OnPropertyChanged(nameof(HasCheckInAction));
                 OnPropertyChanged(nameof(HasCancelCheckoutAction));
+                OnPropertyChanged(nameof(CurrentPdmRole));
                 OnPropertyChanged(nameof(StatusMessage));
                 OnPropertyChanged(nameof(HasAddSelectedPartToLibraryAction));
             }
@@ -330,7 +341,15 @@ namespace IdeaCadConnector.Desktop
             get
             {
                 if (_cadOperationContext?.ActiveTask == null)
+                {
+                    if (IsAdministratorReviewOverride(CadBusinessActionKind.Approve)
+                        && CadLifecyclePolicy.CanApproveReview(_currentCad?.State))
+                    {
+                        return "Development admin override: Approve is available without an assigned reviewer.";
+                    }
+
                     return LifecycleDisplayText.GetWorkflowIdleText(_currentCad?.State);
+                }
                 var paths = _cadOperationContext.ActiveTask.AvailablePaths;
                 var incomplete = paths?.Any(p => !p.IsComplete) == true
                     ? paths.Where(p => !p.IsComplete).Count()
@@ -518,6 +537,13 @@ namespace IdeaCadConnector.Desktop
                 if (!HasCurrentCad)
                     return Loc(TranslationKeys.ActionHintNoCad);
 
+                if (CurrentPdmRole == PdmUserRole.ProjectManager
+                    || CurrentPdmRole == PdmUserRole.PdmAdministrator
+                    || CurrentPdmRole == PdmUserRole.Unknown)
+                {
+                    return Loc(TranslationKeys.RoleModificationDenied);
+                }
+
                 if (!string.IsNullOrWhiteSpace(_lockToken))
                 {
                     if (!CadLifecyclePolicy.CanCheckout(_currentCad.State))
@@ -562,6 +588,9 @@ namespace IdeaCadConnector.Desktop
         public bool HasAddSelectedPartToLibraryAction =>
             IsConnected && SelectedSearchResult?.Part != null;
 
+        internal PdmUserRole CurrentPdmRole =>
+            _pdmRoleProvider?.GetRole(SharedUserName) ?? PdmUserRole.Unknown;
+
         public bool HasOpenReadOnlyAction =>
             !string.IsNullOrWhiteSpace(SelectedCadId)
             && _currentCad != null
@@ -570,6 +599,7 @@ namespace IdeaCadConnector.Desktop
         public bool HasCheckoutAction =>
             !string.IsNullOrWhiteSpace(SelectedCadId)
             && _currentCad != null
+            && PdmRolePolicy.CanCheckout(CurrentPdmRole)
             && CadLifecyclePolicy.CanCheckout(_currentCad.State)
             && !_partLifecyclePolicy.IsReleased(_currentPartState)
             && string.IsNullOrWhiteSpace(_lockToken)
@@ -577,15 +607,20 @@ namespace IdeaCadConnector.Desktop
 
         public bool HasCheckInAction =>
             !string.IsNullOrWhiteSpace(SelectedCadId)
+            && PdmRolePolicy.CanCheckIn(CurrentPdmRole)
             && !string.IsNullOrWhiteSpace(_lockToken);
 
         public bool HasCancelCheckoutAction =>
             !string.IsNullOrWhiteSpace(SelectedCadId)
+            && PdmRolePolicy.CanCancelCheckout(CurrentPdmRole)
             && !string.IsNullOrWhiteSpace(_lockToken);
 
         private bool CanCheckoutCurrentCad()
         {
             if (string.IsNullOrWhiteSpace(SelectedCadId) || _currentCad == null)
+                return false;
+
+            if (!PdmRolePolicy.CanCheckout(CurrentPdmRole))
                 return false;
 
             if (!CadLifecyclePolicy.CanCheckout(_currentCad.State)
@@ -632,6 +667,8 @@ namespace IdeaCadConnector.Desktop
                 AppSessionContext.Current.ArasServerUrl = request.ServerUrl;
                 AppSessionContext.Current.ArasDatabase = request.Database;
                 SharedUserName = _loginResult.UserName;
+                OnPropertyChanged(nameof(CurrentPdmRole));
+                OnPropertyChanged(nameof(ActionHint));
                 StatusMessage = string.Format(Loc(TranslationKeys.StatusConnected), _loginResult.UserName);
 
                 (SharedPdmClient as IDisposable)?.Dispose();
@@ -682,6 +719,8 @@ namespace IdeaCadConnector.Desktop
                 (SharedArasCadClient as IDisposable)?.Dispose();
                 SharedArasCadClient = null;
                 SharedUserName = null;
+                OnPropertyChanged(nameof(CurrentPdmRole));
+                OnPropertyChanged(nameof(ActionHint));
                 (SharedPartLibraryClient as IDisposable)?.Dispose();
                 SharedPartLibraryClient = null;
                 AppSessionContext.Current.ArasServerUrl = null;
@@ -1047,7 +1086,12 @@ namespace IdeaCadConnector.Desktop
 
         private bool CanExecuteAction(CadBusinessActionKind kind)
         {
-            if (!_workflowGate.IsAvailable(kind))
+            if (!PdmRolePolicy.CanExecuteCadBusinessAction(CurrentPdmRole, kind))
+                return false;
+
+            bool administratorReviewOverride = IsAdministratorReviewOverride(kind);
+
+            if (!_workflowGate.IsAvailable(kind) && !administratorReviewOverride)
                 return false;
 
             if (_currentCad == null
@@ -1058,19 +1102,15 @@ namespace IdeaCadConnector.Desktop
                 return false;
 
             if (kind == CadBusinessActionKind.Approve
+                && !administratorReviewOverride
                 && string.IsNullOrWhiteSpace(_currentPartState))
             {
                 return false;
             }
 
             if (kind == CadBusinessActionKind.Approve
+                && !administratorReviewOverride
                 && !_workflowGate.IsPartReleaseAvailable())
-            {
-                return false;
-            }
-
-            if (kind == CadBusinessActionKind.SubmitForReview
-                && !_workflowGate.IsReviewerAssignmentAvailable())
             {
                 return false;
             }
@@ -1080,13 +1120,17 @@ namespace IdeaCadConnector.Desktop
                 || kind == CadBusinessActionKind.RequestRework
                 || kind == CadBusinessActionKind.Withdraw)
             {
-                if (!HasAuthoritativeWorkflowAction(kind, _cadOperationContext))
+                if (!HasAuthoritativeWorkflowAction(kind, _cadOperationContext)
+                    && !administratorReviewOverride)
                     return false;
             }
 
             if (kind == CadBusinessActionKind.Approve
                 || kind == CadBusinessActionKind.RequestRework)
             {
+                if (administratorReviewOverride)
+                    return true;
+
                 if (!_workflowGate.IsReviewerAssignmentAvailable())
                     return false;
                 return IsCurrentUserAssignedReviewer(_cadOperationContext);
@@ -1100,9 +1144,16 @@ namespace IdeaCadConnector.Desktop
             return true;
         }
 
+        private bool IsAdministratorReviewOverride(CadBusinessActionKind kind)
+        {
+            return (kind == CadBusinessActionKind.Approve
+                    || kind == CadBusinessActionKind.RequestRework)
+                && PdmRolePolicy.CanBypassReviewerAssignment(CurrentPdmRole);
+        }
+
         private bool HasWorkflowAction(CadBusinessActionKind kind)
         {
-            if (!_workflowGate.IsAvailable(kind))
+            if (!_workflowGate.IsAvailable(kind) && !IsAdministratorReviewOverride(kind))
                 return false;
 
             if (kind == CadBusinessActionKind.Approve
@@ -1178,6 +1229,12 @@ namespace IdeaCadConnector.Desktop
         {
             if (!EnsureLoggedIn() || IsBusy) return;
 
+            if (!PdmRolePolicy.CanExecuteCadBusinessAction(CurrentPdmRole, kind))
+            {
+                StatusMessage = Loc(TranslationKeys.RoleModificationDenied);
+                return;
+            }
+
             if (!CanExecuteAction(kind))
                 return;
 
@@ -1248,7 +1305,8 @@ namespace IdeaCadConnector.Desktop
                 if (string.IsNullOrWhiteSpace(selectedCadId))
                     throw new InvalidOperationException("No CAD is selected for this workflow action.");
 
-                if (kind == CadBusinessActionKind.Approve)
+                if (kind == CadBusinessActionKind.Approve
+                    && !IsAdministratorReviewOverride(kind))
                 {
                     var eligibility = await EvaluateApproveEligibilityAsync();
                     if (!eligibility.IsEligible)
@@ -1295,6 +1353,7 @@ namespace IdeaCadConnector.Desktop
 
                 if ((kind == CadBusinessActionKind.Approve
                     || kind == CadBusinessActionKind.RequestRework)
+                    && !IsAdministratorReviewOverride(kind)
                     && !IsCurrentUserAssignedReviewer(freshContext))
                 {
                     StatusMessage = Loc(TranslationKeys.ReviewerAssignmentRequired);
@@ -1305,7 +1364,17 @@ namespace IdeaCadConnector.Desktop
                     a.Kind == kind && a.IsAvailable);
                 if (resolvedAction == null)
                 {
-                    if (kind == CadBusinessActionKind.Approve
+                    if ((kind == CadBusinessActionKind.Approve
+                        || kind == CadBusinessActionKind.RequestRework)
+                        && IsAdministratorReviewOverride(kind))
+                    {
+                        // Development workflow may not have an assigned task
+                        // yet. The transport will use the direct verified
+                        // server-method path with no workflow identifiers.
+                        resolvedAction = new CadBusinessAction(
+                            kind, kind.ToString(), true, null, false, null, null);
+                    }
+                    else if (kind == CadBusinessActionKind.Approve
                         || kind == CadBusinessActionKind.RequestRework
                         || kind == CadBusinessActionKind.Withdraw
                         || kind == CadBusinessActionKind.SubmitForReview)

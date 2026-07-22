@@ -150,7 +150,7 @@
 
   **T033 completion evidence**:
   - `CanExecuteCadBusinessAction` calls `HasCadAction(kind)` (lifecycle-check via `_cadLifecyclePolicy.CanExecuteBusinessAction`) before any kind-specific logic
-  - Submit: additionally checks `_workflowGate.IsReviewerAssignmentAvailable()` + `HasAuthoritativeWorkflowAction`
+  - Submit: checks `HasAuthoritativeWorkflowAction`; Aras Assign/workflow assigns the reviewer during submission, so the reviewer-assignment gate applies only to Approve/RequestRework
   - Approve: additionally checks PartState not empty + PartRelease gate + `IsReviewerAssignmentAvailable` + `HasAuthoritativeWorkflowAction` + `IsCurrentUserAssignedReviewer`
   - RequestRework: additionally checks `IsReviewerAssignmentAvailable` + `HasAuthoritativeWorkflowAction` + `IsCurrentUserAssignedReviewer`
   - Withdraw: `HasCadAction` returns false because `_workflowGate.IsAvailable(Withdraw)` is false (T004 found no operation)
@@ -213,8 +213,12 @@
 
 **Goal**: Project manager views Part-linked CAD revision lifecycle state, checkout status, and revision history in read-only mode. All modification actions are blocked.
 
-- [ ] T043 [US4] Extend `PdmProjectsViewModel` in `src/IdeaCadConnector.Desktop/PdmProjectsViewModel.cs` to display lifecycle state name, checkout owner (or "Available"), and revision identifier for each Part-linked CAD revision. Hide/disable all action buttons for non-engineer roles.
-- [ ] T044 [US4] Add role-aware action blocking in `MainViewModel` in `src/IdeaCadConnector.Desktop/MainViewModel.cs`. When a user without Design Engineer/Reviewer permission attempts any modification action, block with message. Do not call any authority method.
+- [x] T043 [US4] Extend `PdmProjectsViewModel` in `src/IdeaCadConnector.Desktop/PdmProjectsViewModel.cs` to display lifecycle state name, checkout owner (or "Available"), and revision identifier for each Part-linked CAD revision. Hide/disable all action buttons for non-engineer roles.
+
+  **T043 completion evidence (2026-07-21)**: Existing PDM summary bindings expose `CadLifecycleText`, `LockedByText`, and `CadRevisionText`; the same ViewModel now applies the configured `IPdmRoleProvider`/`PdmRolePolicy` to checkout, check-in, cancel-checkout, workflow, and new-revision commands. PM/admin/unknown roles retain read-only summary visibility and all engineering commands are disabled. `ReviewerEnforcementTests.ProjectManager_SeesCadSummaryButCannotModify` covers the display and blocking seam.
+- [x] T044 [US4] Add role-aware action blocking in `MainViewModel` in `src/IdeaCadConnector.Desktop/MainViewModel.cs`. When a user without Design Engineer/Reviewer permission attempts any modification action, block with message. Do not call any authority method.
+
+  **T044 completion evidence (2026-07-21)**: `MainViewModel` receives the backend-neutral `IPdmRoleProvider`, resolves roles from configured role lists, fail-closes unconfigured users, gates checkout/check-in/cancel-checkout/workflow/new-revision actions with `PdmRolePolicy`, and surfaces `RoleModificationDenied` before workflow authority execution. `MainViewModelWorkflowGatingTests.ProjectManager_CannotModifyThroughMainViewModel` verifies PM submit/checkout are disabled; no authority call is possible through the disabled command seam.
 
 **Checkpoint**: Project manager sees all state/checkout info. Modification blocked at client level.
 
@@ -237,7 +241,7 @@
 - MVP tasks that apply: document Aras-side requirements in `docs/configuration/lifecycle-and-permissions-config.md` (T048 below), and verify client permission respect (T049 below).
 
 - [x] T048 Document Aras-side configuration requirements in `docs/configuration/lifecycle-and-permissions-config.md` (new). Cover: required Part and CAD ItemTypes, lifecycle maps, role-to-action permission setup on the server, and expected state names. This is reference documentation for the Aras administrator — NOT a client implementation.
-- [ ] T049 Verify that every `IArasCadClient.ExecuteCadBusinessActionAsync` and `IPdmRepositoryClient.ReviseCadAsync` call path respects Aras-configured permissions. If the Aras server rejects an action (e.g., insufficient permissions, ineligible lifecycle state), the client must display the server's error message without swallowing or overriding it. No client-side "admin bypass" logic. Record verification in `docs/evidence/permissions-client-respect-evidence.md`.
+- [ ] T049 Verify that every `IArasCadClient.ExecuteCadBusinessActionAsync` and `IPdmRepositoryClient.ReviseCadAsync` call path respects Aras-configured permissions. If the Aras server rejects an action (e.g., insufficient permissions, ineligible lifecycle state), the client must display the server's error message without swallowing or overriding it. The PDM Administrator has full client-side role authority per `PdmRolePolicy` (including `CanBypassReviewerAssignment` for development workflow). This is a client-side testability seam — it does not grant or simulate Aras permissions, and Aras server permission checks remain authoritative (as evidenced by the controlled fixture rejection of `Create New Revision` with "You must be a member of the Owner identity"). Record verification in `docs/evidence/permissions-client-respect-evidence.md`.
 - [ ] T060 [US5] Verify SC-006 admin permission configuration. **Deferred post-MVP evidence task** — US5 admin configuration UI is not part of MVP. Manual/UAT: a PDM Administrator configures role-to-action permissions in the Aras Innovator UI. Confirm that configuration changes take effect for action gating (e.g., non-reviewer cannot approve). Confirm that the administrator cannot modify released CAD/Part data, completed ChangeSets, or audit records through configuration actions. Record findings in `docs/evidence/admin-permission-config-evidence.md`. This task does NOT affect MVP completion.
 
 **Checkpoint**: MVP correctly propagates Aras permission errors. Admin configuration UI is deferred to post-MVP. FR-014/FR-015 are NOT claimed as implemented in MVP completion checklist. SC-006 is DEFERRED post-MVP — evidence may be collected as a deferred manual task (T060).
@@ -337,7 +341,7 @@ If a gate FAILS: the corresponding UI element remains in code but is disabled wi
 ### User Story Dependencies
 
 - **US1 (P1)**: No dependency on other stories. No blocking gates.
-- **US2 (P1)**: No dependency on US1. Blocking gates: T003 (Approve), T004/T005e (Withdraw), T005d (reviewer assignment read contract). T005c no longer blocks on an unresolved Part-side-effect policy decision, but full deployed/audit evidence remains open.
+- **US2 (P1)**: No dependency on US1. Blocking gates: T003 (Approve), T004/T005e (Withdraw), and T005d only for reviewer-dependent Approve/RequestRework actions. Submit uses the authority-exposed submit action and Aras Assign/workflow assigns the reviewer during submission. T005c no longer blocks on an unresolved Part-side-effect policy decision, but full deployed/audit evidence remains open.
 - **US3 (P2)**: No dependency on US1/US2. **Released read-only blocking**: depends on T001 + Phase 2 only. **Start New Revision UI**: depends on T001 + T002 + Phase 2. Implementer C MUST wait for BOTH T001 AND T002 before enabling Start New Revision.
 - **US4 (P3)**: Depends on US1 + US2 action infrastructure.
 - **US5 (P3)**: DEFERRED post-MVP.

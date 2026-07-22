@@ -35,6 +35,8 @@ Transitions (expected):
 
 ## Role-to-Action Permission Setup
 
+The desktop role resolver consumes explicit configured user lists. Add PDM Administrator users under `roles.pdmAdministratorUsers`; PDM Administrators have full client-side role authority for CAD business actions and workspace operations. During development, this explicit administrator role also enables the direct Approve/Request Rework test path when Aras has not assigned a reviewer yet. It does not grant or simulate Aras permissions; Aras remains authoritative and may still reject the operation. Users not present in exactly one configured role list remain `Unknown` and are fail-closed for engineering actions.
+
 Configure in Aras Innovator UI:
 
 | Action | Required Role |

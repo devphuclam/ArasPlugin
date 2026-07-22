@@ -29,4 +29,20 @@ The deployed Method record and Method source were inspected. `idea_ApproveCadRev
 - Environment: **IDEA live Aras environment; exact fixture/log export not retained**
 - Verified by: **Product owner confirmation; independent replay remains recommended before production sign-off**
 
+## Controlled fixture replay (2026-07-21)
+
+An authorized disposable fixture pair (`DEMO-A05` Part A and
+`DEMO-CAD-A05` CAD A) was exercised through the Aras UI. CAD moved from
+`Khoi tao` to `Thiet ke chi tiet`, then `In Review`, then `Released`. The Part
+remained `Khoi tao` through the intermediate transitions. After CAD reached
+`Released`, an explicit Part refresh showed Part `Released`. No error was
+displayed, and no Server Method or ItemType configuration was changed.
+
+This replay strengthens the evidence for the deployed coordination mechanism
+(`CAD onAfterPromote` -> `Sync_Part_From_CAD`) and confirms the successful-path
+result. It does not prove rollback behavior when a later operation fails, so
+the evidence must not be generalized to full transactional atomicity.
+
+Retained record: `docs/evidence/controlled-release-fixture-2026-07-21.md`.
+
 **Blocks**: Approve UI enablement (FR-007, FR-020). Client MUST NOT simulate atomicity.

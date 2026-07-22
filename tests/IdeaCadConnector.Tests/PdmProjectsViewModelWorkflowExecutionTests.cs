@@ -28,6 +28,8 @@ namespace IdeaCadConnector.Tests
             public bool WithdrawConfirmResult { get; set; } = false;
             public bool GatePendingShown { get; private set; }
             public string LastGateMessage { get; private set; }
+            public bool WorkflowErrorShown { get; private set; }
+            public string LastWorkflowError { get; private set; }
 
             public CheckinReasonDialogResult ShowCheckinReason()
                 => CheckinReasonResult ?? new CheckinReasonDialogResult();
@@ -38,6 +40,7 @@ namespace IdeaCadConnector.Tests
             public bool ShowWithdrawConfirm(string submissionInfo) => WithdrawConfirmResult;
             public bool ShowGatePending(string title, string message) { GatePendingShown = true; LastGateMessage = message; return false; }
             public bool ShowReviewerUnavailable(string title, string message) => false;
+            public bool ShowWorkflowActionError(string title, string message) { WorkflowErrorShown = true; LastWorkflowError = message; return false; }
             public bool ConfirmSimple(string title, string message) => false;
         }
 
@@ -148,6 +151,7 @@ namespace IdeaCadConnector.Tests
             public bool CheckinCalled { get; private set; }
             public bool UploadCalled { get; private set; }
             public string LastCheckinComment { get; private set; }
+            public Exception ExecuteException { get; set; }
 
             private CadOperationContext MakeContext() => new CadOperationContext(
                 "CAD1", "CAD-001", "A", 1, "In Review", "2026-07-20",
@@ -162,6 +166,9 @@ namespace IdeaCadConnector.Tests
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(
                 ExecuteCadBusinessActionRequest request, CancellationToken ct)
             {
+                if (ExecuteException != null)
+                    return Task.FromException<CadOperationContext>(ExecuteException);
+
                 ExecuteCalled = true;
                 LastActionKind = request.Action;
                 LastComment = request.Comment;
@@ -188,6 +195,7 @@ namespace IdeaCadConnector.Tests
             }
             public Task<string> DownloadNativeFileAsync(string fileId, string targetDirectory, CancellationToken ct) => Task.FromResult<string>(null);
             public Task<CadOperationContext> GetCadOperationContextAsync(string cadId, CancellationToken ct = default) => Task.FromResult(MakeContext());
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
         }
 
         private static PdmProjectsViewModel BuildViewModel(
@@ -202,7 +210,8 @@ namespace IdeaCadConnector.Tests
                 new CadLifecyclePolicy(),
                 gate,
                 dialog,
-                eligibility);
+                eligibility,
+                new TestPdmRoleProvider());
         }
 
         private static void SetLiveContext(
@@ -286,7 +295,8 @@ namespace IdeaCadConnector.Tests
                 new CadLifecyclePolicy(),
                 gate,
                 dialog,
-                eligibility);
+                eligibility,
+                new TestPdmRoleProvider());
             vm.SelectedNode = new PdmStructureNode(
                 "Part 1", "P-001", "Part", 1, "A", "Released", "", primaryCad: "CAD-001");
             SetLiveContext(vm, "CAD1", CadLifecyclePolicy.Released,
@@ -311,8 +321,8 @@ namespace IdeaCadConnector.Tests
             var revisionService = new ConcurrentRevisionService();
             MainViewModel.SharedArasCadClient = client;
 
-            var vm1 = new PdmProjectsViewModel(revisionService, new CadLifecyclePolicy(), gate, dialog, eligibility);
-            var vm2 = new PdmProjectsViewModel(revisionService, new CadLifecyclePolicy(), gate, dialog, eligibility);
+            var vm1 = new PdmProjectsViewModel(revisionService, new CadLifecyclePolicy(), gate, dialog, eligibility, new TestPdmRoleProvider());
+            var vm2 = new PdmProjectsViewModel(revisionService, new CadLifecyclePolicy(), gate, dialog, eligibility, new TestPdmRoleProvider());
             var node1 = new PdmStructureNode("Part 1", "P-001", "Part", 1, "A", "Released", "", primaryCad: "CAD-001");
             var node2 = new PdmStructureNode("Part 1", "P-001", "Part", 1, "A", "Released", "", primaryCad: "CAD-001");
             vm1.SelectedNode = node1;
@@ -390,6 +400,76 @@ namespace IdeaCadConnector.Tests
         }
 
         [Fact]
+        public void AdministratorApprove_DoesNotRequirePartReleaseGateOrReviewerAssignment()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService();
+            var vm = BuildViewModel(
+                gate,
+                dialog,
+                new StubReleaseEligibility(),
+                new StubArasCadClient());
+
+            MainViewModel.SharedUserName = "admin-a";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction>(),
+                    assigneeName: null,
+                    partState: null);
+
+                Assert.True(vm.CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+                MainViewModel.SharedArasCadClient = null;
+            }
+        }
+
+        [Fact]
+        public void AdministratorApprove_BypassesClientEligibilityBeforeAuthorityCall()
+        {
+            var gate = new CadWorkflowGate();
+            var dialog = new RecordingDialogService
+            {
+                ReviewResult = new ReviewDecisionDialogResult
+                {
+                    Confirmed = true,
+                    Kind = CadBusinessActionKind.Approve,
+                    Comment = "Development approval"
+                }
+            };
+            var eligibility = new StubReleaseEligibility
+            {
+                IsEligible = false,
+                BlockingReasons = new List<string> { "Part evidence is pending" }
+            };
+            var client = new StubArasCadClient();
+            var vm = BuildViewModel(gate, dialog, eligibility, client);
+
+            MainViewModel.SharedUserName = "admin-a";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction>(),
+                    assigneeName: null,
+                    partState: null);
+
+                vm.ApproveCadCommand.Execute(null);
+
+                Assert.True(client.ExecuteCalled);
+                Assert.Equal(CadBusinessActionKind.Approve, client.LastActionKind);
+                Assert.Equal(0, eligibility.CheckAsyncCallCount);
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+                MainViewModel.SharedArasCadClient = null;
+            }
+        }
+
+        [Fact]
         public async Task Approve_Ineligible_DoesNotCallAuthority()
         {
             var gate = new CadWorkflowGate();
@@ -418,12 +498,75 @@ namespace IdeaCadConnector.Tests
                 Assert.Equal("CAD1", eligibility.LastSnapshot.CadId);
                 Assert.Equal("PART1", eligibility.LastSnapshot.PartId);
                 Assert.Equal("In Review", eligibility.LastSnapshot.PartState);
+                Assert.True(dialog.WorkflowErrorShown);
+                Assert.Contains("Part is not eligible for release", dialog.LastWorkflowError);
             }
             finally
             {
                 MainViewModel.SharedUserName = null;
                 MainViewModel.SharedArasCadClient = null;
             }
+        }
+
+        [Fact]
+        public void Approve_AuthorityFailure_ShowsExactError()
+        {
+            var gate = new CadWorkflowGate();
+            gate.OpenGate(CadBusinessActionKind.Approve);
+            gate.OpenReviewerAssignmentGate();
+            gate.OpenPartReleaseGate();
+            var dialog = new RecordingDialogService
+            {
+                ReviewResult = new ReviewDecisionDialogResult
+                {
+                    Confirmed = true,
+                    Kind = CadBusinessActionKind.Approve,
+                    Comment = "Approved"
+                }
+            };
+            var client = new StubArasCadClient
+            {
+                ExecuteException = new InvalidOperationException(
+                    "PROMOTE_FAILED: SYNC_PART_FROM_CAD: Part is still locked")
+            };
+            var vm = BuildViewModel(gate, dialog, new StubReleaseEligibility(), client);
+
+            MainViewModel.SharedUserName = "reviewer1";
+            try
+            {
+                SetLiveContext(vm, "CAD1", CadLifecyclePolicy.InReview,
+                    new List<CadBusinessAction> { Action(CadBusinessActionKind.Approve) },
+                    assigneeName: "reviewer1");
+
+                vm.ApproveCadCommand.Execute(null);
+
+                Assert.True(dialog.WorkflowErrorShown);
+                Assert.Contains("PROMOTE_FAILED", dialog.LastWorkflowError);
+                Assert.Contains("Part is still locked", dialog.LastWorkflowError);
+            }
+            finally
+            {
+                MainViewModel.SharedUserName = null;
+                MainViewModel.SharedArasCadClient = null;
+            }
+        }
+
+        [Fact]
+        public void RefreshWorkflowActionAvailability_RaisesReviewCommandState()
+        {
+            var vm = BuildViewModel(
+                new CadWorkflowGate(),
+                new RecordingDialogService(),
+                new StubReleaseEligibility(),
+                new StubArasCadClient());
+            var changed = new List<string>();
+            vm.PropertyChanged += (sender, args) => changed.Add(args.PropertyName);
+
+            vm.RefreshWorkflowActionAvailability();
+
+            Assert.Contains(nameof(PdmProjectsViewModel.HasApproveBusinessAction), changed);
+            Assert.Contains(nameof(PdmProjectsViewModel.HasRequestReworkBusinessAction), changed);
+            Assert.Contains(nameof(PdmProjectsViewModel.HasAnyCadBusinessAction), changed);
         }
 
         [Fact]

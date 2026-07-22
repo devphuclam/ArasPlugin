@@ -73,6 +73,12 @@ namespace IdeaCadConnector.Desktop.Workflow
             return false;
         }
 
+        public bool ShowWorkflowActionError(string title, string message)
+        {
+            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+
         public bool ConfirmSimple(string title, string message)
         {
             return MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question)
