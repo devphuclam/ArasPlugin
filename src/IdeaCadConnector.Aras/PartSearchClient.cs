@@ -173,7 +173,7 @@ namespace IdeaCadConnector.Aras
             return (results, totalCount);
         }
 
-        private static CadSummary ReadIronCadPartCad(JToken partEntry)
+        internal static CadSummary ReadIronCadPartCad(JToken partEntry)
         {
             var cadRels = partEntry["Part_CAD"] as JArray;
             if (cadRels == null)
@@ -185,14 +185,11 @@ namespace IdeaCadConnector.Aras
                 if (cadEntry == null)
                     continue;
 
-                var classification = GetString(cadEntry, "classification");
                 var authoringTool = GetString(cadEntry, "authoring_tool");
+                var nativeFile = GetString(cadEntry, "native_file");
 
-                if (classification != CadConstants.IronCadPartClassification ||
-                    authoringTool != CadConstants.IronCadAuthoringTool)
-                {
+                if (!CadResolutionHelper.IsIronCadWithValidNativeFile(authoringTool, nativeFile))
                     continue;
-                }
 
                 var lockedById = GetString(cadEntry, "locked_by_id");
 
@@ -200,12 +197,12 @@ namespace IdeaCadConnector.Aras
                 {
                     Id = GetString(cadEntry, "id"),
                     CadNumber = GetString(cadEntry, "item_number"),
-                    Classification = classification,
+                    Classification = GetString(cadEntry, "classification"),
                     Revision = GetString(cadEntry, "major_rev"),
                     State = GetString(cadEntry, "state"),
                     Generation = GetInt(cadEntry, "generation"),
-                    NativeFileId = GetString(cadEntry, "native_file"),
-                    HasNativeFile = !string.IsNullOrWhiteSpace(GetString(cadEntry, "native_file")),
+                    NativeFileId = nativeFile,
+                    HasNativeFile = true,
                     IsLocked = !string.IsNullOrWhiteSpace(lockedById),
                     LockedBy = lockedById
                 };

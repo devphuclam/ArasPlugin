@@ -1146,6 +1146,15 @@
                               Command="{Binding RequestReworkCommand}"
                               Visibility="{Binding HasRequestReworkBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
                               Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainRequestRework]}" />
+                      <Button Margin="0,8,0,0"
+                              Height="36"
+                              Background="#FFE74C3C"
+                              BorderBrush="#FFC0392B"
+                              Foreground="White"
+                              FontWeight="SemiBold"
+                              Command="{Binding WithdrawCadCommand}"
+                              Visibility="{Binding HasWithdrawBusinessAction, Converter={StaticResource BoolToVisibilityConverter}}"
+                              Content="{Binding Source={x:Static core:LocalizationSource.Instance}, Path=[MainWithdraw]}" />
                     </UniformGrid>
                   </StackPanel>
                   </StackPanel>

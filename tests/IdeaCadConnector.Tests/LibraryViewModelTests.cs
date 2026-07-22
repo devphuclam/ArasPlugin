@@ -1123,6 +1123,7 @@ namespace IdeaCadConnector.Tests
 
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken cancellationToken)
                 => Task.FromResult(MakeEmptyContext());
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken cancellationToken) => Task.FromResult<string>(null);
 
             private static CadOperationContext MakeEmptyContext()
                 => new CadOperationContext(null, null, null, 0, null, null, false, false, null, null, null, null);

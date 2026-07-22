@@ -31,6 +31,21 @@ namespace IdeaCadConnector.Tests
             Assert.Contains("nameof(OpenInIronCadToolTip)", source);
         }
 
+        [Fact]
+        public void ReviewDecisionDialog_DoesNotInterceptReviewButtonClicks()
+        {
+            var xaml = ReadRepoFile("src", "IdeaCadConnector.Desktop", "Dialogs", "ReviewDecisionDialog.xaml");
+            var windowTagEnd = xaml.IndexOf(">", StringComparison.Ordinal);
+            var windowTag = xaml.Substring(0, windowTagEnd);
+
+            Assert.DoesNotContain("MouseLeftButtonDown=\"Window_MouseLeftButtonDown\"", windowTag);
+            Assert.DoesNotContain("MouseLeftButtonDown=\"Window_MouseLeftButtonDown\"", xaml);
+            Assert.Contains("Click=\"ApproveButton_Click\"", xaml, StringComparison.Ordinal);
+
+            var codeBehind = ReadRepoFile("src", "IdeaCadConnector.Desktop", "Dialogs", "ReviewDecisionDialog.xaml.cs");
+            Assert.DoesNotContain("DragMove()", codeBehind);
+        }
+
         [Theory]
         [InlineData("PdmCheckoutAndOpenIronCad")]
         [InlineData("PdmOpenCheckedOutIronCad")]

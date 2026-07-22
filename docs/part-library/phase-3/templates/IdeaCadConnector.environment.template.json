@@ -20,7 +20,8 @@
     "managerUsers": ["ManagerUserA"],
     "reviewerUsers": ["ReviewerUserA"],
     "contributorUsers": ["ContributorUserA"],
-    "readOnlyUsers": ["ReadOnlyUserA"]
+    "readOnlyUsers": ["ReadOnlyUserA"],
+    "pdmAdministratorUsers": ["PdmAdministratorUserA"]
   },
   "diagnostics": {
     "logLevel": "Info",

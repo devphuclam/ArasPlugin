@@ -38,6 +38,15 @@ namespace IdeaCadConnector.Core.Contracts
             string cadId,
             CancellationToken cancellationToken = default);
 
+        /// <summary>
+        /// Returns the primary IronCAD CAD id for a Part, or null if no valid
+        /// IronCAD CAD with a native file is linked. Uses the read-only server
+        /// method idea_GetPrimaryIronCadForPart.
+        /// </summary>
+        Task<string> GetPrimaryCadIdForPartAsync(
+            string partId,
+            CancellationToken cancellationToken);
+
         Task<CadOperationContext> ExecuteCadBusinessActionAsync(
             ExecuteCadBusinessActionRequest request,
             CancellationToken cancellationToken = default);

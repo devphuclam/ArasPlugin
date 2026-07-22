@@ -11,15 +11,20 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using IdeaCadConnector.Aras;
 using IdeaCadConnector.Core.Cad;
+using IdeaCadConnector.Core.Configuration;
 using IdeaCadConnector.Core.Contracts;
 using IdeaCadConnector.Core.Dto;
 using IdeaCadConnector.Core.Dto.Library;
 using IdeaCadConnector.Core.Library;
 using IdeaCadConnector.Core.Localization;
+using IdeaCadConnector.Core.Policies;
 using IdeaCadConnector.Desktop.Services;
+using IdeaCadConnector.Desktop.Workflow;
 using IdeaCadConnector.Workspace;
 using IdeaCadConnector.Workspace.NormalizeExport;
+using IdeaCadConnector.Workspace.Recovery;
 using Newtonsoft.Json;
 using WinForms = System.Windows.Forms;
 
@@ -35,6 +40,7 @@ namespace IdeaCadConnector.Desktop
         private readonly RelayCommand _submitForReviewCommand;
         private readonly RelayCommand _approveCadCommand;
         private readonly RelayCommand _requestReworkCommand;
+        private readonly RelayCommand _withdrawCadCommand;
         private readonly Dictionary<string, List<PdmDocumentItem>> _documentsByPartCode = new Dictionary<string, List<PdmDocumentItem>>(StringComparer.OrdinalIgnoreCase);
         private PdmFolderAnalysis _latestAnalysis;
         private PdmBusinessStructureAnalysis _latestBusinessStructure;
@@ -62,10 +68,17 @@ namespace IdeaCadConnector.Desktop
         private PushPreview _pushPreview;
         private string _commitMessage;
 
-        private CheckoutService _checkoutService;
+        internal CheckoutService _checkoutService;
         private WorkspaceService _workspaceService;
         private WorkspaceLibraryReferenceStore _libraryReferenceStore;
         private IRevisionService _revisionService;
+        private readonly ICadLifecyclePolicy _cadLifecyclePolicy;
+        private readonly CadWorkflowGate _workflowGate;
+        private readonly IWorkflowActionDialogService _dialogService;
+        private readonly ICadReleaseEligibility _releaseEligibility;
+        private readonly IPartLifecyclePolicy _partLifecyclePolicy;
+        private readonly IPartStateProvider _partStateProvider;
+        private readonly IPdmRoleProvider _pdmRoleProvider;
         private PdmRevisePreconditionResult _revisionPreconditions;
         private string _cadLockStateText;
         private string _lockedByText;
@@ -78,7 +91,9 @@ namespace IdeaCadConnector.Desktop
         private string _cadRevisionReadinessText;
         private string _liveCadId;
         private string _liveCadState;
+        private string _liveCadNumber;
         private string _liveCadRevision;
+        private string _livePartState;
         private int _liveCadGeneration;
         private bool _liveHasNativeFile;
         private string _livePartId;
@@ -95,15 +110,72 @@ namespace IdeaCadConnector.Desktop
         public bool HasLibraryReferenceLoadError => _hasLibraryReferenceLoadError;
 
         public PdmProjectsViewModel()
-            : this(new GuidanceRevisionService())
+            : this(new GuidanceRevisionService(), new CadLifecyclePolicy())
         {
         }
 
         public PdmProjectsViewModel(IRevisionService revisionService)
+            : this(revisionService, new CadLifecyclePolicy())
+        {
+        }
+
+        public PdmProjectsViewModel(IRevisionService revisionService, ICadLifecyclePolicy cadLifecyclePolicy)
+            : this(revisionService, cadLifecyclePolicy, new CadWorkflowGate())
+        {
+        }
+
+        public PdmProjectsViewModel(
+            IRevisionService revisionService,
+            ICadLifecyclePolicy cadLifecyclePolicy,
+            CadWorkflowGate workflowGate)
+            : this(revisionService, cadLifecyclePolicy, workflowGate, new WpfWorkflowActionDialogService(), CreateDefaultReleaseEligibility(cadLifecyclePolicy, workflowGate), new PartLibraryStateProvider(() => MainViewModel.SharedPartLibraryClient))
+        {
+        }
+
+        public PdmProjectsViewModel(
+            IRevisionService revisionService,
+            ICadLifecyclePolicy cadLifecyclePolicy,
+            CadWorkflowGate workflowGate,
+            IWorkflowActionDialogService dialogService,
+            ICadReleaseEligibility releaseEligibility)
+            : this(revisionService, cadLifecyclePolicy, workflowGate, dialogService, releaseEligibility, new PartLibraryStateProvider(() => MainViewModel.SharedPartLibraryClient))
+        {
+        }
+
+        public PdmProjectsViewModel(
+            IRevisionService revisionService,
+            ICadLifecyclePolicy cadLifecyclePolicy,
+            CadWorkflowGate workflowGate,
+            IWorkflowActionDialogService dialogService,
+            ICadReleaseEligibility releaseEligibility,
+            IPdmRoleProvider pdmRoleProvider)
+            : this(revisionService, cadLifecyclePolicy, workflowGate, dialogService, releaseEligibility, new PartLibraryStateProvider(() => MainViewModel.SharedPartLibraryClient), pdmRoleProvider)
+        {
+        }
+
+        public PdmProjectsViewModel(
+            IRevisionService revisionService,
+            ICadLifecyclePolicy cadLifecyclePolicy,
+            CadWorkflowGate workflowGate,
+            IWorkflowActionDialogService dialogService,
+            ICadReleaseEligibility releaseEligibility,
+            IPartStateProvider partStateProvider,
+            IPdmRoleProvider pdmRoleProvider = null)
         {
             _workspaceService = new WorkspaceService(new WorkspaceOptions());
             _libraryReferenceStore = new WorkspaceLibraryReferenceStore(_workspaceService);
             _revisionService = revisionService ?? throw new ArgumentNullException(nameof(revisionService));
+            _cadLifecyclePolicy = cadLifecyclePolicy ?? throw new ArgumentNullException(nameof(cadLifecyclePolicy));
+            _workflowGate = workflowGate ?? throw new ArgumentNullException(nameof(workflowGate));
+            _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+            _releaseEligibility = releaseEligibility ?? throw new ArgumentNullException(nameof(releaseEligibility));
+            _partLifecyclePolicy = new ArasPartLifecycleAdapter(
+                PartLifecyclePolicy.InReview,
+                PartLifecyclePolicy.Released);
+            _partStateProvider = partStateProvider ?? throw new ArgumentNullException(nameof(partStateProvider));
+            _pdmRoleProvider = pdmRoleProvider
+                ?? new ConfiguredPdmRoleProvider(ArasClientOptionsFactory.CurrentConfig?.Configuration?.Roles);
+
             Repositories = new ObservableCollection<string>();
             Branches = new ObservableCollection<string>();
             WorkspaceCommits = new ObservableCollection<WorkspaceCommit>();
@@ -143,12 +215,14 @@ namespace IdeaCadConnector.Desktop
             CancelCheckoutCommand = new RelayCommand(_ => CancelCheckoutAsync(), _ => CanCancelCheckout);
             _startDetailedDesignCommand = new RelayCommand(_ => ExecuteCadBusinessActionAsync(CadBusinessActionKind.StartDetailedDesign), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.StartDetailedDesign));
             StartDetailedDesignCommand = _startDetailedDesignCommand;
-            _submitForReviewCommand = new RelayCommand(_ => ExecuteCadBusinessActionAsync(CadBusinessActionKind.SubmitForReview), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview));
+            _submitForReviewCommand = new RelayCommand(_ => ExecuteSubmitForReviewAsync(), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview));
             SubmitForReviewCommand = _submitForReviewCommand;
-            _approveCadCommand = new RelayCommand(_ => ExecuteCadBusinessActionAsync(CadBusinessActionKind.Approve), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
+            _approveCadCommand = new RelayCommand(_ => ExecuteReviewDecisionAsync(CadBusinessActionKind.Approve), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.Approve));
             ApproveCadCommand = _approveCadCommand;
-            _requestReworkCommand = new RelayCommand(_ => ExecuteCadBusinessActionAsync(CadBusinessActionKind.RequestRework), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.RequestRework));
+            _requestReworkCommand = new RelayCommand(_ => ExecuteReviewDecisionAsync(CadBusinessActionKind.RequestRework), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.RequestRework));
             RequestReworkCommand = _requestReworkCommand;
+            _withdrawCadCommand = new RelayCommand(_ => ExecuteWithdrawAsync(), _ => CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw));
+            WithdrawCadCommand = _withdrawCadCommand;
             StartNewRevisionCommand = new RelayCommand(_ => ExecuteStartNewRevisionAsync(), _ => CanStartNewRevision);
             CommitCommand = new RelayCommand(_ => _ = ExecuteCommitAsync(), _ => CanCommit);
             ToggleCadSectionCommand = new RelayCommand(_ => ToggleCadSection());
@@ -158,6 +232,13 @@ namespace IdeaCadConnector.Desktop
 
 
             AnalyzeFolder();
+        }
+
+        internal static ICadReleaseEligibility CreateDefaultReleaseEligibility(
+            ICadLifecyclePolicy cadLifecyclePolicy,
+            CadWorkflowGate workflowGate)
+        {
+            return new MvpReleaseEligibility(cadLifecyclePolicy, new DefaultPartLifecyclePolicy(), workflowGate);
         }
 
         public string RepositoryCodeForDisplay => SelectedRepository ?? _latestAnalysis?.ProjectCode ?? "-";
@@ -394,9 +475,24 @@ namespace IdeaCadConnector.Desktop
         public void ToggleCadSection() => IsCadSectionExpanded = !IsCadSectionExpanded;
         public void ToggleDocumentsSection() => IsDocumentsSectionExpanded = !IsDocumentsSectionExpanded;
 
-        // TODO(PERF-REVISION-SEAM): Wire real server path when PDM schema
         private async void ExecuteStartNewRevisionAsync()
         {
+            await ExecuteStartNewRevisionCoreAsync();
+        }
+
+        internal async Task<PdmReviseResult> ExecuteStartNewRevisionCoreAsync()
+        {
+            if (!CanStartNewRevision)
+            {
+                var blocked = new PdmReviseResult
+                {
+                    Success = false,
+                    ErrorMessage = Loc(TranslationKeys.RevisionRequiresReleased)
+                };
+                StatusMessage = blocked.ErrorMessage;
+                return blocked;
+            }
+
             var request = new PdmReviseRequest
             {
                 CadId = _liveCadId,
@@ -428,6 +524,8 @@ namespace IdeaCadConnector.Desktop
             {
                 StatusMessage = result.ErrorMessage;
             }
+
+            return result;
         }
 
         private PdmCadLaunchActionState CadLaunchActionState =>
@@ -439,7 +537,7 @@ namespace IdeaCadConnector.Desktop
                 IsConnected = MainViewModel.SharedArasCadClient != null,
                 HasLiveCadId = !string.IsNullOrWhiteSpace(_liveCadId),
                 HasLifecycleState = !string.IsNullOrWhiteSpace(_liveCadState),
-                CanCheckout = CadLifecyclePolicy.CanCheckout(_liveCadState),
+                CanCheckout = _cadLifecyclePolicy.CanCheckout(_liveCadState),
                 HasValidLocalCheckout = IsCheckedOutByMe && CanCheckIn,
                 IsLockedByOther = IsCheckedOutByOther,
                 HasNativeFile = _liveHasNativeFile,
@@ -448,9 +546,16 @@ namespace IdeaCadConnector.Desktop
 
         public bool CanOpenInIronCad => CadLaunchActionState.IsEnabled;
 
+        internal PdmUserRole CurrentPdmRole =>
+            _pdmRoleProvider?.GetRole(MainViewModel.SharedUserName) ?? PdmUserRole.Unknown;
+
         public bool CanStartNewRevision =>
             SelectedNode != null &&
+            PdmRolePolicy.CanStartNewRevision(CurrentPdmRole) &&
             (_revisionPreconditions?.CanRevise ?? false) &&
+            _workflowGate.IsStartNewRevisionAvailable() &&
+            _cadLifecyclePolicy.IsReleased(_liveCadState) &&
+            _partLifecyclePolicy.IsReleased(_livePartState) &&
             MainViewModel.SharedArasCadClient != null;
 
         public string OpenInIronCadModeText => Loc(CadLaunchActionState.LabelKey);
@@ -550,6 +655,7 @@ namespace IdeaCadConnector.Desktop
         public ICommand SubmitForReviewCommand { get; }
         public ICommand ApproveCadCommand { get; }
         public ICommand RequestReworkCommand { get; }
+        public ICommand WithdrawCadCommand { get; }
         public ICommand StartNewRevisionCommand { get; }
         public ICommand ToggleCadSectionCommand { get; }
         public ICommand ToggleDocumentsSectionCommand { get; }
@@ -682,7 +788,7 @@ namespace IdeaCadConnector.Desktop
 
         public bool CanCheckIn
         {
-            get => _canCheckIn;
+            get => _canCheckIn && PdmRolePolicy.CanCheckIn(CurrentPdmRole);
             set
             {
                 if (SetField(ref _canCheckIn, value))
@@ -696,7 +802,7 @@ namespace IdeaCadConnector.Desktop
 
         public bool CanCancelCheckout
         {
-            get => _canCancelCheckout;
+            get => _canCancelCheckout && PdmRolePolicy.CanCancelCheckout(CurrentPdmRole);
             set
             {
                 if (SetField(ref _canCancelCheckout, value))
@@ -713,6 +819,12 @@ namespace IdeaCadConnector.Desktop
             {
                 if (_cadOperationContext?.ActiveTask == null)
                 {
+                    if (IsAdministratorReviewOverride(CadBusinessActionKind.Approve)
+                        && CadLifecyclePolicy.CanApproveReview(_liveCadState))
+                    {
+                        return "Development admin override: Approve is available without an assigned reviewer.";
+                    }
+
                     return LifecycleDisplayText.GetWorkflowIdleText(_liveCadState);
                 }
 
@@ -723,18 +835,21 @@ namespace IdeaCadConnector.Desktop
         }
 
         public bool HasAnyCadBusinessAction =>
-            HasCadAction(CadBusinessActionKind.StartDetailedDesign) ||
-            HasCadAction(CadBusinessActionKind.SubmitForReview) ||
-            HasCadAction(CadBusinessActionKind.Approve) ||
-            HasCadAction(CadBusinessActionKind.RequestRework);
+            HasStartDetailedDesignBusinessAction ||
+            HasSubmitForReviewBusinessAction ||
+            HasApproveBusinessAction ||
+            HasRequestReworkBusinessAction ||
+            HasWithdrawBusinessAction;
 
         public bool HasStartDetailedDesignBusinessAction => HasCadAction(CadBusinessActionKind.StartDetailedDesign);
 
-        public bool HasSubmitForReviewBusinessAction => HasCadAction(CadBusinessActionKind.SubmitForReview);
+        public bool HasSubmitForReviewBusinessAction => CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview);
 
-        public bool HasApproveBusinessAction => HasCadAction(CadBusinessActionKind.Approve);
+        public bool HasApproveBusinessAction => CanExecuteCadBusinessAction(CadBusinessActionKind.Approve);
 
-        public bool HasRequestReworkBusinessAction => HasCadAction(CadBusinessActionKind.RequestRework);
+        public bool HasRequestReworkBusinessAction => CanExecuteCadBusinessAction(CadBusinessActionKind.RequestRework);
+
+        public bool HasWithdrawBusinessAction => CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw);
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -2170,7 +2285,7 @@ namespace IdeaCadConnector.Desktop
             {
                 if (_checkoutService == null)
                 {
-                    _checkoutService = new CheckoutService(cadClient, _workspaceService);
+                    _checkoutService = CreateCheckoutService(cadClient);
                 }
 
                 var localDir = GetWorkspaceDirectory();
@@ -2195,7 +2310,7 @@ namespace IdeaCadConnector.Desktop
                     !string.IsNullOrWhiteSpace(manifest.LocalFilePath) &&
                     System.IO.File.Exists(manifest.LocalFilePath) &&
                     !string.IsNullOrWhiteSpace(manifest.LockToken) &&
-                    CadLifecyclePolicy.CanCheckout(_liveCadState))
+                    _cadLifecyclePolicy.CanCheckout(_liveCadState))
                 {
                     var adapter = CreateIronCadAdapter();
                     await adapter.OpenDocumentAsync(manifest.LocalFilePath, CadOpenMode.Edit, CancellationToken.None);
@@ -2207,7 +2322,7 @@ namespace IdeaCadConnector.Desktop
                     !string.IsNullOrWhiteSpace(manifest.LocalFilePath) &&
                     System.IO.File.Exists(manifest.LocalFilePath) &&
                     !string.IsNullOrWhiteSpace(manifest.LockToken) &&
-                    !CadLifecyclePolicy.CanCheckout(_liveCadState))
+                    !_cadLifecyclePolicy.CanCheckout(_liveCadState))
                 {
                     var adapter = CreateIronCadAdapter();
                     await adapter.OpenDocumentAsync(manifest.LocalFilePath, CadOpenMode.ReadOnly, CancellationToken.None);
@@ -2243,7 +2358,7 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 if (_liveHasNativeFile && !string.IsNullOrWhiteSpace(_liveCadState) &&
-                    !CadLifecyclePolicy.CanCheckout(_liveCadState))
+                    !_cadLifecyclePolicy.CanCheckout(_liveCadState))
                 {
                     var roResult = await _checkoutService.OpenReadOnlyAsync(
                         _liveCadId, localDir, CancellationToken.None);
@@ -2300,7 +2415,8 @@ namespace IdeaCadConnector.Desktop
                     CheckedOutAt = DateTime.UtcNow,
                     Branch = SelectedBranch,
                     LastKnownRevision = checkoutInfo.Cad?.Revision,
-                    LastKnownGeneration = checkoutInfo.Cad?.Generation ?? 0
+                    LastKnownGeneration = checkoutInfo.Cad?.Generation ?? 0,
+                    CheckoutBaselineHash = checkoutInfo.CheckoutBaselineHash
                 });
 
                 var editAdapter = CreateIronCadAdapter();
@@ -2323,33 +2439,47 @@ namespace IdeaCadConnector.Desktop
             return IronCadAdapterFactory.CreateFromSession();
         }
 
-        private async Task<string> ResolveCadIdForNodeAsync(PdmStructureNode node, CancellationToken ct)
+        internal async Task<string> ResolveCadIdForNodeAsync(PdmStructureNode node, CancellationToken ct)
         {
-            var pdmClient = MainViewModel.SharedPdmClient;
-            if (pdmClient == null) return null;
+            if (node == null) return null;
 
-            var preview = _pushPreview;
-            if (preview == null) return null;
+            var cadClient = MainViewModel.SharedArasCadClient;
+            if (cadClient == null) return null;
 
-            CadPreviewRow cad = null;
+            var partId = await ResolvePartIdForNodeAsync(node, ct);
 
-            if (!string.IsNullOrWhiteSpace(node.PartCode))
-            {
-                cad = preview.Cads.FirstOrDefault(c =>
-                    string.Equals(c.LinkedPartLogicalCode, node.PartCode, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(c.LogicalCode, node.PartCode, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (!string.IsNullOrWhiteSpace(node.PrimaryCad) && node.PrimaryCad != "-")
-            {
-                cad = cad ?? preview.Cads.FirstOrDefault(c =>
-                    string.Equals(c.SourceFileName, node.PrimaryCad, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (cad == null || string.IsNullOrWhiteSpace(cad.CadNumber))
+            if (string.IsNullOrWhiteSpace(partId))
                 return null;
 
-            return await pdmClient.FindItemIdByNumberAsync("CAD", cad.CadNumber, ct);
+            return await cadClient.GetPrimaryCadIdForPartAsync(partId, ct);
+        }
+
+        internal async Task<string> ResolvePartIdForNodeAsync(PdmStructureNode node, CancellationToken ct)
+        {
+            if (node == null) return null;
+
+            // 1. Prefer ArasPartId from the node (set after push).
+            var partId = node.ArasPartId;
+
+            // 2. Fallback: manifest PartId (set after clone/pull).
+            if (string.IsNullOrWhiteSpace(partId))
+            {
+                var manifest = _workspaceService?.LoadManifest(FolderPath);
+                partId = manifest?.PartId;
+            }
+
+            // 3. Fallback: resolve Part ID from Part number via PDM authority.
+            if (string.IsNullOrWhiteSpace(partId) && !string.IsNullOrWhiteSpace(node.PartCode))
+            {
+                var pdmClient = MainViewModel.SharedPdmClient;
+                if (pdmClient != null)
+                {
+                    partId = await pdmClient.FindItemIdByNumberAsync(
+                        "Part", node.PartCode, ct);
+                }
+            }
+
+            return partId;
         }
 
         private string GetWorkspaceDirectory()
@@ -2381,6 +2511,7 @@ namespace IdeaCadConnector.Desktop
             _liveCadGeneration = 0;
             _liveHasNativeFile = false;
             _livePartId = null;
+            _livePartState = null;
 
             // Không xóa push result — node selection không được phá state của PDM.
             // _postPushPartIds = null;
@@ -2416,6 +2547,7 @@ namespace IdeaCadConnector.Desktop
                 {
                     SetCadOperationContext(context);
                     _liveCadState = context.CadState;
+                    _liveCadNumber = context.CadNumber;
                     _liveCadRevision = context.Revision;
                     _liveCadGeneration = context.Generation;
                     _liveHasNativeFile = context.HasNativeFile;
@@ -2440,14 +2572,52 @@ namespace IdeaCadConnector.Desktop
                 System.Diagnostics.Debug.WriteLine("RefreshCadStateAsync: GetCadOperationContextAsync failed for cadId=" + cadId + ": " + ex.Message);
             }
 
-            var manifest = _workspaceService.LoadManifest(FolderPath);
             _livePartId = !string.IsNullOrWhiteSpace(preferredPartId)
                 ? preferredPartId
-                : manifest?.PartId;
+                : await ResolvePartIdForNodeAsync(SelectedNode, CancellationToken.None);
 
+            if (!string.IsNullOrWhiteSpace(_livePartId))
+            {
+                try
+                {
+                    _livePartState = await _partStateProvider.GetPartStateAsync(_livePartId, CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    _livePartState = null;
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.PartStateLoadFailed),
+                        ex.Message);
+                }
+            }
+            else
+            {
+                _livePartState = null;
+            }
+
+            // The CAD context is loaded before the Part state. Re-raise the
+            // workflow properties after both states are available so WPF
+            // reevaluates button visibility and command CanExecute predicates.
+            RefreshWorkflowActionAvailability();
             UpdateCadUiState();
             await RefreshRevisionPreconditionsAsync();
             RefreshCanOpenInIronCad();
+        }
+
+        internal void RefreshWorkflowActionAvailability()
+        {
+            OnPropertyChanged(nameof(WorkflowStatusText));
+            OnPropertyChanged(nameof(HasAnyCadBusinessAction));
+            OnPropertyChanged(nameof(HasStartDetailedDesignBusinessAction));
+            OnPropertyChanged(nameof(HasSubmitForReviewBusinessAction));
+            OnPropertyChanged(nameof(HasApproveBusinessAction));
+            OnPropertyChanged(nameof(HasRequestReworkBusinessAction));
+            OnPropertyChanged(nameof(HasWithdrawBusinessAction));
+            _startDetailedDesignCommand?.RaiseCanExecuteChanged();
+            _submitForReviewCommand?.RaiseCanExecuteChanged();
+            _approveCadCommand?.RaiseCanExecuteChanged();
+            _requestReworkCommand?.RaiseCanExecuteChanged();
+            _withdrawCadCommand?.RaiseCanExecuteChanged();
         }
 
         private void RefreshCanOpenInIronCad()
@@ -2542,10 +2712,12 @@ namespace IdeaCadConnector.Desktop
         private bool IsReleasedCad()
         {
             return !string.IsNullOrWhiteSpace(_liveCadState)
-                && CadLifecyclePolicy.IsState(_liveCadState, CadLifecyclePolicy.Released);
+                && _cadLifecyclePolicy.IsReleased(_liveCadState);
         }
 
         private static string Loc(string key) => LocalizationSource.Instance[key];
+
+        internal static string Localize(string key) => Loc(key);
         private static string Ttl => Loc(TranslationKeys.StartupErrorTitle);
 
         private static string BuildCadLockStateLabel(string state)
@@ -2602,7 +2774,7 @@ namespace IdeaCadConnector.Desktop
                 !string.IsNullOrWhiteSpace(manifest.LocalFilePath) &&
                 System.IO.File.Exists(manifest.LocalFilePath);
             var stateEditable = !string.IsNullOrWhiteSpace(_liveCadState) &&
-                CadLifecyclePolicy.CanCheckout(_liveCadState);
+                _cadLifecyclePolicy.CanCheckout(_liveCadState);
 
             if (string.IsNullOrWhiteSpace(_liveCadId))
             {
@@ -2810,23 +2982,397 @@ namespace IdeaCadConnector.Desktop
             OnPropertyChanged(nameof(HasSubmitForReviewBusinessAction));
             OnPropertyChanged(nameof(HasApproveBusinessAction));
             OnPropertyChanged(nameof(HasRequestReworkBusinessAction));
+            OnPropertyChanged(nameof(HasWithdrawBusinessAction));
             _startDetailedDesignCommand?.RaiseCanExecuteChanged();
             _submitForReviewCommand?.RaiseCanExecuteChanged();
             _approveCadCommand?.RaiseCanExecuteChanged();
             _requestReworkCommand?.RaiseCanExecuteChanged();
+            _withdrawCadCommand?.RaiseCanExecuteChanged();
         }
 
         private bool HasCadAction(CadBusinessActionKind kind)
         {
+            if (!PdmRolePolicy.CanExecuteCadBusinessAction(CurrentPdmRole, kind))
+                return false;
+
+            if (!_workflowGate.IsAvailable(kind) && !IsAdministratorReviewOverride(kind))
+                return false;
+
             return !string.IsNullOrWhiteSpace(_liveCadState)
-                && CadLifecyclePolicy.ShouldShowBusinessAction(kind, _liveCadState);
+                && _cadLifecyclePolicy.CanExecuteBusinessAction(kind, _liveCadState);
         }
 
-        private bool CanExecuteCadBusinessAction(CadBusinessActionKind kind)
+        private bool HasAuthoritativeWorkflowAction(CadBusinessActionKind kind)
         {
-            return !IsOpeningInIronCad
+            return _cadOperationContext?.AvailableActions?.Any(a =>
+                a.Kind == kind && a.IsAvailable) == true;
+        }
+
+        internal bool CanExecuteCadBusinessAction(CadBusinessActionKind kind)
+        {
+            if (!PdmRolePolicy.CanExecuteCadBusinessAction(CurrentPdmRole, kind))
+                return false;
+
+            bool administratorReviewOverride = IsAdministratorReviewOverride(kind);
+
+            if (IsWorkflowGatePending(kind) && !administratorReviewOverride)
+                return false;
+
+            if (!IsOpeningInIronCad
                 && !string.IsNullOrWhiteSpace(_liveCadId)
-                && HasCadAction(kind);
+                && HasCadAction(kind))
+            {
+                if (kind == CadBusinessActionKind.Approve
+                    && !administratorReviewOverride
+                    && string.IsNullOrWhiteSpace(_livePartState))
+                {
+                    return false;
+                }
+
+                if (kind == CadBusinessActionKind.Approve
+                    && !administratorReviewOverride
+                    && !_workflowGate.IsPartReleaseAvailable())
+                {
+                    return false;
+                }
+
+                if (kind == CadBusinessActionKind.Approve || kind == CadBusinessActionKind.RequestRework)
+                {
+                    return (administratorReviewOverride || _workflowGate.IsReviewerAssignmentAvailable())
+                        && (administratorReviewOverride || HasAuthoritativeWorkflowAction(kind))
+                        && (administratorReviewOverride || IsCurrentUserAssignedReviewer(_cadOperationContext));
+                }
+
+                if (kind == CadBusinessActionKind.SubmitForReview)
+                {
+                    // Aras Assign/workflow chooses the reviewer as part of the
+                    // submission. The client therefore needs only the
+                    // authority-exposed submit path here. Reviewer assignment
+                    // evidence gates Approve/RequestRework, not Submit.
+                    return HasAuthoritativeWorkflowAction(kind);
+                }
+
+                if (kind == CadBusinessActionKind.Withdraw)
+                {
+                    return HasAuthoritativeWorkflowAction(kind)
+                        && IsWithdrawOwnerAvailable();
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        internal bool IsWorkflowGatePending(CadBusinessActionKind kind)
+        {
+            if (IsAdministratorReviewOverride(kind))
+                return false;
+
+            return !_workflowGate.IsAvailable(kind);
+        }
+
+        private bool IsAdministratorReviewOverride(CadBusinessActionKind kind)
+        {
+            return (kind == CadBusinessActionKind.Approve
+                    || kind == CadBusinessActionKind.RequestRework)
+                && PdmRolePolicy.CanBypassReviewerAssignment(CurrentPdmRole);
+        }
+
+        internal async void ExecuteSubmitForReviewAsync()
+        {
+            if (!CanExecuteCadBusinessAction(CadBusinessActionKind.SubmitForReview))
+            {
+                if (IsWorkflowGatePending(CadBusinessActionKind.SubmitForReview))
+                {
+                    _dialogService.ShowGatePending(
+                        Loc(TranslationKeys.GatePendingTitle),
+                        Loc(TranslationKeys.GatePendingSubmit));
+                }
+                return;
+            }
+
+            var cadClient = MainViewModel.SharedArasCadClient;
+            if (cadClient == null || string.IsNullOrWhiteSpace(_liveCadId))
+            {
+                StatusMessage = Loc(TranslationKeys.StatusNoLiveCad);
+                return;
+            }
+
+            var dialogResult = _dialogService.ShowSubmitForReview(
+                $"{_liveCadNumber ?? _liveCadId} ({_liveCadState})", null);
+
+            if (!dialogResult.Confirmed)
+                return;
+
+            try
+            {
+                IsOpeningInIronCad = true;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusExecutingAction), CadBusinessActionKind.SubmitForReview);
+
+                var freshContext = await cadClient.GetCadOperationContextAsync(_liveCadId, CancellationToken.None);
+                if (freshContext == null)
+                    throw new InvalidOperationException("Cannot load fresh CAD workflow context.");
+
+                SetCadOperationContext(freshContext);
+
+                var action = freshContext.AvailableActions?.FirstOrDefault(a =>
+                    a.Kind == CadBusinessActionKind.SubmitForReview && a.IsAvailable);
+                if (action == null)
+                {
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.StatusActionFailed),
+                        CadBusinessActionKind.SubmitForReview);
+                    return;
+                }
+
+                var request = new ExecuteCadBusinessActionRequest(
+                    _liveCadId,
+                    CadBusinessActionKind.SubmitForReview,
+                    freshContext.ModifiedOn,
+                    action.WorkflowTaskId,
+                    action.WorkflowPathId,
+                    comment: dialogResult.ChangeDescription);
+
+                var updatedContext = await cadClient.ExecuteCadBusinessActionAsync(request, CancellationToken.None);
+                SetCadOperationContext(updatedContext);
+                await RefreshCadStateAsync();
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionCompleted), CadBusinessActionKind.SubmitForReview);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionFailed), ex.Message);
+            }
+            finally
+            {
+                IsOpeningInIronCad = false;
+            }
+        }
+
+        private async void ExecuteReviewDecisionAsync(CadBusinessActionKind kind)
+        {
+            if (kind != CadBusinessActionKind.Approve && kind != CadBusinessActionKind.RequestRework)
+                return;
+
+            if (!CanExecuteCadBusinessAction(kind))
+            {
+                if (IsWorkflowGatePending(kind))
+                {
+                    var gateMessage = kind == CadBusinessActionKind.Approve
+                        ? Loc(TranslationKeys.GatePendingApproval)
+                        : Loc(TranslationKeys.GatePendingRework);
+                    _dialogService.ShowGatePending(Loc(TranslationKeys.GatePendingTitle), gateMessage);
+                }
+                return;
+            }
+
+            var cadClient = MainViewModel.SharedArasCadClient;
+            if (cadClient == null || string.IsNullOrWhiteSpace(_liveCadId))
+            {
+                ShowWorkflowActionError(kind, Loc(TranslationKeys.StatusNoLiveCad));
+                return;
+            }
+
+            if (kind == CadBusinessActionKind.Approve
+                && !IsAdministratorReviewOverride(kind))
+            {
+                var eligible = await _releaseEligibility.CheckAsync(
+                    new CadReleaseEligibilitySnapshot
+                    {
+                        CadId = _liveCadId,
+                        PartId = _livePartId,
+                        CadState = _liveCadState,
+                        PartState = _livePartState
+                    },
+                    CancellationToken.None);
+
+                if (!eligible.IsEligible)
+                {
+                    var reasons = eligible.BlockingReasons != null
+                        ? string.Join("; ", eligible.BlockingReasons)
+                        : Loc(TranslationKeys.ReleaseIneligible);
+                    ShowWorkflowActionError(
+                        kind,
+                        string.Format(Loc(TranslationKeys.ReleaseIneligible), reasons));
+                    return;
+                }
+            }
+
+            var gateNote = IsWorkflowGatePending(kind)
+                ? (kind == CadBusinessActionKind.Approve
+                    ? Loc(TranslationKeys.GatePendingApproval)
+                    : Loc(TranslationKeys.GatePendingRework))
+                : null;
+
+            var dialogResult = _dialogService.ShowReviewDecision(
+                $"{_liveCadNumber ?? _liveCadId} ({_liveCadState})", gateNote);
+
+            if (!dialogResult.Confirmed || dialogResult.Kind != kind)
+                return;
+
+            try
+            {
+                IsOpeningInIronCad = true;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusExecutingAction), kind);
+
+                var freshContext = await cadClient.GetCadOperationContextAsync(_liveCadId, CancellationToken.None);
+                if (freshContext == null)
+                    throw new InvalidOperationException("Cannot load fresh CAD workflow context.");
+
+                SetCadOperationContext(freshContext);
+
+                if (!IsAdministratorReviewOverride(kind)
+                    && !IsCurrentUserAssignedReviewer(freshContext))
+                {
+                    ShowWorkflowActionError(kind, Loc(TranslationKeys.ReviewerAssignmentRequired));
+                    return;
+                }
+
+                var action = freshContext.AvailableActions?.FirstOrDefault(a =>
+                    a.Kind == kind && a.IsAvailable);
+                if (action == null)
+                {
+                    if (IsAdministratorReviewOverride(kind))
+                    {
+                        // Development workflow may not have an assigned task
+                        // yet. The transport will use the direct verified
+                        // server-method path with no workflow identifiers.
+                        action = new CadBusinessAction(
+                            kind, kind.ToString(), true, null, false, null, null);
+                    }
+                    else
+                    {
+                        ShowWorkflowActionError(
+                            kind,
+                            string.Format(Loc(TranslationKeys.StatusActionFailed), kind));
+                        return;
+                    }
+                }
+
+                var request = new ExecuteCadBusinessActionRequest(
+                    _liveCadId,
+                    kind,
+                    freshContext.ModifiedOn,
+                    action.WorkflowTaskId,
+                    action.WorkflowPathId,
+                    comment: dialogResult.Comment);
+
+                var updatedContext = await cadClient.ExecuteCadBusinessActionAsync(request, CancellationToken.None);
+                SetCadOperationContext(updatedContext);
+                await RefreshCadStateAsync();
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionCompleted), kind);
+            }
+            catch (Exception ex)
+            {
+                ShowWorkflowActionError(kind, ex.Message);
+            }
+            finally
+            {
+                IsOpeningInIronCad = false;
+            }
+        }
+
+        private void ShowWorkflowActionError(CadBusinessActionKind kind, string detail)
+        {
+            var message = string.IsNullOrWhiteSpace(detail)
+                ? Loc(TranslationKeys.UnknownError)
+                : detail;
+
+            StatusMessage = string.Format(
+                Loc(TranslationKeys.StatusActionFailed),
+                kind) + " " + message;
+
+            _dialogService.ShowWorkflowActionError(
+                Loc(TranslationKeys.WorkflowActionTitle),
+                string.Format(Loc(TranslationKeys.MsgWorkflowActionFailed), kind, message));
+        }
+
+        private async void ExecuteWithdrawAsync()
+        {
+            if (!CanExecuteCadBusinessAction(CadBusinessActionKind.Withdraw))
+            {
+                return;
+            }
+
+            var cadClient = MainViewModel.SharedArasCadClient;
+            if (cadClient == null || string.IsNullOrWhiteSpace(_liveCadId))
+            {
+                StatusMessage = Loc(TranslationKeys.StatusNoLiveCad);
+                return;
+            }
+
+            if (!_dialogService.ShowWithdrawConfirm($"{_liveCadNumber ?? _liveCadId} ({_liveCadState})"))
+                return;
+
+            try
+            {
+                IsOpeningInIronCad = true;
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusExecutingAction), CadBusinessActionKind.Withdraw);
+
+                var freshContext = await cadClient.GetCadOperationContextAsync(_liveCadId, CancellationToken.None);
+                if (freshContext == null)
+                    throw new InvalidOperationException("Cannot load fresh CAD workflow context.");
+
+                SetCadOperationContext(freshContext);
+
+                var action = freshContext.AvailableActions?.FirstOrDefault(a =>
+                    a.Kind == CadBusinessActionKind.Withdraw && a.IsAvailable);
+                if (action == null)
+                {
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.StatusActionFailed),
+                        CadBusinessActionKind.Withdraw);
+                    return;
+                }
+
+                var request = new ExecuteCadBusinessActionRequest(
+                    _liveCadId,
+                    CadBusinessActionKind.Withdraw,
+                    freshContext.ModifiedOn,
+                    action.WorkflowTaskId,
+                    action.WorkflowPathId,
+                    comment: null);
+
+                var updatedContext = await cadClient.ExecuteCadBusinessActionAsync(request, CancellationToken.None);
+                SetCadOperationContext(updatedContext);
+                await RefreshCadStateAsync();
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionCompleted), CadBusinessActionKind.Withdraw);
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = string.Format(Loc(TranslationKeys.StatusActionFailed), ex.Message);
+            }
+            finally
+            {
+                IsOpeningInIronCad = false;
+            }
+        }
+
+        internal bool IsCurrentUserAssignedReviewer(CadOperationContext context)
+        {
+            var assignee = context?.ActiveTask?.AssigneeName;
+            if (string.IsNullOrWhiteSpace(assignee))
+            {
+                return false;
+            }
+
+            var currentUser = MainViewModel.SharedUserName;
+            if (string.IsNullOrWhiteSpace(currentUser))
+            {
+                return false;
+            }
+
+            return string.Equals(currentUser, assignee, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal bool IsWithdrawOwnerAvailable()
+        {
+            // LockOwnerName identifies the checkout lock owner, not the
+            // submitter/withdrawal owner. The current authority contract has
+            // no authoritative submitter field, so Withdraw must fail closed.
+            // Renamed from IsCurrentUserCadOwner to clarify that this checks
+            // withdrawal-owner availability, not checkout ownership (GATE-W-owner, T005e).
+            return false;
         }
 
         private async void ExecuteCadBusinessActionAsync(CadBusinessActionKind kind)
@@ -2922,9 +3468,13 @@ namespace IdeaCadConnector.Desktop
                 return;
             }
 
+            var reasonResult = _dialogService.ShowCheckinReason();
+            if (!reasonResult.Confirmed)
+                return;
+
             if (_checkoutService == null)
             {
-                _checkoutService = new CheckoutService(cadClient, _workspaceService);
+                _checkoutService = CreateCheckoutService(cadClient);
             }
 
             IsOpeningInIronCad = true;
@@ -2938,7 +3488,7 @@ namespace IdeaCadConnector.Desktop
                 }
 
                 var result = await _checkoutService.UploadAndCheckinAsync(
-                    manifest.CadId, manifest.LockToken, filePath, null, CancellationToken.None);
+                    manifest.CadId, manifest.LockToken, filePath, null, reasonResult.Reason, CancellationToken.None);
 
                 if (result.Success)
                 {
@@ -2961,7 +3511,9 @@ namespace IdeaCadConnector.Desktop
             }
         }
 
-        private async void CancelCheckoutAsync()
+        private async void CancelCheckoutAsync() => await CancelCheckoutCoreAsync();
+
+        internal async Task CancelCheckoutCoreAsync()
         {
             var cadClient = MainViewModel.SharedArasCadClient;
             if (cadClient == null)
@@ -2979,12 +3531,38 @@ namespace IdeaCadConnector.Desktop
 
             if (_checkoutService == null)
             {
-                _checkoutService = new CheckoutService(cadClient, _workspaceService);
+                _checkoutService = CreateCheckoutService(cadClient);
             }
 
             IsOpeningInIronCad = true;
             try
             {
+                var localFilePath = manifest.LocalFilePath;
+                var recoveryInfo = await _checkoutService.PrepareCancelCheckoutAsync(
+                    manifest.CadId, localFilePath, manifest.CheckoutBaselineHash, CancellationToken.None);
+
+                if (!string.IsNullOrWhiteSpace(recoveryInfo.ErrorMessage))
+                {
+                    StatusMessage = string.Format(
+                        Loc(TranslationKeys.CancelCheckoutRecoveryFailed),
+                        recoveryInfo.ErrorMessage);
+                    return;
+                }
+
+                if (recoveryInfo.FileWasModified)
+                {
+                    var recoverMsg = string.Format(
+                        Loc(TranslationKeys.CancelCheckoutModifiedConfirm),
+                        recoveryInfo.RecoveryPath);
+                    var proceed = System.Windows.MessageBox.Show(
+                        recoverMsg,
+                        "IDEA PDM",
+                        System.Windows.MessageBoxButton.YesNo,
+                        System.Windows.MessageBoxImage.Warning);
+                    if (proceed != System.Windows.MessageBoxResult.Yes)
+                        return;
+                }
+
                 var success = await _checkoutService.CancelCheckoutAsync(manifest.CadId, CancellationToken.None);
                 if (success)
                 {
@@ -2994,7 +3572,8 @@ namespace IdeaCadConnector.Desktop
                 }
                 else
                 {
-                    _workspaceService.ClearManifest(FolderPath);
+                    // Authority unlock failed: preserve the manifest and lock metadata
+                    // so the user can retry or recover; do not pretend cancellation succeeded.
                     await RefreshCadStateAsync();
                     StatusMessage = Loc(TranslationKeys.StatusCheckoutCancelledServer);
                 }
@@ -3007,6 +3586,15 @@ namespace IdeaCadConnector.Desktop
             {
                 IsOpeningInIronCad = false;
             }
+        }
+
+        private CheckoutService CreateCheckoutService(IArasCadClient cadClient)
+        {
+            var recoveryRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Idea", "ArasCadWorkspace");
+            var recoveryService = new FileSystemRecoveryService(recoveryRoot);
+            return new CheckoutService(cadClient, _workspaceService, recoveryService);
         }
 
         private void AddDocument(string partCode, string name, string kind, string sourcePath = null)
@@ -3335,7 +3923,7 @@ namespace IdeaCadConnector.Desktop
 
             if (manifestMatchesLive &&
                 !string.IsNullOrWhiteSpace(_liveCadState) &&
-                !CadLifecyclePolicy.CanCheckout(_liveCadState))
+                !_cadLifecyclePolicy.CanCheckout(_liveCadState))
             {
                 warnings.Add(new PreviewWarning
                 {

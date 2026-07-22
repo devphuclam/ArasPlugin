@@ -44,6 +44,8 @@ namespace IdeaCadConnector.Aras
         private HashSet<string> _assignmentIds;
         private bool _disposed;
 
+        internal Func<string, CancellationToken, Task<CadOperationContext>> OperationContextProvider { get; set; }
+
         public HttpArasCadClient(ArasClientOptions options, ILogger<HttpArasCadClient> logger = null)
             : this(options, logger, null)
         {
@@ -471,6 +473,37 @@ namespace IdeaCadConnector.Aras
                 availableActions: actions);
         }
 
+        public async Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(partId))
+                return null;
+
+            EnsureAuthenticated();
+
+            try
+            {
+                var cad = await _aml.ApplyMethodAsync(
+                    "idea_GetPrimaryIronCadForPart",
+                    new Dictionary<string, string> { ["part_id"] = partId },
+                    ct).ConfigureAwait(false);
+
+                if (cad == null || !cad.HasValues)
+                    return null;
+
+                var authoringTool = cad["authoring_tool"]?.Value<string>();
+                var nativeFile = cad["native_file"]?.Value<string>();
+
+                if (!CadResolutionHelper.IsIronCadWithValidNativeFile(authoringTool, nativeFile))
+                    return null;
+
+                return cad["id"]?.Value<string>();
+            }
+            catch (ArasOperationException)
+            {
+                return null;
+            }
+        }
+
         public async Task<CadOperationContext> ExecuteCadBusinessActionAsync(
             ExecuteCadBusinessActionRequest request, CancellationToken ct)
         {
@@ -482,7 +515,8 @@ namespace IdeaCadConnector.Aras
             EnsureAuthenticated();
 
             // Refresh context for stale check
-            var freshContext = await GetCadOperationContextAsync(request.CadId, ct);
+            var contextProvider = OperationContextProvider ?? GetCadOperationContextAsync;
+            var freshContext = await contextProvider(request.CadId, ct);
 
             if (request.ExpectedModifiedOn != null
                 && freshContext.ModifiedOn != request.ExpectedModifiedOn)
@@ -499,7 +533,24 @@ namespace IdeaCadConnector.Aras
                     break;
 
                 case CadBusinessActionKind.SubmitForReview:
-                    await ExecuteSubmitForReviewHttpAsync(request, freshContext, ct);
+                    if (WorkflowActionExecutionPolicy.UsesWorkflowAssignment(
+                        request.Action,
+                        request.WorkflowAssignmentId,
+                        request.WorkflowPathId))
+                    {
+                        var workflowPath = FindWorkflowPath(freshContext, request.WorkflowPathId);
+                        await EvaluateActivityHttpAsync(
+                            freshContext?.ActiveTask?.ActivityId,
+                            request.WorkflowAssignmentId,
+                            request.WorkflowPathId,
+                            workflowPath?.Name,
+                            request.Comment,
+                            ct);
+                    }
+                    else
+                    {
+                        await ExecuteSubmitForReviewHttpAsync(request, freshContext, ct);
+                    }
                     break;
                 case CadBusinessActionKind.Approve:
                     await ExecuteApproveCadReviewHttpAsync(request, freshContext, ct);
@@ -507,6 +558,10 @@ namespace IdeaCadConnector.Aras
                 case CadBusinessActionKind.RequestRework:
                     await ExecuteRequestCadReworkHttpAsync(request, freshContext, ct);
                     break;
+                case CadBusinessActionKind.Withdraw:
+                    throw new ArasOperationException(
+                        ArasErrorCode.WorkflowActionNotAvailable,
+                        "Withdraw is not available: GATE-W evidence is pending. No server method has been verified for this action.");
                 default:
                     throw new ArasOperationException(
                         ArasErrorCode.WorkflowActionNotAvailable,
@@ -576,7 +631,7 @@ namespace IdeaCadConnector.Aras
 
         private async Task<JObject> FindActiveWorkflowProcessHttpAsync(string cadId, CancellationToken ct)
         {
-            var wfAml = "<Item type=\"Workflow Process\" action=\"get\" select=\"id,name,state,started_on,ended_on\">" +
+            var wfAml = "<Item type=\"Workflow\" action=\"get\" select=\"id,related_id\">" +
                         "  <source_id condition=\"eq\">" + EscapeAml(cadId) + "</source_id>" +
                         "</Item>";
 
@@ -592,9 +647,28 @@ namespace IdeaCadConnector.Aras
 
             foreach (var process in EnumerateItems(result))
             {
-                var state = process["state"]?.Value<string>();
+                var processId = process["related_id"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(processId))
+                    continue;
+
+                JObject processItem;
+                try
+                {
+                    processItem = await _aml.ApplyItemAsync(
+                        "Workflow Process",
+                        processId,
+                        "get",
+                        "id,name,state,started_on,ended_on",
+                        ct).ConfigureAwait(false);
+                }
+                catch (ArasOperationException)
+                {
+                    continue;
+                }
+
+                var state = processItem["state"]?.Value<string>();
                 if (string.Equals(state, "Active", StringComparison.OrdinalIgnoreCase))
-                    return process;
+                    return processItem;
             }
 
             return null;
@@ -607,18 +681,37 @@ namespace IdeaCadConnector.Aras
             if (string.IsNullOrWhiteSpace(wfId))
                 return null;
 
-            // Get activities for this workflow process
-            var actAml = "<Item type=\"Activity\" action=\"get\" select=\"id,name,state,started_on,ended_on,workflow_process_id\">" +
-                         "  <workflow_process_id condition=\"eq\">" + EscapeAml(wfId) + "</workflow_process_id>" +
+            // Activities belong to the process through the
+            // Workflow Process Activity relationship.
+            var actAml = "<Item type=\"Workflow Process Activity\" action=\"get\" select=\"id,related_id\">" +
+                         "  <source_id condition=\"eq\">" + EscapeAml(wfId) + "</source_id>" +
                          "</Item>";
 
             var actResult = await _aml.ApplyAmlAsync(actAml, "get", "Activity", wfId, ct);
             if (actResult == null)
                 return null;
 
-            foreach (var activity in EnumerateItems(actResult))
+            foreach (var activityRelation in EnumerateItems(actResult))
             {
-                var activityId = activity["id"]?.Value<string>();
+                var activityId = activityRelation["related_id"]?.Value<string>();
+                if (string.IsNullOrWhiteSpace(activityId))
+                    continue;
+
+                JObject activity;
+                try
+                {
+                    activity = await _aml.ApplyItemAsync(
+                        "Activity",
+                        activityId,
+                        "get",
+                        "id,name,state,started_on,ended_on",
+                        ct).ConfigureAwait(false);
+                }
+                catch (ArasOperationException)
+                {
+                    continue;
+                }
+
                 var activityName = activity["name"]?.Value<string>();
                 var activityState = activity["state"]?.Value<string>();
                 var endedOn = activity["ended_on"]?.Value<string>();
@@ -761,6 +854,13 @@ namespace IdeaCadConnector.Aras
                 continue;
 
             var actionKind = _actionMapper.Map(task.ActivityName, path.Name);
+            if (actionKind == null)
+            {
+                actionKind = WorkflowActionMapper.InferSingleOpenPathAction(
+                    cad?.State,
+                    task.AvailablePaths);
+            }
+
             if (actionKind == null)
             {
                 _logger.LogWarning("Unrecognized workflow path: activity={A} path={P}",
@@ -909,20 +1009,24 @@ namespace IdeaCadConnector.Aras
             }
         }
 
-        private async Task EvaluateActivityHttpAsync(string assignmentId, string pathId, string comment, CancellationToken ct)
+        private async Task EvaluateActivityHttpAsync(
+            string activityId,
+            string assignmentId,
+            string pathId,
+            string pathName,
+            string comment,
+            CancellationToken ct)
         {
-            var pathAml = "<Item type=\"Workflow Process Path\" action=\"get\" id=\"" + EscapeAml(pathId) + "\" select=\"id,name\" />";
-
-            var evalAml = "<Item type=\"Activity Assignment\" action=\"EvaluateActivity\" id=\"" + EscapeAml(assignmentId) + "\">" +
-                          "  <comments>" + EscapeAml(comment ?? "") + "</comments>" +
-                          "  <Relationships>" +
-                          "    <Item type=\"Workflow Process Path\" action=\"set\" id=\"" + EscapeAml(pathId) + "\" />" +
-                          "  </Relationships>" +
-                          "</Item>";
+            var evalAml = WorkflowEvaluationAmlBuilder.Build(
+                activityId,
+                assignmentId,
+                pathId,
+                pathName,
+                comment);
 
             try
             {
-                await _aml.ApplyAmlAsync(evalAml, "EvaluateActivity", "Activity Assignment", assignmentId, ct);
+                await _aml.ApplyAmlAsync(evalAml, "EvaluateActivity", "Activity", activityId, ct);
             }
             catch (ArasOperationException ex)
             {
@@ -930,6 +1034,15 @@ namespace IdeaCadConnector.Aras
                     ArasErrorCode.WorkflowActionNotAvailable,
                     "Workflow evaluation failed: " + ex.Message);
             }
+        }
+
+        private static CadWorkflowPath FindWorkflowPath(
+            CadOperationContext context,
+            string pathId)
+        {
+            return context?.ActiveTask?.AvailablePaths?
+                .FirstOrDefault(path => path != null
+                    && string.Equals(path.Id, pathId, StringComparison.OrdinalIgnoreCase));
         }
 
         private static IEnumerable<JObject> EnumerateItems(JObject result)
@@ -980,7 +1093,7 @@ namespace IdeaCadConnector.Aras
             return enriched;
         }
 
-        private async Task<CadSummary> ResolvePrimaryIronCadPartCadAsync(string partId, CancellationToken ct)
+        internal async Task<CadSummary> ResolvePrimaryIronCadPartCadAsync(string partId, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(partId))
                 return null;
@@ -1014,13 +1127,10 @@ namespace IdeaCadConnector.Aras
                 try
                 {
                     var cadToken = await _aml.ApplyItemAsync("CAD", cadId, "get", CadSelectFields.CadFull, ct).ConfigureAwait(false);
-                    var classification = cadToken["classification"]?.Value<string>();
                     var authoringTool = cadToken["authoring_tool"]?.Value<string>();
+                    var nativeFile = cadToken["native_file"]?.Value<string>();
 
-                    if (!string.Equals(classification, CadConstants.IronCadPartClassification, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    if (!string.Equals(authoringTool, CadConstants.IronCadAuthoringTool, StringComparison.OrdinalIgnoreCase))
+                    if (!CadResolutionHelper.IsIronCadWithValidNativeFile(authoringTool, nativeFile))
                         continue;
 
                     return MapCadFromToken(cadToken);
@@ -1067,6 +1177,7 @@ namespace IdeaCadConnector.Aras
 
         private void EnsureAuthenticated()
         {
+            if (OperationContextProvider != null) return;
             if (_http == null || string.IsNullOrWhiteSpace(_accessToken))
                 throw new ArasOperationException(ArasErrorCode.AuthInvalid, "Not authenticated. Call LoginAsync first.");
         }

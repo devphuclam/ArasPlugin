@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CheckinReasonRequired" xml:space="preserve">
+    <value>A written reason is required before check-in.</value>
+  </data>
+  <data name="CheckinFileIntegrityFailed" xml:space="preserve">
+    <value>Local file integrity check failed. Check-in blocked. The checkout lock remains active for retry.</value>
+  </data>
+  <data name="CheckinAuthorityFailed" xml:space="preserve">
+    <value>Check-in failed on the server. The checkout lock remains active. Please retry.</value>
+  </data>
+  <data name="CancelCheckoutModifiedConfirm" xml:space="preserve">
+    <value>Local file has been modified. A recovery copy will be created at: {0}</value>
+  </data>
+  <data name="CancelCheckoutRecoveryFailed" xml:space="preserve">
+    <value>Failed to create recovery copy: {0}. Cancellation aborted. Checkout lock remains active.</value>
+  </data>
+  <data name="ReviewApproveGateBlocked" xml:space="preserve">
+    <value>Approve is not available because the atomic release method (GATE-B-approve) has not passed verification.</value>
+  </data>
+  <data name="WithdrawGateBlocked" xml:space="preserve">
+    <value>Withdraw is not available because the server withdrawal method (GATE-W) has not passed verification.</value>
+  </data>
+  <data name="SubmitForReviewChangeDescriptionRequired" xml:space="preserve">
+    <value>A change description is required before submitting for review.</value>
+  </data>
+  <data name="SubmitForReviewReviewerRequired" xml:space="preserve">
+    <value>A reviewer must be selected before submitting for review.</value>
+  </data>
+  <data name="ReviewReworkReasonRequired" xml:space="preserve">
+    <value>A comment is required when requesting rework.</value>
+  </data>
+  <data name="ReviewApproveBlocked" xml:space="preserve">
+    <value>Release eligibility check failed: {0}</value>
+  </data>
+</root>

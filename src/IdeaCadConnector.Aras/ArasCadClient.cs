@@ -34,6 +34,8 @@ namespace IdeaCadConnector.Aras
         private PartSearchClient _partSearch;
         private bool _disposed;
 
+        internal Func<string, CancellationToken, Task<CadOperationContext>> OperationContextProvider { get; set; }
+
         public ArasCadClient(ArasClientOptions options, ILogger<ArasCadClient> logger = null)
             : this(options, logger, null)
         {
@@ -373,6 +375,39 @@ namespace IdeaCadConnector.Aras
             return targetPath;
         }
 
+        public async Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(partId))
+                return null;
+
+            EnsureAuthenticated();
+
+            try
+            {
+                var result = await RunIomAsync(() =>
+                {
+                    var methodItem = _authenticator.Innovator.newItem("Method", "idea_GetPrimaryIronCadForPart");
+                    methodItem.setProperty("part_id", partId);
+                    return methodItem.apply();
+                }, ct);
+
+                if (result == null || result.isError())
+                    return null;
+
+                var authoringTool = result.getProperty("authoring_tool", "");
+                var nativeFile = result.getProperty("native_file", "");
+
+                if (!CadResolutionHelper.IsIronCadWithValidNativeFile(authoringTool, nativeFile))
+                    return null;
+
+                return result.getID();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         // ---- IArasCadClient - workflow context ----------------------------------
 
         public async Task<CadOperationContext> GetCadOperationContextAsync(
@@ -447,7 +482,8 @@ namespace IdeaCadConnector.Aras
                 request.CadId, request.Action);
 
             // Refresh context before execution to detect stale state
-            var freshContext = await GetCadOperationContextAsync(request.CadId, ct);
+            var contextProvider = OperationContextProvider ?? GetCadOperationContextAsync;
+            var freshContext = await contextProvider(request.CadId, ct);
 
             if (request.ExpectedModifiedOn != null
                 && freshContext.ModifiedOn != request.ExpectedModifiedOn)
@@ -464,7 +500,24 @@ namespace IdeaCadConnector.Aras
                     break;
 
                 case CadBusinessActionKind.SubmitForReview:
-                    await ExecuteSubmitForReviewAsync(request, freshContext, ct);
+                    if (WorkflowActionExecutionPolicy.UsesWorkflowAssignment(
+                        request.Action,
+                        request.WorkflowAssignmentId,
+                        request.WorkflowPathId))
+                    {
+                        var workflowPath = FindWorkflowPath(freshContext, request.WorkflowPathId);
+                        await EvaluateActivityAsync(
+                            freshContext?.ActiveTask?.ActivityId,
+                            request.WorkflowAssignmentId,
+                            request.WorkflowPathId,
+                            workflowPath?.Name,
+                            request.Comment,
+                            ct);
+                    }
+                    else
+                    {
+                        await ExecuteSubmitForReviewAsync(request, freshContext, ct);
+                    }
                     break;
 
                 case CadBusinessActionKind.Approve:
@@ -473,6 +526,11 @@ namespace IdeaCadConnector.Aras
                 case CadBusinessActionKind.RequestRework:
                     await ExecuteRequestCadReworkAsync(request, freshContext, ct);
                     break;
+
+                case CadBusinessActionKind.Withdraw:
+                    throw new ArasOperationException(
+                        ArasErrorCode.WorkflowActionNotAvailable,
+                        "Withdraw is not available: GATE-W evidence is pending. No server method has been verified for this action.");
 
                 default:
                     throw new ArasOperationException(
@@ -545,18 +603,32 @@ namespace IdeaCadConnector.Aras
         {
             return await RunIomAsync(() =>
             {
-                var wfItem = _authenticator.Innovator.newItem("Workflow Process", "get");
-                wfItem.setProperty("source_id", cadId);
-                wfItem.setAttribute("select", "id,name,state,started_on,ended_on");
-                var result = wfItem.apply();
+                var workflowItem = _authenticator.Innovator.newItem("Workflow", "get");
+                workflowItem.setProperty("source_id", cadId);
+                workflowItem.setAttribute("select", "id,related_id");
+                var result = workflowItem.apply();
 
                 if (result == null || result.isError() || result.getItemCount() == 0)
                     return null;
 
-                // Find the first active (not cancelled, not completed) process
+                // Workflow is the owning relationship from the CAD to the
+                // runtime Workflow Process. Do not query Workflow Process by
+                // source_id; that is not the canonical association.
                 for (var i = 0; i < result.getItemCount(); i++)
                 {
-                    var proc = result.getItemByIndex(i);
+                    var workflow = result.getItemByIndex(i);
+                    var processId = workflow.getProperty("related_id", "");
+                    if (string.IsNullOrWhiteSpace(processId))
+                        continue;
+
+                    var proc = _authenticator.Innovator.newItem("Workflow Process", "get");
+                    proc.setID(processId);
+                    proc.setAttribute("select", "id,name,state,started_on,ended_on");
+                    proc = proc.apply();
+                    if (proc == null || proc.isError() || proc.getItemCount() != 1)
+                        continue;
+
+                    proc = proc.getItemByIndex(0);
                     var state = proc.getProperty("state", "");
                     if (string.Equals(state, "Active", StringComparison.OrdinalIgnoreCase))
                         return proc;
@@ -572,18 +644,31 @@ namespace IdeaCadConnector.Aras
             {
                 var wfId = workflowProcess.getProperty("id", "");
 
-                // Get activities for this workflow process
-                var activityItem = _authenticator.Innovator.newItem("Activity", "get");
-                activityItem.setProperty("workflow_process_id", wfId);
-                activityItem.setAttribute("select", "id,name,state,started_on,ended_on");
-                var activitiesResult = activityItem.apply();
+                // Activities belong to the process through the
+                // Workflow Process Activity relationship.
+                var processActivity = _authenticator.Innovator.newItem("Workflow Process Activity", "get");
+                processActivity.setProperty("source_id", wfId);
+                processActivity.setAttribute("select", "id,related_id");
+                var activitiesResult = processActivity.apply();
 
                 if (activitiesResult == null || activitiesResult.isError())
                     return null;
 
                 for (var i = 0; i < activitiesResult.getItemCount(); i++)
                 {
-                    var activity = activitiesResult.getItemByIndex(i);
+                    var activityRelation = activitiesResult.getItemByIndex(i);
+                    var activityId = activityRelation.getProperty("related_id", "");
+                    if (string.IsNullOrWhiteSpace(activityId))
+                        continue;
+
+                    var activityItem = _authenticator.Innovator.newItem("Activity", "get");
+                    activityItem.setID(activityId);
+                    activityItem.setAttribute("select", "id,name,state,started_on,ended_on");
+                    var activityResult = activityItem.apply();
+                    if (activityResult == null || activityResult.isError() || activityResult.getItemCount() != 1)
+                        continue;
+
+                    var activity = activityResult.getItemByIndex(0);
                     var activityState = activity.getProperty("state", "");
                     var activityEndedOn = activity.getProperty("ended_on", "");
 
@@ -595,7 +680,6 @@ namespace IdeaCadConnector.Aras
                         && !string.Equals(activityState, "Pending", StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    var activityId = activity.getProperty("id", "");
                     var activityName = activity.getProperty("name", "");
 
                     // Get assignments for this activity
@@ -796,6 +880,13 @@ namespace IdeaCadConnector.Aras
 
             if (actionKind == null)
             {
+                actionKind = WorkflowActionMapper.InferSingleOpenPathAction(
+                    cad?.State,
+                    task.AvailablePaths);
+            }
+
+            if (actionKind == null)
+            {
                 _logger.LogWarning(
                     "Unrecognized workflow path: activity={Activity} path={Path}",
                     task.ActivityName, path.Name);
@@ -917,22 +1008,22 @@ namespace IdeaCadConnector.Aras
         }
 
         private async Task EvaluateActivityAsync(
+            string activityId,
             string assignmentId,
             string pathId,
+            string pathName,
             string comment,
             CancellationToken ct)
         {
             await RunIomAsync(() =>
             {
-                var evalItem = _authenticator.Innovator.newItem("Activity Assignment", "EvaluateActivity");
-                evalItem.setID(assignmentId);
-
-                if (!string.IsNullOrWhiteSpace(comment))
-                    evalItem.setProperty("comments", comment);
-
-                // Set the selected path
-                var pathItem = evalItem.createRelationship("Workflow Process Path", "set");
-                pathItem.setID(pathId);
+                var evalItem = _authenticator.Innovator.newItem();
+                evalItem.loadAML(WorkflowEvaluationAmlBuilder.Build(
+                    activityId,
+                    assignmentId,
+                    pathId,
+                    pathName,
+                    comment));
 
                 var result = evalItem.apply();
 
@@ -948,6 +1039,15 @@ namespace IdeaCadConnector.Aras
             }, ct);
         }
 
+        private static CadWorkflowPath FindWorkflowPath(
+            CadOperationContext context,
+            string pathId)
+        {
+            return context?.ActiveTask?.AvailablePaths?
+                .FirstOrDefault(path => path != null
+                    && string.Equals(path.Id, pathId, StringComparison.OrdinalIgnoreCase));
+        }
+
         private static string GetCheckoutUnavailableReason(CadSummary cad)
         {
             if (cad == null || string.IsNullOrWhiteSpace(cad.Id))
@@ -961,6 +1061,7 @@ namespace IdeaCadConnector.Aras
 
         private void EnsureAuthenticated()
         {
+            if (OperationContextProvider != null) return;
             if (_authenticator?.Innovator == null)
                 throw new ArasOperationException(
                     ArasErrorCode.AuthInvalid,

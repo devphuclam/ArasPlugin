@@ -558,6 +558,7 @@ namespace IdeaCadConnector.Tests
 
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct)
                 => Task.FromResult(MakeEmptyContext());
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
 
             private static CadOperationContext MakeEmptyContext()
                 => new CadOperationContext(null, null, null, 0, null, null, false, false, null, null, null, null);
@@ -693,6 +694,7 @@ namespace IdeaCadConnector.Tests
 
             public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct)
                 => Task.FromResult(MakeEmptyContext());
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
 
             private static CadOperationContext MakeEmptyContext()
                 => new CadOperationContext(null, null, null, 0, null, null, false, false, null, null, null, null);
@@ -738,11 +740,14 @@ namespace IdeaCadConnector.Tests
             public Task<CadOperationContext> GetCadOperationContextAsync(string cadId, CancellationToken ct)
                 => Task.FromResult(MakeEmptyContext());
 
-            public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct)
+                        public Task<CadOperationContext> ExecuteCadBusinessActionAsync(ExecuteCadBusinessActionRequest request, CancellationToken ct)
                 => Task.FromResult(MakeEmptyContext());
+            public Task<string> GetPrimaryCadIdForPartAsync(string partId, CancellationToken ct) => Task.FromResult<string>(null);
 
             private static CadOperationContext MakeEmptyContext()
                 => new CadOperationContext(null, null, null, 0, null, null, false, false, null, null, null, null);
         }
     }
+
+
 }

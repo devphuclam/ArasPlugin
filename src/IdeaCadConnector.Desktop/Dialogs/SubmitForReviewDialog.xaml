@@ -1,0 +1,86 @@
+<Window x:Class="IdeaCadConnector.Desktop.SubmitForReviewDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Submit for Review"
+        Width="500"
+        Height="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        WindowStyle="None"
+        Background="#EEF3FA"
+        FontFamily="Segoe UI"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown">
+    <Window.Resources>
+        <SolidColorBrush x:Key="DialogTextBrush" Color="#172B55"/>
+        <SolidColorBrush x:Key="DialogMutedBrush" Color="#61708E"/>
+        <SolidColorBrush x:Key="DialogLineBrush" Color="#D9E3F0"/>
+        <SolidColorBrush x:Key="DialogPrimaryBrush" Color="#1E5AF7"/>
+        <SolidColorBrush x:Key="DialogErrorBrush" Color="#D92D20"/>
+        <Style x:Key="DialogLabelStyle" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="#28416C"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style x:Key="DialogButtonStyle" TargetType="{x:Type Button}">
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="Padding" Value="18,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Root" Background="White" BorderBrush="#C9D6EA" BorderThickness="1" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#F4F7FC"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DialogPrimaryButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource DialogButtonStyle}">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{StaticResource DialogPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DialogPrimaryBrush}"/>
+        </Style>
+    </Window.Resources>
+    <Border Margin="18" Background="White" BorderBrush="#DDE6F2" BorderThickness="1" CornerRadius="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Border BorderBrush="{StaticResource DialogLineBrush}" BorderThickness="0,0,0,1" Padding="26,22,26,18">
+                <StackPanel>
+                    <TextBlock Text="Submit for Review" FontSize="22" FontWeight="Bold" Foreground="{StaticResource DialogTextBrush}"/>
+                    <TextBlock Text="Submit the checked-in CAD revision for review." Margin="0,4,0,0" Foreground="{StaticResource DialogMutedBrush}" FontSize="13"/>
+                </StackPanel>
+            </Border>
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="26,22">
+                    <TextBlock Text="CAD Revision" Style="{StaticResource DialogLabelStyle}"/>
+                    <TextBlock x:Name="CadInfo" Margin="0,4,0,12" Foreground="{StaticResource DialogTextBrush}" FontSize="13"/>
+                    <TextBlock Text="Part Revision" Style="{StaticResource DialogLabelStyle}"/>
+                    <TextBlock x:Name="PartInfo" Margin="0,4,0,12" Foreground="{StaticResource DialogTextBrush}" FontSize="13"/>
+                    <TextBlock Text="Reviewer" Style="{StaticResource DialogLabelStyle}"/>
+                    <ComboBox x:Name="ReviewerCombo" Margin="0,4,0,12" Height="36" IsEnabled="False" Foreground="{StaticResource DialogMutedBrush}" FontSize="13"/>
+                    <TextBlock x:Name="ReviewerGateNote" Margin="0,-8,0,12" Foreground="{StaticResource DialogErrorBrush}" FontSize="11"/>
+                    <TextBlock Text="Change Description *" Style="{StaticResource DialogLabelStyle}"/>
+                    <TextBox x:Name="ChangeDescriptionBox" Margin="0,8,0,0" Height="100" Padding="12,8" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" Foreground="{StaticResource DialogTextBrush}" Background="White" BorderBrush="#C9D6EA" BorderThickness="1" FontSize="13"/>
+                </StackPanel>
+            </ScrollViewer>
+            <Border Grid.Row="2" Background="#FAFCFF" BorderBrush="{StaticResource DialogLineBrush}" BorderThickness="0,1,0,0" Padding="26,16">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Width="104" Content="Cancel" IsCancel="True" Style="{StaticResource DialogButtonStyle}"/>
+                    <Button x:Name="SubmitButton" Width="140" Margin="10,0,0,0" Content="Submit" IsDefault="True" Click="SubmitButton_Click" Style="{StaticResource DialogPrimaryButtonStyle}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

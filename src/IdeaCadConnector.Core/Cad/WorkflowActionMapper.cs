@@ -48,13 +48,37 @@ namespace IdeaCadConnector.Core.Cad
             return null;
         }
 
+        /// <summary>
+        /// Resolves the single workflow path exposed by Aras for a CAD that is
+        /// still in detailed design. Some Aras workflow activities expose a
+        /// valid submit path without a stable activity/path name that can be
+        /// mapped by the client. The state and cardinality checks keep this
+        /// fallback narrow and prevent it from being used for review actions.
+        /// </summary>
+        public static CadBusinessActionKind? InferSingleOpenPathAction(
+            string cadState,
+            IReadOnlyList<CadWorkflowPath> paths)
+        {
+            if (!CadLifecyclePolicy.CanSubmitForReview(cadState) || paths == null)
+                return null;
+
+            var openPathCount = 0;
+            foreach (var path in paths)
+            {
+                if (path != null && !path.IsComplete && !string.IsNullOrWhiteSpace(path.Id))
+                    openPathCount++;
+            }
+
+            return openPathCount == 1
+                ? CadBusinessActionKind.SubmitForReview
+                : (CadBusinessActionKind?)null;
+        }
+
         public static WorkflowActionMapper CreateDefault()
         {
             var mapper = new WorkflowActionMapper();
-            mapper.AddRule("ExampleContributor_Submit", "", CadBusinessActionKind.SubmitForReview);
             mapper.AddRule("Auto To In Review", "", CadBusinessActionKind.SubmitForReview);
-            mapper.AddRule("ExampleReviewer_Review", "Approve", CadBusinessActionKind.Approve);
-            mapper.AddRule("ExampleReviewer_Review", "Reject", CadBusinessActionKind.RequestRework);
+            mapper.AddRule("Withdraw", "", CadBusinessActionKind.Withdraw);
             return mapper;
         }
 
